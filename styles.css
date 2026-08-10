@@ -168,15 +168,37 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 #log p.level { color: var(--y); }
 
 /* ── controls ── */
+/* Grid rather than flex, and both tracks allowed to shrink. As a
+   flex row the action column could refuse to give ground (flex
+   items default to min-width:auto) and the d-pad ended up drawn
+   over it on narrow or zoomed screens. A grid with an explicit
+   first track and min-width:0 on the second cannot overlap. */
 #controls {
-  flex: 0 0 auto; display: flex; gap: 12px;
+  flex: 0 0 auto;
+  display: grid; grid-template-columns: min(150px, 40vw) minmax(0, 1fr);
+  gap: 12px; align-items: start;
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
   background: var(--d); border-top: 2px solid var(--g);
+  overflow: hidden;
 }
-#dpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 150px; flex: 0 0 auto; }
-#dpad button { aspect-ratio: 1; color: var(--G); display: grid; place-items: center;
-               padding: 0;   /* default button padding is not symmetric, which
-                                skewed the rotated arrow into an oval */
+/* The pad is a square of its own, with explicit rows. Before, it
+   was a flex item that stretched to whatever height the action
+   column happened to be — so showing "문 닫기" made the buttons
+   taller than wide and the arrows, sized in percent, grew with
+   them. Its size must not depend on its neighbour at all. */
+#dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  aspect-ratio: 1;
+  gap: 4px;
+  width: 100%; min-width: 0;
+  align-self: start;
+}
+/* No aspect-ratio here: the grid above already hands every cell a
+   square, and a second constraint would just fight it. */
+#dpad button { color: var(--G); display: grid; place-items: center;
+               padding: 0; min-width: 0; min-height: 0;
                touch-action: none; user-select: none; -webkit-user-select: none; }
 
 /* Eight shapes, no transforms. Rotating one triangle made the
@@ -184,14 +206,16 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
    by √2 even though the element box is unchanged — so each
    direction is drawn at its own angle instead, with the
    diagonals shortened to carry equal visual weight. */
-#dpad svg { width: 24px; height: 24px; max-width: 60%; max-height: 60%;
+/* One reach, one width, eight angles — identical ink for all. */
+#dpad svg { width: 62%; height: 62%; aspect-ratio: 1;
             fill: currentColor; display: block; }
-#dpad button.wait svg { width: 14px; height: 14px; }
+#dpad button.wait svg { width: 30%; height: 30%; }
 #dpad button:active { background: var(--g); color: var(--W); }
 #dpad button.wait { color: var(--g); }
 
-#acts { flex: 1 1 auto; display: flex; flex-direction: column; gap: 5px; }
-#acts button { padding: 9px 8px; font-size: 11px; text-align: left; }
+#acts { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+#acts button { padding: 9px 8px; font-size: 11px; text-align: left;
+               min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #acts .pair { display: flex; gap: 5px; }
 #acts .pair button { flex: 1 1 0; text-align: center; padding: 9px 4px; font-size: 10.5px; }
 #acts .ghost { color: var(--g); border-color: var(--d); }
@@ -226,7 +250,7 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 .keys td { padding: 6px 4px; vertical-align: top; border-bottom: 1px solid var(--d); }
 .keys td:first-child { width: 40%; color: var(--G); }
 
-@media (max-width: 340px) { #dpad { width: 126px; } }
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
 /* ── affixes ── */

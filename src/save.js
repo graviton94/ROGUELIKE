@@ -12,7 +12,7 @@
    ═══════════════════════════════════════════════════════════ */
 
 import { G, say, refreshFov } from './game.js';
-import { Level, MW, MH, idx } from './world.js';
+import { Level, THEMES, MW, MH, idx } from './world.js';
 
 const PREFIX = 'deepdelve.slot.';
 export const SLOTS = 3;
@@ -52,6 +52,7 @@ function packLevel(L) {
     camp: L.camp || null,
     merchant: L.merchant || null,
     altar: L.altar || null,
+    theme: L.theme?.id || 'plain',
     campSpent: !!L.campSpent,
     downRoom: L.downRoom ? L.rooms.indexOf(L.downRoom) : -1,
     shopAt: [...L.shopAt],
@@ -81,6 +82,7 @@ function unpackLevel(d) {
   L.camp   = d.camp || null;
   L.merchant = d.merchant || null;
   L.altar = d.altar || null;
+  L.theme = THEMES[d.theme] || THEMES.plain;
   L.campSpent = !!d.campSpent;
   L.downRoom = d.downRoom >= 0 ? L.rooms[d.downRoom] : undefined;
   L.shopAt = new Map(d.shopAt || []);
@@ -101,6 +103,7 @@ export function snapshot() {
     combo: G.combo, comboT: G.comboT, bestCombo: G.bestCombo,
     opened: G.opened, mimicsBitten: G.mimicsBitten, trapsSprung: G.trapsSprung,
     detectPulse: G.detectPulse || 0,
+    looks: G.looks || {}, known: G.known || {},
     player: G.player,
     monsters: G.monsters,
     items: G.items,
@@ -120,6 +123,8 @@ export function apply(data) {
   G.mimicsBitten = data.mimicsBitten || 0;
   G.trapsSprung  = data.trapsSprung || 0;
   G.detectPulse  = data.detectPulse || 0;
+  G.looks = data.looks || {};
+  G.known = data.known || {};
   G.player  = data.player;
   G.monsters = data.monsters || [];
   G.items    = data.items || [];
@@ -138,6 +143,8 @@ export function apply(data) {
   p.stuck = p.stuck || 0;
   p.keys = p.keys || 0;
   p.mats = p.mats || { scrap: 0, dust: 0, essence: 0 };
+  p.might = p.might || 0;
+  p.iron = p.iron || 0;
 
   refreshFov();
   return true;

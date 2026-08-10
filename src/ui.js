@@ -691,10 +691,16 @@ function renderInventory() {
     mid.appendChild(el('span', 'idesc',
       it.kind === 'weapon' ? `${grade ? `[${RARITY[grade].n}] ` : ''}피해 ${it.dice[0]}d${it.dice[1]}${it.hands === 2 ? ' · 양손' : ''}${affixBlurb(it)}`
       : it.kind === 'armour' ? `${grade ? `[${RARITY[grade].n}] ` : ''}방어 +${it.ac}${affixBlurb(it)}`
-      : it.desc || '사용 가능'));
+      : Game.isKnown(it.id) ? (it.desc || '사용 가능') : '마셔 보기 전에는 알 수 없다'));
     row.appendChild(mid);
     row.appendChild(el('span', 'iact', it.kind === 'use' ? '사용' : '장착'));
     row.onclick = () => {
+      if (it.kind === 'use' && !Game.isKnown(it.id)) {
+        ask(`${Game.lookOf(it.id)}을(를) 써 볼까요?`,
+            '무엇인지 알 수 없습니다. 좋을 수도, 아닐 수도.',
+            () => { Game.useItem(i); renderInventory(); refresh(); });
+        return;
+      }
       it.kind === 'use' ? Game.useItem(i) : Game.equip(i);
       renderInventory(); refresh();
     };
@@ -808,8 +814,13 @@ function cursedItem(it) { return isCursed(it); }
 
 /* Every place an item name appears goes through this, so rarity
    reads the same in the pack, the shop and at the fire. */
+function shownName(it) {
+  return Game.isKnown(it.id) ? affixName(it) : Game.lookOf(it.id);
+}
+
 function nameEl(it, extra) {
-  const n = el('span', 'iname', affixName(it) + (extra || ''));
+  const n = el('span', 'iname', shownName(it) + (extra || ''));
+  if (!Game.isKnown(it.id)) { n.style.color = 'var(--P)'; return n; }
   const r = rarityOf(it);
   n.style.color = `var(--${isCursed(it) ? CURSED_TONE : RARITY[r].tone})`;
   if (r >= 2 && !isCursed(it)) n.classList.add('shine');

@@ -20,7 +20,7 @@
 ║   깊 은   곳      ║
 ║   D E E P D E L V E ║
 ╚═══════════════════╝</pre>
-    <p class="tag">25층 아래, 잿불의 대군주가 기다린다.</p>
+    <p class="tag">15층 아래, 잿불의 대군주가 기다린다.</p>
     <p class="blurb">
       여덟 종족과 여섯 직업. 여섯 상점이 있는 마을.<br>
       등불이 닿는 곳까지가 당신이 아는 전부다.<br>
@@ -28,7 +28,7 @@
     </p>
     <button class="big" id="btn-new">새 게임</button>
     <button class="big" id="btn-load" hidden>이어하기</button>
-    <p class="fine">도트는 전부 코드로 그려집니다. 이미지 파일 없음.<br><span id="build">v9</span></p>
+    <p class="fine">도트는 전부 코드로 그려집니다. 이미지 파일 없음.<br><span id="build">v10</span></p>
   </div>
 </section>
 
@@ -97,15 +97,15 @@
 
   <div id="controls">
     <div id="dpad">
-      <button data-dir="-1,-1" aria-label="북서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.1 6.1 L21.5 14.4 L14.1 14.1 L14.4 21.5 Z"/></svg></button>
-      <button data-dir="0,-1" aria-label="북"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 L17.6 21.5 L12 15.3 L6.4 21.5 Z"/></svg></button>
-      <button data-dir="1,-1" aria-label="북동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.9 6.1 L9.6 21.5 L9.9 14.1 L2.5 14.4 Z"/></svg></button>
-      <button data-dir="-1,0" aria-label="서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12 L21.5 6.4 L15.3 12 L21.5 17.6 Z"/></svg></button>
-      <button data-dir="0,0" class="wait" aria-label="대기"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.6"/></svg></button>
-      <button data-dir="1,0" aria-label="동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 12 L2.5 17.6 L8.7 12 L2.5 6.4 Z"/></svg></button>
-      <button data-dir="-1,1" aria-label="남서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.1 17.9 L14.4 2.5 L14.1 9.9 L21.5 9.6 Z"/></svg></button>
-      <button data-dir="0,1" aria-label="남"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.5 L6.4 2.5 L12 8.7 L17.6 2.5 Z"/></svg></button>
-      <button data-dir="1,1" aria-label="남동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.9 17.9 L2.5 9.6 L9.9 9.9 L9.6 2.5 Z"/></svg></button>
+      <button data-dir="-1,-1" aria-label="북서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.9 5.9 L21.9 14.3 L14.1 14.1 L14.3 21.9 Z"/></svg></button>
+      <button data-dir="0,-1" aria-label="북"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4 L17.4 20.6 L12 14.9 L6.6 20.6 Z"/></svg></button>
+      <button data-dir="1,-1" aria-label="북동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.1 5.9 L9.7 21.9 L9.9 14.1 L2.1 14.3 Z"/></svg></button>
+      <button data-dir="-1,0" aria-label="서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 12 L20.6 6.6 L14.9 12 L20.6 17.4 Z"/></svg></button>
+      <button data-dir="0,0" class="wait" aria-label="대기"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.4"/></svg></button>
+      <button data-dir="1,0" aria-label="동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 12 L3.4 17.4 L9.1 12 L3.4 6.6 Z"/></svg></button>
+      <button data-dir="-1,1" aria-label="남서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.9 18.1 L14.3 2.1 L14.1 9.9 L21.9 9.7 Z"/></svg></button>
+      <button data-dir="0,1" aria-label="남"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.6 L6.6 3.4 L12 9.1 L17.4 3.4 Z"/></svg></button>
+      <button data-dir="1,1" aria-label="남동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.1 18.1 L2.1 9.7 L9.9 9.9 L9.7 2.1 Z"/></svg></button>
     </div>
     <div id="acts">
       <button id="btn-inv">배낭 · 장비</button>
@@ -243,6 +243,19 @@
       <tr><td>함정 상자</td><td>뚜껑에 무언가 걸려 있을 수 있습니다.</td></tr>
       <tr><td>미믹</td><td>상자처럼 생긴 것이 전부 상자는 아닙니다. 깊이 내려갈수록 흔해집니다.
         건드리면 먼저 뭅니다. 다만 <b>미믹은 숨을 쉽니다</b> — 가만히 보면 아주 조금 위아래로 움직입니다. 생명 탐지 주문은 한 번에 벗겨냅니다.</td></tr>
+    </table>
+
+    <h3 class="sect">미확인 물약 · 두루마리</h3>
+    <table class="keys">
+      <tr><td>외형</td><td>물약과 두루마리는 <b>판마다 외형이 뒤섞입니다.</b> "맑은 물약"이 이번 판엔 치유약이고 다음 판엔 독일 수 있습니다.</td></tr>
+      <tr><td>판별</td><td><b>써 보는 것이 유일한 방법</b>입니다. 한 번 쓰면 그 판 내내 이름이 보입니다. 시작 배낭에 든 것은 처음부터 압니다.</td></tr>
+      <tr><td>바닥에만</td><td>격노·무쇠·독·혼탁의 물약, 제련·저주의 두루마리는 <b>상점에 없습니다.</b> 주워서 마셔 봐야 압니다.</td></tr>
+    </table>
+
+    <h3 class="sect">층 성격</h3>
+    <table class="keys">
+      <tr><td>여섯 가지</td><td>보통 · <b>좁은 굴</b>(작은 방 20개) · <b>큰 방</b>(넓은 방 6개) · <b>빛이 없는 층</b>(밝은 방 0) · <b>물에 잠긴 층</b>(물 5배) · <b>소굴</b>(거미줄과 몬스터 다수)</td></tr>
+      <tr><td>알림</td><td>층에 들어서면 무슨 층인지 알려 줍니다. 물은 은신을 죽이고 어둠은 시야를 죽이니, 층에 맞춰 다르게 움직이세요.</td></tr>
     </table>
 
     <h3 class="sect">제단 — 확률이 보이는 도박</h3>

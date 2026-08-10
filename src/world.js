@@ -14,6 +14,17 @@ export const ROCK = 0, FLOOR = 1, DOWN = 2, UP = 3, DOOR = 4, RUBBLE = 5, SHOP =
              DOOR_OPEN = 7, DOOR_LOCKED = 8, DOOR_BROKEN = 9,
              WEB = 10, WATER = 11, CAMP = 12, ALTAR = 13;
 
+/* rooms: how many · size: room dimensions · light/water/web:
+   multipliers on the usual amount · mob: monster density. */
+export const THEMES = {
+  plain:  { id:'plain',  n:null,            weight:26, rooms:[10,14], size:[4,9],  light:1.0,  water:1.0, web:1.0, mob:1.0 },
+  warren: { id:'warren', n:'좁은 굴',       weight:14, rooms:[16,22], size:[3,4],  light:0.8,  water:0.6, web:1.4, mob:1.15, from:3 },
+  hall:   { id:'hall',   n:'큰 방',         weight:12, rooms:[5,7],   size:[9,12], light:1.2,  water:1.0, web:0.6, mob:1.1,  from:3 },
+  dark:   { id:'dark',   n:'빛이 없는 층',  weight:10, rooms:[9,13],  size:[4,9],  light:0.0,  water:0.8, web:1.0, mob:0.9,  from:4 },
+  flooded:{ id:'flooded',n:'물에 잠긴 층',  weight:9,  rooms:[8,12],  size:[5,10], light:0.9,  water:3.2, web:0.5, mob:1.0,  from:4 },
+  nest:   { id:'nest',   n:'소굴',          weight:9,  rooms:[8,12],  size:[4,9],  light:0.7,  water:0.8, web:2.2, mob:1.6,  from:5 },
+};
+
 export const isDoor = t => t === DOOR || t === DOOR_OPEN || t === DOOR_LOCKED || t === DOOR_BROKEN;
 export const isShut = t => t === DOOR || t === DOOR_LOCKED;
 
@@ -105,15 +116,31 @@ export class Level {
       for (let x = x0; x < x0 + w; x++) this.roomOf[idx(x, y)] = 0;
   }
 
+  /* ── floor themes ─────────────────────────────────────────
+     Fifteen floors that generate identically are fifteen of the
+     same floor. Each one now draws a character that changes its
+     shape, its light and what lives in it, and says so on arrival
+     so the player knows what they walked into. */
+  pickTheme() {
+    if (this.depth <= 1) return THEMES.plain;
+    const pool = Object.values(THEMES).filter(t => this.depth >= (t.from || 0));
+    const total = pool.reduce((s, t) => s + t.weight, 0);
+    let r = rnd(total);
+    for (const t of pool) { if (r < t.weight) return t; r -= t.weight; }
+    return THEMES.plain;
+  }
+
   /* ── dungeon: non-overlapping rooms joined by L corridors ── */
   buildDungeon() {
-    const target = 10 + rnd(5);
+    const th = this.pickTheme();
+    this.theme = th;
+    const target = th.rooms[0] + rnd(th.rooms[1] - th.rooms[0] + 1);
     for (let t = 0; t < 500 && this.rooms.length < target; t++) {
-      const w = 4 + rnd(9), h = 3 + rnd(6);
+      const w = th.size[0] + rnd(th.size[1]), h = Math.max(3, th.size[0] - 1 + rnd(th.size[1] - 2));
       const x = 1 + rnd(MW - w - 2), y = 1 + rnd(MH - h - 2);
       if (this.rooms.some(r => x <= r.x + r.w + 1 && x + w + 1 >= r.x &&
                                y <= r.y + r.h + 1 && y + h + 1 >= r.y)) continue;
-      const lit = Math.random() < Math.max(0.12, 0.92 - this.depth * 0.032);
+      const lit = Math.random() < Math.max(0.05, (0.92 - this.depth * 0.05) * this.theme.light);
       const id = this.rooms.length;
       this.rooms.push({ x, y, w, h, lit });
       for (let j = y; j < y + h; j++)
@@ -193,6 +220,10 @@ export class Level {
       const i = idx(x, y);
       if (this.tiles[i] !== FLOOR || this.traps.has(i)) continue;
       if (i === idx(start.x, start.y) || i === idx(down.x, down.y)) continue;
+      let open = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++)
+        if ((dx || dy) && !this.solid(x + dx, y + dy)) open++;
+      if (open < 6) continue;                 // never in a chokepoint
       this.shopAt.set(i, 7);
       this.keeperAt.set(i, 7);
       this.merchant = { x, y };
@@ -288,7 +319,7 @@ export class Level {
     };
 
     // Webs cluster: one spider nest beats twenty lone strands.
-    const nests = 1 + rnd(1 + Math.floor(d / 6));
+    const nests = Math.round((1 + rnd(1 + Math.floor(d / 6))) * this.theme.web);
     for (let n = 0; n < nests; n++) {
       const r = this.rooms[1 + rnd(Math.max(1, this.rooms.length - 1))];
       if (!r) break;
@@ -301,8 +332,8 @@ export class Level {
     }
 
     // Shallow water: safe to cross, loud to cross.
-    if (d >= 3 && Math.random() < 0.55) {
-      const pools = 1 + rnd(3);
+    if (d >= 3 && Math.random() < 0.55 * this.theme.water) {
+      const pools = Math.round((1 + rnd(3)) * this.theme.water);
       for (let n = 0; n < pools; n++) {
         const r = this.rooms[1 + rnd(Math.max(1, this.rooms.length - 1))];
         if (!r) break;

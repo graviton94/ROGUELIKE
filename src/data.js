@@ -8,7 +8,7 @@
    tuned for a 25-level descent rather than Moria's 50.
    ═══════════════════════════════════════════════════════════ */
 
-export const MAX_DEPTH = 25;
+export const MAX_DEPTH = 15;
 export const STATS = ['str', 'int', 'wis', 'dex', 'con', 'chr'];
 export const STAT_NAME = { str:'힘', int:'지능', wis:'지혜', dex:'민첩', con:'체질', chr:'매력' };
 
@@ -91,23 +91,23 @@ export const MONSTERS = [
   { spr:'mold',    n:'회색 곰팡이',      d:1,  rar:5,  hp:14,  atk:5,  ac:1,  xp:5,   ai:'still',   on:'poison' },
   { spr:'snake',   n:'흰 큰뱀',          d:2,  rar:8,  hp:10,  atk:4,  ac:3,  xp:5,   ai:'hunt',    on:'poison' },
   { spr:'kobold',  n:'코볼드',           d:2,  rar:10, hp:12,  atk:6,  ac:4,  xp:8,   ai:'hunt',    grp:[2,4], door:'open' },
-  { spr:'kobold',  n:'코볼드 투석꾼',    d:3,  rar:7,  hp:9,   atk:5,  ac:3,  xp:11,  ai:'ranged',  rng:5, spd:0.65, grp:[1,2], door:'open' },
-  { spr:'dog',     n:'들개',             d:3,  rar:9,  hp:11,  atk:6,  ac:3,  xp:9,   ai:'coward',  spd:1.3, grp:[2,3] },
-  { spr:'jelly',   n:'푸른 젤리',        d:4,  rar:5,  hp:34,  atk:8,  ac:1,  xp:20,  ai:'still',   on:'slow' },
-  { spr:'spider',  n:'동굴 거미',        d:4,  rar:8,  hp:16,  atk:8,  ac:5,  xp:16,  ai:'hunt',    spd:1.3, on:'poison', web:true },
-  { spr:'orc',     n:'오크 병사',        d:5,  rar:11, hp:24,  atk:10, ac:7,  xp:24,  ai:'hunt',    grp:[2,4], door:'open' },
-  { spr:'orc',     n:'오크 궁수',        d:6,  rar:7,  hp:20,  atk:9,  ac:6,  xp:28,  ai:'ranged',  rng:6, spd:0.7, grp:[1,2], door:'open' },
-  { spr:'orc',     n:'검은 오크',        d:8,  rar:9,  hp:36,  atk:13, ac:9,  xp:42,  ai:'hunt',    grp:[2,4], door:'open' },
-  { spr:'dog',     n:'늑대',             d:8,  rar:8,  hp:30,  atk:12, ac:6,  xp:38,  ai:'hunt',    spd:1.35, grp:[2,4] },
-  { spr:'ogre',    n:'오우거',           d:10, rar:8,  hp:52,  atk:16, ac:10, xp:70,  ai:'hunt',    spd:0.75, door:'smash' },
-  { spr:'mummy',   n:'미라',             d:11, rar:6,  hp:48,  atk:15, ac:12, xp:75,  ai:'hunt',    spd:0.65, on:'fear' },
-  { spr:'troll',   n:'동굴 트롤',        d:12, rar:9,  hp:70,  atk:19, ac:13, xp:110, ai:'hunt',    door:'smash', regen:2 },
-  { spr:'wraith',  n:'망령',             d:14, rar:7,  hp:60,  atk:20, ac:15, xp:130, ai:'erratic', spd:1.2, on:'fear' },
-  { spr:'giant',   n:'언덕 거인',        d:15, rar:7,  hp:95,  atk:23, ac:14, xp:170, ai:'ranged',  rng:5, spd:0.6, door:'smash' },
-  { spr:'vampire', n:'흡혈귀',           d:17, rar:6,  hp:88,  atk:26, ac:17, xp:220, ai:'hunt',    spd:1.25, on:'blind', door:'open', regen:3 },
-  { spr:'dragon',  n:'어린 붉은 용',     d:18, rar:5,  hp:120, atk:28, ac:20, xp:300, ai:'ranged',  rng:6, spd:0.7, door:'smash' },
-  { spr:'wyrm',    n:'서리 비룡',        d:20, rar:5,  hp:140, atk:31, ac:22, xp:380, ai:'ranged',  rng:6, spd:0.7, on:'slow', door:'smash' },
-  { spr:'lich',    n:'리치',             d:22, rar:4,  hp:130, atk:35, ac:24, xp:480, ai:'ranged',  rng:7, spd:0.75, on:'paralyze', door:'open' },
+  { spr:'kobold',  n:'코볼드 투석꾼',    d:2,  rar:7,  hp:9,   atk:5,  ac:3,  xp:11,  ai:'ranged',  rng:5, spd:0.65, grp:[1,2], door:'open' },
+  { spr:'dog',     n:'들개',             d:2,  rar:9,  hp:11,  atk:6,  ac:3,  xp:9,   ai:'coward',  spd:1.3, grp:[2,3] },
+  { spr:'jelly',   n:'푸른 젤리',        d:3,  rar:5,  hp:34,  atk:8,  ac:1,  xp:20,  ai:'still',   on:'slow' },
+  { spr:'spider',  n:'동굴 거미',        d:3,  rar:8,  hp:16,  atk:8,  ac:5,  xp:16,  ai:'hunt',    spd:1.3, on:'poison', web:true },
+  { spr:'orc',     n:'오크 병사',        d:3,  rar:11, hp:24,  atk:10, ac:7,  xp:24,  ai:'hunt',    grp:[2,4], door:'open' },
+  { spr:'orc',     n:'오크 궁수',        d:4,  rar:7,  hp:20,  atk:9,  ac:6,  xp:28,  ai:'ranged',  rng:6, spd:0.7, grp:[1,2], door:'open' },
+  { spr:'orc',     n:'검은 오크',        d:5,  rar:9,  hp:36,  atk:13, ac:9,  xp:42,  ai:'hunt',    grp:[2,4], door:'open' },
+  { spr:'dog',     n:'늑대',             d:5,  rar:8,  hp:30,  atk:12, ac:6,  xp:38,  ai:'hunt',    spd:1.35, grp:[2,4] },
+  { spr:'ogre',    n:'오우거',           d:6, rar:8,  hp:52,  atk:16, ac:10, xp:70,  ai:'hunt',    spd:0.75, door:'smash' },
+  { spr:'mummy',   n:'미라',             d:7, rar:6,  hp:48,  atk:15, ac:12, xp:75,  ai:'hunt',    spd:0.65, on:'fear' },
+  { spr:'troll',   n:'동굴 트롤',        d:8, rar:9,  hp:70,  atk:19, ac:13, xp:110, ai:'hunt',    door:'smash', regen:2 },
+  { spr:'wraith',  n:'망령',             d:9, rar:7,  hp:60,  atk:20, ac:15, xp:130, ai:'erratic', spd:1.2, on:'fear' },
+  { spr:'giant',   n:'언덕 거인',        d:9, rar:7,  hp:95,  atk:23, ac:14, xp:170, ai:'ranged',  rng:5, spd:0.6, door:'smash' },
+  { spr:'vampire', n:'흡혈귀',           d:11, rar:6,  hp:88,  atk:26, ac:17, xp:220, ai:'hunt',    spd:1.25, on:'blind', door:'open', regen:3 },
+  { spr:'dragon',  n:'어린 붉은 용',     d:11, rar:5,  hp:120, atk:28, ac:20, xp:300, ai:'ranged',  rng:6, spd:0.7, door:'smash' },
+  { spr:'wyrm',    n:'서리 비룡',        d:12, rar:5,  hp:140, atk:31, ac:22, xp:380, ai:'ranged',  rng:6, spd:0.7, on:'slow', door:'smash' },
+  { spr:'lich',    n:'리치',             d:14, rar:4,  hp:130, atk:35, ac:24, xp:480, ai:'ranged',  rng:7, spd:0.75, on:'paralyze', door:'open' },
 ];
 
 export const BOSS = {
@@ -147,37 +147,65 @@ export const WEAPONS = [
   { spr:'sword', n:'단검',         dice:[1,5],  d:0,  cost:20,   hands:1 },
   { spr:'sword', n:'짧은 검',      dice:[1,8],  d:1,  cost:70,   hands:1 },
   { spr:'mace',  n:'철퇴',         dice:[2,4],  d:2,  cost:90,   hands:1 },
-  { spr:'axe',   n:'손도끼',       dice:[1,10], d:3,  cost:130,  hands:1 },
-  { spr:'sword', n:'장검',         dice:[2,6],  d:5,  cost:260,  hands:1 },
-  { spr:'mace',  n:'전투 망치',    dice:[3,4],  d:7,  cost:320,  hands:1 },
-  { spr:'axe',   n:'전투 도끼',    dice:[2,9],  d:10, cost:520,  hands:2 },
-  { spr:'sword', n:'양손검',       dice:[3,7],  d:13, cost:900,  hands:2 },
-  { spr:'axe',   n:'미늘창',       dice:[4,6],  d:16, cost:1400, hands:2 },
-  { spr:'sword', n:'룬이 새겨진 검', dice:[4,8], d:20, cost:3000, hands:1 },
+  { spr:'axe',   n:'손도끼',       dice:[1,10], d:2,  cost:130,  hands:1 },
+  { spr:'sword', n:'장검',         dice:[2,6],  d:3,  cost:260,  hands:1 },
+  { spr:'mace',  n:'전투 망치',    dice:[3,4],  d:5,  cost:320,  hands:1 },
+  { spr:'axe',   n:'전투 도끼',    dice:[2,9],  d:6, cost:520,  hands:2 },
+  { spr:'sword', n:'양손검',       dice:[3,7],  d:8, cost:900,  hands:2 },
+  { spr:'axe',   n:'미늘창',       dice:[4,6],  d:10, cost:1400, hands:2 },
+  { spr:'sword', n:'룬이 새겨진 검', dice:[4,8], d:12, cost:3000, hands:1 },
 ];
 
 export const ARMOURS = [
   { spr:'armor',  n:'부드러운 가죽갑옷', ac:4,  d:0,  cost:24,   slot:'body' },
   { spr:'armor',  n:'징 박은 가죽갑옷',  ac:7,  d:2,  cost:90,   slot:'body' },
-  { spr:'armor',  n:'사슬 갑옷',         ac:12, d:5,  cost:280,  slot:'body' },
-  { spr:'armor',  n:'비늘 갑옷',         ac:16, d:9,  cost:600,  slot:'body' },
-  { spr:'armor',  n:'판금 갑옷',         ac:22, d:14, cost:1300, slot:'body' },
-  { spr:'armor',  n:'미스릴 갑옷',       ac:30, d:19, cost:3600, slot:'body' },
+  { spr:'armor',  n:'사슬 갑옷',         ac:12, d:3,  cost:280,  slot:'body' },
+  { spr:'armor',  n:'비늘 갑옷',         ac:16, d:6,  cost:600,  slot:'body' },
+  { spr:'armor',  n:'판금 갑옷',         ac:22, d:9, cost:1300, slot:'body' },
+  { spr:'armor',  n:'미스릴 갑옷',       ac:30, d:12, cost:3600, slot:'body' },
   { spr:'shield', n:'작은 방패',         ac:3,  d:0,  cost:20,   slot:'shield' },
-  { spr:'shield', n:'둥근 방패',         ac:6,  d:4,  cost:110,  slot:'shield' },
-  { spr:'shield', n:'탑 방패',           ac:11, d:11, cost:480,  slot:'shield' },
+  { spr:'shield', n:'둥근 방패',         ac:6,  d:3,  cost:110,  slot:'shield' },
+  { spr:'shield', n:'탑 방패',           ac:11, d:7, cost:480,  slot:'shield' },
+];
+
+/* ── the unknown ──────────────────────────────────────────
+   A potion you can name is a resource; a potion you cannot is a
+   decision. Appearances are shuffled per run, so the red flask
+   that saved you last time might be the one that blinds you now.
+   This is the cheapest luck the game can buy — it costs no extra
+   controls and renews itself every single run. */
+export const POTION_LOOKS = [
+  '진홍색', '탁한', '거품이는', '은빛', '검은', '기름진', '맑은', '연기 나는', '푸른', '노란',
+];
+export const SCROLL_LOOKS = [
+  '봉인된', '찢어진', '금박', '낡은', '붉은 인장', '기호가 적힌', '피로 쓴', '눅눅한',
 ];
 
 export const CONSUMABLES = [
   { id:'potHeal',  spr:'potion', n:'치유의 물약',     d:0,  cost:22,  rar:12, use:'heal' },
-  { id:'potCure',  spr:'potion', n:'중상 치유 물약',  d:8,  cost:90,  rar:7,  use:'bigHeal' },
+  { id:'potCure',  spr:'potion', n:'중상 치유 물약',  d:5,  cost:90,  rar:7,  use:'bigHeal' },
   { id:'potMana',  spr:'potion', n:'정신의 물약',     d:2,  cost:60,  rar:8,  use:'mana' },
   { id:'scrMap',   spr:'scroll', n:'지도 두루마리',   d:2,  cost:70,  rar:8,  use:'map' },
-  { id:'scrTele',  spr:'scroll', n:'전이 두루마리',   d:4,  cost:80,  rar:8,  use:'teleport' },
-  { id:'scrDeep',  spr:'scroll', n:'심연의 두루마리', d:6,  cost:120, rar:5,  use:'deepDescent' },
+  { id:'scrTele',  spr:'scroll', n:'전이 두루마리',   d:3,  cost:80,  rar:8,  use:'teleport' },
+  { id:'scrDeep',  spr:'scroll', n:'심연의 두루마리', d:4,  cost:120, rar:5,  use:'deepDescent' },
   { id:'food',     spr:'food',   n:'말린 식량',       d:0,  cost:6,   rar:14, use:'food' },
   { id:'torch',    spr:'torch',  n:'횃불',            d:0,  cost:10,  rar:10, use:'torch' },
+
+  /* Only ever found, never stocked — the merchant will not sell
+     you something he cannot name either. Half of these are worth
+     drinking and half are not, which is the point. */
+  { id:'potMight', spr:'potion', n:'격노의 물약',   d:2, cost:110, rar:6, use:'might',   found:true },
+  { id:'potIron',  spr:'potion', n:'무쇠의 물약',   d:3, cost:110, rar:6, use:'iron',    found:true },
+  { id:'potVenom', spr:'potion', n:'독의 물약',     d:1, cost:20,  rar:7, use:'venom',   found:true },
+  { id:'potMurk',  spr:'potion', n:'혼탁의 물약',   d:2, cost:20,  rar:6, use:'murk',    found:true },
+  { id:'scrForge', spr:'scroll', n:'제련의 두루마리', d:4, cost:200, rar:5, use:'forge',  found:true },
+  { id:'scrHex',   spr:'scroll', n:'저주의 두루마리', d:2, cost:20,  rar:5, use:'hex',    found:true },
 ];
+
+/* Which item ids hide behind an appearance until you try them. */
+export const UNKNOWABLE = CONSUMABLES
+  .filter(c => c.spr === 'potion' || c.spr === 'scroll')
+  .map(c => c.id);
 
 /* ── the town ─────────────────────────────────────────────
    Six shops, as on Moria's level 0.                        */
@@ -349,5 +377,5 @@ export const ALTAR_OFFERS = [
 ];
 
 /* ── curves ───────────────────────────────────────────────*/
-export const xpToLevel = lv => Math.floor(13 * Math.pow(lv, 1.92));
+export const xpToLevel = lv => Math.floor(10 * Math.pow(lv, 1.78));
 export const statBonus = v => Math.floor((v - 10) / 2);

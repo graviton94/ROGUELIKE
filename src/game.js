@@ -8,6 +8,7 @@ import {
   PREFIXES, SUFFIXES, SPELL_AFFIXES, ELITES, affixName,
   MATS, salvageYield, upgradeCost, ENCHANT_COST, REROLL_COST,
   ALTAR_OFFERS, rarityOf, isCursed,
+  POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   xpToLevel, statBonus,
 } from './data.js';
 import {
@@ -22,6 +23,7 @@ export const G = {
   seenBoss: false,
   fx: [], combo: 0, comboT: 0, bestCombo: 0,
   opened: 0, mimicsBitten: 0, trapsSprung: 0,
+  looks: {}, known: {},        // appearance per id, and what you have learned
 };
 
 export function say(text, tone = '') {
@@ -65,6 +67,7 @@ export function createHero(raceKey, classKey, base) {
     stuck: 0,         // turns still caught in a web
     keys: 0,
     mats: { scrap: 0, dust: 0, essence: 0 },
+    might: 0, iron: 0,
     spellPlus: {}, spellAffix: {},
     equip: { weapon: null, body: null, shield: null },
     pack: [],
@@ -153,7 +156,8 @@ export function gearBonus(p) {
 
 export const armourClass = p =>
   gearBonus(p).ac
-  + statBonus(p.stats.dex) + Math.floor(p.lv / 4) + (p.blessed > 0 ? 4 : 0);
+  + statBonus(p.stats.dex) + Math.floor(p.lv / 4)
+  + (p.blessed > 0 ? 4 : 0) + (p.iron > 0 ? 10 : 0);
 
 export const toHit = p => {
   const base = CLASSES[p.cls].bth * p.lv / 3 + statBonus(p.stats.dex) * 2
@@ -349,6 +353,8 @@ export function useItem(slotIdx) {
   if (!slot || slot.item.kind !== 'use') return;
   const it = slot.item;
   let spent = true;
+  // Using it is how you find out what it was.
+  identify(it.id);
 
   switch (it.use) {
     case 'heal': {
@@ -371,6 +377,46 @@ export function useItem(slotIdx) {
       say('바닥이 열린다.', 'warn'); enterDepth(Math.min(MAX_DEPTH, G.depth + 2)); break;
     case 'food':  p.food = Math.min(6000, p.food + 2200); say('허기가 가신다.', 'good'); break;
     case 'torch': p.lightTurns = Math.min(6000, p.lightTurns + 2500); say('새 횃불에 불을 붙였다.', 'good'); break;
+
+    /* The unknown half. Three of these are worth drinking and
+       three are not, so an unidentified flask is a real bet. */
+    case 'might':
+      p.might = 40; say('피가 끓는다. 잠시 훨씬 세게 때린다.', 'good');
+      fx({ t:'ail', kind:'fear', x:p.x, y:p.y }); break;
+    case 'iron':
+      p.iron = 40; say('살갗이 쇠처럼 굳는다.', 'good');
+      fx({ t:'ail', kind:'slow', x:p.x, y:p.y }); break;
+    case 'venom': {
+      const dmg = roll(2, 5) + G.depth;
+      p.hp -= dmg;
+      afflict(p, 'poison', 20);
+      say(`목이 타들어 간다. ${dmg}의 피해.`, 'hit');
+      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, severe:true });
+      if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'독의 물약' }); }
+      break;
+    }
+    case 'murk': afflict(p, 'blind', 22); break;
+    case 'forge': {
+      const slots = ['weapon', 'body', 'shield'].filter(k => p.equip[k]);
+      if (!slots.length) { say('벼릴 것이 없다.', 'warn'); break; }
+      const it2 = p.equip[slots[rnd(slots.length)]];
+      it2.plus = Math.min(MAX_PLUS, (it2.plus || 0) + 1);
+      recalc(p);
+      say(`${affixName(it2)} — 저절로 벼려졌다.`, 'level');
+      fx({ t:'forge', x:p.x, y:p.y });
+      break;
+    }
+    case 'hex': {
+      const slots = ['weapon', 'body', 'shield'].filter(k => p.equip[k]);
+      if (!slots.length) { say('아무 일도 일어나지 않았다.'); break; }
+      const it2 = p.equip[slots[rnd(slots.length)]];
+      const table = Math.random() < 0.5 ? PREFIXES : SUFFIXES;
+      const a = pickAffixFor(table, it2.kind, true);
+      if (a) { it2[table === PREFIXES ? 'pre' : 'suf'] = a.id; recalc(p); }
+      say(`${affixName(it2)} — 검은 글자가 스며든다.`, 'warn');
+      fx({ t:'enchant', x:p.x, y:p.y, cursed:true });
+      break;
+    }
   }
   if (spent) removeItem(p, slotIdx);
   endTurn();
@@ -513,6 +559,7 @@ export function enterDepth(depth, fromBelow = false) {
     L.seen[idx(L.camp.x, L.camp.y)] = 1;
     if (depth > 0) say('멀리서 불빛이 흔들린다.', 'good');
   }
+  if (depth > 0 && L.theme?.n) say(`${L.theme.n}이다.`, 'warn');
 }
 
 function findTile(L, t) {
@@ -533,7 +580,8 @@ function populate(depth) {
   /* Pack animals arrive as a pack. Six wolves coming down one
      corridor is a different problem from six wolves scattered
      across a floor, and it is the problem doors are for. */
-  const budget = 6 + rnd(5) + Math.floor(depth * 0.7);
+  const mob = G.level.theme?.mob || 1;
+  const budget = Math.round((6 + rnd(5) + Math.floor(depth * 0.9)) * Math.min(mob, 1.35));
   let placed = 0;
   for (let guard = 0; placed < budget && guard < budget * 4; guard++) {
     const m = pickMonster(depth);
@@ -607,7 +655,7 @@ function makeChest(depth, spot) {
 }
 
 function pickMonster(depth) {
-  const pool = MONSTERS.filter(m => m.d <= depth && m.d >= depth - 9);
+  const pool = MONSTERS.filter(m => m.d <= depth && m.d >= depth - 5);
   if (!pool.length) return { ...MONSTERS[0] };
   const total = pool.reduce((s, m) => s + m.rar, 0);
   let r = rnd(total);
@@ -1023,7 +1071,7 @@ function playerAttack(m) {
   const dice = w ? w.dice : [1, 3];
   const g = gp;
   let dmg = roll(dice[0], dice[1]) + statBonus(p.stats.str) * 2 + Math.floor(p.lv / 3) + g.dmg;
-  dmg *= (1 + g.dmgPct);
+  dmg *= (1 + g.dmgPct + (p.might > 0 ? 0.6 : 0));
 
   const crit = asleep || Math.random() < critChance(p);
   if (crit) dmg *= critMult(p) * (asleep ? 1.5 : 1);
@@ -1184,6 +1232,8 @@ export function endTurn(skipMonsters = false) {
   G.turn++;
 
   if (p.blessed > 0) p.blessed--;
+  if (p.might > 0 && --p.might === 0) say('끓던 피가 식는다.');
+  if (p.iron > 0 && --p.iron === 0) say('굳었던 살갗이 풀린다.');
   if (G.detectPulse > 0) G.detectPulse--;
 
   if (G.comboT > 0 && --G.comboT === 0) breakCombo(true);
@@ -1740,11 +1790,36 @@ function victory() {
   G.screen = 'end';
 }
 
+/* Shuffle the appearances for this run. Anything the player
+   starts with is already known — you packed it yourself. */
+function shuffleAppearances(p) {
+  G.looks = {}; G.known = {};
+  const pots = [...POTION_LOOKS], scrs = [...SCROLL_LOOKS];
+  const take = arr => arr.splice(rnd(arr.length), 1)[0];
+  for (const id of UNKNOWABLE) {
+    const c = CONSUMABLES.find(x => x.id === id);
+    G.looks[id] = c.spr === 'potion' ? `${take(pots)} 물약` : `${take(scrs)} 두루마리`;
+  }
+  for (const slot of p.pack) G.known[slot.item.id] = true;
+}
+
+export const isKnown = id => !id || !UNKNOWABLE.includes(id) || !!G.known[id];
+export const lookOf = id => G.looks?.[id] || '알 수 없는 것';
+
+export function identify(id, quiet) {
+  if (!id || G.known[id]) return false;
+  G.known[id] = true;
+  const c = CONSUMABLES.find(x => x.id === id);
+  if (c && !quiet) say(`${lookOf(id)}은(는) ${c.n}이었다.`, 'level');
+  return true;
+}
+
 export function startGame(raceKey, classKey, base) {
   G.player = createHero(raceKey, classKey, base);
   G.log = []; G.turn = 0; G.running = true; G.ending = null;
   G.fx = []; G.combo = 0; G.comboT = 0; G.bestCombo = 0;
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0;
+  shuffleAppearances(G.player);
   enterDepth(0);
   say('마을. 여섯 개의 문이 열려 있고, 광장 한가운데에 계단이 있다.', 'warn');
   G.screen = 'play';

@@ -12,11 +12,21 @@ export const G = {
   level: null, depth: 0, player: null, monsters: [], items: [],
   log: [], turn: 0, running: false, screen: 'title', shop: null,
   seenBoss: false,
+  fx: [], combo: 0, comboT: 0, bestCombo: 0,
 };
 
 export function say(text, tone = '') {
   G.log.push({ text, tone });
   if (G.log.length > 120) G.log.shift();
+}
+
+/* ── effect queue ─────────────────────────────────────────
+   The rules never draw. They describe what just happened and
+   ui.js decides how loud it looks. Headless runs simply let
+   the queue fill and roll off the front.                    */
+export function fx(ev) {
+  G.fx.push(ev);
+  if (G.fx.length > 300) G.fx.shift();
 }
 
 /* ── character creation ─────────────────────────────────── */
@@ -79,6 +89,59 @@ export const toHit = p =>
   CLASSES[p.cls].bth * p.lv / 3 + statBonus(p.stats.dex) * 2
   + statBonus(p.stats.str) + (p.blessed > 0 ? 5 : 0);
 
+/* ── the payoff dials ─────────────────────────────────────
+   Crits, sneak attacks and the kill chain are what make a
+   swing feel worth taking. Keep them legible: a rogue should
+   be able to read these three lines and plan around them.   */
+export const critChance = p => clamp(
+  0.04 + statBonus(p.stats.dex) * 0.022 + p.lv * 0.004
+  + (p.cls === 'rogue' ? 0.10 : p.cls === 'ranger' ? 0.04 : 0),
+  0.02, 0.55);
+
+export const critMult = p =>
+  2.0 + (p.cls === 'rogue' ? 0.6 : 0) + Math.floor(p.lv / 10) * 0.25;
+
+/* How quietly you move. This is the dial that decides whether
+   the sneak attack above is a real option or a dead letter, and
+   it is deliberately wired to armour: plate keeps you alive and
+   announces you down the corridor. Pick one. */
+export const stealth = p => clamp(
+  0.10 + statBonus(p.stats.dex) * 0.05
+  + (p.race === 'halfling' ? 0.20 : p.race === 'elf' ? 0.10 : p.race === 'halfTroll' ? -0.15 : 0)
+  + (p.cls === 'rogue' ? 0.25 : p.cls === 'ranger' ? 0.12 : 0)
+  - (p.equip.body?.ac || 0) * 0.012
+  - (p.equip.shield?.ac || 0) * 0.010,
+  0, 0.85);
+
+/* Each link in the chain adds damage; the chain is the reward
+   for clearing a room without letting anything touch you. */
+export const comboMult = () => 1 + Math.min(G.combo, 20) * 0.035;
+
+const COMBO_TIERS = [
+  [5,  '연격 5 — 손이 풀렸다.'],
+  [10, '연격 10 — 멈출 수가 없다.'],
+  [15, '연격 15 — 바닥이 미끄럽다.'],
+  [20, '연격 20 — 무엇도 다가오지 못한다.'],
+];
+
+function bumpCombo(x, y) {
+  G.combo++;
+  G.comboT = 14;
+  if (G.combo > G.bestCombo) G.bestCombo = G.combo;
+  for (const [n, msg] of COMBO_TIERS)
+    if (G.combo === n) { say(msg, 'level'); fx({ t:'comboTier', x, y, n }); }
+}
+
+/* A hit to the face costs you half the chain — enough to hurt,
+   not enough to make the whole system feel fragile. */
+function breakCombo(hard) {
+  if (!G.combo) return;
+  const left = hard ? 0 : G.combo >> 1;
+  if (left < G.combo) fx({ t:'comboDrop', from: G.combo, to: left });
+  G.combo = left;
+  if (!G.combo) G.comboT = 0;
+}
+
 export const spellList = p => {
   const realm = CLASSES[p.cls].realm;
   return realm ? SPELLS[realm].filter(s => s.lv <= p.lv) : [];
@@ -136,11 +199,11 @@ export function useItem(slotIdx) {
   switch (it.use) {
     case 'heal': {
       const h = Math.min(p.maxhp - p.hp, 20 + roll(2, 8) + p.lv * 2);
-      p.hp += h; say(h ? `상처가 아문다. 체력 +${h}.` : '이미 멀쩡하다.', 'good'); break;
+      p.hp += h; if (h) fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(h ? `상처가 아문다. 체력 +${h}.` : '이미 멀쩡하다.', 'good'); break;
     }
     case 'bigHeal': {
       const h = Math.min(p.maxhp - p.hp, Math.floor(p.maxhp * 0.6) + roll(3, 10));
-      p.hp += h; say(`깊은 상처까지 닫힌다. 체력 +${h}.`, 'good'); break;
+      p.hp += h; fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(`깊은 상처까지 닫힌다. 체력 +${h}.`, 'good'); break;
     }
     case 'mana': {
       if (!p.maxmana) { say('아무 일도 일어나지 않았다.'); break; }
@@ -184,10 +247,12 @@ export function cast(spellId) {
   switch (sp.id) {
     case 'bolt':
       if (!nearest) { say('시야에 적이 없다.'); break; }
+      fx({ t:'beam', fx:p.x, fy:p.y, tx:nearest.x, ty:nearest.y, color:'P' });
       hurtMonster(nearest, roll(2 + Math.floor(p.lv / 3), 5) + statBonus(p.stats.int) * 2, '마력 화살');
       break;
     case 'smite':
       if (!nearest) { say('시야에 적이 없다.'); break; }
+      fx({ t:'beam', fx:p.x, fy:p.y, tx:nearest.x, ty:nearest.y, color:'y' });
       hurtMonster(nearest, roll(3 + Math.floor(p.lv / 3), 6) + statBonus(p.stats.wis) * 2, '응징의 빛');
       break;
     case 'blink': {
@@ -199,11 +264,11 @@ export function cast(spellId) {
     }
     case 'cure': {
       const h = Math.min(p.maxhp - p.hp, 12 + roll(2, 6) + statBonus(p.stats.wis) * 3);
-      p.hp += h; say(`상처가 닫힌다. 체력 +${h}.`, 'good'); break;
+      p.hp += h; fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(`상처가 닫힌다. 체력 +${h}.`, 'good'); break;
     }
     case 'heal': {
       const h = Math.min(p.maxhp - p.hp, Math.floor(p.maxhp * 0.55) + roll(3, 8));
-      p.hp += h; say(`빛이 몸을 훑고 지나간다. 체력 +${h}.`, 'good'); break;
+      p.hp += h; fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(`빛이 몸을 훑고 지나간다. 체력 +${h}.`, 'good'); break;
     }
     case 'bless': p.blessed = 25 + p.lv; say('가벼워진 기분이다.', 'good'); break;
     case 'detect':
@@ -212,7 +277,8 @@ export function cast(spellId) {
       say('숨소리가 어디에서 나는지 알겠다.', 'good'); break;
     case 'frost': {
       let n = 0;
-      for (const m of visible)
+      fx({ t:'burst', x:p.x, y:p.y, r:5, color:'B' });
+      for (const m of [...visible])
         if (Math.hypot(m.x - p.x, m.y - p.y) <= 5) { hurtMonster(m, roll(3, 8) + p.lv, '서리'); n++; }
       say(n ? '주변 공기가 얼어붙는다.' : '얼릴 것이 없다.', n ? 'good' : ''); break;
     }
@@ -358,27 +424,52 @@ function pickUp() {
 
 function playerAttack(m) {
   const p = G.player;
+  const asleep = !m.awake;
   m.awake = true;
-  const chance = clamp(0.44 + (toHit(p) - m.ac * 1.15) / 55, 0.18, 0.95);
-  if (Math.random() > chance) { say(`${m.n}을(를) 빗맞혔다.`); return; }
+  fx({ t:'lunge', who:'player', x:p.x, y:p.y, dx: Math.sign(m.x - p.x), dy: Math.sign(m.y - p.y) });
+
+  /* A sleeping target never gets a saving throw. This is the
+     reason to take the long way round instead of the short. */
+  const chance = asleep ? 1 : clamp(0.44 + (toHit(p) - m.ac * 1.15) / 55, 0.18, 0.95);
+  if (Math.random() > chance) {
+    say(`${m.n}을(를) 빗맞혔다.`);
+    fx({ t:'miss', x:m.x, y:m.y });
+    return;
+  }
 
   const w = p.equip.weapon;
   const dice = w ? w.dice : [1, 3];
-  const dmg = Math.max(1, roll(dice[0], dice[1]) + statBonus(p.stats.str) * 2 + Math.floor(p.lv / 3));
-  hurtMonster(m, dmg, null);
+  let dmg = roll(dice[0], dice[1]) + statBonus(p.stats.str) * 2 + Math.floor(p.lv / 3);
+
+  const crit = asleep || Math.random() < critChance(p);
+  if (crit) dmg *= critMult(p) * (asleep ? 1.5 : 1);
+  dmg = Math.max(1, Math.round(dmg * comboMult()));
+
+  if (asleep) say(`잠든 ${m.n}의 급소를 찔렀다.`, 'level');
+  hurtMonster(m, dmg, null, { crit, sneak: asleep });
 }
 
-export function hurtMonster(m, dmg, source) {
+export function hurtMonster(m, dmg, source, opt = {}) {
   m.awake = true;
+  const before = m.hp;
   m.hp -= dmg;
   const via = source ? `${source}이(가) ` : '';
+
   if (m.hp <= 0) {
+    /* Overkill is measured against what was actually left, so a
+       finishing tap on a sliver stays quiet and a hit that erases
+       a full-health troll gets the whole fireworks budget. */
+    const over = clamp(-m.hp / Math.max(1, before), 0, 3);
     G.monsters.splice(G.monsters.indexOf(m), 1);
+    bumpCombo(m.x, m.y);
+    fx({ t:'kill', x:m.x, y:m.y, spr:m.spr, dmg, crit:!!opt.crit, over, boss:!!m.boss, combo:G.combo });
     say(`${m.n}이(가) 쓰러졌다. (+${m.xp} 경험치)`, 'good');
     gainXp(m.xp);
     if (m.boss) victory();
   } else {
-    say(`${via}${m.n}에게 ${dmg}의 피해.`, 'hit');
+    fx({ t:'hit', on:'monster', x:m.x, y:m.y, dmg, crit:!!opt.crit, sneak:!!opt.sneak, spr:m.spr });
+    const tag = opt.sneak ? ' 기습!' : opt.crit ? ' 치명타!' : '';
+    say(`${via}${m.n}에게 ${dmg}의 피해.${tag}`, opt.crit ? 'level' : 'hit');
   }
 }
 
@@ -391,6 +482,7 @@ function gainXp(n) {
     recalc(p);
     p.hp += p.maxhp - before;
     p.mana = p.maxmana;
+    fx({ t:'levelup', x:p.x, y:p.y });
     say(`레벨 ${p.lv}. 몸이 단단해진다.`, 'level');
     const learned = spellList(p).filter(s => s.lv === p.lv);
     for (const s of learned) say(`새 주문을 익혔다 — ${s.n}`, 'level');
@@ -422,6 +514,8 @@ export function endTurn(skipMonsters = false) {
   if (p.blessed > 0) p.blessed--;
   if (G.detectPulse > 0) G.detectPulse--;
 
+  if (G.comboT > 0 && --G.comboT === 0) breakCombo(true);
+
   if (G.depth > 0) {
     p.food--;
     p.lightTurns--;
@@ -446,19 +540,32 @@ function monsterTurn(m) {
   const dist2 = dx * dx + dy * dy;
 
   if (!m.awake) {
-    if (L.vis[idx(m.x, m.y)] && dist2 <= 110) m.awake = true;
-    else return;
+    if (!L.vis[idx(m.x, m.y)] || dist2 > 110) return;
+    /* Noticing you is a roll per turn, not a certainty, so the
+       long quiet approach is a strategy and not just flavour. */
+    const near = Math.sqrt(dist2);
+    const notice = clamp((1 - stealth(p)) * (0.62 - near * 0.055), 0.02, 0.9);
+    if (Math.random() >= notice) return;
+    m.awake = true;
+    fx({ t:'wake', x:m.x, y:m.y });
   }
   if (m.ai === 'still' && dist2 > 2) return;
 
   if (dist2 <= 2) {
     const ac = armourClass(p);
     const chance = clamp(0.24 + (m.atk * 1.45 - ac * 1.75) / 62, 0.06, 0.90);
-    if (Math.random() > chance) { say(`${m.n}의 공격이 빗나갔다.`); return; }
+    if (Math.random() > chance) {
+      say(`${m.n}의 공격이 빗나갔다.`);
+      fx({ t:'miss', x:p.x, y:p.y });
+      return;
+    }
     const dmg = Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.72))) - Math.floor(ac / 5));
     p.hp -= dmg;
+    breakCombo(false);
+    fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
+         severe: dmg >= p.maxhp * 0.18 });
     say(`${m.n}이(가) ${dmg}의 피해를 입혔다.`, 'hit');
-    if (p.hp <= 0) { p.hp = 0; death(m); }
+    if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death(m); }
     return;
   }
 
@@ -524,6 +631,7 @@ function victory() {
 export function startGame(raceKey, classKey, base) {
   G.player = createHero(raceKey, classKey, base);
   G.log = []; G.turn = 0; G.running = true; G.ending = null;
+  G.fx = []; G.combo = 0; G.comboT = 0; G.bestCombo = 0;
   enterDepth(0);
   say('마을. 여섯 개의 문이 열려 있고, 광장 한가운데에 계단이 있다.', 'warn');
   G.screen = 'play';

@@ -12,6 +12,7 @@ import {
 import { MW, MH, idx, clamp, ROCK, FLOOR, DOWN, UP, DOOR, RUBBLE, SHOP } from './world.js';
 import * as Game from './game.js';
 import { G } from './game.js';
+import * as Juice from './juice.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -40,33 +41,54 @@ export function resize() {
   draw();
 }
 
+/* The camera is a float that chases the hero rather than a
+   integer that snaps to him. Combined with the per-actor
+   offsets in juice.js this is what turns a tile hop into a
+   step. */
+let camX = 0, camY = 0, camReady = false;
+
+function cameraTarget() {
+  const p = G.player;
+  let cx = clamp(p.x - (cols - 1) / 2, 0, Math.max(0, MW - cols));
+  let cy = clamp(p.y - (rows - 1) / 2, 0, Math.max(0, MH - rows));
+  if (MW < cols) cx = -(cols - MW) / 2;
+  if (MH < rows) cy = -(rows - MH) / 2;
+  return { cx, cy };
+}
+
 function camera() {
-  const p = G.player, t = CELL_SIZE * scale;
-  let cx = clamp(p.x - (cols >> 1), 0, Math.max(0, MW - cols));
-  let cy = clamp(p.y - (rows >> 1), 0, Math.max(0, MH - rows));
-  if (MW < cols) cx = -Math.floor((cols - MW) / 2);
-  if (MH < rows) cy = -Math.floor((rows - MH) / 2);
-  return { cx, cy, t };
+  return { cx: camX, cy: camY, t: CELL_SIZE * scale };
+}
+
+export function snapCamera() {
+  if (!G.player) return;
+  const { cx, cy } = cameraTarget();
+  camX = cx; camY = cy; camReady = true;
 }
 
 /* ── the map ────────────────────────────────────────────── */
 export function draw() {
   if (!G.level || !G.player) return;
   const L = G.level, p = G.player;
-  const { cx, cy, t } = camera();
+  const t = CELL_SIZE * scale;
+  if (!camReady) snapCamera();
+
+  const jolt = Juice.shakeVec();
+  const cx = camX + jolt.x, cy = camY + jolt.y;
 
   ctx.fillStyle = PALETTE.k;
   ctx.fillRect(0, 0, viewW, viewH);
 
   const lightR = G.lightRadius || 7;
+  const x0 = Math.floor(cx) - 1, y0 = Math.floor(cy) - 1;
 
-  for (let y = cy; y <= cy + rows; y++) {
-    for (let x = cx; x <= cx + cols; x++) {
+  for (let y = y0; y <= cy + rows + 1; y++) {
+    for (let x = x0; x <= cx + cols + 1; x++) {
       if (x < 0 || y < 0 || x >= MW || y >= MH) continue;
       const i = idx(x, y);
       if (!L.seen[i]) continue;
 
-      const px = (x - cx) * t, py = (y - cy) * t;
+      const px = Math.round((x - cx) * t), py = Math.round((y - cy) * t);
       const tile = L.tiles[i];
       const lit = L.vis[i];
 
@@ -106,37 +128,119 @@ export function draw() {
 
   ctx.globalAlpha = 1;
 
+  // Items bob so loot reads as loot even at the edge of the lamp.
+  const bob = Math.sin(performance.now() / 380) * t * 0.06;
   for (const it of G.items) {
     if (!L.vis[idx(it.x, it.y)]) continue;
-    ctx.drawImage(sprite(it.spr), (it.x - cx) * t, (it.y - cy) * t, t, t);
+    ctx.drawImage(sprite(it.spr), (it.x - cx) * t, (it.y - cy) * t + bob, t, t);
   }
 
   for (const m of G.monsters) {
     const seenNow = L.vis[idx(m.x, m.y)];
     if (!seenNow && !(G.detectPulse > 0)) continue;
     ctx.globalAlpha = seenNow ? 1 : 0.45;
-    ctx.drawImage(sprite(m.spr), (m.x - cx) * t, (m.y - cy) * t, t, t);
+    const o = Juice.offsetOf(m);
+    const mx = (m.x + o.x - cx) * t, my = (m.y + o.y - cy) * t;
+    blitActor(sprite(m.spr), mx, my, t, o);
+
+    /* A sleeping target is a free critical, so say so plainly —
+       an opportunity the player can't see isn't a decision. */
+    if (seenNow && !m.awake) {
+      const zx = mx + t * 0.86;
+      const zy = my - t * 0.06 + Math.sin(performance.now() / 500) * t * 0.09;
+      ctx.font = `900 ${Math.floor(t * 0.62)}px ui-monospace, monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = Math.max(2, t * 0.16);
+      ctx.strokeStyle = PALETTE.k;
+      ctx.strokeText('z', zx, zy);
+      ctx.fillStyle = PALETTE.B;
+      ctx.fillText('z', zx, zy);
+    }
+
     if (seenNow && m.hp < m.maxhp) {
       const w = Math.round(t * (m.hp / m.maxhp));
       ctx.fillStyle = PALETTE.r;
-      ctx.fillRect((m.x - cx) * t, (m.y - cy) * t + t - 2, t, 2);
+      ctx.fillRect(mx, my + t - 2, t, 2);
       ctx.fillStyle = PALETTE.R;
-      ctx.fillRect((m.x - cx) * t, (m.y - cy) * t + t - 2, w, 2);
+      ctx.fillRect(mx, my + t - 2, w, 2);
     }
   }
   ctx.globalAlpha = 1;
 
   // the lamp glow, then the hero on top
-  const hx = (p.x - cx) * t + t / 2, hy = (p.y - cy) * t + t / 2;
+  const po = Juice.offsetOf(p);
+  const hx = (p.x + po.x - cx) * t + t / 2, hy = (p.y + po.y - cy) * t + t / 2;
   const glow = ctx.createRadialGradient(hx, hy, t * 0.4, hx, hy, t * lightR);
   glow.addColorStop(0, 'rgba(217,138,60,0.16)');
   glow.addColorStop(1, 'rgba(217,138,60,0)');
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, viewW, viewH);
-  ctx.drawImage(sprite(`hero:${p.cls}`), (p.x - cx) * t, (p.y - cy) * t, t, t);
+  blitActor(sprite(`hero:${p.cls}`), hx - t / 2, hy - t / 2, t, po);
+
+  Juice.drawEffects(ctx, cx, cy, t);
+  Juice.drawScreenFlash(ctx, viewW, viewH);
+}
+
+/* One sprite, plus a squash-punch on impact and an additive
+   pass that whitens it for a few frames when it takes a hit. */
+function blitActor(img, px, py, t, o) {
+  const s = o.squash || 0;
+  if (s > 0) {
+    const g = 1 + s * 0.35;
+    const w = t * g, h = t * (2 - g);
+    ctx.drawImage(img, px - (w - t) / 2, py + (t - h), w, h);
+  } else {
+    ctx.drawImage(img, px, py, t, t);
+  }
+  if (o.flash > 0) {
+    const prev = ctx.globalCompositeOperation, a = ctx.globalAlpha;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = o.flash * 0.9;
+    ctx.drawImage(img, px, py, t, t);
+    ctx.globalCompositeOperation = prev;
+    ctx.globalAlpha = a;
+  }
+}
+
+/* ── the frame loop ─────────────────────────────────────────
+   Turns still resolve instantly; this loop only decides how
+   they look on the way out. Everything is dt-driven, so if the
+   player holds a direction and turns fire every 55ms the
+   animations blend instead of queueing. */
+let rafId = 0, lastTs = 0, lastDepth = -1;
+
+function frame(ts) {
+  rafId = requestAnimationFrame(frame);
+  const dt = Math.min(50, ts - (lastTs || ts));
+  lastTs = ts;
+  if (!G.player || !G.level || G.screen !== 'play') return;
+
+  if (lastDepth !== G.depth) { lastDepth = G.depth; Juice.reset(); snapCamera(); }
+
+  tickInput(dt);
+  if (G.screen !== 'play') return;
+
+  Juice.pump(G.fx, G.player);
+  Juice.update(dt, [G.player, ...G.monsters]);
+
+  const { cx, cy } = cameraTarget();
+  const k = 1 - Math.pow(0.78, dt / 16.7);
+  camX += (cx - camX) * k;
+  camY += (cy - camY) * k;
+  if (Math.abs(cx - camX) < 0.002) camX = cx;
+  if (Math.abs(cy - camY) < 0.002) camY = cy;
+
+  draw();
+}
+
+export function startLoop() {
+  Juice.bindLookup((x, y) => Game.monsterAt(x, y));
+  if (!rafId) rafId = requestAnimationFrame(frame);
 }
 
 /* ── HUD ────────────────────────────────────────────────── */
+let shownCombo = 0;
+
 export function refresh() {
   const p = G.player;
   if (!p) return;
@@ -156,6 +260,20 @@ export function refresh() {
     $('hud-mana').textContent = `${p.mana}/${p.maxmana}`;
     $('hud-manabar').style.width = `${(p.mana / p.maxmana) * 100}%`;
   } else mana.hidden = true;
+
+  const combo = $('hud-combo');
+  if (G.combo > 1) {
+    combo.hidden = false;
+    $('hud-combo-n').textContent = G.combo;
+    combo.style.setProperty('--heat', Math.min(1, G.combo / 20));
+    combo.classList.toggle('hot', G.combo >= 10);
+    // Retrigger the pop only when the number actually changed —
+    // this forces a reflow, and refresh() runs on every step.
+    if (G.combo !== shownCombo) {
+      combo.classList.remove('pop'); void combo.offsetWidth; combo.classList.add('pop');
+    }
+  } else combo.hidden = true;
+  shownCombo = G.combo;
 
   const flags = [];
   if (p.food <= 0) flags.push('굶주림');
@@ -177,6 +295,7 @@ export function refresh() {
 /* ── screens ────────────────────────────────────────────── */
 export function setScreen(name) {
   G.screen = name;
+  if (name !== 'play') stopAuto();
   for (const s of ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help'])
     $(`sc-${s}`).hidden = (s !== name);
   if (name === 'play') { resize(); refresh(); }
@@ -251,6 +370,23 @@ function renderInventory() {
       row.appendChild(el('span', 'eqname dim', '없음'));
     }
     eq.appendChild(row);
+  }
+
+  /* Armour buys AC and costs silence. Show both here, where the
+     player is actually choosing between them. */
+  const pct = v => `${Math.round(v * 100)}%`;
+  const stat = $('combat-stats'); stat.innerHTML = '';
+  for (const [label, value, hint] of [
+    ['방어',   Game.armourClass(p),              '높을수록 덜 맞는다'],
+    ['치명타', pct(Game.critChance(p)),          `피해 ×${Game.critMult(p).toFixed(2)}`],
+    ['은신',   pct(Game.stealth(p)),             '잠든 적은 확정 치명타'],
+    ['연격',   `×${Game.comboMult().toFixed(2)}`, `현재 ${G.combo}연격 · 최고 ${G.bestCombo}`],
+  ]) {
+    const row = el('div', 'eqrow');
+    row.appendChild(el('span', 'eqlabel', label));
+    row.appendChild(el('span', 'eqname', String(value)));
+    row.appendChild(el('span', 'eqstat dim', hint));
+    stat.appendChild(row);
   }
 
   const list = $('pack-list'); list.innerHTML = '';
@@ -353,69 +489,261 @@ function renderEnd() {
     `도달 깊이 <b>${G.depth}층</b> · 금화 <b>${p.gold}</b>닢 · <b>${G.turn}</b>턴`;
 }
 
-/* ── input ──────────────────────────────────────────────── */
+/* ── input ──────────────────────────────────────────────────
+   One tap used to equal one tile, which made a 66×40 floor a
+   drumming exercise. Now a held direction repeats, a swipe
+   held down keeps walking, and a tap on somewhere you have
+   already seen walks you there — stopping the moment anything
+   worth looking at happens. */
 const DIRS = {
   ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1],
   h:[-1,0], l:[1,0], k:[0,-1], j:[0,1],
   y:[-1,-1], u:[1,-1], b:[-1,1], n:[1,1], '.':[0,0], ' ':[0,0],
 };
 
+const HOLD_FIRST  = 190;   // grace before a held direction starts repeating
+const HOLD_FAST   = 62;    // floor of the repeat cadence
+const PATH_STEP   = 58;    // cadence while walking a tapped route
+
+let held = null;           // {dx,dy} physically held right now
+let heldWait = 0, heldCount = 0;
+let route = null, routeWait = 0;
+let guard = null;          // situation snapshot that cancels auto-movement
+
 function act(fn) { fn(); refresh(); if (G.screen === 'end') setScreen('end'); }
+
+/* What "something happened" means: we lost health, another
+   monster came into view, we picked something up, or the floor
+   changed under us. Any of those and the feet stop. */
+function snapshot() {
+  const p = G.player, L = G.level;
+  let vis = 0;
+  for (const m of G.monsters) if (L.vis[idx(m.x, m.y)]) vis++;
+  return { hp: p.hp, vis, depth: G.depth, pack: p.pack.length, gold: p.gold };
+}
+
+function disturbed(before) {
+  if (!before) return true;
+  const now = snapshot();
+  return now.hp < before.hp || now.vis > before.vis || now.depth !== before.depth
+      || now.pack !== before.pack || now.gold !== before.gold;
+}
+
+export function stopAuto() { route = null; held = null; guard = null; }
+
+/* Breadth-first over tiles we have actually seen. Monsters are
+   treated as walls so a route never suicides into one. */
+function findRoute(tx, ty) {
+  const L = G.level, p = G.player;
+  if (tx < 0 || ty < 0 || tx >= MW || ty >= MH) return null;
+  const goal = idx(tx, ty);
+  if (!L.seen[goal] || L.solid(tx, ty)) return null;
+
+  const prev = new Int32Array(MW * MH).fill(-1);
+  const start = idx(p.x, p.y);
+  prev[start] = start;
+  const q = [start];
+
+  for (let h = 0; h < q.length; h++) {
+    const cur = q[h];
+    if (cur === goal) {
+      const out = [];
+      for (let n = goal; n !== start; n = prev[n]) {
+        out.push({ x: n % MW, y: (n / MW) | 0 });
+        if (out.length > 400) return null;
+      }
+      return out.reverse();
+    }
+    const cxx = cur % MW, cyy = (cur / MW) | 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dy) continue;
+      const nx = cxx + dx, ny = cyy + dy;
+      if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) continue;
+      const ni = idx(nx, ny);
+      if (prev[ni] !== -1 || !L.seen[ni] || L.solid(nx, ny)) continue;
+      if (Game.monsterAt(nx, ny)) continue;
+      prev[ni] = cur;
+      q.push(ni);
+    }
+  }
+  return null;
+}
+
+function walkTo(tx, ty) {
+  const r = findRoute(tx, ty);
+  if (!r || !r.length) return false;
+  route = r; routeWait = 0; guard = snapshot();
+  return true;
+}
+
+function takeStep(dx, dy) {
+  act(() => Game.step(dx, dy));
+  if (G.screen === 'shop') { stopAuto(); setScreen('shop'); return false; }
+  if (G.screen === 'end') { stopAuto(); return false; }
+  return true;
+}
+
+/* Driven from the render loop so movement is frame-synced and
+   the animation layer always has time to blend between steps. */
+export function tickInput(dt) {
+  if (G.screen !== 'play' || !G.running) { stopAuto(); return; }
+
+  if (route) {
+    routeWait -= dt;
+    if (routeWait <= 0) {
+      routeWait = PATH_STEP;
+      if (disturbed(guard)) { stopAuto(); return; }
+      const next = route.shift();
+      if (!next) { stopAuto(); return; }
+      const p = G.player;
+      const dx = Math.sign(next.x - p.x), dy = Math.sign(next.y - p.y);
+      if (!takeStep(dx, dy)) return;
+      if (p.x !== next.x || p.y !== next.y) { stopAuto(); return; }  // blocked; give up quietly
+      if (!route.length) stopAuto();
+      else if (disturbed(guard)) stopAuto();
+      else guard = snapshot();
+    }
+    return;
+  }
+
+  if (held) {
+    heldWait -= dt;
+    if (heldWait <= 0) {
+      heldCount++;
+      // Ease from a deliberate first repeat down to a jog.
+      heldWait = Math.max(HOLD_FAST, HOLD_FIRST - heldCount * 26);
+      // Guard is carried across ticks, not re-taken each step, so
+      // anything that changed since the last step counts — not
+      // only what this step caused.
+      if (disturbed(guard)) { stopAuto(); return; }
+      if (!takeStep(held.dx, held.dy)) return;
+      if (disturbed(guard)) stopAuto();
+      else guard = snapshot();
+    }
+  }
+}
+
+/* A single step with nothing latched — used by taps, which get
+   no matching pointer-up to release a held direction. */
+function single(dx, dy) {
+  route = null; held = null;
+  takeStep(dx, dy);
+}
+
+/* A step that latches, for keys and buttons that are physically
+   held. Holding the centre key rests in place until something
+   shows up. */
+function press(dx, dy) {
+  route = null;
+  const before = snapshot();
+  if (!takeStep(dx, dy)) return;
+  held = { dx, dy };
+  heldWait = HOLD_FIRST;
+  heldCount = 0;
+  if (disturbed(before)) stopAuto();
+  else guard = snapshot();
+}
+
+const release = () => { held = null; heldCount = 0; };
 
 export function bindInput() {
   for (const btn of document.querySelectorAll('#dpad button')) {
-    btn.onclick = () => {
-      const [dx, dy] = btn.dataset.dir.split(',').map(Number);
-      act(() => Game.step(dx, dy));
-      if (G.screen === 'shop') setScreen('shop');
-    };
+    const [dx, dy] = btn.dataset.dir.split(',').map(Number);
+    btn.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      btn.setPointerCapture?.(e.pointerId);
+      press(dx, dy);
+    });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave'])
+      btn.addEventListener(ev, release);
   }
 
-  $('btn-inv').onclick    = () => setScreen('inv');
-  $('btn-cast').onclick   = () => setScreen('spell');
-  $('btn-down').onclick   = () => act(Game.descend);
-  $('btn-up').onclick     = () => act(Game.ascend);
-  $('btn-help').onclick   = () => setScreen('help');
+  $('btn-inv').onclick    = () => { stopAuto(); setScreen('inv'); };
+  $('btn-cast').onclick   = () => { stopAuto(); setScreen('spell'); };
+  $('btn-down').onclick   = () => { stopAuto(); act(Game.descend); };
+  $('btn-up').onclick     = () => { stopAuto(); act(Game.ascend); };
+  $('btn-help').onclick   = () => { stopAuto(); setScreen('help'); };
   for (const b of document.querySelectorAll('[data-back]')) b.onclick = () => setScreen('play');
 
   window.addEventListener('keydown', e => {
     if (G.screen === 'end') { if (e.key === 'Enter') location.reload(); return; }
     if (G.screen !== 'play') { if (e.key === 'Escape') setScreen('play'); return; }
-    if (DIRS[e.key]) { e.preventDefault(); act(() => Game.step(...DIRS[e.key])); if (G.screen === 'shop') setScreen('shop'); }
-    else if (e.key === '>') act(Game.descend);
-    else if (e.key === '<') act(Game.ascend);
-    else if (e.key === 'i') setScreen('inv');
-    else if (e.key === 'm') setScreen('spell');
+    if (e.key === 'Escape') { stopAuto(); return; }
+
+    const d = DIRS[e.key];
+    if (d) {
+      e.preventDefault();
+      if (e.repeat) return;          // our own repeat is smoother than the OS one
+      press(d[0], d[1]);
+    }
+    else if (e.key === '>') { stopAuto(); act(Game.descend); }
+    else if (e.key === '<') { stopAuto(); act(Game.ascend); }
+    else if (e.key === 'i') { stopAuto(); setScreen('inv'); }
+    else if (e.key === 'm') { stopAuto(); setScreen('spell'); }
   });
 
-  // swipe and tap on the map
-  let sx = 0, sy = 0, st = 0;
-  cv.addEventListener('touchstart', e => {
-    const t = e.changedTouches[0]; sx = t.clientX; sy = t.clientY; st = Date.now();
-  }, { passive: true });
+  window.addEventListener('keyup', e => { if (DIRS[e.key]) release(); });
+  window.addEventListener('blur', release);
 
-  cv.addEventListener('touchend', e => {
-    if (G.screen !== 'play') return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - sx, dy = t.clientY - sy;
-    const dist = Math.hypot(dx, dy);
-    if (dist < 24) {
-      if (Date.now() - st > 800) return;
-      const box = cv.getBoundingClientRect();
-      const { cx, cy, t: ts } = camera();
-      const tx = cx + Math.floor((t.clientX - box.left) / ts);
-      const ty = cy + Math.floor((t.clientY - box.top) / ts);
-      act(() => Game.step(Math.sign(tx - G.player.x), Math.sign(ty - G.player.y)));
-    } else {
-      const oct = ((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 8) + 8) % 8;
-      const V = [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]];
-      act(() => Game.step(...V[oct]));
-    }
-    if (G.screen === 'shop') setScreen('shop');
-  }, { passive: true });
+  bindMapGestures();
 
   window.addEventListener('resize', resize);
   if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
+}
+
+/* Swipe sets a heading and *keeps* it while the finger stays
+   down, so crossing a room is one gesture instead of thirty. */
+function bindMapGestures() {
+  let sx = 0, sy = 0, st = 0, moved = false, id = null;
+
+  const tileUnder = (clientX, clientY) => {
+    const box = cv.getBoundingClientRect();
+    const { cx, cy, t } = camera();
+    return {
+      x: Math.floor(cx + (clientX - box.left) / t),
+      y: Math.floor(cy + (clientY - box.top) / t),
+    };
+  };
+
+  const heading = (dx, dy) => {
+    const oct = ((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 8) + 8) % 8;
+    return [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]][oct];
+  };
+
+  cv.addEventListener('pointerdown', e => {
+    if (G.screen !== 'play') return;
+    id = e.pointerId; sx = e.clientX; sy = e.clientY; st = performance.now(); moved = false;
+    cv.setPointerCapture?.(id);
+    stopAuto();
+  });
+
+  cv.addEventListener('pointermove', e => {
+    if (e.pointerId !== id || G.screen !== 'play') return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.hypot(dx, dy) < 26) return;
+    const [hx, hy] = heading(dx, dy);
+    if (!moved) { moved = true; press(hx, hy); }
+    else if (held && (held.dx !== hx || held.dy !== hy)) { held = { dx: hx, dy: hy }; }
+  });
+
+  const finish = e => {
+    if (e.pointerId !== id) return;
+    id = null;
+    release();
+    if (G.screen !== 'play') return;
+    if (moved) return;
+    if (performance.now() - st > 700) return;      // long press: read the map, don't move
+
+    const { x, y } = tileUnder(e.clientX, e.clientY);
+    const p = G.player;
+    const far = Math.max(Math.abs(x - p.x), Math.abs(y - p.y));
+    if (far === 0) { single(0, 0); return; }
+    if (far === 1 || !walkTo(x, y)) single(Math.sign(x - p.x), Math.sign(y - p.y));
+  };
+
+  cv.addEventListener('pointerup', finish);
+  cv.addEventListener('pointercancel', e => { if (e.pointerId === id) { id = null; release(); } });
+  cv.addEventListener('contextmenu', e => e.preventDefault());
 }
 
 export { pick };

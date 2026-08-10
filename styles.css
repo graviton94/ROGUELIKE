@@ -113,6 +113,28 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 .chip.mana { color: var(--B); border-color: #23364f; } .chip.mana b { color: var(--B); }
 .chip.depth { color: var(--o); border-color: #4a331a; }
 
+/* The kill chain. --heat runs 0..1 with the streak, so the
+   chip literally warms up as it grows. */
+.chip.combo {
+  --heat: 0;
+  color: var(--y); border-color: #6a5320;
+  background: rgba(232, 199, 106, calc(var(--heat) * .16));
+  transform-origin: center;
+}
+.chip.combo b { color: var(--W); font-size: 13px; }
+.chip.combo.hot {
+  color: var(--o); border-color: var(--o);
+  box-shadow: 0 0 calc(var(--heat) * 12px) rgba(217, 138, 60, .55);
+  animation: comboPulse .9s ease-in-out infinite;
+}
+.chip.combo.pop { animation: comboPop .28s cubic-bezier(.2, 1.7, .4, 1); }
+.chip.combo.hot.pop { animation: comboPop .28s cubic-bezier(.2, 1.7, .4, 1), comboPulse .9s ease-in-out .28s infinite; }
+@keyframes comboPop  { 0% { transform: scale(1.55); } 100% { transform: scale(1); } }
+@keyframes comboPulse { 0%, 100% { opacity: 1; } 50% { opacity: .72; } }
+@media (prefers-reduced-motion: reduce) {
+  .chip.combo, .chip.combo.hot, .chip.combo.pop, .chip.combo.hot.pop { animation: none; }
+}
+
 .gauge { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .glabel { font-size: 9.5px; color: var(--G); width: 18px; }
 .gval   { font-size: 10.5px; color: var(--w); width: 62px; text-align: right; }
@@ -128,7 +150,8 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 
 /* ── map ── */
 #stage { flex: 1 1 auto; position: relative; min-height: 0; background: var(--k); }
-#map { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+#map { display: block; width: 100%; height: 100%; image-rendering: pixelated;
+       touch-action: none; user-select: none; -webkit-user-select: none; }
 
 /* ── log ── */
 #log {
@@ -151,7 +174,9 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   background: var(--d); border-top: 2px solid var(--g);
 }
 #dpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 150px; flex: 0 0 auto; }
-#dpad button { aspect-ratio: 1; font-size: 15px; color: var(--G); display: grid; place-items: center; }
+#dpad button { aspect-ratio: 1; font-size: 15px; color: var(--G); display: grid; place-items: center;
+               touch-action: none; user-select: none; -webkit-user-select: none; }
+#dpad button:active { background: var(--g); color: var(--W); }
 #dpad button.wait { color: var(--g); }
 
 #acts { flex: 1 1 auto; display: flex; flex-direction: column; gap: 5px; }
@@ -183,6 +208,7 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 .eqname  { flex: 1 1 auto; font-size: 12px; }
 .eqname.dim { color: var(--g); }
 .eqstat  { font-size: 10.5px; color: var(--y); }
+.eqstat.dim { color: var(--G); }
 
 /* ── help ── */
 .keys { width: 100%; border-collapse: collapse; font-size: 11.5px; }

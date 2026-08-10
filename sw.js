@@ -1,8 +1,11 @@
-const CACHE = 'deepdelve-v1';
+/* Bump CACHE whenever a file below changes — the fetch handler
+   is cache-first, so a stale version would otherwise pin an
+   installed copy to the old modules forever. */
+const CACHE = 'deepdelve-v2';
 const ASSETS = [
   './', './index.html', './styles.css', './manifest.webmanifest', './icon.svg',
   './src/main.js', './src/pixels.js', './src/data.js', './src/world.js',
-  './src/game.js', './src/ui.js',
+  './src/game.js', './src/ui.js', './src/juice.js',
 ];
 
 self.addEventListener('install', e => {

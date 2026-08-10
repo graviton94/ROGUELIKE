@@ -8,6 +8,7 @@ import { G } from './game.js';
 
 bakeAll();
 UI.bindInput();
+UI.startLoop();
 
 document.getElementById('btn-new').onclick = () => {
   UI.setScreen('create');

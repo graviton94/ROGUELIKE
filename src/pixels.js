@@ -455,6 +455,29 @@ export function bakeAll() {
 
 export const sprite = name => baked.get(name) || baked.get('rubble');
 
+/* ── particle stock ───────────────────────────────────────
+   When something dies we throw its own pixels across the
+   floor, so a rat scatters brown and a jelly scatters blue.
+   Read the grid, keep the opaque colours, cache the list.   */
+const shardCache = new Map();
+
+export function spriteColors(name) {
+  const key = name.startsWith('hero') ? 'hero' : name;
+  if (shardCache.has(key)) return shardCache.get(key);
+  const grid = SPRITES[key];
+  const out = [];
+  if (grid) {
+    for (const line of grid)
+      for (const ch of line) {
+        const c = PALETTE[ch];
+        if (c && ch !== 'k') out.push(c);
+      }
+  }
+  if (!out.length) out.push(PALETTE.w);
+  shardCache.set(key, out);
+  return out;
+}
+
 /* ── procedural terrain ───────────────────────────────────
    Floors and walls are generated, not authored: a cheap hash
    per map coordinate picks the speckle pattern so the masonry

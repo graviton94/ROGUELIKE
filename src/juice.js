@@ -1,0 +1,329 @@
+/* ═══════════════════════════════════════════════════════════
+   juice.js — the layer between "what happened" and "how hard
+   it lands". game.js emits typed events into G.fx; nothing in
+   here ever changes a rule. Everything is time-based, so a
+   player holding a direction down never queues up a backlog
+   of animations — the world just keeps up.
+   ═══════════════════════════════════════════════════════════ */
+
+import { PALETTE, spriteColors } from './pixels.js';
+
+/* ── stores ─────────────────────────────────────────────── */
+const shards = [];     // pixel chunks knocked off a sprite
+const numbers = [];    // floating damage / heal readouts
+const rings = [];      // expanding shockwaves
+const beams = [];      // spell traces
+const tracked = new WeakMap();   // actor -> interpolation state
+
+let shake = 0;         // remaining shake magnitude, in tiles
+let freeze = 0;        // hit-stop, ms
+let flashScreen = 0;   // full-screen tint, 0..1
+let flashHue = 'W';
+
+const MAX_SHARDS = 260;
+
+/* Actors are plain objects that survive between turns, so a
+   WeakMap keyed on identity gives us per-entity animation
+   without game.js ever knowing this file exists. */
+export function track(actor) {
+  let s = tracked.get(actor);
+  if (!s) {
+    s = { x: actor.x, y: actor.y, ox: 0, oy: 0, lx: 0, ly: 0, flash: 0, squash: 0 };
+    tracked.set(actor, s);
+    return s;
+  }
+  if (s.x !== actor.x || s.y !== actor.y) {
+    // Remember where it was and slide in from there.
+    s.ox += s.x - actor.x;
+    s.oy += s.y - actor.y;
+    s.x = actor.x; s.y = actor.y;
+    if (Math.abs(s.ox) > 2.5 || Math.abs(s.oy) > 2.5) { s.ox = 0; s.oy = 0; }  // teleport, don't streak
+  }
+  return s;
+}
+
+const at = (actor) => tracked.get(actor);
+
+/* ── spawning ───────────────────────────────────────────── */
+/* Velocities are in tiles per second and gravity in tiles per
+   second squared, so a shard from an ordinary hit travels about
+   a tile and a half before it fades. */
+function burstShards(x, y, palette, n, power) {
+  for (let i = 0; i < n && shards.length < MAX_SHARDS; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = (1.6 + Math.random() * 3.4) * power;
+    shards.push({
+      x: x + 0.5 + (Math.random() - 0.5) * 0.5,
+      y: y + 0.5 + (Math.random() - 0.5) * 0.5,
+      vx: Math.cos(a) * sp,
+      vy: Math.sin(a) * sp - 1.9 * power,
+      life: 420 + Math.random() * 420,
+      age: 0,
+      size: Math.random() < 0.3 ? 2 : 1,
+      color: palette[(Math.random() * palette.length) | 0],
+    });
+  }
+}
+
+function number(x, y, text, color, size, drift) {
+  /* Several readouts can land on one tile in a single turn — a
+     miss, then a hit, then a kill. Stack them instead of letting
+     them print on top of each other. */
+  let lift = 0;
+  for (const n of numbers)
+    if (Math.abs(n.x - x - 0.5) < 1 && Math.abs(n.y - y) < 1.2 && n.age < 260) lift += 0.42;
+
+  numbers.push({
+    x: x + 0.5 + (Math.random() - 0.5) * 0.35, y: y + 0.35 - lift,
+    vy: -0.0016 - Math.random() * 0.0007,
+    vx: (drift || 0) * 0.0006,
+    life: size > 1.15 ? 900 : 680, age: 0, text, color, size,
+  });
+}
+
+function ring(x, y, maxr, color, life) {
+  rings.push({ x: x + 0.5, y: y + 0.5, maxr, color, life: life || 380, age: 0 });
+}
+
+const buzz = ms => { try { navigator.vibrate?.(ms); } catch { /* not supported */ } };
+
+/* ── event intake ───────────────────────────────────────── */
+export function pump(queue, player) {
+  for (const e of queue) {
+    switch (e.t) {
+      case 'lunge': {
+        const s = at(player);
+        if (s) { s.lx = e.dx * 0.42; s.ly = e.dy * 0.42; }
+        break;
+      }
+
+      case 'miss':
+        number(e.x, e.y, '빗나감', PALETTE.s, 0.8);
+        break;
+
+      // The moment your free critical evaporates. Worth a beat.
+      case 'wake':
+        number(e.x, e.y - 0.3, '!', PALETTE.R, 1.2);
+        break;
+
+      case 'hit': {
+        const big = e.crit || e.sneak;
+        number(e.x, e.y, String(e.dmg) + (e.sneak ? '!!' : e.crit ? '!' : ''),
+               e.on === 'player' ? PALETTE.R : big ? PALETTE.y : PALETTE.W,
+               big ? 1.45 : 1);
+
+        if (e.on === 'monster') {
+          const s = at(findByPos(e)); if (s) { s.flash = 1; s.squash = 1; }
+          burstShards(e.x, e.y, spriteColors(e.spr || 'rat'), big ? 14 : 6, big ? 1.5 : 0.9);
+          shake = Math.max(shake, big ? 0.42 : 0.13);
+          if (big) { freeze = 70; ring(e.x, e.y, 1.6, PALETTE.y); flashScreen = 0.22; flashHue = 'y'; }
+          buzz(big ? 32 : 10);
+        } else {
+          // Getting hit is the one thing that should always read.
+          const s = at(player);
+          if (s && e.from) { s.lx = Math.sign(e.x - e.from.x) * 0.3; s.ly = Math.sign(e.y - e.from.y) * 0.3; s.flash = 1; }
+          shake = Math.max(shake, e.severe ? 0.55 : 0.22);
+          flashScreen = Math.max(flashScreen, e.severe ? 0.34 : 0.16); flashHue = 'r';
+          burstShards(e.x, e.y, [PALETTE.R, PALETTE.r], 8, 1.0);
+          buzz(e.severe ? [22, 40, 22] : 18);
+        }
+        break;
+      }
+
+      case 'kill': {
+        const power = 1.3 + e.over * 0.9 + (e.crit ? 0.5 : 0);
+        burstShards(e.x, e.y, spriteColors(e.spr || 'rat'), Math.round(20 + e.over * 22), power);
+        ring(e.x, e.y, 2.2 + e.over, PALETTE.o, 460);
+        shake = Math.max(shake, 0.34 + e.over * 0.3);
+        freeze = Math.max(freeze, e.boss ? 260 : 90 + e.over * 60);
+        flashScreen = Math.max(flashScreen, e.boss ? 0.8 : 0.2 + e.over * 0.2);
+        flashHue = e.boss ? 'W' : 'o';
+        if (e.boss) { ring(e.x, e.y, 26, PALETTE.o, 1500); ring(e.x, e.y, 18, PALETTE.y, 1100); }
+        buzz(e.boss ? [60, 60, 60, 60, 140] : e.over > 0.5 ? [16, 26, 40] : 26);
+        break;
+      }
+
+      case 'comboTier':
+        ring(e.x, e.y, 4 + e.n * 0.2, PALETTE.y, 620);
+        number(e.x, e.y - 0.6, `${e.n} 연격`, PALETTE.y, 1.5);
+        flashScreen = Math.max(flashScreen, 0.3); flashHue = 'y';
+        shake = Math.max(shake, 0.4);
+        buzz([20, 30, 20, 30, 60]);
+        break;
+
+      case 'heal': {
+        number(e.x, e.y, `+${e.amt}`, PALETTE.E, 1.15, 0);
+        ring(e.x, e.y, 1.8, PALETTE.E, 520);
+        for (let i = 0; i < 10 && shards.length < MAX_SHARDS; i++)
+          shards.push({
+            x: e.x + Math.random(), y: e.y + 1, vx: (Math.random() - 0.5) * 0.6,
+            vy: -1.4 - Math.random() * 0.8, life: 620, age: 0, size: 1,
+            color: Math.random() < 0.5 ? PALETTE.E : PALETTE.e, float: true,
+          });
+        break;
+      }
+
+      case 'levelup':
+        ring(e.x, e.y, 6, PALETTE.y, 800);
+        ring(e.x, e.y, 4, PALETTE.W, 600);
+        number(e.x, e.y - 0.8, 'LEVEL UP', PALETTE.y, 1.6);
+        flashScreen = Math.max(flashScreen, 0.45); flashHue = 'y';
+        buzz([30, 40, 30, 40, 90]);
+        break;
+
+      case 'beam':
+        beams.push({ fx: e.fx, fy: e.fy, tx: e.tx, ty: e.ty, color: PALETTE[e.color] || PALETTE.P, life: 260, age: 0 });
+        shake = Math.max(shake, 0.16);
+        break;
+
+      case 'burst':
+        ring(e.x, e.y, e.r, PALETTE[e.color] || PALETTE.B, 520);
+        burstShards(e.x, e.y, [PALETTE[e.color] || PALETTE.B, PALETTE.W], 26, 1.6);
+        shake = Math.max(shake, 0.35);
+        break;
+
+      case 'death':
+        flashScreen = 1; flashHue = 'r';
+        shake = Math.max(shake, 0.9);
+        buzz([80, 60, 200]);
+        break;
+    }
+  }
+  queue.length = 0;
+}
+
+/* `hit` events carry a position, not a reference — look up the
+   actor standing there so we can flash the right sprite. */
+let monsterLookup = () => null;
+export function bindLookup(fn) { monsterLookup = fn; }
+const findByPos = e => monsterLookup(e.x, e.y);
+
+/* ── simulation ─────────────────────────────────────────── */
+export function update(dt, actors) {
+  if (freeze > 0) { freeze -= dt; dt = Math.min(dt, 3); }   // hit-stop: near-still, never frozen solid
+
+  const k = Math.min(1, dt / 16.7);
+
+  for (const a of actors) {
+    const s = track(a);
+    s.ox *= Math.pow(0.62, k);
+    s.oy *= Math.pow(0.62, k);
+    s.lx *= Math.pow(0.55, k);
+    s.ly *= Math.pow(0.55, k);
+    if (Math.abs(s.ox) < 0.004) s.ox = 0;
+    if (Math.abs(s.oy) < 0.004) s.oy = 0;
+    s.flash = Math.max(0, s.flash - dt / 170);
+    s.squash = Math.max(0, s.squash - dt / 190);
+  }
+
+  for (let i = shards.length - 1; i >= 0; i--) {
+    const p = shards[i];
+    p.age += dt;
+    if (p.age >= p.life) { shards.splice(i, 1); continue; }
+    const f = dt / 1000;
+    p.x += p.vx * f;
+    p.y += p.vy * f;
+    if (p.float) p.vy *= Math.pow(0.94, k);
+    else { p.vy += 11 * f; p.vx *= Math.pow(0.97, k); }
+  }
+
+  for (let i = numbers.length - 1; i >= 0; i--) {
+    const n = numbers[i];
+    n.age += dt;
+    if (n.age >= n.life) { numbers.splice(i, 1); continue; }
+    n.y += n.vy * dt;
+    n.x += n.vx * dt;
+  }
+
+  for (let i = rings.length - 1; i >= 0; i--) {
+    rings[i].age += dt;
+    if (rings[i].age >= rings[i].life) rings.splice(i, 1);
+  }
+
+  for (let i = beams.length - 1; i >= 0; i--) {
+    beams[i].age += dt;
+    if (beams[i].age >= beams[i].life) beams.splice(i, 1);
+  }
+
+  shake *= Math.pow(0.86, k);
+  if (shake < 0.005) shake = 0;
+  flashScreen *= Math.pow(0.88, k);
+  if (flashScreen < 0.01) flashScreen = 0;
+}
+
+/* ── queries used by the renderer ───────────────────────── */
+export function offsetOf(actor) {
+  const s = tracked.get(actor);
+  return s ? { x: s.ox + s.lx, y: s.oy + s.ly, flash: s.flash, squash: s.squash } : ZERO;
+}
+const ZERO = { x: 0, y: 0, flash: 0, squash: 0 };
+
+export const shakeVec = () => shake === 0
+  ? ZERO
+  : { x: (Math.random() - 0.5) * shake, y: (Math.random() - 0.5) * shake };
+
+/* ── drawing ────────────────────────────────────────────── */
+export function drawEffects(ctx, camX, camY, t) {
+  const X = v => (v - camX) * t;
+  const Y = v => (v - camY) * t;
+
+  for (const b of beams) {
+    const k = 1 - b.age / b.life;
+    ctx.globalAlpha = k;
+    ctx.strokeStyle = b.color;
+    ctx.lineWidth = Math.max(2, t * 0.18) * (0.4 + k);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(X(b.fx + 0.5), Y(b.fy + 0.5));
+    ctx.lineTo(X(b.tx + 0.5), Y(b.ty + 0.5));
+    ctx.stroke();
+  }
+
+  for (const r of rings) {
+    const k = r.age / r.life;
+    ctx.globalAlpha = (1 - k) * 0.8;
+    ctx.strokeStyle = r.color;
+    ctx.lineWidth = Math.max(1.5, t * 0.12) * (1 - k);
+    ctx.beginPath();
+    ctx.arc(X(r.x), Y(r.y), r.maxr * t * (0.15 + k * 0.95), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  const px = Math.max(1, Math.round(t / 8));
+  for (const p of shards) {
+    const k = p.age / p.life;
+    ctx.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(Math.round(X(p.x)), Math.round(Y(p.y)), px * p.size, px * p.size);
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const n of numbers) {
+    const k = n.age / n.life;
+    ctx.globalAlpha = k > 0.65 ? (1 - k) / 0.35 : 1;
+    const pop = k < 0.12 ? 1 + (0.12 - k) * 3 : 1;      // snap outward on birth
+    const size = Math.max(11, t * 0.42 * n.size * pop);
+    ctx.font = `900 ${size}px ui-monospace, monospace`;
+    ctx.lineWidth = Math.max(2, size * 0.22);
+    ctx.strokeStyle = PALETTE.k;
+    ctx.strokeText(n.text, X(n.x), Y(n.y));
+    ctx.fillStyle = n.color;
+    ctx.fillText(n.text, X(n.x), Y(n.y));
+  }
+  ctx.globalAlpha = 1;
+}
+
+export function drawScreenFlash(ctx, w, h) {
+  if (flashScreen <= 0) return;
+  ctx.globalAlpha = flashScreen * 0.5;
+  ctx.fillStyle = PALETTE[flashHue] || PALETTE.W;
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalAlpha = 1;
+}
+
+export function reset() {
+  shards.length = 0; numbers.length = 0; rings.length = 0; beams.length = 0;
+  shake = 0; freeze = 0; flashScreen = 0;
+}

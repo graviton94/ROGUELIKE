@@ -5,7 +5,26 @@
 import { SHOPS } from './data.js';
 
 export const MW = 66, MH = 40;
-export const ROCK = 0, FLOOR = 1, DOWN = 2, UP = 3, DOOR = 4, RUBBLE = 5, SHOP = 6;
+
+/* Tiles 0-6 are the original set. A door is now four tiles
+   rather than one, because a *closed* door is the thing that
+   makes archers and hounds interesting: it breaks line of
+   sight, and shutting one behind you is a real move. */
+export const ROCK = 0, FLOOR = 1, DOWN = 2, UP = 3, DOOR = 4, RUBBLE = 5, SHOP = 6,
+             DOOR_OPEN = 7, DOOR_LOCKED = 8, DOOR_BROKEN = 9,
+             WEB = 10, WATER = 11;
+
+export const isDoor = t => t === DOOR || t === DOOR_OPEN || t === DOOR_LOCKED || t === DOOR_BROKEN;
+export const isShut = t => t === DOOR || t === DOOR_LOCKED;
+
+/* Pathfinding sees a shut door as a step that costs a turn, not
+   as a wall — otherwise half a floor stops being tappable. A
+   locked one really is a wall until you deal with it. */
+export const walkable = (level, x, y) => {
+  if (x < 0 || y < 0 || x >= MW || y >= MH) return false;
+  const t = level.tiles[idx(x, y)];
+  return t === DOOR || !level.solid(x, y);
+};
 
 export const idx = (x, y) => y * MW + x;
 export const rnd = n => Math.floor(Math.random() * n);
@@ -20,6 +39,10 @@ export class Level {
     this.vis    = new Uint8Array(MW * MH);
     this.roomOf = new Int16Array(MW * MH).fill(-1);
     this.shopAt = new Map();     // tile index -> shop id
+    /* Traps stay off the tile grid on purpose: a hidden trap has
+       to look exactly like the floor it is sitting in, and the
+       grid is what the renderer reads. */
+    this.traps  = new Map();     // tile index -> { kind, seen }
     this.rooms  = [];
     this.entry  = { x: 0, y: 0 };
     depth === 0 ? this.buildTown() : this.buildDungeon();
@@ -28,13 +51,13 @@ export class Level {
   solid(x, y) {
     if (x < 0 || y < 0 || x >= MW || y >= MH) return true;
     const t = this.tiles[idx(x, y)];
-    return t === ROCK || t === SHOP;
+    return t === ROCK || t === SHOP || isShut(t);
   }
 
   opaque(x, y) {
     if (x < 0 || y < 0 || x >= MW || y >= MH) return true;
     const t = this.tiles[idx(x, y)];
-    return t === ROCK || t === SHOP;
+    return t === ROCK || t === SHOP || isShut(t);
   }
 
   /* ── town: an open plaza ringed by six shopfronts ── */
@@ -59,7 +82,7 @@ export class Level {
       for (let y = sy; y < sy + 3; y++)
         for (let x = sx; x < sx + 5; x++) this.tiles[idx(x, y)] = SHOP;
       const dx = sx + 2, dy = (i < 3) ? sy + 3 : sy - 1;
-      this.tiles[idx(dx, dy)] = DOOR;
+      this.tiles[idx(dx, dy)] = DOOR_OPEN;   // shopfronts are never shut
       this.shopAt.set(idx(dx, dy), shop.id);
     });
 
@@ -120,8 +143,133 @@ export class Level {
     const st = this.centre(far);
     this.tiles[idx(st.x, st.y)] = DOWN;
     this.downRoom = far;
+
+    this.scatterHazards(start, st);
+    this.unsealStairs(start, st);
   }
 
+  /* A locked door across the only corridor to the stairs turns a
+     floor into a dead end for anything that routes around locks.
+     Flood from the entrance treating locks as walls, and if the
+     stairs fall outside that region, unlock the doors on the way
+     until they don't. */
+  unsealStairs(start, down) {
+    for (let pass = 0; pass < 12; pass++) {
+      const seen = new Uint8Array(MW * MH);
+      const from = new Int32Array(MW * MH).fill(-1);
+      const s = idx(start.x, start.y), goal = idx(down.x, down.y);
+      seen[s] = 1;
+      const q = [s];
+      let reached = s === goal;
+
+      for (let h = 0; h < q.length && !reached; h++) {
+        const cur = q[h], cx = cur % MW, cy = (cur / MW) | 0;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue;
+          const nx = cx + dx, ny = cy + dy;
+          if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) continue;
+          const ni = idx(nx, ny);
+          if (seen[ni]) continue;
+          const t = this.tiles[ni];
+          // Locked doors are the thing we are testing for.
+          if (t === ROCK || t === SHOP || t === DOOR_LOCKED) continue;
+          seen[ni] = 1; from[ni] = cur;
+          if (ni === goal) { reached = true; break; }
+          q.push(ni);
+        }
+      }
+      if (reached) return;
+
+      // Unlock the locked door nearest the reachable frontier.
+      let best = -1, bestD = Infinity;
+      for (let i = 0; i < MW * MH; i++) {
+        if (this.tiles[i] !== DOOR_LOCKED) continue;
+        const x = i % MW, y = (i / MW) | 0;
+        let touches = false;
+        for (let dy = -1; dy <= 1 && !touches; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) continue;
+          if (seen[idx(nx, ny)]) { touches = true; break; }
+        }
+        if (!touches) continue;
+        const dd = (x - down.x) ** 2 + (y - down.y) ** 2;
+        if (dd < bestD) { bestD = dd; best = i; }
+      }
+      if (best < 0) return;              // nothing left to unlock
+      this.tiles[best] = DOOR;
+    }
+  }
+
+  /* Hazards go down last so they never bury a staircase. Webs
+     and water are visible and therefore a routing decision;
+     traps are invisible and therefore a reason to slow down. */
+  scatterHazards(start, down) {
+    const d = this.depth;
+    const sacred = i => i === idx(start.x, start.y) || i === idx(down.x, down.y);
+    const plain = (x, y) => {
+      const i = idx(x, y);
+      return this.tiles[i] === FLOOR && !sacred(i) && !this.traps.has(i);
+    };
+
+    // Webs cluster: one spider nest beats twenty lone strands.
+    const nests = 1 + rnd(1 + Math.floor(d / 6));
+    for (let n = 0; n < nests; n++) {
+      const r = this.rooms[1 + rnd(Math.max(1, this.rooms.length - 1))];
+      if (!r) break;
+      const cx = r.x + rnd(r.w), cy = r.y + rnd(r.h);
+      for (let i = 0; i < 4 + rnd(7); i++) {
+        const x = cx + rnd(5) - 2, y = cy + rnd(5) - 2;
+        if (x < 1 || y < 1 || x >= MW - 1 || y >= MH - 1) continue;
+        if (plain(x, y)) this.tiles[idx(x, y)] = WEB;
+      }
+    }
+
+    // Shallow water: safe to cross, loud to cross.
+    if (d >= 3 && Math.random() < 0.55) {
+      const pools = 1 + rnd(3);
+      for (let n = 0; n < pools; n++) {
+        const r = this.rooms[1 + rnd(Math.max(1, this.rooms.length - 1))];
+        if (!r) break;
+        const cx = r.x + rnd(r.w), cy = r.y + rnd(r.h);
+        const rad = 1 + rnd(3);
+        for (let y = cy - rad; y <= cy + rad; y++)
+          for (let x = cx - rad; x <= cx + rad; x++) {
+            if (x < 1 || y < 1 || x >= MW - 1 || y >= MH - 1) continue;
+            if (Math.hypot(x - cx, y - cy) > rad) continue;
+            if (plain(x, y)) this.tiles[idx(x, y)] = WATER;
+          }
+      }
+    }
+
+    /* Collect the candidates first and then draw from them.
+       Sampling the whole grid instead wastes four attempts in
+       five on solid rock, which quietly produced floors with no
+       traps at all. Corridors are weighted double: that is
+       where a trap catches someone mid-run. */
+    const spots = [];
+    for (let y = 1; y < MH - 1; y++)
+      for (let x = 1; x < MW - 1; x++) {
+        if (!plain(x, y)) continue;
+        const i = idx(x, y);
+        spots.push(i);
+        if (this.roomOf[i] < 0) spots.push(i);   // corridor, counted twice
+      }
+
+    const kinds = ['dart', 'poison', 'pit', 'teleport', 'alarm'];
+    const count = Math.min(11, 1 + Math.floor(d * 0.45) + rnd(2));
+    for (let n = 0; n < count && spots.length; n++) {
+      const pick = rnd(spots.length);
+      const i = spots[pick];
+      spots.splice(pick, 1);
+      if (this.traps.has(i)) continue;
+      this.traps.set(i, { kind: kinds[rnd(kinds.length)], seen: false });
+    }
+  }
+
+  /* Most doors start shut. That is the point — a shut door is a
+     wall you can choose to open, and deeper down more of them
+     are locked, so "can I get through this quietly" becomes a
+     question with an answer that varies by build. */
   tryDoor(x, y, dx, dy) {
     if (x < 1 || y < 1 || x >= MW - 1 || y >= MH - 1) return;
     if (this.tiles[idx(x, y)] !== FLOOR) return;
@@ -129,7 +277,14 @@ export class Level {
     const ax = x + dx, ay = y + dy;
     if (ax < 0 || ay < 0 || ax >= MW || ay >= MH) return;
     if (this.tiles[idx(ax, ay)] !== FLOOR) return;
-    if (Math.random() < 0.55) this.tiles[idx(x, y)] = DOOR;
+    if (Math.random() >= 0.55) return;
+
+    const r = Math.random();
+    const lockChance = Math.min(0.24, 0.04 + this.depth * 0.012);
+    this.tiles[idx(x, y)] =
+      r < lockChance      ? DOOR_LOCKED :
+      r < lockChance + 0.30 ? DOOR_OPEN :
+                              DOOR;
   }
 
   centre(r) { return { x: r.x + (r.w >> 1), y: r.y + (r.h >> 1) }; }
@@ -162,6 +317,23 @@ export class Level {
     }
     return null;
   }
+}
+
+/* Monsters need their own sight, not the player's. A shut door
+   between an archer and you is the whole point of shut doors. */
+export function lineClear(level, x0, y0, x1, y1) {
+  let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy, x = x0, y = y0;
+  for (let guard = 0; guard < 200; guard++) {
+    if (x === x1 && y === y1) return true;
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x += sx; }
+    if (e2 < dx)  { err += dx; y += sy; }
+    if (x === x1 && y === y1) return true;
+    if (level.opaque(x, y)) return false;
+  }
+  return false;
 }
 
 /* ── recursive shadowcasting, eight octants ── */

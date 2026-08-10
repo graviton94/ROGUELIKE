@@ -3,16 +3,22 @@
    ═══════════════════════════════════════════════════════════ */
 
 import {
-  MAX_DEPTH, STATS, RACES, CLASSES, SPELLS, MONSTERS, BOSS,
-  WEAPONS, ARMOURS, CONSUMABLES, SHOPS, xpToLevel, statBonus,
+  MAX_DEPTH, STATS, RACES, CLASSES, SPELLS, MONSTERS, BOSS, mimicFor,
+  WEAPONS, ARMOURS, CONSUMABLES, SHOPS, AILMENTS, IMMUNE, TRAPS,
+  xpToLevel, statBonus,
 } from './data.js';
-import { Level, computeFov, idx, rnd, roll, clamp, MW, MH, FLOOR, DOWN, UP, DOOR, RUBBLE } from './world.js';
+import {
+  Level, computeFov, lineClear, idx, rnd, roll, clamp, MW, MH,
+  FLOOR, DOWN, UP, DOOR, RUBBLE, DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN,
+  WEB, WATER, isDoor, isShut,
+} from './world.js';
 
 export const G = {
   level: null, depth: 0, player: null, monsters: [], items: [],
   log: [], turn: 0, running: false, screen: 'title', shop: null,
   seenBoss: false,
   fx: [], combo: 0, comboT: 0, bestCombo: 0,
+  opened: 0, mimicsBitten: 0, trapsSprung: 0,
 };
 
 export function say(text, tone = '') {
@@ -52,6 +58,9 @@ export function createHero(raceKey, classKey, base) {
     gold: 250,
     food: 3000, lightTurns: 2500,
     blessed: 0,
+    ail: {},          // ailment -> turns remaining
+    stuck: 0,         // turns still caught in a web
+    keys: 0,
     equip: { weapon: null, body: null, shield: null },
     pack: [],
     x: 0, y: 0,
@@ -85,9 +94,37 @@ export const armourClass = p =>
   (p.equip.body?.ac || 0) + (p.equip.shield?.ac || 0)
   + statBonus(p.stats.dex) + Math.floor(p.lv / 4) + (p.blessed > 0 ? 4 : 0);
 
-export const toHit = p =>
-  CLASSES[p.cls].bth * p.lv / 3 + statBonus(p.stats.dex) * 2
-  + statBonus(p.stats.str) + (p.blessed > 0 ? 5 : 0);
+export const toHit = p => {
+  const base = CLASSES[p.cls].bth * p.lv / 3 + statBonus(p.stats.dex) * 2
+    + statBonus(p.stats.str) + (p.blessed > 0 ? 5 : 0);
+  // Proportional, not flat: a flat penalty would cripple level 1
+  // and barely register at level 20.
+  return has(p, 'fear') ? base * 0.55 : base;
+};
+
+/* ── ailments ─────────────────────────────────────────────
+   The race notes have always claimed a gnome cannot be
+   paralysed and a dwarf cannot be blinded. Now they can't. */
+export const has = (p, kind) => (p.ail?.[kind] || 0) > 0;
+export const immuneTo = (p, kind) => (IMMUNE[p.race] || []).includes(kind);
+
+export function afflict(p, kind, turns) {
+  if (!kind || !AILMENTS[kind]) return;
+  if (immuneTo(p, kind)) {
+    say(`${AILMENTS[kind].n}이(가) 통하지 않는다.`, 'good');
+    fx({ t:'resist', x:p.x, y:p.y });
+    return;
+  }
+  const already = p.ail[kind] || 0;
+  p.ail[kind] = Math.max(already, turns);
+  if (!already) {
+    say(`${AILMENTS[kind].n} — ${AILMENTS[kind].note}.`, 'warn');
+    fx({ t:'ail', kind, x:p.x, y:p.y });
+  }
+}
+
+export const ailList = p =>
+  Object.entries(p.ail || {}).filter(([, v]) => v > 0).map(([k]) => k);
 
 /* ── the payoff dials ─────────────────────────────────────
    Crits, sneak attacks and the kill chain are what make a
@@ -271,10 +308,18 @@ export function cast(spellId) {
       p.hp += h; fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(`빛이 몸을 훑고 지나간다. 체력 +${h}.`, 'good'); break;
     }
     case 'bless': p.blessed = 25 + p.lv; say('가벼워진 기분이다.', 'good'); break;
-    case 'detect':
-      for (const m of G.monsters) G.level.seen[idx(m.x, m.y)] = 1;
+    case 'detect': {
+      let unmasked = 0;
+      for (const m of G.monsters) {
+        G.level.seen[idx(m.x, m.y)] = 1;
+        // Life detection sees straight through a lid.
+        if (m.disguise) { m.disguise = false; m.spr = 'mimic'; unmasked++; fx({ t:'reveal', x:m.x, y:m.y }); }
+      }
       G.detectPulse = 30;
-      say('숨소리가 어디에서 나는지 알겠다.', 'good'); break;
+      say(unmasked ? `숨소리가 어디에서 나는지 알겠다. 상자 하나가 숨을 쉬고 있다.`
+                   : '숨소리가 어디에서 나는지 알겠다.', 'good');
+      break;
+    }
     case 'frost': {
       let n = 0;
       fx({ t:'burst', x:p.x, y:p.y, r:5, color:'B' });
@@ -320,13 +365,26 @@ function populate(depth) {
     if (spot) G.monsters.push({ ...BOSS, maxhp: BOSS.hp, x: spot.x, y: spot.y, awake: false });
   }
 
-  const count = 6 + rnd(5) + Math.floor(depth * 0.7);
-  for (let i = 0; i < count; i++) {
+  /* Pack animals arrive as a pack. Six wolves coming down one
+     corridor is a different problem from six wolves scattered
+     across a floor, and it is the problem doors are for. */
+  const budget = 6 + rnd(5) + Math.floor(depth * 0.7);
+  let placed = 0;
+  for (let guard = 0; placed < budget && guard < budget * 4; guard++) {
     const m = pickMonster(depth);
     if (!m) continue;
     const room = L.rooms[1 + rnd(Math.max(1, L.rooms.length - 1))];
-    const spot = L.openSpot(room, busy);
-    if (spot) G.monsters.push({ ...m, maxhp: m.hp, x: spot.x, y: spot.y, awake: false });
+    const lead = L.openSpot(room, busy);
+    if (!lead) continue;
+
+    const size = m.grp ? m.grp[0] + rnd(m.grp[1] - m.grp[0] + 1) : 1;
+    for (let k = 0; k < size && placed < budget; k++) {
+      const spot = k === 0 ? lead
+        : L.openSpot({ x: lead.x - 2, y: lead.y - 2, w: 5, h: 5 }, busy);
+      if (!spot) continue;
+      G.monsters.push({ ...m, maxhp: m.hp, x: spot.x, y: spot.y, awake: false, energy: 0 });
+      placed++;
+    }
   }
 
   const loot = 4 + rnd(5);
@@ -340,6 +398,44 @@ function populate(depth) {
     const spot = L.randomFloor(busy);
     if (spot) G.items.push({ kind:'gold', spr:'gold', n:'금화', amount: 15 + rnd(40 + depth * 25), x: spot.x, y: spot.y });
   }
+
+  /* Chests, and the thing that is pretending to be one. The
+     mimic share climbs with depth, so by the time a chest is
+     worth opening you are no longer sure you should. */
+  const chests = 1 + rnd(3);
+  const mimicShare = Math.min(0.34, 0.06 + depth * 0.013);
+  for (let i = 0; i < chests; i++) {
+    const spot = L.randomFloor(busy);
+    if (!spot) continue;
+    if (Math.random() < mimicShare) {
+      const mim = mimicFor(depth);
+      G.monsters.push({ ...mim, maxhp: mim.hp, x: spot.x, y: spot.y, awake: false, energy: 0 });
+    } else {
+      G.items.push(makeChest(depth, spot));
+    }
+  }
+
+  if (Math.random() < 0.45) {
+    const spot = L.randomFloor(busy);
+    if (spot) G.items.push({ kind:'key', spr:'ring', n:'녹슨 열쇠', x: spot.x, y: spot.y });
+  }
+}
+
+function makeChest(depth, spot) {
+  const locked  = Math.random() < 0.42;
+  const trapped = Math.random() < (locked ? 0.42 : 0.22);
+  // A locked chest is worth the lockpick; that is the trade.
+  const rolls = locked ? 2 + rnd(2) : 1 + rnd(2);
+  const loot = [];
+  for (let i = 0; i < rolls; i++) {
+    const it = pickItem(depth + (locked ? 3 : 0));
+    if (it) loot.push(it);
+  }
+  return {
+    kind:'chest', spr:'chest', n:'상자', x: spot.x, y: spot.y,
+    locked, trapped, loot,
+    gold: Math.round((30 + rnd(60 + depth * 30)) * (locked ? 1.8 : 1)),
+  };
 }
 
 function pickMonster(depth) {
@@ -378,7 +474,9 @@ function pickItem(depth) {
 
 export function refreshFov() {
   const p = G.player;
-  const radius = p.lightTurns > 0 ? (G.depth === 0 ? 12 : 7) : 2;
+  let radius = p.lightTurns > 0 ? (G.depth === 0 ? 12 : 7) : 2;
+  if (p.race === 'elf') radius += 1;          // "눈이 밝다"
+  if (has(p, 'blind')) radius = 1;
   computeFov(G.level, p.x, p.y, radius);
   G.lightRadius = radius;
 }
@@ -389,26 +487,207 @@ export const itemAt = (x, y) => G.items.find(i => i.x === x && i.y === y);
 
 export function step(dx, dy) {
   if (!G.running) return;
-  const p = G.player;
+  const p = G.player, L = G.level;
+
+  // Paralysis eats the turn outright — that is what makes a lich
+  // frightening rather than merely damaging.
+  if (has(p, 'paralyze')) {
+    say('몸이 굳어 말을 듣지 않는다.', 'warn');
+    fx({ t:'struggle', x:p.x, y:p.y });
+    endTurn(); return;
+  }
+
+  if (p.stuck > 0) {
+    const pull = statBonus(p.stats.str) + roll(1, 6);
+    if (pull >= 5) { p.stuck = 0; say('거미줄을 뜯어냈다.', 'good'); }
+    else { p.stuck--; say('거미줄이 발을 붙잡는다.', 'warn'); fx({ t:'struggle', x:p.x, y:p.y }); }
+    endTurn(); return;
+  }
+
   if (dx === 0 && dy === 0) { endTurn(); return; }
 
   const nx = p.x + dx, ny = p.y + dy;
-  const L = G.level;
-
-  if (L.tiles[idx(nx, ny)] === undefined) return;
   if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) return;
+  const ni = idx(nx, ny);
+  if (L.tiles[ni] === undefined) return;
 
-  const shopId = L.shopAt.get(idx(nx, ny));
+  const shopId = L.shopAt.get(ni);
   if (shopId) { G.shop = SHOPS.find(s => s.id === shopId); G.screen = 'shop'; return; }
 
+  const t = L.tiles[ni];
+  if (t === DOOR)        { openDoor(nx, ny); endTurn(); return; }
+  if (t === DOOR_LOCKED) { forceDoor(nx, ny); endTurn(); return; }
   if (L.solid(nx, ny)) return;
 
   const m = monsterAt(nx, ny);
   if (m) { playerAttack(m); endTurn(); return; }
 
   p.x = nx; p.y = ny;
+  if (enterTile(nx, ny)) { endTurn(true); return; }   // trap moved us elsewhere
   pickUp();
   endTurn();
+}
+
+/* ── doors ────────────────────────────────────────────────
+   A shut door is a wall you chose not to open yet, and the
+   only reliable way to break line of sight from an archer. */
+function openDoor(x, y) {
+  G.level.tiles[idx(x, y)] = DOOR_OPEN;
+  say('문을 열었다.');
+  fx({ t:'door', x, y, state:'open' });
+  rouse(x, y, 5, 0.35);
+}
+
+function forceDoor(x, y) {
+  const p = G.player, L = G.level;
+  if (p.keys > 0) {
+    p.keys--;
+    L.tiles[idx(x, y)] = DOOR_OPEN;
+    say(`열쇠로 잠긴 문을 열었다. (남은 열쇠 ${p.keys})`, 'good');
+    fx({ t:'door', x, y, state:'open' });
+    return;
+  }
+  const chance = clamp(0.14 + statBonus(p.stats.str) * 0.09 + p.lv * 0.006, 0.04, 0.85);
+  if (Math.random() < chance) {
+    L.tiles[idx(x, y)] = DOOR_BROKEN;
+    say('문이 부서져 나갔다.', 'good');
+    fx({ t:'door', x, y, state:'broken' });
+    rouse(x, y, 11, 0.9);          // splinters carry
+  } else {
+    say('문이 꿈쩍도 하지 않는다.', 'warn');
+    fx({ t:'door', x, y, state:'stuck' });
+    rouse(x, y, 6, 0.45);
+  }
+}
+
+export function doorToClose() {
+  const p = G.player, L = G.level;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    if (!dx && !dy) continue;
+    const x = p.x + dx, y = p.y + dy;
+    if (x < 0 || y < 0 || x >= MW || y >= MH) continue;
+    if (L.tiles[idx(x, y)] !== DOOR_OPEN) continue;
+    if (monsterAt(x, y) || itemAt(x, y)) continue;   // can't shut it on something
+    return { x, y };
+  }
+  return null;
+}
+
+export function closeDoor() {
+  const d = doorToClose();
+  if (!d) { say('닫을 문이 곁에 없다.'); return; }
+  G.level.tiles[idx(d.x, d.y)] = DOOR;
+  say('문을 닫았다.', 'good');
+  fx({ t:'door', x:d.x, y:d.y, state:'shut' });
+  endTurn();
+}
+
+/* Noise wakes things. Volume 0..1 scales the chance so that
+   shouldering a stuck door is quieter than smashing one. */
+function rouse(x, y, radius, volume) {
+  let woke = 0;
+  for (const m of G.monsters) {
+    if (m.awake) continue;
+    const d = Math.hypot(m.x - x, m.y - y);
+    if (d > radius) continue;
+    if (Math.random() < volume * (1 - d / (radius + 1))) { m.awake = true; woke++; }
+  }
+  if (woke) fx({ t:'noise', x, y, r:radius });
+  return woke;
+}
+
+/* ── stepping onto something ──────────────────────────────
+   Returns true when the tile relocated us, so the caller
+   knows not to keep acting on the old floor.               */
+function enterTile(x, y) {
+  const L = G.level, p = G.player, i = idx(x, y);
+  const t = L.tiles[i];
+
+  if (t === WEB) {
+    p.stuck = 1 + rnd(3);
+    say('거미줄에 걸렸다.', 'warn');
+    fx({ t:'struggle', x, y });
+  } else if (t === WATER) {
+    // Wading is safe and extremely loud.
+    fx({ t:'splash', x, y });
+    rouse(x, y, 7, 0.5);
+  }
+
+  const trap = L.traps.get(i);
+  if (trap) return springTrap(x, y, trap);
+  return false;
+}
+
+function springTrap(x, y, trap) {
+  const p = G.player, L = G.level;
+  L.traps.delete(idx(x, y));
+  G.trapsSprung++;
+  const spec = TRAPS[trap.kind];
+  say(spec.msg, 'warn');
+  fx({ t:'trap', kind:trap.kind, x, y });
+
+  switch (trap.kind) {
+    case 'dart': {
+      const dmg = roll(2, 4) + Math.floor(G.depth * 0.8);
+      p.hp -= dmg; breakCombo(false);
+      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, severe: dmg >= p.maxhp * 0.18 });
+      say(`화살이 ${dmg}의 피해를 입혔다.`, 'hit');
+      if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'화살 함정' }); }
+      return false;
+    }
+    case 'poison': {
+      const dmg = roll(1, 4);
+      p.hp -= dmg; breakCombo(false);
+      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg });
+      afflict(p, 'poison', 22 + G.depth);
+      if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'독침 함정' }); }
+      return false;
+    }
+    case 'pit': {
+      const dmg = roll(2, 6) + Math.floor(G.depth * 0.5);
+      p.hp -= dmg;
+      say(`떨어지며 ${dmg}의 피해를 입었다.`, 'hit');
+      if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'구덩이' }); return false; }
+      if (G.depth >= MAX_DEPTH) return false;
+      breakCombo(true);
+      enterDepth(G.depth + 1);
+      say(`${G.depth}층으로 떨어졌다.`, 'warn');
+      return true;
+    }
+    case 'teleport':
+      teleport();
+      return false;
+    case 'alarm': {
+      let woke = 0;
+      for (const m of G.monsters) if (!m.awake) { m.awake = true; woke++; }
+      say(woke ? `${woke}마리가 깨어났다.` : '아무도 대답하지 않는다.', 'warn');
+      fx({ t:'noise', x, y, r:26 });
+      return false;
+    }
+  }
+  return false;
+}
+
+/* Spotting a trap before you tread on it. Wisdom and a rogue's
+   trade; the reason to walk a corridor instead of sprint it. */
+function scanForTraps() {
+  const p = G.player, L = G.level;
+  const skill = clamp(
+    0.16 + statBonus(p.stats.wis) * 0.045 + p.lv * 0.007
+    + (p.cls === 'rogue' ? 0.28 : p.cls === 'ranger' ? 0.10 : 0),
+    0.04, 0.9);
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+    const x = p.x + dx, y = p.y + dy;
+    if (x < 0 || y < 0 || x >= MW || y >= MH) continue;
+    const trap = L.traps.get(idx(x, y));
+    if (!trap || trap.seen) continue;
+    const near = Math.max(Math.abs(dx), Math.abs(dy));
+    if (Math.random() < skill / near) {
+      trap.seen = true;
+      say(`${TRAPS[trap.kind].n}을(를) 발견했다.`, 'good');
+      fx({ t:'spot', x, y });
+    }
+  }
 }
 
 function pickUp() {
@@ -416,14 +695,78 @@ function pickUp() {
   const i = G.items.findIndex(it => it.x === p.x && it.y === p.y);
   if (i < 0) return;
   const it = G.items[i];
+  if (it.kind === 'chest') { openChest(i, it); return; }
   G.items.splice(i, 1);
   if (it.kind === 'gold') { p.gold += it.amount; say(`금화 ${it.amount}닢.`, 'good'); return; }
+  if (it.kind === 'key')  { p.keys++; say(`녹슨 열쇠를 주웠다. (${p.keys})`, 'good'); return; }
   addItem(p, it);
   say(`${it.n}을(를) 주웠다.`, 'good');
 }
 
+/* ── chests ───────────────────────────────────────────────
+   The gamble. A locked chest holds more; a trapped one costs
+   you for finding out; and one chest in some number of them
+   is not a chest at all (see MIMIC in populate).           */
+function openChest(index, chest) {
+  const p = G.player;
+
+  if (chest.locked) {
+    if (p.keys > 0) {
+      p.keys--;
+      chest.locked = false;
+      say(`열쇠로 자물쇠를 열었다. (남은 열쇠 ${p.keys})`, 'good');
+    } else {
+      const pick = clamp(
+        0.10 + statBonus(p.stats.dex) * 0.06 + (p.cls === 'rogue' ? 0.30 : 0) + p.lv * 0.008,
+        0.04, 0.92);
+      if (Math.random() < pick) {
+        chest.locked = false;
+        say('자물쇠가 딸깍 열렸다.', 'good');
+      } else {
+        say('자물쇠가 걸려 열리지 않는다.', 'warn');
+        fx({ t:'door', x:chest.x, y:chest.y, state:'stuck' });
+        return;
+      }
+    }
+  }
+
+  if (chest.trapped) {
+    chest.trapped = false;
+    const kind = ['dart', 'poison', 'alarm'][rnd(3)];
+    say('뚜껑에 무언가 걸려 있었다.', 'warn');
+    springTrap(chest.x, chest.y, { kind });
+    if (!G.running) return;
+  }
+
+  G.items.splice(index, 1);
+  G.opened++;
+  fx({ t:'chest', x:chest.x, y:chest.y });
+  say('상자를 열었다.', 'good');
+
+  const gold = chest.gold || 0;
+  if (gold) { p.gold += gold; say(`금화 ${gold}닢.`, 'good'); }
+  for (const it of chest.loot || []) {
+    addItem(p, it);
+    say(`${it.n}을(를) 얻었다.`, 'good');
+  }
+}
+
 function playerAttack(m) {
   const p = G.player;
+
+  /* You did not attack a mimic — you reached for a chest. It
+     gets the first bite for that, and your swing still lands. */
+  if (m.disguise) {
+    m.disguise = false;
+    m.awake = true;
+    m.spr = 'mimic';
+    G.mimicsBitten++;
+    say('상자가 이빨을 드러냈다.', 'warn');
+    fx({ t:'reveal', x:m.x, y:m.y });
+    monsterMelee(m);
+    if (!G.running) return;
+  }
+
   const asleep = !m.awake;
   m.awake = true;
   fx({ t:'lunge', who:'player', x:p.x, y:p.y, dx: Math.sign(m.x - p.x), dy: Math.sign(m.y - p.y) });
@@ -451,6 +794,14 @@ function playerAttack(m) {
 
 export function hurtMonster(m, dmg, source, opt = {}) {
   m.awake = true;
+  // Any damage at all blows a disguise — a frost blast should not
+  // leave a "chest" quietly smouldering.
+  if (m.disguise) {
+    m.disguise = false;
+    m.spr = 'mimic';
+    say('상자가 이빨을 드러냈다.', 'warn');
+    fx({ t:'reveal', x:m.x, y:m.y });
+  }
   const before = m.hp;
   m.hp -= dmg;
   const via = source ? `${source}이(가) ` : '';
@@ -525,12 +876,53 @@ export function endTurn(skipMonsters = false) {
     if (p.lightTurns < 0) p.lightTurns = 0;
   }
 
-  if (G.turn % 14 === 0 && p.hp < p.maxhp) p.hp = Math.min(p.maxhp, p.hp + 1 + Math.floor(p.lv / 6));
+  tickAilments(p);
+  if (!G.running) return;
+
+  const regen = 1 + Math.floor(p.lv / 6) + (p.race === 'halfTroll' ? 1 : 0);
+  if (G.turn % 14 === 0 && p.hp < p.maxhp) p.hp = Math.min(p.maxhp, p.hp + regen);
   if (G.turn % 10 === 0 && p.mana < p.maxmana) p.mana = Math.min(p.maxmana, p.mana + 1);
 
   refreshFov();
-  if (!skipMonsters) for (const m of [...G.monsters]) monsterTurn(m);
+  if (G.depth > 0) scanForTraps();
+  if (!skipMonsters) runMonsters();
   refreshFov();
+}
+
+/* Speed is an energy budget rather than a turn order: a wolf at
+   1.5 gets a second move every other turn, an ogre at 0.75 skips
+   one in four, and 둔화 doubles everyone else's allowance. */
+function runMonsters() {
+  const slowed = has(G.player, 'slow') ? 2 : 1;
+  for (const m of [...G.monsters]) {
+    if (!G.running) return;
+    m.energy = (m.energy || 0) + (m.spd || 1) * slowed;
+    let acts = 0;
+    while (m.energy >= 1 && acts < 4) {
+      if (!G.monsters.includes(m)) break;     // died mid-loop
+      m.energy -= 1;
+      acts++;
+      monsterTurn(m);
+      if (!G.running) return;
+    }
+  }
+}
+
+function tickAilments(p) {
+  for (const kind of Object.keys(p.ail)) {
+    if (p.ail[kind] <= 0) { delete p.ail[kind]; continue; }
+    p.ail[kind]--;
+    if (p.ail[kind] === 0) {
+      delete p.ail[kind];
+      say(`${AILMENTS[kind].n}에서 벗어났다.`, 'good');
+    }
+  }
+  if (has(p, 'poison') && G.turn % 3 === 0) {
+    const dmg = 1 + Math.floor(G.depth / 8);
+    p.hp -= dmg;
+    fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, poison:true });
+    if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'독' }); }
+  }
 }
 
 function monsterTurn(m) {
@@ -538,48 +930,122 @@ function monsterTurn(m) {
   const p = G.player, L = G.level;
   const dx = p.x - m.x, dy = p.y - m.y;
   const dist2 = dx * dx + dy * dy;
+  const dist = Math.sqrt(dist2);
+
+  if (m.regen && m.hp < m.maxhp) m.hp = Math.min(m.maxhp, m.hp + m.regen);
 
   if (!m.awake) {
     if (!L.vis[idx(m.x, m.y)] || dist2 > 110) return;
     /* Noticing you is a roll per turn, not a certainty, so the
-       long quiet approach is a strategy and not just flavour. */
-    const near = Math.sqrt(dist2);
-    const notice = clamp((1 - stealth(p)) * (0.62 - near * 0.055), 0.02, 0.9);
+       long quiet approach is a strategy and not just flavour.
+       Standing in water throws that away. */
+    const wading = L.tiles[idx(p.x, p.y)] === WATER;
+    const quiet = wading ? stealth(p) * 0.25 : stealth(p);
+    const notice = clamp((1 - quiet) * (0.62 - dist * 0.055), 0.02, 0.9);
     if (Math.random() >= notice) return;
     m.awake = true;
+    if (m.disguise) return;              // a mimic that has noticed you keeps very still
     fx({ t:'wake', x:m.x, y:m.y });
   }
+
+  // A mimic does nothing at all until it is touched.
+  if (m.disguise) return;
   if (m.ai === 'still' && dist2 > 2) return;
 
-  if (dist2 <= 2) {
-    const ac = armourClass(p);
-    const chance = clamp(0.24 + (m.atk * 1.45 - ac * 1.75) / 62, 0.06, 0.90);
-    if (Math.random() > chance) {
-      say(`${m.n}의 공격이 빗나갔다.`);
-      fx({ t:'miss', x:p.x, y:p.y });
-      return;
-    }
-    const dmg = Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.72))) - Math.floor(ac / 5));
-    p.hp -= dmg;
-    breakCombo(false);
-    fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
-         severe: dmg >= p.maxhp * 0.18 });
-    say(`${m.n}이(가) ${dmg}의 피해를 입혔다.`, 'hit');
-    if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death(m); }
-    return;
+  // Webs hold everything that did not spin them.
+  if (m.snared > 0 && !m.web) { m.snared--; return; }
+
+  if (dist2 <= 2) { monsterMelee(m); return; }
+
+  /* Archers keep their distance: they shoot from range, back off
+     when you close, and only advance when they have lost you.  */
+  if (m.ai === 'ranged' && m.rng) {
+    const sighted = dist <= m.rng && lineClear(L, m.x, m.y, p.x, p.y);
+    if (sighted && dist >= 2.5) { monsterShoot(m); return; }
+    if (sighted && dist < 2.5 && retreat(m)) return;
+  }
+
+  /* A wounded hound runs, and a runner that gets away lives to
+     bring friends. Cornering one is a decision. */
+  if ((m.ai === 'coward' || m.fleeing) && m.hp < m.maxhp * 0.35) {
+    if (!m.fleeing) { m.fleeing = true; say(`${m.n}이(가) 달아나기 시작한다.`); }
+    if (retreat(m)) return;
   }
 
   let sx = Math.sign(dx), sy = Math.sign(dy);
   if (m.ai === 'erratic' && Math.random() < 0.45) { sx = rnd(3) - 1; sy = rnd(3) - 1; }
+  advance(m, sx, sy);
+}
+
+function monsterMelee(m) {
+  const p = G.player;
+  const ac = armourClass(p);
+  const chance = clamp(0.24 + (m.atk * 1.45 - ac * 1.75) / 62, 0.06, 0.90);
+  if (Math.random() > chance) {
+    say(`${m.n}의 공격이 빗나갔다.`);
+    fx({ t:'miss', x:p.x, y:p.y });
+    return;
+  }
+  const dmg = Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.72))) - Math.floor(ac / 5));
+  p.hp -= dmg;
+  breakCombo(false);
+  fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
+       severe: dmg >= p.maxhp * 0.18 });
+  say(`${m.n}이(가) ${dmg}의 피해를 입혔다.`, 'hit');
+  if (m.on && Math.random() < 0.28) afflict(p, m.on, 9 + rnd(9));
+  if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death(m); }
+}
+
+function monsterShoot(m) {
+  const p = G.player;
+  const ac = armourClass(p);
+  fx({ t:'shot', fx:m.x, fy:m.y, tx:p.x, ty:p.y, kind:m.spr });
+  const chance = clamp(0.20 + (m.atk * 1.25 - ac * 1.6) / 62, 0.05, 0.80);
+  if (Math.random() > chance) {
+    say(`${m.n}의 원거리 공격이 빗나갔다.`);
+    fx({ t:'miss', x:p.x, y:p.y });
+    return;
+  }
+  const dmg = Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.6))) - Math.floor(ac / 6));
+  p.hp -= dmg;
+  breakCombo(false);
+  fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
+       severe: dmg >= p.maxhp * 0.18 });
+  say(`${m.n}이(가) 멀리서 ${dmg}의 피해를 입혔다.`, 'hit');
+  if (m.on && Math.random() < 0.22) afflict(p, m.on, 8 + rnd(8));
+  if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death(m); }
+}
+
+/* Movement shared by every AI, including what to do about a
+   shut door: most things are simply stopped by one. */
+function advance(m, sx, sy) {
+  const p = G.player, L = G.level;
 
   const go = (a, b) => {
     if (!a && !b) return false;
     const nx = m.x + a, ny = m.y + b;
-    if (L.solid(nx, ny) || monsterAt(nx, ny) || (nx === p.x && ny === p.y)) return false;
-    m.x = nx; m.y = ny; return true;
+    if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) return false;
+    if (monsterAt(nx, ny) || (nx === p.x && ny === p.y)) return false;
+
+    const t = L.tiles[idx(nx, ny)];
+    if (isShut(t)) {
+      if (!m.door) return false;
+      if (t === DOOR_LOCKED && m.door !== 'smash') return false;
+      L.tiles[idx(nx, ny)] = m.door === 'smash' ? DOOR_BROKEN : DOOR_OPEN;
+      say(`${m.n}이(가) 문을 ${m.door === 'smash' ? '부쉈다' : '열었다'}.`, 'warn');
+      fx({ t:'door', x:nx, y:ny, state: m.door === 'smash' ? 'broken' : 'open' });
+      return true;                    // opening costs the move
+    }
+    if (L.solid(nx, ny)) return false;
+
+    m.x = nx; m.y = ny;
+    if (t === WEB && !m.web) { m.snared = 1 + rnd(2); fx({ t:'struggle', x:nx, y:ny }); }
+    return true;
   };
-  go(sx, sy) || go(sx, 0) || go(0, sy);
+  return go(sx, sy) || go(sx, 0) || go(0, sy);
 }
+
+const retreat = m => advance(m, Math.sign(m.x - G.player.x), Math.sign(m.y - G.player.y));
 
 /* ── shops ──────────────────────────────────────────────── */
 export function shopStock(shop) {
@@ -632,6 +1098,7 @@ export function startGame(raceKey, classKey, base) {
   G.player = createHero(raceKey, classKey, base);
   G.log = []; G.turn = 0; G.running = true; G.ending = null;
   G.fx = []; G.combo = 0; G.comboT = 0; G.bestCombo = 0;
+  G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0;
   enterDepth(0);
   say('마을. 여섯 개의 문이 열려 있고, 광장 한가운데에 계단이 있다.', 'warn');
   G.screen = 'play';

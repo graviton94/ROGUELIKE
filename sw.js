@@ -1,7 +1,7 @@
 /* Bump CACHE whenever a file below changes — the fetch handler
    is cache-first, so a stale version would otherwise pin an
    installed copy to the old modules forever. */
-const CACHE = 'deepdelve-v2';
+const CACHE = 'deepdelve-v3';
 const ASSETS = [
   './', './index.html', './styles.css', './manifest.webmanifest', './icon.svg',
   './src/main.js', './src/pixels.js', './src/data.js', './src/world.js',

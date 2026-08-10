@@ -6,10 +6,14 @@
 
 import { sprite, wallTile, floorTile, CELL_SIZE, PALETTE } from './pixels.js';
 import {
-  RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS,
+  RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS,
   xpToLevel, statBonus,
 } from './data.js';
-import { MW, MH, idx, clamp, ROCK, FLOOR, DOWN, UP, DOOR, RUBBLE, SHOP } from './world.js';
+import {
+  MW, MH, idx, clamp, walkable, isDoor,
+  ROCK, FLOOR, DOWN, UP, DOOR, RUBBLE, SHOP,
+  DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN, WEB, WATER,
+} from './world.js';
 import * as Game from './game.js';
 import { G } from './game.js';
 import * as Juice from './juice.js';
@@ -108,10 +112,19 @@ export function draw() {
         ctx.drawImage(wallTile(x, y), px, py, t, t);
       } else {
         ctx.drawImage(floorTile(x, y), px, py, t, t);
-        if (tile === DOWN)   ctx.drawImage(sprite('stairsDown'), px, py, t, t);
-        if (tile === UP)     ctx.drawImage(sprite('stairsUp'),   px, py, t, t);
-        if (tile === DOOR)   ctx.drawImage(sprite('door'),       px, py, t, t);
-        if (tile === RUBBLE) ctx.drawImage(sprite('rubble'),     px, py, t, t);
+        if (tile === DOWN)        ctx.drawImage(sprite('stairsDown'), px, py, t, t);
+        if (tile === UP)          ctx.drawImage(sprite('stairsUp'),   px, py, t, t);
+        if (tile === DOOR)        ctx.drawImage(sprite('door'),       px, py, t, t);
+        if (tile === DOOR_OPEN)   ctx.drawImage(sprite('doorOpen'),   px, py, t, t);
+        if (tile === DOOR_LOCKED) ctx.drawImage(sprite('doorLocked'), px, py, t, t);
+        if (tile === DOOR_BROKEN) ctx.drawImage(sprite('doorBroken'), px, py, t, t);
+        if (tile === WEB)         ctx.drawImage(sprite('web'),        px, py, t, t);
+        if (tile === WATER)       ctx.drawImage(sprite('water'),      px, py, t, t);
+        if (tile === RUBBLE)      ctx.drawImage(sprite('rubble'),     px, py, t, t);
+
+        // A trap you have spotted is drawn; one you haven't isn't.
+        const tr = L.traps.get(i);
+        if (tr && tr.seen) ctx.drawImage(sprite('trap'), px, py, t, t);
       }
 
       // shop numerals painted over the doorway
@@ -140,8 +153,15 @@ export function draw() {
     if (!seenNow && !(G.detectPulse > 0)) continue;
     ctx.globalAlpha = seenNow ? 1 : 0.45;
     const o = Juice.offsetOf(m);
-    const mx = (m.x + o.x - cx) * t, my = (m.y + o.y - cy) * t;
+    let mx = (m.x + o.x - cx) * t, my = (m.y + o.y - cy) * t;
+
+    /* The mimic's only tell. It sits where a chest sits and looks
+       like a chest looks, but it breathes — a slow half-pixel
+       rise a patient player can catch and a hurried one can't. */
+    if (m.disguise) my += Math.sin(performance.now() / 900 + m.x) * t * 0.045;
+
     blitActor(sprite(m.spr), mx, my, t, o);
+    if (m.disguise) continue;     // no sleep marker, no health bar — it is furniture
 
     /* A sleeping target is a free critical, so say so plainly —
        an opportunity the player can't see isn't a decision. */
@@ -275,7 +295,14 @@ export function refresh() {
   } else combo.hidden = true;
   shownCombo = G.combo;
 
-  const flags = [];
+  const keys = $('hud-keys');
+  keys.hidden = !p.keys;
+  if (p.keys) $('hud-keys-n').textContent = p.keys;
+
+  /* Ailments come first: they are the thing most likely to kill
+     you in the next ten turns. */
+  const flags = Game.ailList(p).map(k => AILMENTS[k].n);
+  if (p.stuck > 0) flags.push('거미줄');
   if (p.food <= 0) flags.push('굶주림');
   else if (p.food < 400) flags.push('허기');
   if (G.depth > 0 && p.lightTurns <= 0) flags.push('암흑');
@@ -283,6 +310,9 @@ export function refresh() {
   if (p.blessed > 0) flags.push('축복');
   $('hud-flags').textContent = flags.join(' · ');
   $('hud-flags').className = flags.length ? 'flags on' : 'flags';
+
+  // Shutting a door is only ever offered when there is one to shut.
+  $('btn-door').hidden = !Game.doorToClose();
 
   const logBox = $('log');
   logBox.innerHTML = '';
@@ -532,12 +562,22 @@ function disturbed(before) {
 export function stopAuto() { route = null; held = null; guard = null; }
 
 /* Breadth-first over tiles we have actually seen. Monsters are
-   treated as walls so a route never suicides into one. */
+   treated as walls so a route never suicides into one.
+
+   Traps are avoided on the first pass and permitted on the
+   second: a spotted trap sitting in a one-wide corridor would
+   otherwise cut the floor in half and make everything past it
+   untappable. Prefer to walk around; walk over it if that is
+   the only way through. */
 function findRoute(tx, ty) {
+  return routeAvoiding(tx, ty, true) || routeAvoiding(tx, ty, false);
+}
+
+function routeAvoiding(tx, ty, dodgeTraps) {
   const L = G.level, p = G.player;
   if (tx < 0 || ty < 0 || tx >= MW || ty >= MH) return null;
   const goal = idx(tx, ty);
-  if (!L.seen[goal] || L.solid(tx, ty)) return null;
+  if (!L.seen[goal] || !walkable(L, tx, ty)) return null;
 
   const prev = new Int32Array(MW * MH).fill(-1);
   const start = idx(p.x, p.y);
@@ -560,8 +600,12 @@ function findRoute(tx, ty) {
       const nx = cxx + dx, ny = cyy + dy;
       if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) continue;
       const ni = idx(nx, ny);
-      if (prev[ni] !== -1 || !L.seen[ni] || L.solid(nx, ny)) continue;
+      if (prev[ni] !== -1 || !L.seen[ni] || !walkable(L, nx, ny)) continue;
       if (Game.monsterAt(nx, ny)) continue;
+      if (dodgeTraps) {
+        const tr = L.traps.get(ni);
+        if (tr && tr.seen && ni !== goal) continue;
+      }
       prev[ni] = cur;
       q.push(ni);
     }
@@ -662,6 +706,7 @@ export function bindInput() {
   $('btn-cast').onclick   = () => { stopAuto(); setScreen('spell'); };
   $('btn-down').onclick   = () => { stopAuto(); act(Game.descend); };
   $('btn-up').onclick     = () => { stopAuto(); act(Game.ascend); };
+  $('btn-door').onclick   = () => { stopAuto(); act(Game.closeDoor); };
   $('btn-help').onclick   = () => { stopAuto(); setScreen('help'); };
   for (const b of document.querySelectorAll('[data-back]')) b.onclick = () => setScreen('play');
 
@@ -680,6 +725,7 @@ export function bindInput() {
     else if (e.key === '<') { stopAuto(); act(Game.ascend); }
     else if (e.key === 'i') { stopAuto(); setScreen('inv'); }
     else if (e.key === 'm') { stopAuto(); setScreen('spell'); }
+    else if (e.key === 'c') { stopAuto(); act(Game.closeDoor); }
   });
 
   window.addEventListener('keyup', e => { if (DIRS[e.key]) release(); });

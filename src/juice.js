@@ -71,7 +71,7 @@ function number(x, y, text, color, size, drift) {
      them print on top of each other. */
   let lift = 0;
   for (const n of numbers)
-    if (Math.abs(n.x - x - 0.5) < 1 && Math.abs(n.y - y) < 1.2 && n.age < 260) lift += 0.42;
+    if (Math.abs(n.x - x - 0.5) < 1 && Math.abs(n.y - y) < 1.6 && n.age < 300) lift += 0.62;
 
   numbers.push({
     x: x + 0.5 + (Math.random() - 0.5) * 0.35, y: y + 0.35 - lift,
@@ -187,6 +187,101 @@ export function pump(queue, player) {
         shake = Math.max(shake, 0.9);
         buzz([80, 60, 200]);
         break;
+
+      // An arrow out of the dark. The trail is the warning.
+      case 'shot':
+        beams.push({ fx: e.fx, fy: e.fy, tx: e.tx, ty: e.ty,
+                     color: PALETTE.w, life: 200, age: 0, thin: true });
+        buzz(12);
+        break;
+
+      case 'trap': {
+        const hue = { dart:'s', poison:'e', pit:'k', teleport:'P', alarm:'y' }[e.kind] || 'R';
+        ring(e.x, e.y, e.kind === 'alarm' ? 9 : 2.4, PALETTE[hue] || PALETTE.R, 620);
+        burstShards(e.x, e.y, [PALETTE[hue] || PALETTE.R, PALETTE.W], 18, 1.4);
+        number(e.x, e.y - 0.5, '함정!', PALETTE.o, 1.3);
+        shake = Math.max(shake, 0.45);
+        flashScreen = Math.max(flashScreen, 0.28); flashHue = hue === 'k' ? 'r' : hue;
+        buzz([30, 40, 60]);
+        break;
+      }
+
+      // The chest that wasn't. Worth the biggest tell in the file.
+      case 'reveal':
+        ring(e.x, e.y, 3.4, PALETTE.R, 700);
+        ring(e.x, e.y, 2.0, PALETTE.o, 520);
+        number(e.x, e.y - 0.7, '미믹!', PALETTE.R, 1.7);
+        burstShards(e.x, e.y, [PALETTE.n, PALETTE.N, PALETTE.R], 22, 1.7);
+        shake = Math.max(shake, 0.6);
+        freeze = Math.max(freeze, 130);
+        flashScreen = Math.max(flashScreen, 0.42); flashHue = 'R';
+        buzz([50, 50, 90]);
+        break;
+
+      case 'chest':
+        ring(e.x, e.y, 2.2, PALETTE.y, 520);
+        for (let i = 0; i < 16 && shards.length < MAX_SHARDS; i++)
+          shards.push({
+            x: e.x + Math.random(), y: e.y + 0.6,
+            vx: (Math.random() - 0.5) * 4, vy: -3 - Math.random() * 3,
+            life: 700, age: 0, size: 1,
+            color: Math.random() < 0.6 ? PALETTE.y : PALETTE.W,
+          });
+        buzz(24);
+        break;
+
+      case 'ail': {
+        const hue = { poison:'E', blind:'g', fear:'P', slow:'B', paralyze:'R' }[e.kind] || 'P';
+        ring(e.x, e.y, 2.6, PALETTE[hue], 700);
+        flashScreen = Math.max(flashScreen, 0.3); flashHue = hue;
+        shake = Math.max(shake, 0.3);
+        buzz([40, 30, 40]);
+        break;
+      }
+
+      case 'resist':
+        number(e.x, e.y - 0.4, '저항', PALETTE.B, 1.2);
+        ring(e.x, e.y, 1.8, PALETTE.B, 420);
+        break;
+
+      case 'struggle':
+        number(e.x, e.y - 0.3, '···', PALETTE.w, 1);
+        shake = Math.max(shake, 0.18);
+        break;
+
+      case 'splash':
+        for (let i = 0; i < 12 && shards.length < MAX_SHARDS; i++)
+          shards.push({
+            x: e.x + Math.random(), y: e.y + 0.6,
+            vx: (Math.random() - 0.5) * 5, vy: -2.4 - Math.random() * 2,
+            life: 480, age: 0, size: 1,
+            color: Math.random() < 0.5 ? PALETTE.B : PALETTE.b,
+          });
+        break;
+
+      case 'door':
+        if (e.state === 'broken') {
+          burstShards(e.x, e.y, [PALETTE.n, PALETTE.N], 20, 1.6);
+          shake = Math.max(shake, 0.5);
+          buzz([40, 40, 70]);
+        } else if (e.state === 'stuck') {
+          shake = Math.max(shake, 0.22);
+          number(e.x, e.y - 0.3, '덜컹', PALETTE.s, 0.9);
+          buzz(20);
+        } else {
+          shake = Math.max(shake, 0.08);
+        }
+        break;
+
+      // Something heard you. Show how far the sound carried.
+      case 'noise':
+        ring(e.x, e.y, e.r, PALETTE.o, 720);
+        break;
+
+      case 'spot':
+        number(e.x, e.y - 0.3, '!', PALETTE.o, 1.1);
+        ring(e.x, e.y, 1.2, PALETTE.o, 380);
+        break;
     }
   }
   queue.length = 0;
@@ -271,7 +366,7 @@ export function drawEffects(ctx, camX, camY, t) {
     const k = 1 - b.age / b.life;
     ctx.globalAlpha = k;
     ctx.strokeStyle = b.color;
-    ctx.lineWidth = Math.max(2, t * 0.18) * (0.4 + k);
+    ctx.lineWidth = Math.max(b.thin ? 1 : 2, t * (b.thin ? 0.07 : 0.18)) * (0.4 + k);
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(X(b.fx + 0.5), Y(b.fy + 0.5));

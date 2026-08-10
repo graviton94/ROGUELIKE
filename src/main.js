@@ -5,6 +5,7 @@
 import { bakeAll } from './pixels.js';
 import * as UI from './ui.js';
 import { G } from './game.js';
+import * as Game from './game.js';
 
 bakeAll();
 UI.bindInput();
@@ -24,3 +25,4 @@ if ('serviceWorker' in navigator) {
 
 // expose for console tinkering while developing
 window.G = G;
+window.Game = Game;

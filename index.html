@@ -58,6 +58,7 @@
       <span class="chip">AC <b id="hud-ac">0</b></span>
       <span class="chip gold">◍ <b id="hud-gold">0</b></span>
       <span class="chip depth" id="hud-depth">마을</span>
+      <span class="chip keys" id="hud-keys" hidden>⚿ <b id="hud-keys-n">0</b></span>
       <span class="chip combo" id="hud-combo" hidden><b id="hud-combo-n">0</b> 연격</span>
     </div>
     <div class="gauge">
@@ -95,6 +96,7 @@
     <div id="acts">
       <button id="btn-inv">배낭 · 장비</button>
       <button id="btn-cast">주문</button>
+      <button id="btn-door" hidden>문 닫기</button>
       <div class="pair">
         <button id="btn-down">▼ 내려가기</button>
         <button id="btn-up">▲ 올라가기</button>
@@ -168,6 +170,33 @@
       <tr><td>치명타</td><td>민첩이 높을수록 자주 터집니다. 도적이 가장 잘 냅니다.</td></tr>
       <tr><td>기습</td><td>아직 자지 않고 있는 적은 없습니다 — <b>잠든 적</b>을 치면 무조건 치명타에, 배수까지 얹힙니다. 멀리 돌아가서라도 먼저 치세요.</td></tr>
       <tr><td>연격</td><td>연달아 처치하면 피해가 쌓입니다. 최대 +70%. 14턴 안에 다음을 잡지 못하면 끊기고, 맞으면 절반이 날아갑니다.</td></tr>
+    </table>
+
+    <h3 class="sect">몬스터</h3>
+    <table class="keys">
+      <tr><td>속도</td><td>늑대·박쥐·거미는 당신보다 빠릅니다. 오우거·미라는 느립니다. 도망칠 수 있는 상대와 없는 상대가 갈립니다.</td></tr>
+      <tr><td>원거리</td><td>투석꾼·궁수·용은 멀리서 쏩니다. 가까이 붙으면 물러나며 계속 쏘니, <b>시야를 끊거나</b> 단숨에 붙으세요.</td></tr>
+      <tr><td>무리</td><td>코볼드·오크·늑대는 떼로 나옵니다. 넓은 방에서 둘러싸이면 끝입니다. 좁은 곳으로 끌어들이세요.</td></tr>
+      <tr><td>도주</td><td>들개는 피를 흘리면 달아납니다. 놓아줄지 쫓을지는 당신 선택입니다.</td></tr>
+      <tr><td>상태이상</td><td>중독·실명·공포·둔화·마비. <b>노움은 마비되지 않고, 드워프는 눈이 멀지 않으며, 엘프와 하프트롤은 겁먹지 않습니다.</b></td></tr>
+    </table>
+
+    <h3 class="sect">문 · 함정 · 바닥</h3>
+    <table class="keys">
+      <tr><td>닫힌 문</td><td>부딪치면 열립니다. 시야를 완전히 막습니다.</td></tr>
+      <tr><td>문 닫기 (c)</td><td>곁에 열린 문이 있을 때만 나타납니다. <b>추격을 끊는 가장 확실한 수단</b> — 오크와 흡혈귀는 열고, 오우거와 트롤은 부수지만, 나머지는 막힙니다.</td></tr>
+      <tr><td>잠긴 문</td><td>열쇠로 열거나 힘으로 부숩니다. 부수는 소리는 멀리까지 갑니다.</td></tr>
+      <tr><td>함정</td><td>화살·독침·구덩이·전이·경보. 밟기 전에는 보이지 않지만, <b>지혜가 높거나 도적이면</b> 미리 발견합니다. 발견한 함정은 자동 이동이 알아서 피해 갑니다.</td></tr>
+      <tr><td>거미줄</td><td>걸리면 힘으로 뜯어내야 합니다. 거미는 그냥 지나갑니다.</td></tr>
+      <tr><td>얕은 물</td><td>건너도 다치지 않지만 <b>소리가 크게 납니다.</b> 은신이 거의 사라집니다.</td></tr>
+    </table>
+
+    <h3 class="sect">상자</h3>
+    <table class="keys">
+      <tr><td>상자</td><td>밟으면 열립니다. 잠긴 상자는 더 많이 들었고, 도적이나 열쇠가 있으면 엽니다.</td></tr>
+      <tr><td>함정 상자</td><td>뚜껑에 무언가 걸려 있을 수 있습니다.</td></tr>
+      <tr><td>미믹</td><td>상자처럼 생긴 것이 전부 상자는 아닙니다. 깊이 내려갈수록 흔해집니다.
+        건드리면 먼저 뭅니다. 다만 <b>미믹은 숨을 쉽니다</b> — 가만히 보면 아주 조금 위아래로 움직입니다. 생명 탐지 주문은 한 번에 벗겨냅니다.</td></tr>
     </table>
 
     <p class="note">

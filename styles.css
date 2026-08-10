@@ -251,6 +251,23 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 #acts button { padding: 9px 8px; font-size: 11px; text-align: left;
                min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #acts .pair { display: flex; gap: 5px; }
+/* Three fixed roles, always the same width and always in the
+   same place, so the muscle memory holds even as the contents
+   change. An empty role stays as a dead frame rather than
+   collapsing — a row that reflows is a row you misfire on. */
+/* Icon and count side by side, not stacked: the row has to earn
+   its height back from the map, and the role is already carried
+   by the position and the icon. */
+#acts .quick button {
+  flex: 1 1 0; display: flex; align-items: center; justify-content: center;
+  gap: 3px; padding: 3px 2px; font-size: 9px; line-height: 1;
+  text-align: center; overflow: hidden;
+}
+#acts .quick canvas { width: 16px; height: 16px; image-rendering: pixelated; flex: 0 0 auto; }
+#acts .quick .qn { white-space: nowrap; overflow: hidden; }
+#acts .quick b { color: var(--y); font-size: 10px; }
+#acts .quick button:disabled { opacity: .3; }
+#acts .quick button:disabled b { color: var(--G); }
 #acts .pair button { flex: 1 1 0; text-align: center; padding: 9px 4px; font-size: 10.5px; }
 #acts .ghost { color: var(--g); border-color: var(--d); }
 #acts button[hidden] { display: none; }

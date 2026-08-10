@@ -12,7 +12,7 @@ export const MW = 66, MH = 40;
    sight, and shutting one behind you is a real move. */
 export const ROCK = 0, FLOOR = 1, DOWN = 2, UP = 3, DOOR = 4, RUBBLE = 5, SHOP = 6,
              DOOR_OPEN = 7, DOOR_LOCKED = 8, DOOR_BROKEN = 9,
-             WEB = 10, WATER = 11, CAMP = 12, ALTAR = 13;
+             WEB = 10, WATER = 11, CAMP = 12, ALTAR = 13, EVENT = 14;
 
 /* rooms: how many · size: room dimensions · light/water/web:
    multipliers on the usual amount · mob: monster density. */
@@ -192,7 +192,45 @@ export class Level {
     this.placeCamp(start, st);
     this.placeMerchant(start, st);
     this.placeAltar(start, st);
+    this.placeEvent(start, st);
     this.unsealStairs(start, st);
+  }
+
+  /* The ? room. Common on purpose — it is the cheapest content
+     the game has and the only place the dungeon reacts to what
+     you happen to be carrying, so a run should meet several. */
+  placeEvent(start, down) {
+    if (this.depth < 1 || Math.random() > 0.48) return;
+    for (let t = 0; t < 70; t++) {
+      const r = this.rooms[rnd(this.rooms.length)];
+      if (!r) return;
+      const x = r.x + rnd(r.w), y = r.y + rnd(r.h);
+      const i = idx(x, y);
+      if (this.tiles[i] !== FLOOR || this.traps.has(i)) continue;
+      if (i === idx(start.x, start.y) || i === idx(down.x, down.y)) continue;
+      this.tiles[i] = EVENT;
+      this.event = { x, y };
+      this.seen[i] = 1;
+      return;
+    }
+  }
+
+  /* A fire promised by a ? room, dropped onto a floor that did
+     not roll one. Same placement rules as placeCamp; separate
+     entry point so the promise cannot be silently dropped. */
+  forceCamp() {
+    if (this.camp) return;
+    for (let t = 0; t < 120; t++) {
+      const r = this.rooms[rnd(this.rooms.length)];
+      if (!r) return;
+      const x = r.x + rnd(r.w), y = r.y + rnd(r.h);
+      const i = idx(x, y);
+      if (this.tiles[i] !== FLOOR || this.traps.has(i)) continue;
+      this.tiles[i] = CAMP;
+      this.camp = { x, y };
+      this.seen[i] = 1;
+      return;
+    }
   }
 
   /* The altar. Rarer than the fire and louder than it — this is

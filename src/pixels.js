@@ -462,6 +462,18 @@ export const SPRITES = {
     'nnnnnnnn',
     '........',
   ],
+  /* The ? room. A question mark on a stone marker — the one
+     glyph the player will read before they read the prose. */
+  event: [
+    '..bBBb..',
+    '.BB..BB.',
+    '.Bb..bB.',
+    '....bB..',
+    '...bB...',
+    '...B....',
+    '........',
+    '...B....',
+  ],
   altar: [
     '..PPPP..',
     '.PWWWWP.',

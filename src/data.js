@@ -187,9 +187,8 @@ export const CONSUMABLES = [
   { id:'potMana',  spr:'potion', n:'정신의 물약',     d:2,  cost:60,  rar:8,  use:'mana' },
   { id:'scrMap',   spr:'scroll', n:'지도 두루마리',   d:2,  cost:70,  rar:8,  use:'map' },
   { id:'scrTele',  spr:'scroll', n:'전이 두루마리',   d:3,  cost:80,  rar:8,  use:'teleport' },
-  { id:'scrDeep',  spr:'scroll', n:'심연의 두루마리', d:4,  cost:120, rar:5,  use:'deepDescent' },
-  { id:'food',     spr:'food',   n:'말린 식량',       d:0,  cost:6,   rar:14, use:'food' },
-  { id:'torch',    spr:'torch',  n:'횃불',            d:0,  cost:10,  rar:10, use:'torch' },
+  { id:'scrFlee',  spr:'scroll', n:'탈출의 두루마리', d:3,  cost:120, rar:7,  use:'flee' },
+  { id:'torch',    spr:'torch',  n:'횃불',            d:0,  cost:14,  rar:12, use:'torch' },
 
   /* Only ever found, never stocked — the merchant will not sell
      you something he cannot name either. Half of these are worth
@@ -210,16 +209,16 @@ export const UNKNOWABLE = CONSUMABLES
 /* ── the town ─────────────────────────────────────────────
    Six shops, as on Moria's level 0.                        */
 export const SHOPS = [
-  { id:1, n:'잡화점',   spr:'food',   stock:['food','torch','potHeal'] },
+  { id:1, n:'잡화점',   spr:'torch',  stock:['torch','potHeal','scrMap'] },
   { id:2, n:'방어구점', spr:'armor',  stock:'armour' },
   { id:3, n:'무기점',   spr:'sword',  stock:'weapon' },
   { id:4, n:'신전',     spr:'amulet', stock:['potHeal','potCure'] },
   { id:5, n:'연금술사', spr:'potion', stock:['potHeal','potMana','potCure'] },
-  { id:6, n:'마법상',   spr:'wand',   stock:['scrMap','scrTele','scrDeep','potMana'] },
+  { id:6, n:'마법상',   spr:'wand',   stock:['scrMap','scrTele','scrFlee','potMana'] },
   /* Not in town. This one walks the dungeon, which is the only
      reason the gold in your purse means anything after floor 1. */
   { id:7, n:'떠돌이 상인', spr:'amulet', wander:true,
-    stock:['potHeal','potCure','potMana','scrTele','scrMap','food','torch'],
+    stock:['potHeal','potCure','potMana','scrTele','scrMap','scrFlee','torch'],
     mats:['scrap','dust','essence'] },
 ];
 
@@ -386,7 +385,17 @@ export const ALTAR_OFFERS = [
    layer switches on; `v` is that hook's single parameter. Five
    slots, no more: a build you cannot fill is a build you had to
    choose. */
-export const RELIC_SLOTS = 5;
+/* Slots grow with the descent. Five was one interesting decision
+   and then a wall: by floor 8 every relic offer was "swap or
+   refuse", which taught the player to stop reading them. Growing
+   the hand means the early game is tight and the late game is
+   where the absurd combinations actually assemble — which is the
+   part worth playing for. */
+export const RELIC_SLOTS_BASE = 4;
+export const RELIC_SLOT_DEPTHS = [4, 8, 12];      // +1 slot on reaching each
+export const relicSlots = deepest =>
+  RELIC_SLOTS_BASE + RELIC_SLOT_DEPTHS.filter(d => deepest >= d).length;
+export const RELIC_SLOTS = RELIC_SLOTS_BASE + RELIC_SLOT_DEPTHS.length;   // 7, the cap
 
 export const RELICS = [
   { id:'pact',    n:'피의 계약',     spr:'amulet', k:'pact',    v:0.25,
@@ -394,7 +403,7 @@ export const RELICS = [
   { id:'echo',    n:'메아리의 종',   spr:'amulet', k:'echo',    v:6,
     t:'연격 6 이상이면 공격이 한 번 더 들어간다.' },
   { id:'hunger',  n:'굶주린 칼날',   spr:'sword',  k:'hunger',  v:3,
-    t:'처치할 때마다 체력 +3. 식량이 두 배로 준다.' },
+    t:'처치할 때마다 체력 +3. 기름을 두 배로 태운다.' },
   { id:'mirror',  n:'거울 방패',     spr:'shield', k:'mirror',  v:0.35,
     t:'받은 피해의 35%를 때린 쪽에 돌려준다.' },
   { id:'eye',     n:'심연의 눈',     spr:'scroll', k:'eye',     v:3,
@@ -421,6 +430,29 @@ export const RELICS = [
     t:'명중 −15%. 치명타 배율 ×1.8.' },
   { id:'vow',     n:'침묵의 서약',   spr:'scroll', k:'vow',     v:0.3,
     t:'주문을 쓸 수 없다. 근접 피해 +30%.' },
+
+  /* Second batch. With a hand that grows to seven, the pool has
+     to be deep enough that two runs never hold the same five. */
+  { id:'lamp',    n:'꺼지지 않는 등', spr:'torch', k:'lamp',    v:2,
+    t:'기름이 줄지 않는다. 대신 불빛이 2칸 좁다.' },
+  { id:'moth',    n:'나방의 표식',   spr:'ring',   k:'moth',    v:0.10,
+    t:'층에 들어설 때 모닥불·제단·상인·사건 위치가 보인다. 최대 체력 −10%.' },
+  { id:'knot',    n:'매듭 밧줄',     spr:'ring',   k:'knot',    v:0.5,
+    t:'거미줄과 구덩이가 통하지 않는다. 은신 −50%.' },
+  { id:'toll',    n:'뱃사공의 동전', spr:'gold',   k:'toll',    v:0.5,
+    t:'금화를 두 배로 얻는다. 층을 내려갈 때 가진 금화의 10%를 잃는다.' },
+  { id:'brand',   n:'낙인',          spr:'sword',  k:'brand',   v:0.5,
+    t:'정예에게 주는 피해 +50%. 일반 몬스터에게 −15%.' },
+  { id:'quill',   n:'서기의 깃펜',   spr:'scroll', k:'quill',   v:0.25,
+    t:'미확인 물건을 주우면 바로 판별된다. 금화 획득 −25%.' },
+  { id:'grudge',  n:'앙심',          spr:'amulet', k:'grudge',  v:0.04,
+    t:'맞을 때마다 피해 +4% 누적(층마다 초기화, 최대 +60%).' },
+  { id:'seed',    n:'돌씨',          spr:'armor',  k:'seed',    v:1,
+    t:'층을 내려갈 때 방어 +1 영구. 최대 체력 −15%.' },
+  { id:'wick',    n:'짧은 심지',     spr:'potion', k:'wick',    v:6,
+    t:'물약을 마실 때 인접한 적이 타 들어간다. 회복량 −30%.' },
+  { id:'drum',    n:'전쟁 북',       spr:'amulet', k:'drum',    v:2,
+    t:'맞아도 연격을 4분의 1만 잃는다. 몬스터가 두 칸 더 멀리서 깨어난다.' },
 ];
 
 export const relicById = id => RELICS.find(r => r.id === id);
@@ -444,7 +476,7 @@ export const BRANCHES = [
     mon:1.3,  item:1.8, elite:1,   chests:2, tone:'y' },
   { id:'hush',   n:'고요한 층',   t:'몬스터 40% 감소. 전리품도 상자도 모닥불도 없다.',
     mon:0.6,  item:0.35, elite:0.5, noCamp:true, tone:'B' },
-  { id:'starve', n:'마른 층',     t:'식량과 횃불이 두 배로 준다. 금화는 두 배로 나온다.',
+  { id:'starve', n:'마른 층',     t:'기름을 두 배로 태운다. 금화는 두 배로 나온다.',
     mon:1,    item:1,   elite:1,   drain:2, gold:2, tone:'o' },
   { id:'curse',  n:'저주받은 층', t:'모든 몬스터가 정예. 제단이 반드시 있고 유물도 하나.',
     mon:0.75, item:1,   elite:99,  relic:1, altar:true, tone:'P' },

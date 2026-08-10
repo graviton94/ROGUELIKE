@@ -15,7 +15,7 @@ import {
 import {
   MW, MH, idx, clamp, walkable, isDoor,
   ROCK, FLOOR, DOWN, UP, DOOR, RUBBLE, SHOP,
-  DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN, WEB, WATER, CAMP, ALTAR,
+  DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN, WEB, WATER, CAMP, ALTAR, EVENT,
 } from './world.js';
 import * as Game from './game.js';
 import { G } from './game.js';
@@ -145,6 +145,12 @@ export function draw() {
           const prevA = ctx.globalAlpha;
           ctx.globalAlpha = Math.max(prevA, 0.6 + Math.sin(performance.now() / 380) * 0.18);
           ctx.drawImage(sprite('altar'), px, py, t, t);
+          ctx.globalAlpha = prevA;
+        }
+        if (tile === EVENT) {
+          const prevA = ctx.globalAlpha;
+          ctx.globalAlpha = Math.max(prevA, 0.62 + Math.sin(performance.now() / 340) * 0.16);
+          ctx.drawImage(sprite('event'), px, py, t, t);
           ctx.globalAlpha = prevA;
         }
         if (tile === RUBBLE)      ctx.drawImage(sprite('rubble'),     px, py, t, t);
@@ -500,6 +506,12 @@ export function refresh() {
   $('hud-depth').textContent = G.depth === 0 ? '마을' : `${G.depth}층`;
   $('hud-xp').textContent    = `${p.xp}/${xpToLevel(p.lv)}`;
 
+  /* The only upkeep left, so it gets a number rather than just a
+     warning word. It is also the light radius, which is why it
+     sits next to the other numbers you plan around. */
+  $('hud-oil-wrap').hidden = G.depth === 0;
+  $('hud-oil').textContent = `${p.lightTurns} (${Game.lightRadiusOf(p)}칸)`;
+
   /* Tied to the class, not to the current pool. A priest who
      rolled poor wisdom has 0 mana at level 1 but still has a
      spellbook — showing the button without the bar told them
@@ -539,10 +551,9 @@ export function refresh() {
      you in the next ten turns. */
   const flags = Game.ailList(p).map(k => AILMENTS[k].n);
   if (p.stuck > 0) flags.push('거미줄');
-  if (p.food <= 0) flags.push('굶주림');
-  else if (p.food < 400) flags.push('허기');
   if (G.depth > 0 && p.lightTurns <= 0) flags.push('암흑');
-  else if (G.depth > 0 && p.lightTurns < 200) flags.push('불빛 희미');
+  else if (G.depth > 0 && p.lightTurns < 80) flags.push('불빛 희미');
+  else if (G.depth > 0 && p.lightTurns < 300) flags.push('기름 부족');
   if (p.blessed > 0) flags.push('축복');
   $('hud-flags').textContent = flags.join(' · ');
   $('hud-flags').className = flags.length ? 'flags on' : 'flags';
@@ -560,6 +571,7 @@ export function refresh() {
   for (const line of G.log.slice(-4)) logBox.appendChild(el('p', line.tone, line.text));
 
   $('btn-cast').hidden = Game.spellList(p).length === 0;
+  renderQuick();
 
   /* The clock, shown as a chip rather than a number: how much of
      the floor's patience is left. It only appears once it starts
@@ -584,12 +596,46 @@ export function refresh() {
   draw();
 }
 
+/* Three buttons that never move and never change count, so the
+   row cannot reflow under a thumb that is already travelling. */
+function renderQuick() {
+  const row = $('quick-row');
+  const slots = Game.quickSlots();
+  if (!row.children.length) {
+    for (let i = 0; i < slots.length; i++) {
+      const b = el('button');
+      b.appendChild(el('canvas', 'qic'));
+      b.appendChild(el('span', 'qn'));
+      row.appendChild(b);
+    }
+  }
+  slots.forEach((s, i) => {
+    const b = row.children[i];
+    if (!b) return;
+    const cv = b.querySelector('canvas');
+    const label = b.querySelector('.qn');
+    b.disabled = !s;
+    if (!s) {
+      cv.width = cv.height = 1;
+      label.textContent = Game.QUICK_LABELS[i];
+      b.onclick = null;
+      return;
+    }
+    paintIcon(cv, s.item.spr);
+    label.innerHTML = '';
+    label.appendChild(document.createTextNode(s.label + ' '));
+    const n = el('b', '', `×${s.qty}`);
+    label.appendChild(n);
+    b.onclick = () => { stopAuto(); act(() => Game.useItem(s.idx)); };
+  });
+}
+
 /* ── screens ────────────────────────────────────────────── */
 export function setScreen(name) {
   G.screen = name;
   if (name !== 'play') stopAuto();
   for (const s of ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help',
-                   'camp', 'slots', 'altar', 'stairs', 'relic'])
+                   'camp', 'slots', 'altar', 'stairs', 'relic', 'event'])
     $(`sc-${s}`).hidden = (s !== name);
   if (name === 'play') { resize(); refresh(); }
   if (name === 'inv')  renderInventory();
@@ -602,6 +648,7 @@ export function setScreen(name) {
   if (name === 'end')  renderEnd();
   if (name === 'stairs') renderStairs();
   if (name === 'relic')  renderRelicSwap();
+  if (name === 'event')  renderEvent();
   if (name === 'help')   renderLegend();
 }
 
@@ -1186,6 +1233,39 @@ $('camp-back').onclick = () => { campMode = null; renderCamp(); };
    before you read a single number. */
 const ODD_CLASS = { '대성공':'great', '성공':'good', '허탕':'none', '재앙':'doom' };
 
+/* ── the ? room ───────────────────────────────────────────
+   Prose, then two or three buttons with their consequences
+   printed. An option the player cannot afford stays visible and
+   dead rather than vanishing — seeing what you *could* have done
+   with ten more scrap is half of why the screen is interesting. */
+export function renderEvent() {
+  const offer = Game.eventOffer();
+  const list = $('event-list');
+  list.innerHTML = '';
+  if (!offer) { setScreen('play'); return; }
+
+  $('event-name').textContent = offer.n;
+  $('event-text').textContent = offer.t;
+
+  for (const o of offer.opts) {
+    const row = el('button', 'campopt' + (o.can ? '' : ' poor'));
+    if (!o.can) row.disabled = true;
+    const head = el('div', 'camphead');
+    head.appendChild(el('span', 'campname', o.n));
+    if (!o.can) head.appendChild(el('span', 'camptag', '조건이 안 된다'));
+    row.appendChild(head);
+    if (o.t) row.appendChild(el('span', 'campdesc', o.t));
+    if (o.can) row.onclick = () => {
+      Game.eventChoose(o.i);
+      // An option can hand off to another screen — a relic swap,
+      // the fire. Follow it rather than stamping over it.
+      setScreen(INTERRUPTS.includes(G.screen) ? G.screen : 'play');
+      refresh();
+    };
+    list.appendChild(row);
+  }
+}
+
 /* ── the fork ─────────────────────────────────────────────
    Three doors, each with its price printed on it. Everything
    the branch will do is on the card before you commit — that is
@@ -1424,7 +1504,7 @@ function walkTo(tx, ty) {
    step — walking onto a fire, opening a chest with a relic in
    it. One list, so a new screen is never routed from three
    places and forgotten in a fourth. */
-const INTERRUPTS = ['shop', 'camp', 'altar', 'stairs', 'relic'];
+const INTERRUPTS = ['shop', 'camp', 'altar', 'stairs', 'relic', 'event'];
 
 function takeStep(dx, dy) {
   act(() => Game.step(dx, dy));

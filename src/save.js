@@ -17,7 +17,7 @@ import { BRANCHES } from './data.js';
 
 const PREFIX = 'deepdelve.slot.';
 export const SLOTS = 3;
-const FORMAT = 2;
+const FORMAT = 3;
 
 /* ── byte packing ───────────────────────────────────────── */
 function toB64(bytes) {
@@ -55,6 +55,8 @@ function packLevel(L) {
     altar: L.altar || null,
     theme: L.theme?.id || 'plain',
     campSpent: !!L.campSpent,
+    event: L.event || null,
+    eventId: L.eventId || null,
     downRoom: L.downRoom ? L.rooms.indexOf(L.downRoom) : -1,
     shopAt: [...L.shopAt],
     keeperAt: [...(L.keeperAt || [])],
@@ -83,6 +85,9 @@ function unpackLevel(d) {
   L.camp   = d.camp || null;
   L.merchant = d.merchant || null;
   L.altar = d.altar || null;
+  L.event = d.event || null;
+  L.eventId = d.eventId || null;
+  L.branch = {};                 // generation-time only; nothing reads it after
   L.theme = THEMES[d.theme] || THEMES.plain;
   L.campSpent = !!d.campSpent;
   L.downRoom = d.downRoom >= 0 ? L.rooms[d.downRoom] : undefined;
@@ -107,6 +112,8 @@ export function snapshot() {
     looks: G.looks || {}, known: G.known || {},
     branch: G.branch?.id || 'plain',
     floorTurn: G.floorTurn || 0, waves: G.waves || 0, campUses: G.campUses ?? 1,
+    deepest: G.deepest || 0, campPromise: G.campPromise || 0,
+    nextMods: G.nextMods || null,
     player: G.player,
     monsters: G.monsters,
     items: G.items,
@@ -132,6 +139,9 @@ export function apply(data) {
   G.floorTurn = data.floorTurn || 0;
   G.waves = data.waves || 0;
   G.campUses = data.campUses ?? 1;
+  G.deepest = data.deepest || data.depth || 0;
+  G.campPromise = data.campPromise || 0;
+  G.nextMods = data.nextMods || null;
   G.pendingBranch = null;
   G.pendingRelic = null;
   G.player  = data.player;
@@ -156,6 +166,12 @@ export function apply(data) {
   p.iron = p.iron || 0;
   p.relics = p.relics || [];
   p.boneHp = p.boneHp || 0;
+  p.seedAc = p.seedAc || 0;
+  p.grudge = p.grudge || 0;
+  p.perm = p.perm || {};
+  p.tuned = p.tuned || {};
+  p.markup = p.markup || 0;
+  p.permHp = p.permHp || 0;
 
   refreshFov();
   return true;

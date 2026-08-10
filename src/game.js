@@ -9,15 +9,16 @@ import {
   MATS, salvageYield, upgradeCost, ENCHANT_COST, REROLL_COST,
   ALTAR_OFFERS, rarityOf, isCursed,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
-  RELICS, RELIC_SLOTS, relicById, BRANCHES,
+  RELICS, RELIC_SLOTS, relicSlots, relicById, BRANCHES,
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH,
   xpToLevel, statBonus,
 } from './data.js';
 import {
   Level, computeFov, lineClear, idx, rnd, roll, clamp, MW, MH,
   FLOOR, DOWN, UP, DOOR, RUBBLE, DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN,
-  WEB, WATER, CAMP, ALTAR, isDoor, isShut,
+  WEB, WATER, CAMP, ALTAR, EVENT, isDoor, isShut,
 } from './world.js';
+import { EVENTS } from './events.js';
 
 export const G = {
   level: null, depth: 0, player: null, monsters: [], items: [],
@@ -40,14 +41,17 @@ export const G = {
    does. Everything below is a lookup against the five the
    player is carrying — cheap enough to call per swing. */
 export const hasRelic = id => !!G.player?.relics?.some(r => r === id);
-export const relicVal = id => (hasRelic(id) ? relicById(id).v : 0);
+export const relicVal = id =>
+  (hasRelic(id) ? relicById(id).v + (G.player.tuned?.[id] || 0) : 0);
 export const relicList = () => (G.player?.relics || []).map(relicById).filter(Boolean);
+
+export const slotCount = () => relicSlots(G.deepest || G.depth || 0);
 
 export function takeRelic(id) {
   const p = G.player;
   if (!p || hasRelic(id)) return false;
   p.relics = p.relics || [];
-  if (p.relics.length >= RELIC_SLOTS) { G.pendingRelic = id; G.screen = 'relic'; return false; }
+  if (p.relics.length >= slotCount()) { G.pendingRelic = id; G.screen = 'relic'; return false; }
   p.relics.push(id);
   say(`${relicById(id).n} — ${relicById(id).t}`, 'level');
   fx({ t:'altar', x:p.x, y:p.y, good:true });
@@ -113,7 +117,7 @@ export function createHero(raceKey, classKey, base) {
     lv: 1, xp: 0,
     hp: 0, maxhp: 0, mana: 0, maxmana: 0,
     gold: 250,
-    food: 3000, lightTurns: 2500,
+    lightTurns: 1100,
     blessed: 0,
     ail: {},          // ailment -> turns remaining
     stuck: 0,         // turns still caught in a web
@@ -121,7 +125,8 @@ export function createHero(raceKey, classKey, base) {
     mats: { scrap: 0, dust: 0, essence: 0 },
     might: 0, iron: 0,
     spellPlus: {}, spellAffix: {},
-    relics: [], boneHp: 0,
+    relics: [], boneHp: 0, seedAc: 0, grudge: 0,
+    perm: {}, tuned: {}, markup: 0, permHp: 0,
     equip: { weapon: null, body: null, shield: null },
     pack: [],
     x: 0, y: 0,
@@ -130,7 +135,6 @@ export function createHero(raceKey, classKey, base) {
   p.hp = p.maxhp; p.mana = p.maxmana;
 
   addItem(p, makeConsumable('potHeal'), 3);
-  addItem(p, makeConsumable('food'), 3);
   addItem(p, makeConsumable('torch'), 2);
   p.equip.weapon = { kind:'weapon', ...WEAPONS[0] };
   p.equip.body   = { kind:'armour', ...ARMOURS[0] };
@@ -147,7 +151,7 @@ export function recalc(p, init) {
     p.maxmana = Math.max(0, Math.floor((b + 1) * p.lv * 0.85));
   } else p.maxmana = 0;
   const g = gearBonus(p);
-  p.maxhp = Math.max(8, Math.round(p.maxhp * (1 + g.maxhpPct)) + (p.boneHp || 0));
+  p.maxhp = Math.max(8, Math.round(p.maxhp * (1 + g.maxhpPct)) + (p.boneHp || 0) + (p.permHp || 0));
   p.maxmana = Math.max(0, Math.round(p.maxmana * (1 + g.manaPct)) + g.manaFlat);
   if (init) return;
   p.hp = Math.min(p.hp, p.maxhp);
@@ -206,6 +210,21 @@ export function gearBonus(p) {
     }
   }
 
+  /* Permanent gains from ? rooms live here too. They are not
+     attached to any item, so nothing can take them away — which
+     is exactly why an event that hands one out is memorable. */
+  const perm = p.perm;
+  if (perm) {
+    b.dmg       += perm.dmg || 0;
+    b.ac        += perm.ac || 0;
+    b.stealth   += perm.stealth || 0;
+    b.lightR    += perm.lightR || 0;
+    b.lifesteal += perm.lifesteal || 0;
+    b.chain     += perm.chain || 0;
+    b.manaFlat  += perm.manaFlat || 0;
+    if (perm.hitPctMul) b.hitPct *= perm.hitPctMul;
+  }
+
   /* Relics ride the same funnel, so a relic and an affix can
      never disagree about what a number means. The ones with a
      condition are resolved here too — 저울추 only pays while you
@@ -219,6 +238,11 @@ export function gearBonus(p) {
       case 'eye':      b.manaFlat -= 3; break;
       case 'vow':      b.dmgPct += 0.30; break;
       case 'scale':    if (p.hp <= p.maxhp * 0.3) b.dmgPct += 0.60; break;
+      case 'lamp':     b.lightR -= 2; break;
+      case 'moth':     b.maxhpPct -= 0.10; break;
+      case 'knot':     b.stealth -= 0.5; break;
+      case 'seed':     b.maxhpPct -= 0.15; b.ac += p.seedAc || 0; break;
+      case 'grudge':   b.dmgPct += Math.min(0.60, (p.grudge || 0) * 0.04); break;
     }
   }
   return b;
@@ -291,7 +315,8 @@ export const stealth = p => (gearBonus(p).noStealth ? 0 : clamp(
 
 /* Each link in the chain adds damage; the chain is the reward
    for clearing a room without letting anything touch you. */
-export const comboMult = () => 1 + Math.min(G.combo, 20) * 0.035;
+export const comboMult = () =>
+  1 + Math.min(G.combo, 20) * (0.035 + (G.player?.perm?.comboStep || 0));
 
 const COMBO_TIERS = [
   [5,  '연격 5 — 손이 풀렸다.'],
@@ -302,7 +327,7 @@ const COMBO_TIERS = [
 
 function bumpCombo(x, y) {
   G.combo++;
-  G.comboT = 14;
+  G.comboT = 14 + (G.player?.perm?.comboHold || 0);
   if (G.combo > G.bestCombo) G.bestCombo = G.combo;
   for (const [n, msg] of COMBO_TIERS)
     if (G.combo === n) { say(msg, 'level'); fx({ t:'comboTier', x, y, n }); }
@@ -310,9 +335,18 @@ function bumpCombo(x, y) {
 
 /* A hit to the face costs you half the chain — enough to hurt,
    not enough to make the whole system feel fragile. */
+/* 앙심 counts the hits you have taken on this floor. Every path
+   that costs you health goes through here, so a relic that pays
+   for being hit can never disagree with what "being hit" means. */
+function tookHit() {
+  const p = G.player;
+  if (hasRelic('grudge')) p.grudge = Math.min(15, (p.grudge || 0) + 1);
+}
+
 function breakCombo(hard) {
   if (!G.combo) return;
-  const left = hard ? 0 : G.combo >> 1;
+  // 전쟁 북: a hit costs a quarter of the chain rather than half.
+  const left = hard ? 0 : (hasRelic('drum') ? Math.round(G.combo * 0.75) : G.combo >> 1);
   if (left < G.combo) fx({ t:'comboDrop', from: G.combo, to: left });
   G.combo = left;
   if (!G.combo) G.comboT = 0;
@@ -352,7 +386,7 @@ export function equip(slotIdx) {
     removeItem(p, slotIdx);
     if (old) addItem(p, old);
     if (it.hands === 2 && p.equip.shield) { addItem(p, p.equip.shield); p.equip.shield = null; say('양손 무기라 방패를 내렸다.'); }
-    say(`${it.n}을(를) 들었다.`, 'good');
+    say(`${nameOf(it)}을(를) 들었다.`, 'good');
   } else if (it.kind === 'armour') {
     const key = it.slot;
     if (key === 'shield' && p.equip.weapon?.hands === 2) { say('양손 무기를 든 채로는 방패를 들 수 없다.', 'warn'); return; }
@@ -360,7 +394,7 @@ export function equip(slotIdx) {
     p.equip[key] = it;
     removeItem(p, slotIdx);
     if (old) addItem(p, old);
-    say(`${it.n}을(를) 착용했다.`, 'good');
+    say(`${nameOf(it)}을(를) 착용했다.`, 'good');
   }
   endTurn();
 }
@@ -419,6 +453,46 @@ export const costText = cost => [
   cost.essence ? `${MATS.essence.n} ${cost.essence}` : null,
 ].filter(Boolean).join(' · ');
 
+/* ── quick slots ──────────────────────────────────────────
+   A potion two taps away in a menu is a potion you die holding.
+   Three fixed roles, filled automatically from the pack, so the
+   common case — drink the heal, right now — is one tap and needs
+   no inventory management at all.
+
+   Deliberately role-based rather than player-assigned: assigning
+   slots is another system to learn, and the whole point here is
+   fewer things to manage. Anything that does not fit a role is
+   still in the pack. */
+const QUICK_ROLES = [
+  { key:'heal',  n:'회복', want: it => it.use === 'bigHeal' || it.use === 'heal',
+    rank: it => (it.use === 'bigHeal' ? 2 : 1) },
+  { key:'boost', n:'강화', want: it => ['mana', 'might', 'iron'].includes(it.use),
+    rank: it => (it.use === 'mana' ? 2 : 1) },
+  { key:'out',   n:'탈출', want: it => ['flee', 'teleport', 'torch'].includes(it.use),
+    rank: it => (it.use === 'flee' ? 3 : it.use === 'teleport' ? 2 : 1) },
+];
+
+/* Unknown flasks never get a quick slot. Auto-drinking something
+   you have not identified would hand the gamble to the UI. */
+export const QUICK_LABELS = QUICK_ROLES.map(r => r.n);
+
+export function quickSlots() {
+  const p = G.player;
+  if (!p) return [];
+  return QUICK_ROLES.map(role => {
+    let best = -1, bestRank = -1;
+    p.pack.forEach((slot, i) => {
+      const it = slot.item;
+      if (it.kind !== 'use' || !isKnown(it.id) || !role.want(it)) return;
+      const r = role.rank(it);
+      if (r > bestRank) { bestRank = r; best = i; }
+    });
+    return best < 0 ? null
+      : { role: role.key, label: role.n, idx: best,
+          item: p.pack[best].item, qty: p.pack[best].qty };
+  });
+}
+
 /* ── item use ───────────────────────────────────────────── */
 export function useItem(slotIdx) {
   const p = G.player, slot = p.pack[slotIdx];
@@ -430,37 +504,54 @@ export function useItem(slotIdx) {
 
   // 폭식의 위장 doubles what a flask does. It is the only relic
   // that makes the potions you were already hoarding matter.
-  const gulp = hasRelic('gut') ? 2 : 1;
+  // 짧은 심지 turns the same act into an attack and takes the
+  // healing back — a flask becomes a tactic, not a top-up.
+  const gulp = (hasRelic('gut') ? 2 : 1) * (hasRelic('wick') ? 0.7 : 1);
+  if (hasRelic('wick') && it.spr === 'potion') {
+    const burn = relicVal('wick') + G.depth;
+    const near = adjacentMonsters(p);
+    if (near.length) {
+      fx({ t:'burst', x:p.x, y:p.y, r:1.6, color:'o' });
+      for (const o of near) hurtMonster(o, burn, '짧은 심지', {});
+    }
+  }
 
   switch (it.use) {
     case 'heal': {
-      const h = Math.min(p.maxhp - p.hp, (20 + roll(2, 8) + p.lv * 2) * gulp);
+      const h = Math.round(Math.min(p.maxhp - p.hp, (20 + roll(2, 8) + p.lv * 2) * gulp));
       p.hp += h; if (h) fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(h ? `상처가 아문다. 체력 +${h}.` : '이미 멀쩡하다.', 'good'); break;
     }
     case 'bigHeal': {
-      const h = Math.min(p.maxhp - p.hp, (Math.floor(p.maxhp * 0.6) + roll(3, 10)) * gulp);
+      const h = Math.round(Math.min(p.maxhp - p.hp, (Math.floor(p.maxhp * 0.6) + roll(3, 10)) * gulp));
       p.hp += h; fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(`깊은 상처까지 닫힌다. 체력 +${h}.`, 'good'); break;
     }
     case 'mana': {
       if (!p.maxmana) { say('아무 일도 일어나지 않았다.'); break; }
-      const m = Math.min(p.maxmana - p.mana, (Math.ceil(p.maxmana * 0.5) + roll(1, 6)) * gulp);
+      const m = Math.round(Math.min(p.maxmana - p.mana, (Math.ceil(p.maxmana * 0.5) + roll(1, 6)) * gulp));
       p.mana += m; say(`머리가 맑아진다. 마나 +${m}.`, 'good'); break;
     }
     case 'map':   revealMap(); say('층의 구조가 머릿속에 그려진다.', 'good'); break;
     case 'teleport': teleport(); say('공간이 접혔다 펴진다.', 'good'); break;
-    case 'deepDescent':
+    /* The panic button. It used to drop you two floors, which
+       skipped the fork you were meant to choose; now it takes the
+       plain stair down one floor, immediately, from wherever you
+       are standing. That is what you want when the floor has
+       started feeding and the stairs are on the far side of it. */
+    case 'flee':
+      if (G.depth === 0) { say('마을에서는 쓸 데가 없다.', 'warn'); spent = false; break; }
       if (G.depth >= MAX_DEPTH) { say('더 내려갈 곳이 없다.', 'warn'); spent = false; break; }
-      say('바닥이 열린다.', 'warn'); enterDepth(Math.min(MAX_DEPTH, G.depth + 2)); break;
-    case 'food':  p.food = Math.min(6000, p.food + 2200); say('허기가 가신다.', 'good'); break;
-    case 'torch': p.lightTurns = Math.min(6000, p.lightTurns + 2500); say('새 횃불에 불을 붙였다.', 'good'); break;
+      say('발밑이 열리고, 한 층을 미끄러져 내려간다.', 'warn');
+      enterDepth(G.depth + 1, false, BRANCHES[0]);
+      break;
+    case 'torch': p.lightTurns = Math.min(2600, p.lightTurns + 900); say('새 횃불에 불을 붙였다.', 'good'); break;
 
     /* The unknown half. Three of these are worth drinking and
        three are not, so an unidentified flask is a real bet. */
     case 'might':
-      p.might = 40 * gulp; say('피가 끓는다. 잠시 훨씬 세게 때린다.', 'good');
+      p.might = Math.round(40 * gulp); say('피가 끓는다. 잠시 훨씬 세게 때린다.', 'good');
       fx({ t:'ail', kind:'fear', x:p.x, y:p.y }); break;
     case 'iron':
-      p.iron = 40 * gulp; say('살갗이 쇠처럼 굳는다.', 'good');
+      p.iron = Math.round(40 * gulp); say('살갗이 쇠처럼 굳는다.', 'good');
       fx({ t:'ail', kind:'slow', x:p.x, y:p.y }); break;
     case 'venom': {
       const dmg = roll(2, 5) + G.depth;
@@ -618,6 +709,7 @@ function spellDrain(aff, dmg) {
 /* ── level flow ─────────────────────────────────────────── */
 export function enterDepth(depth, fromBelow = false, branch = null) {
   G.depth = depth;
+  G.deepest = Math.max(G.deepest || 0, depth);
   G.branch = branch || BRANCHES[0];
   G.level = new Level(depth, G.branch);
   G.monsters = [];
@@ -633,7 +725,25 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     const d = findTile(L, DOWN); p.x = d.x; p.y = d.y;
   } else { p.x = L.entry.x; p.y = L.entry.y; }
 
+  /* Modifiers a ? room promised for "the next floor", spent here
+     and cleared immediately so they cannot carry on past it. */
+  const mods = G.nextMods || null;
+  G.nextMods = null;
+  if (mods && depth > 0) {
+    G.branch = { ...G.branch };
+    for (const k of ['item', 'elite', 'chests', 'clock'])
+      if (mods[k] != null) G.branch[k] = (G.branch[k] ?? 1) * mods[k];
+  }
+
+  /* A fire promised three floors ago has to actually be here. */
+  if (depth > 0 && G.campPromise > 0 && !L.camp) {
+    G.campPromise--;
+    L.forceCamp();
+  } else if (depth > 0 && G.campPromise > 0) G.campPromise--;
+
   if (depth > 0) populate(depth);
+  if (depth > 0 && L.event) L.eventId = rollEvent();
+  if (mods?.mapped && depth > 0) L.seen.fill(1);
   refreshFov();
 
   /* A fire burns whether or not you are looking at it. Mark it
@@ -649,6 +759,28 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   // 심연의 눈 pays out the moment you arrive, which is the only
   // moment a whole map is worth anything.
   if (depth > 0 && hasRelic('eye')) { L.seen.fill(1); say('심연의 눈이 층 전체를 훑는다.', 'good'); }
+  /* 나방의 표식 shows the three places worth walking to instead of
+     the whole map — cheaper than 심연의 눈 and, for a player who
+     only cares about the fire and the stone, better. */
+  if (depth > 0 && hasRelic('moth')) {
+    let n = 0;
+    for (const spot of [L.camp, L.altar, L.merchant, L.event])
+      if (spot) { L.seen[idx(spot.x, spot.y)] = 1; n++; }
+    if (n) say(`나방이 ${n}곳으로 날아갔다.`, 'good');
+  }
+  // 뱃사공의 동전 takes its cut on the way down.
+  if (depth > 0 && hasRelic('toll') && p.gold > 0) {
+    const fee = Math.ceil(p.gold * 0.10);
+    p.gold -= fee;
+    say(`뱃사공이 ${fee}닢을 챙겼다.`, 'warn');
+  }
+  // 돌씨 hardens a little every floor, for the whole run.
+  if (depth > 0 && hasRelic('seed')) {
+    p.seedAc = (p.seedAc || 0) + 1;
+    recalc(p);
+    say(`돌씨가 자란다. 방어 +${p.seedAc}.`, 'good');
+  }
+  if (depth > 0) p.grudge = 0;      // 앙심 forgets between floors
   // 시간 도둑 buys the descent back — and charges for it in turns.
   if (depth > 0 && hasRelic('thief') && p.hp < p.maxhp) {
     p.hp = p.maxhp; p.mana = p.maxmana;
@@ -849,9 +981,19 @@ export function pickAffix(table, tag, allowCurse) {
   return pool.length ? pool[rnd(pool.length)] : null;
 }
 
+/* Light shrinks, it does not switch off. A cliff at zero taught
+   the player nothing until it was too late; a radius that closes
+   in over the last few hundred turns is a warning you can act on
+   — and on a 빛이 없는 층 it is the whole fight. */
+export const lightRadiusOf = p => {
+  if (G.depth === 0) return 12;
+  const t = p.lightTurns;
+  return t <= 0 ? 2 : t < 80 ? 3 : t < 300 ? 5 : 7;
+};
+
 export function refreshFov() {
   const p = G.player;
-  let radius = p.lightTurns > 0 ? (G.depth === 0 ? 12 : 7) : 2;
+  let radius = lightRadiusOf(p);
   radius += gearBonus(p).lightR;
   if (p.race === 'elf') radius += 1;          // "눈이 밝다"
   if (has(p, 'blind')) radius = 1;
@@ -895,6 +1037,7 @@ export function step(dx, dy) {
   const t = L.tiles[ni];
   if (t === CAMP)  { p.x = nx; p.y = ny; refreshFov(); G.screen = 'camp'; return; }
   if (t === ALTAR) { p.x = nx; p.y = ny; refreshFov(); G.screen = 'altar'; return; }
+  if (t === EVENT) { p.x = nx; p.y = ny; refreshFov(); G.screen = 'event'; return; }
   if (t === DOOR)        { openDoor(nx, ny); endTurn(); return; }
   if (t === DOOR_LOCKED) { forceDoor(nx, ny); endTurn(); return; }
   if (L.solid(nx, ny)) return;
@@ -984,9 +1127,12 @@ function enterTile(x, y) {
   const t = L.tiles[i];
 
   if (t === WEB) {
-    p.stuck = 1 + rnd(3);
-    say('거미줄에 걸렸다.', 'warn');
-    fx({ t:'struggle', x, y });
+    if (roped()) say('밧줄이 거미줄을 갈라 놓는다.');
+    else {
+      p.stuck = 1 + rnd(3);
+      say('거미줄에 걸렸다.', 'warn');
+      fx({ t:'struggle', x, y });
+    }
   } else if (t === WATER) {
     // Wading is safe and extremely loud.
     fx({ t:'splash', x, y });
@@ -997,6 +1143,11 @@ function enterTile(x, y) {
   if (trap) return springTrap(x, y, trap);
   return false;
 }
+
+/* 매듭 밧줄. Two of the game's three "you lose your turn" effects
+   simply stop applying, which is what makes the stealth price
+   worth paying for a build that walks into everything. */
+const roped = () => hasRelic('knot');
 
 function springTrap(x, y, trap) {
   const p = G.player, L = G.level;
@@ -1035,6 +1186,7 @@ function springTrap(x, y, trap) {
          in the middle of, so it should be the unlucky outcome and
          not the default — and dexterity should be the thing that
          decides it. */
+      if (roped()) { say('밧줄이 걸려 허공에 매달렸다. 기어 올라온다.', 'good'); return false; }
       const grab = clamp(0.45 + statBonus(p.stats.dex) * 0.07
                          + (p.cls === 'rogue' ? 0.15 : p.cls === 'ranger' ? 0.07 : 0), 0.2, 0.92);
       if (Math.random() < grab) {
@@ -1108,10 +1260,12 @@ function pickUp() {
     return;
   }
   G.items.splice(i, 1);
-  if (it.kind === 'gold') { p.gold += it.amount; say(`금화 ${it.amount}닢.`, 'good'); return; }
+  if (it.kind === 'gold') { const g = goldGain(it.amount); p.gold += g; say(`금화 ${g}닢.`, 'good'); return; }
   if (it.kind === 'key')  { p.keys++; say(`녹슨 열쇠를 주웠다. (${p.keys})`, 'good'); return; }
+  // 서기의 깃펜 names it in your hand, before you have to bet on it.
+  if (hasRelic('quill')) identify(it.id, true);
   addItem(p, it);
-  say(`${it.n}을(를) 주웠다.`, 'good');
+  say(`${nameOf(it)}을(를) 주웠다.`, 'good');
 }
 
 /* ── chests ───────────────────────────────────────────────
@@ -1157,11 +1311,11 @@ function openChest(index, chest) {
   // 도굴꾼의 장갑: everything in the box, twice. The cost is
   // paid in every trap you no longer see coming.
   const twice = hasRelic('glove');
-  const gold = Math.round((chest.gold || 0) * (twice ? 2 : 1));
+  const gold = goldGain(Math.round((chest.gold || 0) * (twice ? 2 : 1)));
   if (gold) { p.gold += gold; say(`금화 ${gold}닢.`, 'good'); }
   for (const it of chest.loot || []) {
     addItem(p, it, twice && it.kind === 'use' ? 2 : 1);
-    say(`${it.n}을(를) 얻었다.${twice ? ' (장갑이 한 번 더 훑었다)' : ''}`, 'good');
+    say(`${nameOf(it)}을(를) 얻었다.${twice ? ' (장갑이 한 번 더 훑었다)' : ''}`, 'good');
   }
   if (twice) {
     const extra = pickItem(G.depth + 2);
@@ -1205,6 +1359,10 @@ function playerAttack(m) {
   const g = gp;
   let dmg = roll(dice[0], dice[1]) + statBonus(p.stats.str) * 2 + Math.floor(p.lv / 3) + g.dmg;
   dmg *= (1 + g.dmgPct + (p.might > 0 ? 0.6 : 0));
+
+  // 낙인: sharpened against the things that telegraph, blunted
+  // against everything else.
+  if (hasRelic('brand')) dmg *= (m.elite?.length || m.boss) ? 1.5 : 0.85;
 
   const crit = asleep || Math.random() < critChance(p);
   if (crit) dmg *= critMult(p) * (asleep ? 1.5 : 1);
@@ -1255,6 +1413,11 @@ function playerAttack(m) {
     p.echoing = false;
   }
 }
+
+/* 뱃사공의 동전 doubles it, 서기의 깃펜 shaves it. One funnel so
+   the two can never be applied twice or missed once. */
+export const goldGain = n => Math.max(0, Math.round(
+  n * (hasRelic('toll') ? 2 : 1) * (hasRelic('quill') ? 0.75 : 1)));
 
 /* Relics that pay on a kill. 굶주린 칼날 is the aggression
    engine — it out-heals a room only if you keep killing — and
@@ -1451,12 +1614,16 @@ export function endTurn(skipMonsters = false) {
   if (G.comboT > 0 && --G.comboT === 0) breakCombo(true);
 
   if (G.depth > 0) {
-    const drain = (G.branch?.drain || 1) * (hasRelic('hunger') ? 2 : 1);
-    p.food -= drain;
-    p.lightTurns -= drain;
-    if (p.food === 200) say('배가 고프다.', 'warn');
-    if (p.food <= 0) { p.food = 0; if (G.turn % 12 === 0) { p.hp -= 1; if (p.hp <= 0) return death({ n:'굶주림' }); } }
-    if (p.lightTurns === 100) say('횃불이 사그라든다.', 'warn');
+    /* One upkeep resource, not two. Food and torches were the
+       same countdown wearing different hats, and with 15 floors
+       neither ever ran out — two numbers to babysit that decided
+       nothing. Light survives because it is *spatial*: it changes
+       how far you can see, which changes what you can fight. */
+    if (!hasRelic('lamp'))
+      p.lightTurns -= (G.branch?.drain || 1) * (hasRelic('hunger') ? 2 : 1);
+    if (p.lightTurns === 300) say('기름이 절반쯤 남았다.', 'warn');
+    if (p.lightTurns === 80)  say('불빛이 손바닥만큼 줄었다.', 'warn');
+    if (p.lightTurns === 0)   say('불이 꺼졌다. 두 칸 앞이 벽인지 아닌지도 모른다.', 'hit');
     if (p.lightTurns < 0) p.lightTurns = 0;
     G.floorTurn++;
     pressure();
@@ -1599,9 +1766,11 @@ function monsterTurn(m) {
     /* Noticing you is a roll per turn, not a certainty, so the
        long quiet approach is a strategy and not just flavour.
        Standing in water throws that away. */
-    const wading = L.tiles[idx(p.x, p.y)] === WATER;
+      const wading = L.tiles[idx(p.x, p.y)] === WATER;
     const quiet = wading ? stealth(p) * 0.25 : stealth(p);
-    const notice = clamp((1 - quiet) * (0.62 - dist * 0.055), 0.02, 0.9);
+    // 전쟁 북 is loud: it hears you two tiles sooner.
+    const reach = dist - (hasRelic('drum') ? 2 : 0);
+    const notice = clamp((1 - quiet) * (0.62 - reach * 0.055), 0.02, 0.9);
     if (Math.random() >= notice) return;
     m.awake = true;
     if (m.disguise) return;              // a mimic that has noticed you keeps very still
@@ -1664,9 +1833,10 @@ function monsterMelee(m) {
     return;
   }
   const dmg = Math.max(1, Math.round(
-    (roll(2, Math.max(3, Math.floor(m.atk * 0.72))) - Math.floor(ac / 5)) * (heavy ? 2.5 : 1)));
+    (roll(2, Math.max(3, Math.floor(m.atk * 0.72))) - Math.floor(ac / 5))
+    * (heavy ? 2.5 : 1) * (1 + (p.perm?.takeMore || 0))));
   p.hp -= dmg;
-  breakCombo(false);
+  breakCombo(false); tookHit();
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        severe: dmg >= p.maxhp * 0.18 });
   say(`${m.n}이(가) ${heavy ? '내리쳐 ' : ''}${dmg}의 피해를 입혔다.`, 'hit');
@@ -1699,7 +1869,7 @@ function monsterShoot(m) {
   }
   const dmg = Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.6))) - Math.floor(ac / 6));
   p.hp -= dmg;
-  breakCombo(false);
+  breakCombo(false); tookHit();
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        severe: dmg >= p.maxhp * 0.18 });
   say(`${m.n}이(가) 멀리서 ${dmg}의 피해를 입혔다.`, 'hit');
@@ -1952,6 +2122,228 @@ export function leaveCamp() {
   say('불은 그대로 두고 물러났다.');
 }
 
+/* ── the ? room ───────────────────────────────────────────
+   events.js holds the offers; this holds every verb they are
+   allowed to use. Keeping the API narrow is the point: an event
+   can only do things the rules layer already knows how to do, so
+   there is no path by which a piece of content invents a rule.
+
+   Also the boundary that keeps events.js free of imports — no
+   cycle, and the offers stay readable as plain descriptions. */
+function eventApi() {
+  const p = G.player;
+  const api = {
+    p, G, depth: G.depth,
+    say, rnd,
+    chance: q => Math.random() < q,
+
+    /* state queries the gates use */
+    hasRelic,
+    hasAffix: key => (gearBonus(p)[key] || 0) > 0,
+    canCast: () => spellList(p).length > 0,
+    has: cost => canAfford(cost),
+
+    /* costs */
+    pay: cost => spend(cost),
+    mats: got => {
+      p.mats = p.mats || { scrap: 0, dust: 0, essence: 0 };
+      const parts = [];
+      for (const k of ['scrap', 'dust', 'essence']) {
+        if (!got[k]) continue;
+        p.mats[k] += got[k];
+        parts.push(`${MATS[k].n} ${got[k]}`);
+      }
+      if (parts.length) say(`${parts.join(' · ')}을(를) 얻었다.`, 'good');
+    },
+    gold: n => goldGain(n),
+
+    /* body */
+    heal: n => {
+      const got = Math.min(p.maxhp - p.hp, n);
+      if (got <= 0) { say('이미 멀쩡하다.'); return; }
+      p.hp += got; fx({ t:'heal', x:p.x, y:p.y, amt:got });
+      say(`체력 +${got}.`, 'good');
+    },
+    hurt: (n, from) => {
+      p.hp -= n; breakCombo(false); tookHit();
+      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg:n, severe: n >= p.maxhp * 0.18 });
+      say(`${n}의 피해.`, 'hit');
+      if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n: from || '사건' }); }
+    },
+    afflict: (kind, turns) => afflict(p, kind, turns),
+    xp: n => gainXp(Math.round(n)),
+
+    /* permanent gains — the reason a ? room is remembered */
+    perm: (key, v) => {
+      p.perm = p.perm || {};
+      if (key === 'hitPctMul') p.perm[key] = (p.perm[key] || 1) * v;
+      else p.perm[key] = (p.perm[key] || 0) + v;
+      recalc(p);
+    },
+    permHp: n => { p.permHp = (p.permHp || 0) + n; recalc(p); if (n > 0) p.hp += n; },
+    tune: (id, v) => { p.tuned = p.tuned || {}; p.tuned[id] = (p.tuned[id] || 0) + v; },
+    infamy: v => { p.markup = (p.markup || 0) + v; },
+
+    /* the floor */
+    rouse: r => rouse(p.x, p.y, r, 1),
+    burnOil: n => { p.lightTurns = Math.max(0, p.lightTurns - n); },
+    spawn: (spr, n) => spawnNear(spr, n, false),
+    spawnElite: n => spawnNear(null, n, true),
+    wakeHalf: () => {
+      let n = 0;
+      for (const m of G.monsters) if (!m.awake && Math.random() < 0.5) { m.awake = true; n++; }
+      return n;
+    },
+    resetClock: () => { G.floorTurn = 0; G.waves = 0; },
+    spendClock: n => { G.floorTurn += n; },
+    grantCamps: n => { G.campPromise = n; },
+    openCamp: () => { G.campUses = Math.max(1, G.campUses); G.screen = 'camp'; },
+    revealChests: better => {
+      for (const it of G.items) if (it.kind === 'chest') {
+        G.level.seen[idx(it.x, it.y)] = 1;
+        if (better) {
+          const extra = pickItem(G.depth + 3);
+          if (extra) it.loot.push(extra);
+          it.gold = Math.round((it.gold || 0) * 1.5);
+        }
+      }
+    },
+    /* Modifiers held for the next floor. Applied in enterDepth,
+       then cleared, so they cannot leak into floor after floor. */
+    nextFloor: mods => { G.nextMods = { ...(G.nextMods || {}), ...mods }; },
+
+    /* things */
+    gear: over => {
+      const it = pickItem(G.depth + over);
+      if (!it) return;
+      rollAffixes(it, G.depth + over, true);
+      addItem(p, it);
+      say(`${nameOf(it)}을(를) 얻었다.`, 'good');
+    },
+    givePotion: (n, oneBad) => {
+      const good = CONSUMABLES.filter(c => c.spr === 'potion' && !['potVenom', 'potMurk'].includes(c.id));
+      const bad = CONSUMABLES.filter(c => ['potVenom', 'potMurk'].includes(c.id));
+      for (let i = 0; i < n; i++) {
+        const pool = (oneBad && i === n - 1) ? bad : good;
+        addItem(p, { kind:'use', ...pool[rnd(pool.length)] });
+      }
+    },
+    forge: (n, slot) => {
+      const slots = slot ? [slot] : ['weapon', 'body', 'shield'];
+      const pick = slots.filter(k => p.equip[k]);
+      if (!pick.length) { say('벼릴 것이 없다.', 'warn'); return; }
+      const it = p.equip[pick[rnd(pick.length)]];
+      it.plus = Math.min(MAX_PLUS, (it.plus || 0) + n);
+      recalc(p);
+      say(`${affixName(it)} — 벼려졌다.`, 'level');
+      fx({ t:'forge', x:p.x, y:p.y });
+    },
+    reroll: () => {
+      const it = p.equip.weapon;
+      if (!it) { say('무기가 없다.', 'warn'); return; }
+      it.pre = pickAffixFor(PREFIXES, it.kind, false)?.id || it.pre;
+      it.suf = pickAffixFor(SUFFIXES, it.kind, false)?.id || it.suf;
+      recalc(p);
+      say(`${affixName(it)} — 다시 벼려졌다.`, 'level');
+      fx({ t:'enchant', x:p.x, y:p.y });
+    },
+    honeSpell: () => {
+      const list = spellList(p);
+      if (!list.length) { say('연마할 주문이 없다.', 'warn'); return; }
+      const sp = list[rnd(list.length)];
+      p.spellPlus = p.spellPlus || {};
+      p.spellPlus[sp.id] = Math.min(MAX_PLUS, (p.spellPlus[sp.id] || 0) + 1);
+      say(`${sp.name} +${p.spellPlus[sp.id]} — 문법이 손에 붙었다.`, 'level');
+    },
+    identifyAll: () => {
+      let n = 0;
+      for (const slot of p.pack) if (!isKnown(slot.item.id)) { identify(slot.item.id, true); n++; }
+      return n;
+    },
+    relic: () => { const id = unownedRelic(); if (id) takeRelic(id); },
+    dropRelic: id => {
+      const i = (p.relics || []).indexOf(id);
+      if (i >= 0) p.relics.splice(i, 1);
+      recalc(p);
+    },
+    /* 잊힌 사당: hand one back, pick from two. Routed through the
+       swap screen so the same UI serves both cases. */
+    tradeRelic: () => {
+      const id = unownedRelic();
+      if (!id) { say('바꿀 것이 없다.', 'warn'); return; }
+      G.pendingRelic = id;
+      G.screen = 'relic';
+    },
+  };
+  return api;
+}
+
+function spawnNear(spr, n, elite) {
+  const L = G.level, p = G.player;
+  for (let i = 0; i < n; i++) {
+    let spot = null;
+    for (let t = 0; t < 40 && !spot; t++) {
+      const s = L.randomFloor((x, y) => monsterAt(x, y) || (p.x === x && p.y === y));
+      if (!s) break;
+      const d = Math.hypot(s.x - p.x, s.y - p.y);
+      if (d < 2 || d > 12) continue;
+      spot = s;
+    }
+    if (!spot) continue;
+    let m = spr ? MONSTERS.filter(x => x.spr === spr).sort((a, b) => b.d - a.d)[0] : null;
+    m = m ? scaleMonster(m, G.depth) : pickMonster(G.depth);
+    Object.assign(m, { x: spot.x, y: spot.y, awake: true, energy: 0 });
+    if (elite) makeElite(m, G.depth);
+    m.maxhp = m.hp;
+    G.monsters.push(m);
+  }
+}
+
+/* Which offer this floor holds. Rolled on arrival rather than on
+   contact so the gate reads your state as it was when you walked
+   in — otherwise you could farm an event by re-equipping at the
+   doorstep. */
+export function rollEvent() {
+  const api = eventApi();
+  const pool = EVENTS.filter(e => !e.when || e.when(api));
+  if (!pool.length) return null;
+  const total = pool.reduce((s, e) => s + e.w, 0);
+  let r = Math.random() * total;
+  for (const e of pool) { if (r < e.w) return e.id; r -= e.w; }
+  return pool[0].id;
+}
+
+export function eventOffer() {
+  const e = EVENTS.find(x => x.id === G.level?.eventId);
+  if (!e) return null;
+  const api = eventApi();
+  return {
+    n: e.n, t: e.t,
+    opts: e.opts.map((o, i) => ({
+      i, n: o.n, t: o.t, can: !o.need || o.need(api),
+    })),
+  };
+}
+
+export function eventChoose(i) {
+  const L = G.level;
+  const e = EVENTS.find(x => x.id === L?.eventId);
+  if (!e) { G.screen = 'play'; return; }
+  const opt = e.opts[i];
+  const api = eventApi();
+  if (!opt || (opt.need && !opt.need(api))) return;
+
+  /* Consumed before the effect runs: an option that opens another
+     screen (the relic swap, the fire) must not leave the tile
+     behind for a second helping. */
+  if (L.tiles[idx(G.player.x, G.player.y)] === EVENT) L.tiles[idx(G.player.x, G.player.y)] = FLOOR;
+  L.eventId = null;
+  G.screen = 'play';
+
+  opt.run(api);
+  if (G.screen === 'play') endTurn();
+}
+
 /* ── the altar ────────────────────────────────────────────
    Pure luck, priced in advance. The odds are shown before you
    commit — a gamble you cannot price is not a decision, it is a
@@ -2115,9 +2507,13 @@ export function shopStock(shop) {
 export const priceOf = (item, buying) => {
   const chrB = statBonus(G.player.stats.chr);
   const base = item.cost || 10;
+  /* markup is the running total of what ? rooms did to your
+     reputation: robbing a drunk raises it, settling a ledger
+     lowers it. Selling prices move the other way. */
+  const mk = 1 + (G.player.markup || 0);
   return buying
-    ? Math.max(1, Math.round(base * (1.25 - chrB * 0.03)))
-    : Math.max(1, Math.round(base * (0.42 + chrB * 0.02)));
+    ? Math.max(1, Math.round(base * (1.25 - chrB * 0.03) * mk))
+    : Math.max(1, Math.round(base * (0.42 + chrB * 0.02) / mk));
 };
 
 export function buy(item) {
@@ -2130,6 +2526,10 @@ export function buy(item) {
     say(`${item.n}을(를) 샀다. (-${cost})`, 'good');
     return;
   }
+  /* A merchant names what he sells. Buying it teaches you the
+     appearance for the rest of the run — otherwise the shop was
+     a way to launder identification without spending anything. */
+  identify(item.id, true);
   addItem(p, { ...item });
   say(`${item.n}을(를) 샀다. (-${cost})`, 'good');
 }
@@ -2172,6 +2572,13 @@ function shuffleAppearances(p) {
 export const isKnown = id => !id || !UNKNOWABLE.includes(id) || !!G.known[id];
 export const lookOf = id => G.looks?.[id] || '알 수 없는 것';
 
+/* What the player is allowed to call it. Every log line has to go
+   through here: the inventory was hiding unidentified flasks
+   correctly while "치유의 물약을(를) 주웠다" printed the answer in
+   the log a line earlier, which made the whole system decorative. */
+export const nameOf = it =>
+  (it && it.kind === 'use' && !isKnown(it.id)) ? lookOf(it.id) : (it?.n || '무언가');
+
 export function identify(id, quiet) {
   if (!id || G.known[id]) return false;
   G.known[id] = true;
@@ -2186,6 +2593,7 @@ export function startGame(raceKey, classKey, base) {
   G.fx = []; G.combo = 0; G.comboT = 0; G.bestCombo = 0;
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
+  G.nextMods = null; G.campPromise = 0; G.deepest = 0;
   G.floorTurn = 0; G.waves = 0; G.campUses = 1;
   shuffleAppearances(G.player);
   enterDepth(0);

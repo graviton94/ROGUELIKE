@@ -8,13 +8,14 @@
    works; being online always wins.
    ═══════════════════════════════════════════════════════════ */
 
-const VERSION = 'v12';
+const VERSION = 'v13';
 const CACHE = `deepdelve-${VERSION}`;
 
 const ASSETS = [
   './', './index.html', './styles.css', './manifest.webmanifest', './icon.svg',
   './src/main.js', './src/pixels.js', './src/data.js', './src/world.js',
   './src/game.js', './src/ui.js', './src/juice.js', './src/save.js',
+  './src/events.js',
 ];
 
 self.addEventListener('install', e => {

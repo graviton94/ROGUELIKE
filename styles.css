@@ -179,19 +179,14 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
                                 skewed the rotated arrow into an oval */
                touch-action: none; user-select: none; -webkit-user-select: none; }
 
-/* One shape, eight rotations. Arrow glyphs were resolving to
-   different fallback fonts for the diagonals, which is why the
-   d-pad looked ragged. */
-#dpad svg { width: 54%; height: 54%; fill: currentColor; display: block; }
-#dpad [data-dir="0,-1"]  svg { transform: rotate(0deg); }
-#dpad [data-dir="1,-1"]  svg { transform: rotate(45deg); }
-#dpad [data-dir="1,0"]   svg { transform: rotate(90deg); }
-#dpad [data-dir="1,1"]   svg { transform: rotate(135deg); }
-#dpad [data-dir="0,1"]   svg { transform: rotate(180deg); }
-#dpad [data-dir="-1,1"]  svg { transform: rotate(225deg); }
-#dpad [data-dir="-1,0"]  svg { transform: rotate(270deg); }
-#dpad [data-dir="-1,-1"] svg { transform: rotate(315deg); }
-#dpad button.wait svg { width: 34%; height: 34%; }
+/* Eight shapes, no transforms. Rotating one triangle made the
+   diagonals read as larger — a 45° turn grows the bounding box
+   by √2 even though the element box is unchanged — so each
+   direction is drawn at its own angle instead, with the
+   diagonals shortened to carry equal visual weight. */
+#dpad svg { width: 24px; height: 24px; max-width: 60%; max-height: 60%;
+            fill: currentColor; display: block; }
+#dpad button.wait svg { width: 14px; height: 14px; }
 #dpad button:active { background: var(--g); color: var(--W); }
 #dpad button.wait { color: var(--g); }
 

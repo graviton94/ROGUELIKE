@@ -28,7 +28,7 @@
     </p>
     <button class="big" id="btn-new">새 게임</button>
     <button class="big" id="btn-load" hidden>이어하기</button>
-    <p class="fine">도트는 전부 코드로 그려집니다. 이미지 파일 없음.<br><span id="build">v13</span></p>
+    <p class="fine">도트는 전부 코드로 그려집니다. 이미지 파일 없음.<br><span id="build">v14</span></p>
   </div>
 </section>
 
@@ -84,6 +84,11 @@
       <div class="track"><i id="hud-manabar" class="mp"></i></div>
       <span class="gval" id="hud-mana">0/0</span>
     </div>
+    <div class="gauge" id="hud-stam-wrap">
+      <span class="glabel">기력</span>
+      <div class="track"><i id="hud-stambar" class="st"></i></div>
+      <span class="gval" id="hud-stam">0/0</span>
+    </div>
     <div class="hudbot">
       <span id="hud-name" class="who"></span>
       <span class="xp">Lv <b id="hud-lv">1</b></span>
@@ -94,7 +99,10 @@
     </div>
   </header>
 
-  <div id="stage"><canvas id="map"></canvas></div>
+  <div id="stage">
+    <canvas id="map"></canvas>
+    <canvas id="mini" title="탭하면 크기가 바뀝니다"></canvas>
+  </div>
 
   <div id="log" aria-live="polite"></div>
 
@@ -230,6 +238,43 @@
 <section id="sc-help" class="screen" hidden>
   <header class="bar"><h2>조작법</h2><button class="mini" data-back>닫기</button></header>
   <div class="scroll">
+    <h3 class="sect">지도 · 구르기</h3>
+    <table class="keys">
+      <tr><td>미니맵</td><td>지도 <b>오른쪽 위 모서리</b>에 있습니다. <b>탭하면 크게 → 숨김 → 작게</b>로 바뀝니다(키보드는 Tab).<br>
+        가본 곳이 전부 그려지고, 계단(주황) · 모닥불(주황) · 제단(보라) · ? 표지(파랑) · 상자(금) · 유물(보라) ·
+        보이는 몬스터(빨강, 정예는 주황, 이름 있는 것은 밝은 빨강) · 표시된 공격 범위가 함께 뜹니다.</td></tr>
+      <tr><td><b>구르기</b></td><td><b>같은 방향을 빠르게 두 번.</b> 두 칸을 굴러 빠져나가고 <b>기력 2</b>를 씁니다.<br>
+        구른 턴에는 <b>근접·원거리·바닥 공격이 전부 빗나갑니다.</b> 거미줄도 풀립니다.</td></tr>
+      <tr><td>기력</td><td>HP 아래 초록 막대. 최대치는 <b>3 + 레벨/6 + 민첩 보정</b>이고 <b>두 턴에 1씩</b> 찹니다.
+        구르기 말고는 쓰지 않습니다 — 답이 하나뿐이어야 답이 됩니다.</td></tr>
+    </table>
+
+    <h3 class="sect">무기 여섯 종류</h3>
+    <table class="keys">
+      <tr><td>단검류</td><td>한 턴에 <b>두 번</b> 찌릅니다(각 62%). 치명타 +8%p. 처형·흡혈과 붙으면 굴림이 두 배가 됩니다.</td></tr>
+      <tr><td>검류</td><td>기준. 규칙이 없는 만큼 약점도 없습니다.</td></tr>
+      <tr><td>도끼류</td><td>벤 자리 <b>양옆까지</b> 함께 벱니다(70%). 셋이 일직선에 서게 만드는 것이 요령입니다.</td></tr>
+      <tr><td>창류</td><td><b>두 칸 거리에서</b> 찌릅니다. 빈 칸으로 들어가려 하면 그 너머의 적을 찌릅니다 —
+        팔을 당기는 정예에게 붙지 않고 싸우는 방법입니다.</td></tr>
+      <tr><td>둔기류</td><td>30%로 <b>휘청이게</b> 만듭니다. 그 적은 다음 턴을 통째로 잃습니다.</td></tr>
+      <tr><td>대검류</td><td>피해 +45%, 명중 −12%. <b>치명타가 터지면 인접한 전부</b>를 벱니다.</td></tr>
+    </table>
+
+    <h3 class="sect">바닥에 그려지는 공격</h3>
+    <table class="keys">
+      <tr><td>읽는 법</td><td>정예 위쪽과 이름 있는 적은 <b>공격할 칸을 미리 색칠</b>하고 가운데에 <b>남은 턴 수</b>를 적습니다.
+        숫자가 1이 되면 색이 빠르게 깜빡입니다.</td></tr>
+      <tr><td>베기</td><td>시전자를 지나는 <b>가로 또는 세로 한 줄</b>. 1턴 뒤. 축에서 벗어나면 그만입니다.</td></tr>
+      <tr><td>십자</td><td><b>네 방향 전부</b>. 2턴 뒤. 벽이 막아 줍니다.</td></tr>
+      <tr><td>낙하</td><td><b>당신이 서 있던 자리</b>를 중심으로 한 원. 2턴 뒤 — 걸어 나가도 되고 굴러도 됩니다.</td></tr>
+      <tr><td>불길</td><td>시전자에서 <b>고리 모양으로 퍼져 나갑니다.</b> 매 턴 한 칸씩, 네 번. 안쪽으로 파고드는 것이 정답일 때가 있습니다.</td></tr>
+      <tr><td>진동</td><td>시전자를 둘러싼 <b>고리</b>. 붙어 있으면 안 맞습니다.</td></tr>
+      <tr><td><b>같이 맞는다</b></td><td>표시된 칸의 <b>몬스터도 함께 맞습니다.</b> 대군주는 자기 부하를 태웁니다 —
+        방을 상대로 싸우지 말고 방을 이용해서 싸우세요.</td></tr>
+      <tr><td>이름 있는 것</td><td><b>5층 뼈를 씹는 자</b>(진동·낙하) · <b>10층 재 속의 사제</b>(십자·불길) ·
+        <b>15층 잿불의 대군주</b>(넷 전부). 층에 들어서면 알려 줍니다. 잡으면 <b>유물이 확정으로</b> 남습니다.</td></tr>
+    </table>
+
     <h3 class="sect">몬스터 머리 위의 표시</h3>
     <p class="note">깨어 있는 적은 <b>다음 턴에 무엇을 할지</b>를 머리 위에 내겁니다.
       붉은 별은 크게 내리치기 직전이라는 뜻입니다 — 그 턴에 물러서면 헛손질을 시키고,

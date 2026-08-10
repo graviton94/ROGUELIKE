@@ -7,17 +7,20 @@
    ═══════════════════════════════════════════════════════════ */
 
 import { PALETTE, spriteColors } from './pixels.js';
+import { MW as MAP_W } from './world.js';
 
 /* ── stores ─────────────────────────────────────────────── */
 const shards = [];     // pixel chunks knocked off a sprite
 const numbers = [];    // floating damage / heal readouts
 const rings = [];      // expanding shockwaves
 const beams = [];      // spell traces
+const slashes = [];    // weapon arcs, shaped by family
 const tracked = new WeakMap();   // actor -> interpolation state
 
 let shake = 0;         // remaining shake magnitude, in tiles
 let freeze = 0;        // hit-stop, ms
 let flashScreen = 0;   // full-screen tint, 0..1
+let vignette = 0;      // damage read at the edges, 0..1
 let flashHue = 'W';
 
 const MAX_SHARDS = 260;
@@ -94,6 +97,43 @@ export function pump(queue, player) {
       case 'lunge': {
         const s = at(player);
         if (s) { s.lx = e.dx * 0.42; s.ly = e.dy * 0.42; }
+        /* An arc swept in the direction of the blow. The shape
+           says which weapon threw it — a dagger's is a short
+           stab, a greatsword's is a half-circle — so the family
+           you chose is visible in the swing, not only in a
+           tooltip. */
+        slashes.push({
+          x: e.x + 0.5, y: e.y + 0.5,
+          a: Math.atan2(e.dy, e.dx),
+          kind: e.kind || 'sword',
+          age: 0, life: e.kind === 'great' ? 300 : 200,
+        });
+        break;
+      }
+
+      /* The dodge: a streak along the path travelled and a ring
+         where you landed, so a roll reads as a roll and not as a
+         two-tile teleport. */
+      case 'roll': {
+        beams.push({ fx: e.x - e.dx * e.dist, fy: e.y - e.dy * e.dist,
+                     tx: e.x, ty: e.y, color: PALETTE.B, age: 0, life: 240, thin: true });
+        ring(e.x, e.y, 1.1, PALETTE.B, 300);
+        buzz(8);
+        break;
+      }
+
+      /* Marked ground going off. One ring per tile is too much at
+         twenty tiles, so the whole shape flashes at once and the
+         shards come from the middle of it. */
+      case 'hazard': {
+        const n = e.tiles.length;
+        for (const i of e.tiles) {
+          const x = i % MAP_W, y = (i / MAP_W) | 0;
+          if (Math.random() < 24 / n) burstShards(x, y, [PALETTE[e.tone] || PALETTE.o, PALETTE.y], 3, 1.1);
+        }
+        shake = Math.max(shake, 0.5);
+        flashScreen = Math.max(flashScreen, 0.26); flashHue = e.tone || 'o';
+        buzz([18, 26, 18]);
         break;
       }
 
@@ -119,12 +159,21 @@ export function pump(queue, player) {
           if (big) { freeze = 70; ring(e.x, e.y, 1.6, PALETTE.y); flashScreen = 0.22; flashHue = 'y'; }
           buzz(big ? 32 : 10);
         } else {
-          // Getting hit is the one thing that should always read.
+          /* Getting hit is the one thing that should always read.
+             A full-screen wash hides the board at the exact moment
+             you need to see it, so the damage colour goes to the
+             edges and leaves the middle alone. */
           const s = at(player);
-          if (s && e.from) { s.lx = Math.sign(e.x - e.from.x) * 0.3; s.ly = Math.sign(e.y - e.from.y) * 0.3; s.flash = 1; }
-          shake = Math.max(shake, e.severe ? 0.55 : 0.22);
-          flashScreen = Math.max(flashScreen, e.severe ? 0.34 : 0.16); flashHue = 'r';
-          burstShards(e.x, e.y, [PALETTE.R, PALETTE.r], 8, 1.0);
+          if (s) {
+            const dx = e.from ? Math.sign(e.x - e.from.x) : 0;
+            const dy = e.from ? Math.sign(e.y - e.from.y) : 0;
+            s.lx = dx * 0.3; s.ly = dy * 0.3; s.flash = 1;
+            s.squash = Math.max(s.squash || 0, e.severe ? 1 : 0.6);
+          }
+          shake = Math.max(shake, e.severe ? 0.6 : 0.24);
+          vignette = Math.max(vignette, e.severe ? 1 : 0.55);
+          if (e.severe) { freeze = 60; ring(e.x, e.y, 1.5, PALETTE.R, 260); }
+          burstShards(e.x, e.y, [PALETTE.R, PALETTE.r, PALETTE.W], e.severe ? 16 : 8, e.severe ? 1.5 : 1.0);
           buzz(e.severe ? [22, 40, 22] : 18);
         }
         break;
@@ -428,10 +477,17 @@ export function update(dt, actors) {
     if (beams[i].age >= beams[i].life) beams.splice(i, 1);
   }
 
+  for (let i = slashes.length - 1; i >= 0; i--) {
+    slashes[i].age += dt;
+    if (slashes[i].age >= slashes[i].life) slashes.splice(i, 1);
+  }
+
   shake *= Math.pow(0.86, k);
   if (shake < 0.005) shake = 0;
   flashScreen *= Math.pow(0.88, k);
   if (flashScreen < 0.01) flashScreen = 0;
+  vignette *= Math.pow(0.90, k);
+  if (vignette < 0.01) vignette = 0;
 }
 
 /* ── queries used by the renderer ───────────────────────── */
@@ -472,6 +528,33 @@ export function drawEffects(ctx, camX, camY, t) {
     ctx.stroke();
   }
 
+  /* The swing itself. Each family gets its own sweep and reach,
+     drawn as a thick stroked arc that thins as it fades. */
+  const SWEEP = {
+    dagger: { arc: 0.55, r: 0.62, w: 0.10, color: PALETTE.W },
+    sword:  { arc: 1.25, r: 0.82, w: 0.13, color: PALETTE.W },
+    axe:    { arc: 2.00, r: 0.95, w: 0.20, color: PALETTE.o },
+    spear:  { arc: 0.28, r: 1.45, w: 0.12, color: PALETTE.B },
+    mace:   { arc: 1.55, r: 0.80, w: 0.22, color: PALETTE.y },
+    great:  { arc: 2.60, r: 1.10, w: 0.26, color: PALETTE.R },
+  };
+  for (const sl of slashes) {
+    const k = 1 - sl.age / sl.life;
+    const sp = SWEEP[sl.kind] || SWEEP.sword;
+    ctx.save();
+    ctx.globalAlpha = k * 0.9;
+    ctx.strokeStyle = sp.color;
+    ctx.lineWidth = Math.max(2, t * sp.w * (0.35 + k));
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    // swept from one edge of the arc to the other as it ages
+    const swept = sp.arc * (1 - k);
+    ctx.arc(X(sl.x), Y(sl.y), sp.r * t,
+            sl.a - sp.arc / 2 + swept * 0.35, sl.a - sp.arc / 2 + swept);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   const px = Math.max(1, Math.round(t / 8));
   for (const p of shards) {
     const k = p.age / p.life;
@@ -499,6 +582,17 @@ export function drawEffects(ctx, camX, camY, t) {
 }
 
 export function drawScreenFlash(ctx, w, h) {
+  /* The edges first: damage reads as the screen closing in,
+     which leaves the board visible in the middle where the
+     player has to keep making decisions. */
+  if (vignette > 0) {
+    const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.28,
+                                       w / 2, h / 2, Math.max(w, h) * 0.62);
+    g.addColorStop(0, 'rgba(143,47,40,0)');
+    g.addColorStop(1, `rgba(143,47,40,${(vignette * 0.62).toFixed(3)})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  }
   if (flashScreen <= 0) return;
   ctx.globalAlpha = flashScreen * 0.5;
   ctx.fillStyle = PALETTE[flashHue] || PALETTE.W;
@@ -508,5 +602,6 @@ export function drawScreenFlash(ctx, w, h) {
 
 export function reset() {
   shards.length = 0; numbers.length = 0; rings.length = 0; beams.length = 0;
+  slashes.length = 0; vignette = 0;
   shake = 0; freeze = 0; flashScreen = 0;
 }

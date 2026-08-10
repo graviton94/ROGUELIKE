@@ -9,7 +9,7 @@ import {
   RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName, MATS, ENCHANT_COST, REROLL_COST,
   RARITY, CURSED_TONE, rarityOf, isCursed,
-  RELIC_SLOTS, relicById,
+  RELIC_SLOTS, relicById, WEAPON_TYPES, PATTERNS,
   xpToLevel, statBonus,
 } from './data.js';
 import {
@@ -31,6 +31,7 @@ const el = (tag, cls, text) => {
 };
 
 const cv = $('map'), ctx = cv.getContext('2d');
+const mini = $('mini'), mctx = mini.getContext('2d');
 let scale = 3, viewW = 0, viewH = 0, cols = 0, rows = 0;
 
 /* ── viewport ───────────────────────────────────────────────
@@ -192,6 +193,50 @@ export function draw() {
 
   ctx.globalAlpha = 1;
 
+  /* ── marked ground ──────────────────────────────────────
+     The whole point of a telegraph is that it is unmissable and
+     unambiguous: a filled tint, a hard border on the outside
+     edge of the shape, and the count printed once in the middle.
+     Drawn under the actors so it never hides what is standing
+     in it — the thing you most need to see. */
+  for (const h of G.hazards) {
+    const col = PALETTE[h.tone] || PALETTE.o;
+    const urgent = h.left <= 1;
+    /* Light enough to read the floor through — the marked area
+       has to say "danger" without hiding what is standing in it.
+       The border and the count carry the message; the fill is
+       only there to bound the shape. */
+    const beat = urgent ? 0.30 + Math.abs(Math.sin(performance.now() / 130)) * 0.26
+                        : 0.14 + Math.abs(Math.sin(performance.now() / 300)) * 0.09;
+    ctx.save();
+    ctx.fillStyle = col;
+    for (const i of h.tiles) {
+      const hx = i % MW, hy = (i / MW) | 0;
+      if (!L.seen[i]) continue;
+      ctx.globalAlpha = beat * (L.vis[i] ? 1 : 0.45);
+      ctx.fillRect(Math.round((hx - cx) * t), Math.round((hy - cy) * t), t, t);
+    }
+    // outline: any edge with no sibling tile beyond it
+    ctx.globalAlpha = urgent ? 0.95 : 0.6;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = Math.max(1.5, t * 0.09);
+    const own = new Set(h.tiles);
+    ctx.beginPath();
+    for (const i of h.tiles) {
+      const hx = i % MW, hy = (i / MW) | 0;
+      if (!L.seen[i]) continue;
+      const px2 = Math.round((hx - cx) * t), py2 = Math.round((hy - cy) * t);
+      if (!own.has(i - MW)) { ctx.moveTo(px2, py2); ctx.lineTo(px2 + t, py2); }
+      if (!own.has(i + MW)) { ctx.moveTo(px2, py2 + t); ctx.lineTo(px2 + t, py2 + t); }
+      if (!own.has(i - 1))  { ctx.moveTo(px2, py2); ctx.lineTo(px2, py2 + t); }
+      if (!own.has(i + 1))  { ctx.moveTo(px2 + t, py2); ctx.lineTo(px2 + t, py2 + t); }
+    }
+    ctx.stroke();
+
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+
   /* Items bob so loot reads as loot even at the edge of the lamp,
      and anything better than plain throws a shaft of light you can
      see before you can read the name. */
@@ -289,8 +334,106 @@ export function draw() {
   ctx.fillRect(0, 0, viewW, viewH);
   blitActor(sprite(`hero:${p.cls}`), hx - t / 2, hy - t / 2, t, po);
 
+  /* The countdown goes on last. It used to be drawn with the
+     tint, which put it underneath the hero sprite — and a disc
+     centred on you puts its middle tile exactly where you are
+     standing, so the number was invisible in the one case that
+     mattered most. */
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const h of G.hazards) {
+    const seen = h.tiles.filter(i => L.seen[i]);
+    if (!seen.length) continue;
+    const mid = seen[Math.floor(seen.length / 2)];
+    const mx2 = (mid % MW - cx) * t + t / 2, my2 = ((mid / MW | 0) - cy) * t + t / 2;
+    const urgent = h.left <= 1;
+    const pop = urgent ? 1 + Math.abs(Math.sin(performance.now() / 130)) * 0.22 : 1;
+    ctx.globalAlpha = 1;
+    ctx.font = `900 ${Math.floor(t * 0.78 * pop)}px ui-monospace, monospace`;
+    ctx.lineWidth = Math.max(3, t * 0.24);
+    ctx.strokeStyle = PALETTE.k;
+    ctx.strokeText(String(h.left), mx2, my2);
+    ctx.fillStyle = urgent ? PALETTE.W : (PALETTE[h.tone] || PALETTE.o);
+    ctx.fillText(String(h.left), mx2, my2);
+  }
+
   Juice.drawEffects(ctx, cx, cy, t);
   Juice.drawScreenFlash(ctx, viewW, viewH);
+  drawMini();
+}
+
+/* ── the minimap ──────────────────────────────────────────
+   The map view only ever shows a lamp's worth of floor, so a
+   player who has walked half a level has no way to see the half
+   they walked. This is that: everything remembered, a few pixels
+   a tile, over the corner of the map.
+
+   Three sizes on tap rather than a toggle, because on a phone
+   the useful size depends on whether you are exploring or in a
+   fight, and a hidden setting for it would be worse than a tap. */
+const MINI_SIZES = [2, 3, 0];      // px per tile; 0 = hidden
+let miniStep = 0;
+
+const MINI_TILE = {
+  [DOWN]:  'o', [UP]: 'B',
+  [CAMP]:  'o', [ALTAR]: 'P', [EVENT]: 'B',
+  [DOOR]:  'N', [DOOR_OPEN]: 'N', [DOOR_LOCKED]: 'y', [DOOR_BROKEN]: 'N',
+  [WATER]: 'b', [WEB]: 's', [RUBBLE]: 'g',
+};
+
+export function drawMini() {
+  const px = MINI_SIZES[miniStep];
+  mini.classList.toggle('off', !px);
+  if (!px || !G.level || !G.player) return;
+
+  const L = G.level, p = G.player;
+  if (mini.width !== MW * px) { mini.width = MW * px; mini.height = MH * px; }
+  mini.style.width = `${MW * px}px`;
+  mini.style.height = `${MH * px}px`;
+
+  mctx.clearRect(0, 0, mini.width, mini.height);
+  for (let y = 0; y < MH; y++)
+    for (let x = 0; x < MW; x++) {
+      const i = idx(x, y);
+      if (!L.seen[i]) continue;
+      const t = L.tiles[i];
+      if (t === ROCK) continue;
+      let tone = MINI_TILE[t] || (t === SHOP ? 'y' : null);
+      if (!tone) tone = L.vis[i] ? 'G' : 'g';
+      mctx.fillStyle = PALETTE[tone];
+      mctx.fillRect(x * px, y * px, px, px);
+    }
+
+  // marked ground, so a pattern is visible even off-screen
+  for (const h of G.hazards)
+    for (const i of h.tiles) {
+      if (!L.seen[i]) continue;
+      mctx.fillStyle = PALETTE[h.tone] || PALETTE.o;
+      mctx.fillRect((i % MW) * px, ((i / MW) | 0) * px, px, px);
+    }
+
+  // anything you can see right now
+  for (const m of G.monsters) {
+    if (!L.vis[idx(m.x, m.y)] && !(G.detectPulse > 0)) continue;
+    if (m.disguise) continue;
+    mctx.fillStyle = m.boss || m.named ? PALETTE.R : m.elite?.length ? PALETTE.o : PALETTE.r;
+    mctx.fillRect(m.x * px, m.y * px, px, px);
+  }
+  for (const it of G.items) {
+    if (!L.seen[idx(it.x, it.y)]) continue;
+    if (it.kind === 'relic') mctx.fillStyle = PALETTE.P;
+    else if (it.kind === 'chest') mctx.fillStyle = PALETTE.y;
+    else continue;
+    mctx.fillRect(it.x * px, it.y * px, px, px);
+  }
+
+  // you, blinking, so the eye finds you first
+  mctx.fillStyle = (performance.now() % 900) < 560 ? PALETTE.W : PALETTE.y;
+  mctx.fillRect(p.x * px - 1, p.y * px - 1, px + 2, px + 2);
+}
+
+export function cycleMini() {
+  miniStep = (miniStep + 1) % MINI_SIZES.length;
+  drawMini();
 }
 
 /* ── intent ───────────────────────────────────────────────
@@ -318,6 +461,9 @@ const SHAPES = {
   close:   [(c, x, y, r) => chevrons(c, x, y, r, 1),  'G'],
   flee:    [(c, x, y, r) => chevrons(c, x, y, r, -1), 'B'],
   erratic: [(c, x, y, r) => ring(c, x, y, r * 0.7),   'p'],
+  // about to mark the ground: a hollow diamond, distinct from
+  // the solid one that means a plain swing
+  cast:    [(c, x, y, r) => hollowDiamond(c, x, y, r), 'P'],
   watch:   [(c, x, y, r) => dot(c, x, y, r * 0.30),   'G'],
   held:    [(c, x, y, r) => cross(c, x, y, r * 0.7),  'G'],
 };
@@ -366,6 +512,12 @@ function ring(c, x, y, r) {
   c.moveTo(x + r * 0.44, y); c.arc(x, y, r * 0.44, 0, Math.PI * 2, true);
 }
 function dot(c, x, y, r) { c.moveTo(x + r, y); c.arc(x, y, r, 0, Math.PI * 2); }
+function hollowDiamond(c, x, y, r) {
+  diamond(c, x, y, r);
+  c.moveTo(x, y + r * 0.42);
+  c.lineTo(x - r * 0.3, y); c.lineTo(x, y - r * 0.42); c.lineTo(x + r * 0.3, y);
+  c.closePath();
+}
 function cross(c, x, y, r) {
   const w = r * 0.34;
   for (const s of [1, -1]) {
@@ -523,6 +675,14 @@ export function refresh() {
     $('hud-manabar').style.width = p.maxmana ? `${(p.mana / p.maxmana) * 100}%` : '0%';
   } else mana.hidden = true;
 
+  /* Always shown, town included. It toggled on depth at first,
+     which moved the map by a gauge's height every time the
+     player walked into or out of the town — a jump for no
+     information gained. */
+  const stam = $('hud-stam-wrap');
+  $('hud-stam').textContent = `${p.stam}/${p.maxStam}`;
+  $('hud-stambar').style.width = p.maxStam ? `${(p.stam / p.maxStam) * 100}%` : '0%';
+
   const combo = $('hud-combo');
   if (G.combo > 1) {
     combo.hidden = false;
@@ -664,7 +824,8 @@ const INTENT_NAMES = [
   ['flee',    '달아난다'],
   ['erratic', '어디로 갈지 모른다'],
   ['watch',   '움직이지 않고 지켜본다'],
-  ['held',    '거미줄에 묶여 한 턴 쉰다'],
+  ['cast',    '바닥에 공격 범위를 그린다 — 표시된 칸에서 나가라'],
+  ['held',    '묶이거나 휘청여 한 턴 쉰다'],
 ];
 
 function renderLegend() {
@@ -878,6 +1039,14 @@ function renderInventory() {
       row.appendChild(nm);
       row.appendChild(el('span', 'eqstat',
         it.kind === 'weapon' ? `${it.dice[0]}d${it.dice[1]}` : `AC ${it.ac}`));
+      if (it.kind === 'weapon' && WEAPON_TYPES[it.t]) {
+        const note = el('div', 'wtype');
+        note.appendChild(el('b', '', WEAPON_TYPES[it.t].n));
+        note.appendChild(document.createTextNode(' ' + WEAPON_TYPES[it.t].t));
+        eq.appendChild(row);
+        eq.appendChild(note);
+        continue;
+      }
     } else {
       row.appendChild(el('span', 'eqname dim', '없음'));
     }
@@ -938,7 +1107,7 @@ function renderInventory() {
     mid.appendChild(nameEl(it, slot.qty > 1 ? ` ×${slot.qty}` : ''));
     const grade = rarityOf(it);
     mid.appendChild(el('span', 'idesc',
-      it.kind === 'weapon' ? `${grade ? `[${RARITY[grade].n}] ` : ''}피해 ${it.dice[0]}d${it.dice[1]}${it.hands === 2 ? ' · 양손' : ''}${affixBlurb(it)}`
+      it.kind === 'weapon' ? `${grade ? `[${RARITY[grade].n}] ` : ''}${WEAPON_TYPES[it.t]?.n || ''} ${it.dice[0]}d${it.dice[1]}${it.hands === 2 ? ' · 양손' : ''}${affixBlurb(it)}`
       : it.kind === 'armour' ? `${grade ? `[${RARITY[grade].n}] ` : ''}방어 +${it.ac}${affixBlurb(it)}`
       : Game.isKnown(it.id) ? (it.desc || '사용 가능') : '마셔 보기 전에는 알 수 없다'));
     row.appendChild(mid);
@@ -997,7 +1166,7 @@ function renderShop() {
     const mid = el('div', 'imid');
     mid.appendChild(nameEl(item));
     mid.appendChild(el('span', 'idesc',
-      item.kind === 'weapon' ? `피해 ${item.dice[0]}d${item.dice[1]}${item.hands === 2 ? ' · 양손' : ''}`
+      item.kind === 'weapon' ? `${WEAPON_TYPES[item.t]?.n || ''} ${item.dice[0]}d${item.dice[1]}${item.hands === 2 ? ' · 양손' : ''}`
       : item.kind === 'armour' ? `방어 +${item.ac}` : ''));
     row.appendChild(mid);
     row.appendChild(el('span', 'iact', `${cost}g`));
@@ -1561,11 +1730,35 @@ function single(dx, dy) {
   takeStep(dx, dy);
 }
 
-/* A step that latches, for keys and buttons that are physically
-   held. Holding the centre key rests in place until something
-   shows up. */
+/* ── the roll ─────────────────────────────────────────────
+   Same direction twice, quickly. No new button to find and no
+   modifier to hold — the gesture is the one every action game
+   already taught the player, and it costs stamina rather than a
+   cooldown so it stays a decision.
+
+   The window is deliberately short. A player walking with taps
+   must not roll by accident, and 260ms is faster than a walking
+   cadence but comfortably within a deliberate double-tap. */
+const DOUBLE_TAP = 260;
+let lastTap = { dx: 0, dy: 0, at: -1e9 };
+
 function press(dx, dy) {
   route = null;
+
+  if (dx || dy) {
+    const now = performance.now();
+    if (lastTap.dx === dx && lastTap.dy === dy && now - lastTap.at < DOUBLE_TAP) {
+      lastTap.at = -1e9;                   // one roll per double-tap, not a chain
+      if (Game.canRoll()) {
+        held = null;
+        act(() => Game.dodgeRoll(dx, dy));
+        if (INTERRUPTS.includes(G.screen)) setScreen(G.screen);
+        return;
+      }
+    }
+    lastTap = { dx, dy, at: now };
+  }
+
   const before = snapshot();
   if (!takeStep(dx, dy)) return;
   held = { dx, dy };
@@ -1582,7 +1775,12 @@ export function bindInput() {
     const [dx, dy] = btn.dataset.dir.split(',').map(Number);
     btn.addEventListener('pointerdown', e => {
       e.preventDefault();
-      btn.setPointerCapture?.(e.pointerId);
+      /* Capture is a nicety — it keeps the hold alive if the
+         finger slides off the button. It is not worth losing the
+         input to: some pointer ids are already gone by the time
+         the handler runs, and an exception here would eat the
+         step entirely. */
+      try { btn.setPointerCapture?.(e.pointerId); } catch { /* not capturable */ }
       press(dx, dy);
       if (G.screen === 'camp') setScreen('camp');
       if (G.screen === 'altar') setScreen('altar');
@@ -1590,6 +1788,8 @@ export function bindInput() {
     for (const ev of ['pointerup', 'pointercancel', 'pointerleave'])
       btn.addEventListener(ev, release);
   }
+
+  mini.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); cycleMini(); });
 
   $('btn-inv').onclick    = () => { stopAuto(); setScreen('inv'); };
   $('btn-cast').onclick   = () => { stopAuto(); setScreen('spell'); };
@@ -1608,7 +1808,9 @@ export function bindInput() {
       return;
     }
     if (G.screen === 'end') { if (e.key === 'Enter') location.reload(); return; }
-    if (G.screen === 'camp' || G.screen === 'altar') return;   // decisions, not menus
+    // decisions, not menus — but the map key still works everywhere
+    if (e.key === 'Tab') { e.preventDefault(); cycleMini(); return; }
+    if (G.screen === 'camp' || G.screen === 'altar') return;
     if (G.screen !== 'play') { if (e.key === 'Escape') setScreen('play'); return; }
     if (e.key === 'Escape') { stopAuto(); return; }
 
@@ -1623,6 +1825,7 @@ export function bindInput() {
     else if (e.key === 'i') { stopAuto(); setScreen('inv'); }
     else if (e.key === 'm') { stopAuto(); setScreen('spell'); }
     else if (e.key === 'c') { stopAuto(); act(Game.closeDoor); }
+    else if (e.key === 'Tab') { e.preventDefault(); cycleMini(); }
   });
 
   window.addEventListener('keyup', e => { if (DIRS[e.key]) release(); });

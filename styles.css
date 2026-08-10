@@ -176,6 +176,7 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 .track i { display: block; height: 100%; transition: width .16s linear; }
 .track i.hp { background: var(--R); }
 .track i.mp { background: var(--B); }
+.track i.st { background: var(--E); }
 
 .hudbot { display: flex; align-items: center; gap: 10px; font-size: 10px; color: var(--G); }
 .hudbot .xp b { color: var(--w); }
@@ -186,6 +187,19 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 #stage { flex: 1 1 auto; position: relative; min-height: 0; background: var(--k); }
 #map { display: block; width: 100%; height: 100%; image-rendering: pixelated;
        touch-action: none; user-select: none; -webkit-user-select: none; }
+
+/* The whole floor at a glance, in the corner. One pixel per
+   tile is unreadable and a full-screen overlay hides the fight,
+   so it sits over the map at a few pixels a tile and gets out of
+   the way on a tap. */
+#mini {
+  position: absolute; top: 6px; right: 6px;
+  image-rendering: pixelated;
+  border: 1px solid var(--g);
+  background: rgba(10, 12, 18, .78);
+  touch-action: none; cursor: pointer;
+}
+#mini.off { display: none; }
 
 /* ── log ── */
 #log {
@@ -315,6 +329,13 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 .eqname.dim { color: var(--g); }
 .eqstat  { font-size: 10.5px; color: var(--y); }
 .eqstat.dim { color: var(--G); }
+/* The weapon's rule, under the row it belongs to. A family whose
+   behaviour is only in a help table is a family nobody uses. */
+.wtype {
+  font-size: 10.5px; line-height: 1.6; color: var(--G);
+  margin: -3px 0 8px; padding: 0 10px 0 52px;
+}
+.wtype b { color: var(--o); }
 
 /* ── help ── */
 /* Scoped to the element: `.keys` is also a HUD chip modifier,

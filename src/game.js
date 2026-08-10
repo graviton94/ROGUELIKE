@@ -11,6 +11,8 @@ import {
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   RELICS, RELIC_SLOTS, relicSlots, relicById, BRANCHES,
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH,
+  WEAPON_TYPES, PATTERNS, NAMED,
+  ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   xpToLevel, statBonus,
 } from './data.js';
 import {
@@ -33,6 +35,7 @@ export const G = {
   pendingRelic: null,    // a relic waiting for a slot to be freed
   floorTurn: 0,          // turns spent on this floor — the clock
   waves: 0,              // how many times the floor has answered
+  hazards: [],           // telegraphed ground, counting down
   campUses: 0,           // fires still owed on this floor
 };
 
@@ -126,6 +129,7 @@ export function createHero(raceKey, classKey, base) {
     might: 0, iron: 0,
     spellPlus: {}, spellAffix: {},
     relics: [], boneHp: 0, seedAc: 0, grudge: 0,
+    stam: 0, maxStam: 0, iframe: 0,
     perm: {}, tuned: {}, markup: 0, permHp: 0,
     equip: { weapon: null, body: null, shield: null },
     pack: [],
@@ -133,6 +137,7 @@ export function createHero(raceKey, classKey, base) {
   };
   recalc(p, true);
   p.hp = p.maxhp; p.mana = p.maxmana;
+  p.stam = p.maxStam;
 
   addItem(p, makeConsumable('potHeal'), 3);
   addItem(p, makeConsumable('torch'), 2);
@@ -153,9 +158,11 @@ export function recalc(p, init) {
   const g = gearBonus(p);
   p.maxhp = Math.max(8, Math.round(p.maxhp * (1 + g.maxhpPct)) + (p.boneHp || 0) + (p.permHp || 0));
   p.maxmana = Math.max(0, Math.round(p.maxmana * (1 + g.manaPct)) + g.manaFlat);
+  p.maxStam = staminaMax(p);
   if (init) return;
   p.hp = Math.min(p.hp, p.maxhp);
   p.mana = Math.min(p.mana, p.maxmana);
+  p.stam = Math.min(p.stam ?? p.maxStam, p.maxStam);
 }
 
 /* ── gear resolution ──────────────────────────────────────
@@ -716,6 +723,7 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   G.items = [];
   G.floorTurn = 0;
   G.waves = 0;
+  G.hazards = [];
   G.campUses = 1 + (hasRelic('ember') ? 1 : 0);
 
   const L = G.level;
@@ -802,6 +810,19 @@ function populate(depth) {
   if (depth === MAX_DEPTH) {
     const spot = L.openSpot(L.downRoom || L.rooms[L.rooms.length - 1], busy);
     if (spot) G.monsters.push({ ...BOSS, maxhp: BOSS.hp, x: spot.x, y: spot.y, awake: false });
+  }
+
+  /* A named thing waits on two floors on the way down. Announced
+     on arrival, because a floor you know holds one is a floor you
+     walk differently — and the patterns are the reason walking
+     differently matters. */
+  const named = NAMED.find(n => n.at === depth);
+  if (named) {
+    const spot = L.openSpot(L.downRoom || L.rooms[L.rooms.length - 1], busy);
+    if (spot) {
+      G.monsters.push({ ...named, maxhp: named.hp, x: spot.x, y: spot.y, awake: false, energy: 0 });
+      say(named.intro, 'hit');
+    }
   }
 
   /* Pack animals arrive as a pack. Six wolves coming down one
@@ -1044,6 +1065,20 @@ export function step(dx, dy) {
 
   const m = monsterAt(nx, ny);
   if (m) { playerAttack(m); endTurn(); return; }
+
+  /* 창류 reaches past the tile in front of you. Stepping into an
+     empty square that has something behind it becomes a thrust
+     rather than a move — which is how a spear fights a thing
+     that is winding up. */
+  if (weaponReach(p) > 1) {
+    const far = monsterAt(nx + dx, ny + dy);
+    if (far && !far.disguise && !L.solid(nx, ny)) {
+      fx({ t:'lunge', who:'player', x:p.x, y:p.y, dx, dy, kind:'spear' });
+      playerAttack(far);
+      endTurn();
+      return;
+    }
+  }
 
   p.x = nx; p.y = ny;
   if (enterTile(nx, ny)) { endTurn(true); return; }   // trap moved us elsewhere
@@ -1323,7 +1358,30 @@ function openChest(index, chest) {
   }
 }
 
+/* ── weapon families ──────────────────────────────────────
+   Six rules rather than six damage dice. Everything below reads
+   `weaponType(p)` once and branches; nothing else in the file
+   needs to know what a spear is. */
+export const weaponType = p => p.equip.weapon?.t || 'sword';
+export const weaponReach = p => (weaponType(p) === 'spear' ? 2 : 1);
+
+/* Called once per player turn. A dagger swings twice; everything
+   else swings once and lets its own rule fire inside. */
 function playerAttack(m) {
+  const p = G.player;
+  if (!p.swinging && weaponType(p) === 'dagger') {
+    p.swinging = true;
+    swing(m, 0.62);
+    // The second thrust only lands if there is still something
+    // in front of you — which is why a dagger wants 처형.
+    if (G.running && G.monsters.includes(m)) swing(m, 0.62);
+    p.swinging = false;
+    return;
+  }
+  swing(m, 1);
+}
+
+function swing(m, scale) {
   const p = G.player;
 
   /* You did not attack a mimic — you reached for a chest. It
@@ -1341,13 +1399,17 @@ function playerAttack(m) {
 
   const asleep = !m.awake;
   m.awake = true;
-  fx({ t:'lunge', who:'player', x:p.x, y:p.y, dx: Math.sign(m.x - p.x), dy: Math.sign(m.y - p.y) });
+  fx({ t:'lunge', who:'player', x:p.x, y:p.y, kind:weaponType(p),
+       dx: Math.sign(m.x - p.x), dy: Math.sign(m.y - p.y) });
 
   /* A sleeping target never gets a saving throw. This is the
      reason to take the long way round instead of the short. */
   const gp = gearBonus(p);
+  const kind = weaponType(p);
   const armour = m.ac * 1.15 * (1 - gp.pierce);   // 꿰뚫는: armour counts for less
-  const chance = asleep ? 1 : clamp(0.44 + (toHit(p) - armour) / 55, 0.18, 0.95);
+  // 대검류 is wilder; everything else swings true.
+  const aim = kind === 'great' ? 0.88 : 1;
+  const chance = asleep ? 1 : clamp(0.44 + (toHit(p) * aim - armour) / 55, 0.18, 0.95);
   if (Math.random() > chance) {
     say(`${m.n}을(를) 빗맞혔다.`);
     fx({ t:'miss', x:m.x, y:m.y });
@@ -1359,12 +1421,14 @@ function playerAttack(m) {
   const g = gp;
   let dmg = roll(dice[0], dice[1]) + statBonus(p.stats.str) * 2 + Math.floor(p.lv / 3) + g.dmg;
   dmg *= (1 + g.dmgPct + (p.might > 0 ? 0.6 : 0));
+  dmg *= scale;
+  if (kind === 'great') dmg *= 1.45;
 
   // 낙인: sharpened against the things that telegraph, blunted
   // against everything else.
   if (hasRelic('brand')) dmg *= (m.elite?.length || m.boss) ? 1.5 : 0.85;
 
-  const crit = asleep || Math.random() < critChance(p);
+  const crit = asleep || Math.random() < critChance(p) + (kind === 'dagger' ? 0.08 : 0);
   if (crit) dmg *= critMult(p) * (asleep ? 1.5 : 1);
   dmg = Math.max(1, Math.round(dmg * comboMult()));
 
@@ -1384,6 +1448,7 @@ function playerAttack(m) {
 
   drainLife(dmg * (crit ? 0.6 : 1));
   if (g.on) poisonMonster(m, g.on);
+  weaponRule(kind, m, dmg, crit);
 
   /* 연쇄: the swing carries into one more body. This is the line
      that turns 작열 into a chain of detonations and 흡혈 into a
@@ -1434,6 +1499,41 @@ function onKill(m) {
     recalc(p);
     p.hp += 1;
     if (p.boneHp % 10 === 0) say(`뼈 목걸이가 무거워진다. (최대 체력 +${p.boneHp})`, 'level');
+  }
+}
+
+/* What the weapon does *after* the damage lands. Kept in one
+   place so a new family is one case, and so 연쇄 and 작열 stack
+   on top of it rather than fighting it. */
+function weaponRule(kind, m, dmg, crit) {
+  const p = G.player;
+  if (kind === 'axe') {
+    /* Cleave: the two tiles flanking the target, relative to you.
+       Standing so that three bodies line up is the whole skill. */
+    const dx = Math.sign(m.x - p.x), dy = Math.sign(m.y - p.y);
+    const side = dx && dy ? [[dx, 0], [0, dy]] : dx ? [[dx, -1], [dx, 1]] : [[-1, dy], [1, dy]];
+    const spill = Math.max(1, Math.round(dmg * 0.7));
+    for (const [ox, oy] of side) {
+      const o = monsterAt(p.x + ox, p.y + oy);
+      if (o && o !== m && !o.disguise) {
+        fx({ t:'arc', fx:m.x, fy:m.y, tx:o.x, ty:o.y });
+        hurtMonster(o, spill, '휘둘러', {});
+      }
+    }
+  } else if (kind === 'mace' && Math.random() < 0.30 && G.monsters.includes(m)) {
+    // Stagger: eat the energy it had banked, so it loses its turn.
+    m.energy = Math.min(m.energy || 0, 0) - 1;
+    m.staggered = 2;
+    say(`${m.n}이(가) 휘청인다.`, 'good');
+    fx({ t:'ail', kind:'slow', x:m.x, y:m.y });
+  } else if (kind === 'great' && crit) {
+    // A critical with a greatsword is a room-wide event.
+    const near = adjacentMonsters(p).filter(o => o !== m);
+    const spill = Math.max(1, Math.round(dmg * 0.5));
+    if (near.length) {
+      fx({ t:'burst', x:p.x, y:p.y, r:1.8, color:'W' });
+      for (const o of near) hurtMonster(o, spill, '쓸어', {});
+    }
   }
 }
 
@@ -1497,7 +1597,15 @@ export function hurtMonster(m, dmg, source, opt = {}) {
     }
     fx({ t:'kill', x:m.x, y:m.y, spr:m.spr, dmg, crit:!!opt.crit, over, boss:!!m.boss, combo:G.combo });
     say(`${m.n}이(가) 쓰러졌다. (+${m.xp} 경험치)`, 'good');
-    if (m.elite?.length) dropElite(m);
+    if (m.named) {
+      const id = unownedRelic();
+      if (id) {
+        G.items.push({ kind:'relic', id, spr: relicById(id).spr, n: relicById(id).n, x:m.x, y:m.y });
+        say(`${relicById(id).n}이(가) 남았다.`, 'level');
+        fx({ t:'drop', x:m.x, y:m.y, relic:true });
+      }
+      dropElite(m);
+    } else if (m.elite?.length) dropElite(m);
     onKill(m);
     gainXp(Math.round(m.xp * (G.branch?.xp || 1)));
     if (m.boss) victory();
@@ -1612,6 +1720,7 @@ export function endTurn(skipMonsters = false) {
   if (G.detectPulse > 0) G.detectPulse--;
 
   if (G.comboT > 0 && --G.comboT === 0) breakCombo(true);
+  if (G.turn % STAM_REGEN_EVERY === 0 && p.stam < p.maxStam) p.stam++;
 
   if (G.depth > 0) {
     /* One upkeep resource, not two. Food and torches were the
@@ -1640,8 +1749,14 @@ export function endTurn(skipMonsters = false) {
   refreshFov();
   if (G.depth > 0) scanForTraps();
   if (!skipMonsters) runMonsters();
+  if (G.running) tickHazards();
+  if (!G.running) return;
   refreshFov();
   readIntents();
+  /* Spent at the very end: the roll has to still be dodging while
+     the monsters and the marked ground resolve, which is the whole
+     turn it was bought for. */
+  if (p.iframe > 0) p.iframe--;
 }
 
 /* ── the clock ────────────────────────────────────────────
@@ -1749,6 +1864,8 @@ function tickAilments(p) {
 function monsterTurn(m) {
   if (!G.running) return;
   const p = G.player, L = G.level;
+  if (m.staggered > 0) { m.staggered--; return; }   // 둔기류 took its turn
+  if (m.cooling > 0) m.cooling--;
   const dx = p.x - m.x, dy = p.y - m.y;
   const dist2 = dx * dx + dy * dy;
   const dist = Math.sqrt(dist2);
@@ -1789,6 +1906,16 @@ function monsterTurn(m) {
      step back, shut a door, drink, or decide the trade is worth
      it anyway. Without the pause an elite is just a bigger
      number; with it, it is a problem to solve. */
+  /* Things with a repertoire use it at range. The pattern is
+     drawn on the floor a turn or two before it lands, which is
+     the entire fight: read the shape, decide whether to walk out
+     of it, roll out of it, or spend the turn hitting instead. */
+  if (m.casts?.length && !m.cooling && dist2 > 2 && dist <= 9
+      && lineClear(L, m.x, m.y, p.x, p.y)) {
+    const key = m.casts[rnd(m.casts.length)];
+    if (castPattern(m, key)) return;
+  }
+
   if (dist2 <= 2) {
     if (m.heavy && !m.wind) {
       m.wind = 1;
@@ -1826,6 +1953,11 @@ function monsterMelee(m) {
   const ac = armourClass(p);
   const heavy = m.wind > 0;
   m.wind = 0;
+  if (p.iframe > 0) {
+    say(`구르며 ${m.n}의 손을 피했다.`, 'good');
+    fx({ t:'miss', x:p.x, y:p.y });
+    return;
+  }
   const chance = clamp(0.24 + (m.atk * 1.45 - ac * 1.75) / 62, 0.06, 0.90);
   if (Math.random() > chance) {
     say(`${m.n}의 ${heavy ? '내리친 일격이' : '공격이'} 빗나갔다.`);
@@ -1861,6 +1993,7 @@ function monsterShoot(m) {
   const p = G.player;
   const ac = armourClass(p);
   fx({ t:'shot', fx:m.x, fy:m.y, tx:p.x, ty:p.y, kind:m.spr });
+  if (p.iframe > 0) { say('구르며 흘려보냈다.', 'good'); fx({ t:'miss', x:p.x, y:p.y }); return; }
   const chance = clamp(0.20 + (m.atk * 1.25 - ac * 1.6) / 62, 0.05, 0.80);
   if (Math.random() > chance) {
     say(`${m.n}의 원거리 공격이 빗나갔다.`);
@@ -1909,6 +2042,161 @@ function advance(m, sx, sy) {
 
 const retreat = m => advance(m, Math.sign(m.x - G.player.x), Math.sign(m.y - G.player.y));
 
+/* ── telegraphed ground ───────────────────────────────────
+   Mark tiles, print a countdown on them, then hit whatever is
+   still standing there. Everything a boss does that is bigger
+   than a punch goes through this, so a pattern is a shape plus
+   a number and nothing else has to know about it.
+
+   Friendly fire is deliberate: the emperor burns its own escort,
+   which means a good position is one that puts something else in
+   the fire with you. */
+export function castPattern(m, key) {
+  const spec = PATTERNS[key];
+  if (!spec) return false;
+  const L = G.level, p = G.player;
+  const tiles = patternTiles(spec, m, p);
+  if (!tiles.length) return false;
+
+  G.hazards.push({
+    key, tiles, left: spec.warn,
+    dmg: Math.max(2, Math.round(m.atk * spec.dmgPct)),
+    tone: spec.tone, from: { x: m.x, y: m.y },
+    grow: spec.grow ? 1 : 0, r: spec.r || 0, owner: m.n,
+  });
+  m.cooling = m.cool || 4;
+  say(`${m.n}${spec.say}`, 'warn');
+  fx({ t:'wake', x:m.x, y:m.y });
+  return true;
+}
+
+function patternTiles(spec, m, p) {
+  const L = G.level, out = [];
+  const push = (x, y) => {
+    if (x < 1 || y < 1 || x >= MW - 1 || y >= MH - 1) return;
+    if (L.solid(x, y)) return;
+    out.push(idx(x, y));
+  };
+
+  if (spec.reach && !spec.r) {
+    /* A line, or a cross, drawn through the caster along the axis
+       that actually contains you — so standing off the axis is
+       the counterplay, and it is visible before it lands. */
+    const horiz = Math.abs(p.y - m.y) <= Math.abs(p.x - m.x);
+    const arms = spec.n === '십자' ? [[1, 0], [-1, 0], [0, 1], [0, -1]]
+               : horiz ? [[1, 0], [-1, 0]] : [[0, 1], [0, -1]];
+    push(m.x, m.y);
+    for (const [dx, dy] of arms)
+      for (let i = 1; i <= spec.reach; i++) {
+        const x = m.x + dx * i, y = m.y + dy * i;
+        if (L.solid(x, y)) break;         // walls stop it
+        push(x, y);
+      }
+    return out;
+  }
+
+  // A blob, centred where you are standing *now*.
+  const cx = spec.ring ? m.x : p.x, cy = spec.ring ? m.y : p.y;
+  const r = spec.r || 1;
+  for (let y = cy - r; y <= cy + r; y++)
+    for (let x = cx - r; x <= cx + r; x++) {
+      const d = Math.hypot(x - cx, y - cy);
+      if (d > r + 0.35) continue;
+      if (spec.ring && d < r - 0.65) continue;   // a ring, not a disc
+      push(x, y);
+    }
+  return out;
+}
+
+/* Ticked once per player turn, after the monsters have moved, so
+   the count the player reads is the count they get to act on. */
+function tickHazards() {
+  const p = G.player;
+  for (const h of [...G.hazards]) {
+    if (--h.left > 0) continue;
+    resolveHazard(h);
+    if (!G.running) return;
+
+    // 불길 walks outward for a few more turns.
+    if (h.grow && h.grow < (PATTERNS[h.key].grow || 0)) {
+      h.grow++;
+      h.r = h.grow;
+      h.tiles = patternTiles({ ...PATTERNS[h.key], r: h.r, ring: true },
+                             { x: h.from.x, y: h.from.y }, p);
+      h.left = 1;
+      if (h.tiles.length) continue;
+    }
+    G.hazards.splice(G.hazards.indexOf(h), 1);
+  }
+}
+
+function resolveHazard(h) {
+  const p = G.player;
+  const hit = new Set(h.tiles);
+  fx({ t:'hazard', tiles: h.tiles, tone: h.tone });
+
+  if (hit.has(idx(p.x, p.y))) {
+    if (p.iframe > 0) {
+      say('구르며 빠져나갔다.', 'good');
+      fx({ t:'resist', x:p.x, y:p.y });
+    } else {
+      const ac = armourClass(p);
+      const dmg = Math.max(1, Math.round((h.dmg - ac * 0.25) * (1 + (p.perm?.takeMore || 0))));
+      p.hp -= dmg;
+      breakCombo(false); tookHit();
+      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, severe:true });
+      say(`${h.owner}의 ${PATTERNS[h.key].n}에 ${dmg}의 피해.`, 'hit');
+      if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n: h.owner }); return; }
+    }
+  }
+  // Everything else standing in it, including the caster's own.
+  for (const m of [...G.monsters])
+    if (hit.has(idx(m.x, m.y)) && !m.disguise)
+      hurtMonster(m, Math.round(h.dmg * 0.7), PATTERNS[h.key].n, {});
+}
+
+export const hazardAt = (x, y) => {
+  const i = idx(x, y);
+  for (const h of G.hazards) if (h.tiles.includes(i)) return h;
+  return null;
+};
+
+/* ── the roll ─────────────────────────────────────────────
+   The answer to a telegraph. Two tiles, one turn, and the next
+   thing that swings at you this turn misses. Stamina is what
+   stops it from being the answer to everything. */
+export function canRoll() {
+  const p = G.player;
+  return !!p && p.stam >= ROLL_COST && !has(p, 'paralyze') && !(p.stuck > 0);
+}
+
+export function dodgeRoll(dx, dy) {
+  const p = G.player, L = G.level;
+  if (!dx && !dy) return false;
+  if (!canRoll()) { say(p.stam < ROLL_COST ? '숨이 차다.' : '움직일 수 없다.', 'warn'); return false; }
+
+  let moved = 0;
+  for (let i = 0; i < ROLL_DIST; i++) {
+    const nx = p.x + dx, ny = p.y + dy;
+    if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) break;
+    if (L.solid(nx, ny) || monsterAt(nx, ny)) break;
+    const t = L.tiles[idx(nx, ny)];
+    if (t === CAMP || t === ALTAR || t === EVENT || L.shopAt.has(idx(nx, ny))) break;
+    p.x = nx; p.y = ny; moved++;
+  }
+  if (!moved) { say('구를 자리가 없다.', 'warn'); return false; }
+
+  p.stam -= ROLL_COST;
+  p.iframe = 1;
+  p.stuck = 0;
+  fx({ t:'roll', x:p.x, y:p.y, dx, dy, dist:moved });
+  refreshFov();
+  // A roll passes over ground rather than stopping on it: no
+  // pickup, no trap, and the traps you skipped stay armed.
+  endTurn();
+  return true;
+}
+
 /* ── intent ───────────────────────────────────────────────
    The one idea worth stealing wholesale from Slay the Spire.
    A fight you cannot read is a dice roll; a fight where every
@@ -1925,8 +2213,11 @@ export function predictIntent(m) {
   const dx = p.x - m.x, dy = p.y - m.y;
   const dist2 = dx * dx + dy * dy, dist = Math.sqrt(dist2);
 
+  if (m.staggered > 0) return 'held';
   if (m.snared > 0 && !m.web) return 'held';
   if (m.wind > 0) return 'heavy';
+  if (m.casts?.length && !m.cooling && dist2 > 2 && dist <= 9
+      && lineClear(L, m.x, m.y, p.x, p.y)) return 'cast';
   if (dist2 <= 2) return m.heavy ? 'wind' : (m.on ? 'hex' : 'melee');
   if (m.ai === 'still') return 'watch';
   if (m.ai === 'ranged' && m.rng
@@ -2594,7 +2885,7 @@ export function startGame(raceKey, classKey, base) {
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
-  G.floorTurn = 0; G.waves = 0; G.campUses = 1;
+  G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = [];
   shuffleAppearances(G.player);
   enterDepth(0);
   say('마을. 여섯 개의 문이 열려 있고, 광장 한가운데에 계단이 있다.', 'warn');

@@ -110,10 +110,67 @@ export const MONSTERS = [
   { spr:'lich',    n:'리치',             d:14, rar:4,  hp:130, atk:35, ac:24, xp:480, ai:'ranged',  rng:7, spd:0.75, on:'paralyze', door:'open' },
 ];
 
+/* ── telegraphed attacks ──────────────────────────────────
+   The classic boss vocabulary, in a grid: mark the ground,
+   count down where the player can read it, then hit everything
+   still standing there. Three shapes cover almost all of it —
+   a line down a row or column, a countdown blob, and a ring
+   that walks outward — and each asks a different question of
+   your position.
+
+   `warn` is how many turns of marked ground you get before it
+   lands. One turn is a reflex, two is a plan. Damage is a
+   fraction of the caster's attack so one table serves an elite
+   on floor 4 and the Ember Emperor on floor 15.
+
+   Friendly fire is on. A boss that burns its own escort is a
+   boss you can fight with the room instead of against it. */
+export const PATTERNS = {
+  beam:  { n:'베기',     warn:1, dmgPct:1.55, tone:'R', reach:9,
+           say:'이(가) 팔을 옆으로 길게 뻗는다.' },
+  cross: { n:'십자',     warn:2, dmgPct:1.30, tone:'o', reach:7,
+           say:'이(가) 바닥에 십자를 긋는다.' },
+  zone:  { n:'낙하',     warn:2, dmgPct:1.85, tone:'y', r:2,
+           say:'이(가) 위를 올려다본다. 천장에서 흙이 떨어진다.' },
+  /* ring: centred on the caster rather than on you. 불길 has to
+     start at its feet or the growth steps land somewhere else
+     than the first ring did. */
+  wave:  { n:'불길',     warn:1, dmgPct:1.10, tone:'o', r:1, grow:4, ring:true,
+           say:'의 발밑에서 불이 번진다.' },
+  quake: { n:'진동',     warn:2, dmgPct:1.00, tone:'N', r:3, ring:true,
+           say:'이(가) 발을 굴렀다. 바닥에 금이 간다.' },
+};
+
+/* ── the named ────────────────────────────────────────────
+   Two mid-bosses and the emperor. A floor you *know* has a
+   named thing on it is a floor you approach differently, and
+   the patterns are the reason the approach matters. */
+export const NAMED = [
+  { at:5,  spr:'ogre',  n:'뼈를 씹는 자', hp:210, atk:24, ac:16, xp:900,
+    ai:'hunt', spd:0.9, door:'smash', regen:2, heavy:true, named:true,
+    casts:['quake', 'zone'], cool:5,
+    intro:'무언가 커다란 것이 이 층에서 기다리고 있다.' },
+  { at:10, spr:'wraith', n:'재 속의 사제', hp:340, atk:33, ac:22, xp:2200,
+    ai:'hunt', spd:1.1, on:'fear', door:'open', regen:3, heavy:true, named:true,
+    casts:['cross', 'wave'], cool:4,
+    intro:'차가운 것이 이 층의 공기를 마시고 있다.' },
+];
+
 export const BOSS = {
   spr:'balemperor', n:'잿불의 대군주', hp:700, atk:46, ac:30, xp:6000,
-  ai:'hunt', spd:1.15, on:'fear', door:'smash', regen:4, boss:true,
+  ai:'hunt', spd:1.15, on:'fear', door:'smash', regen:4, boss:true, heavy:true,
+  casts:['beam', 'wave', 'zone', 'quake'], cool:3,
 };
+
+/* ── stamina ──────────────────────────────────────────────
+   One resource, one use: the dodge roll. A telegraphed attack
+   with no way to answer it is a tax; the roll is the answer,
+   and stamina is what stops it from being the answer to
+   everything. */
+export const ROLL_COST = 2;
+export const ROLL_DIST = 2;
+export const staminaMax = p => 3 + Math.floor(p.lv / 6) + Math.max(0, statBonus(p.stats.dex));
+export const STAM_REGEN_EVERY = 2;
 
 /* A chest is a monster you have not identified yet. Its profile
    is derived from the floor rather than fixed, because a chest
@@ -141,19 +198,50 @@ export const TRAPS = {
   alarm:    { n:'경보 장치',   msg:'날카로운 종소리가 층 전체에 울린다.' },
 };
 
-/* ── items ────────────────────────────────────────────────
-   Weapons carry dice (count × sides). Armour carries ac.    */
+/* ── weapons ──────────────────────────────────────────────
+   A weapon used to be a damage die with a name on it, which
+   meant "which sword" was arithmetic rather than a decision.
+   Six families, each with a rule instead of a number, so the
+   choice is about *how you fight* — and so the same affix reads
+   differently depending on what it is bolted to.
+
+   The interactions are the point: 연쇄 on an axe hits five
+   bodies, 처형 on a dagger gets two rolls a turn, 반격 range on
+   a spear means the thing winding up never reaches you. */
+export const WEAPON_TYPES = {
+  dagger: { n:'단검류', t:'한 턴에 두 번 찌른다(각 62%). 치명타 +8%p.' },
+  sword:  { n:'검류',   t:'기준. 특별한 규칙이 없는 만큼 약점도 없다.' },
+  axe:    { n:'도끼류', t:'벤 자리 양옆까지 함께 벤다(70% 피해).' },
+  spear:  { n:'창류',   t:'두 칸 거리에서 찌른다. 붙지 않고 싸운다.' },
+  mace:   { n:'둔기류', t:'30%로 비틀거리게 만든다 — 그 적은 다음 턴을 잃는다.' },
+  great:  { n:'대검류', t:'피해 +45%, 명중 −12%. 치명타는 인접한 전부를 벤다.' },
+};
+
+/* Weapons carry dice (count × sides) and a type. Armour carries ac. */
 export const WEAPONS = [
-  { spr:'sword', n:'단검',         dice:[1,5],  d:0,  cost:20,   hands:1 },
-  { spr:'sword', n:'짧은 검',      dice:[1,8],  d:1,  cost:70,   hands:1 },
-  { spr:'mace',  n:'철퇴',         dice:[2,4],  d:2,  cost:90,   hands:1 },
-  { spr:'axe',   n:'손도끼',       dice:[1,10], d:2,  cost:130,  hands:1 },
-  { spr:'sword', n:'장검',         dice:[2,6],  d:3,  cost:260,  hands:1 },
-  { spr:'mace',  n:'전투 망치',    dice:[3,4],  d:5,  cost:320,  hands:1 },
-  { spr:'axe',   n:'전투 도끼',    dice:[2,9],  d:6, cost:520,  hands:2 },
-  { spr:'sword', n:'양손검',       dice:[3,7],  d:8, cost:900,  hands:2 },
-  { spr:'axe',   n:'미늘창',       dice:[4,6],  d:10, cost:1400, hands:2 },
-  { spr:'sword', n:'룬이 새겨진 검', dice:[4,8], d:12, cost:3000, hands:1 },
+  { spr:'sword', n:'단검',         t:'dagger', dice:[1,5],  d:0,  cost:20,   hands:1 },
+  { spr:'mace',  n:'곤봉',         t:'mace',   dice:[1,7],  d:0,  cost:24,   hands:1 },
+  { spr:'sword', n:'짧은 검',      t:'sword',  dice:[1,8],  d:1,  cost:70,   hands:1 },
+  { spr:'axe',   n:'창',           t:'spear',  dice:[1,9],  d:1,  cost:85,   hands:2 },
+  { spr:'mace',  n:'철퇴',         t:'mace',   dice:[2,4],  d:2,  cost:90,   hands:1 },
+  { spr:'axe',   n:'손도끼',       t:'axe',    dice:[1,10], d:2,  cost:130,  hands:1 },
+  { spr:'sword', n:'사냥칼',       t:'dagger', dice:[1,9],  d:2,  cost:150,  hands:1 },
+  { spr:'sword', n:'장검',         t:'sword',  dice:[2,6],  d:3,  cost:260,  hands:1 },
+  { spr:'mace',  n:'전투 망치',    t:'mace',   dice:[3,4],  d:5,  cost:320,  hands:1 },
+  { spr:'axe',   n:'전투 도끼',    t:'axe',    dice:[2,9],  d:6,  cost:520,  hands:2 },
+  { spr:'axe',   n:'장창',         t:'spear',  dice:[2,8],  d:7,  cost:700,  hands:2 },
+  { spr:'sword', n:'양손검',       t:'great',  dice:[3,7],  d:8,  cost:900,  hands:2 },
+  { spr:'sword', n:'가시 단도',    t:'dagger', dice:[2,7],  d:9,  cost:1100, hands:1 },
+  { spr:'axe',   n:'미늘창',       t:'spear',  dice:[4,6],  d:10, cost:1400, hands:2 },
+  { spr:'mace',  n:'파쇄추',       t:'great',  dice:[4,7],  d:11, cost:2200, hands:2 },
+  { spr:'sword', n:'룬이 새겨진 검', t:'sword', dice:[4,8], d:12, cost:3000, hands:1 },
+  /* Every family needs a late-game entry or the choice collapses
+     back into "take the biggest die" by floor 10. */
+  { spr:'mace',  n:'별철퇴',       t:'mace',   dice:[2,9],  d:8,  cost:820,  hands:1 },
+  { spr:'mace',  n:'룬 철퇴',      t:'mace',   dice:[3,9],  d:12, cost:2600, hands:1 },
+  { spr:'sword', n:'서슬 단검',    t:'dagger', dice:[3,7],  d:12, cost:2400, hands:1 },
+  { spr:'axe',   n:'쌍날 도끼',    t:'axe',    dice:[3,8],  d:12, cost:2700, hands:2 },
+  { spr:'axe',   n:'용창',         t:'spear',  dice:[4,7],  d:13, cost:3200, hands:2 },
 ];
 
 export const ARMOURS = [

@@ -17,7 +17,7 @@ import { BRANCHES } from './data.js';
 
 const PREFIX = 'deepdelve.slot.';
 export const SLOTS = 3;
-const FORMAT = 3;
+const FORMAT = 4;
 
 /* ── byte packing ───────────────────────────────────────── */
 function toB64(bytes) {
@@ -113,6 +113,7 @@ export function snapshot() {
     branch: G.branch?.id || 'plain',
     floorTurn: G.floorTurn || 0, waves: G.waves || 0, campUses: G.campUses ?? 1,
     deepest: G.deepest || 0, campPromise: G.campPromise || 0,
+    hazards: G.hazards || [],
     nextMods: G.nextMods || null,
     player: G.player,
     monsters: G.monsters,
@@ -141,6 +142,7 @@ export function apply(data) {
   G.campUses = data.campUses ?? 1;
   G.deepest = data.deepest || data.depth || 0;
   G.campPromise = data.campPromise || 0;
+  G.hazards = data.hazards || [];
   G.nextMods = data.nextMods || null;
   G.pendingBranch = null;
   G.pendingRelic = null;
@@ -172,6 +174,8 @@ export function apply(data) {
   p.tuned = p.tuned || {};
   p.markup = p.markup || 0;
   p.permHp = p.permHp || 0;
+  p.iframe = p.iframe || 0;
+  if (p.stam == null) p.stam = 0;
 
   refreshFov();
   return true;

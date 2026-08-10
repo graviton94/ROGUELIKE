@@ -28,7 +28,7 @@
     </p>
     <button class="big" id="btn-new">새 게임</button>
     <button class="big" id="btn-load" hidden>이어하기</button>
-    <p class="fine">도트는 전부 코드로 그려집니다. 이미지 파일 없음.<br><span id="build">v7</span></p>
+    <p class="fine">도트는 전부 코드로 그려집니다. 이미지 파일 없음.<br><span id="build">v8</span></p>
   </div>
 </section>
 
@@ -71,6 +71,7 @@
       <span class="chip">AC <b id="hud-ac">0</b></span>
       <span class="chip gold">◍ <b id="hud-gold">0</b></span>
       <span class="chip depth" id="hud-depth">마을</span>
+      <span class="chip mats" id="hud-mats" hidden>⚒ <b id="hud-mats-n">0</b></span>
       <span class="chip keys" id="hud-keys" hidden>⚿ <b id="hud-keys-n">0</b></span>
       <span class="chip combo" id="hud-combo" hidden><b id="hud-combo-n">0</b> 연격</span>
     </div>
@@ -131,7 +132,10 @@
     <div id="equip-list"></div>
     <h3 class="sect">전투</h3>
     <div id="combat-stats"></div>
+    <h3 class="sect">재료</h3>
+    <div id="mat-list"></div>
     <h3 class="sect">배낭</h3>
+    <p class="note" id="pack-hint">무기와 갑옷은 <b>분해</b>해서 강화 재료로 쓸 수 있습니다. 상인에게 파는 것과 둘 중 하나입니다.</p>
     <div id="pack-list"></div>
   </div>
 </section>
@@ -229,12 +233,21 @@
         건드리면 먼저 뭅니다. 다만 <b>미믹은 숨을 쉽니다</b> — 가만히 보면 아주 조금 위아래로 움직입니다. 생명 탐지 주문은 한 번에 벗겨냅니다.</td></tr>
     </table>
 
+    <h3 class="sect">재료와 경제</h3>
+    <table class="keys">
+      <tr><td>분해</td><td>배낭의 무기·갑옷을 <b>분해</b>해 재료로 바꿉니다. 등급·강화수치·속성 수에 따라 수율이 다릅니다.</td></tr>
+      <tr><td>재료 3종</td><td><b>쇳조각</b>(강화) · <b>마력 가루</b>(인챈트) · <b>정수</b>(재련). 정수는 좋은 물건에서만 나옵니다.</td></tr>
+      <tr><td>팔까 부술까</td><td>같은 장비를 <b>상인에게 팔면 금화</b>, <b>분해하면 재료</b>입니다. 둘 다는 안 됩니다.</td></tr>
+      <tr><td>떠돌이 상인</td><td>2층부터 <b>약 30%의 층</b>에 나타납니다. 소모품과 재료를 팔고 잡템을 삽니다. 입장하면 지도에 미리 표시됩니다.</td></tr>
+    </table>
+
     <h3 class="sect">모닥불 — 한 번의 선택</h3>
     <table class="keys">
       <tr><td>찾기</td><td>층에 들어서면 "멀리서 불빛이 흔들린다"는 말과 함께 <b>지도에 미리 표시</b>됩니다. 다만 <b>모든 층에 있지는 않습니다</b>(약 60%).</td></tr>
       <tr><td>휴식</td><td>최대 체력의 30% 회복 · 마나 전부 · 모든 상태이상 해제. 안전하지만 남는 게 없습니다.</td></tr>
-      <tr><td>강화</td><td>장비 하나를 +1 하거나 주문 하나를 연마합니다. 작지만 확실하고 영구적입니다. <b>+5가 상한.</b></td></tr>
-      <tr><td>인챈트</td><td>무작위 접두/접미 속성. <b>다섯에 하나는 저주</b>고, 이미 붙은 성질을 밀어낼 수 있습니다. 도박입니다.</td></tr>
+      <tr><td>강화</td><td>장비 +1 또는 주문 연마. <b>쇳조각과 금화</b>가 듭니다. 값은 +1마다 오르고 <b>+5가 상한</b>입니다.</td></tr>
+      <tr><td>인챈트</td><td>무작위 속성. <b>마력 가루 4 + 130금.</b> 다섯에 하나는 저주고, 이미 붙은 성질을 밀어냅니다.</td></tr>
+      <tr><td>재련</td><td>붙어 있는 속성을 다시 굴립니다. <b>정수 1 + 가루 2 + 220금.</b> <b>저주는 절대 붙지 않고, 저주가 있으면 그것부터 지웁니다.</b></td></tr>
       <tr><td></td><td>셋 중 <b>하나만</b> 고를 수 있고, 고르면 불은 꺼집니다. 체력이 가득할 때 휴식은 낭비고, 20%일 때 강화는 자살입니다.</td></tr>
     </table>
 

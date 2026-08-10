@@ -332,6 +332,19 @@ export function pump(queue, player) {
         number(e.x, e.y - 0.5, '전리품', PALETTE.y, 1.2);
         break;
 
+      // Breaking gear down: sparks, not fireworks.
+      case 'salvage':
+        for (let i = 0; i < 14 && shards.length < MAX_SHARDS; i++)
+          shards.push({
+            x: e.x + Math.random(), y: e.y + 0.5,
+            vx: (Math.random() - 0.5) * 5, vy: -2.5 - Math.random() * 2.5,
+            life: 520, age: 0, size: 1,
+            color: Math.random() < 0.5 ? PALETTE.s : PALETTE.G,
+          });
+        shake = Math.max(shake, 0.2);
+        buzz(18);
+        break;
+
       case 'spot':
         number(e.x, e.y - 0.3, '!', PALETTE.o, 1.1);
         ring(e.x, e.y, 1.2, PALETTE.o, 380);

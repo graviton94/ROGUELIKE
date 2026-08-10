@@ -6,6 +6,7 @@ import {
   MAX_DEPTH, STATS, RACES, CLASSES, SPELLS, MONSTERS, BOSS, mimicFor,
   WEAPONS, ARMOURS, CONSUMABLES, SHOPS, AILMENTS, IMMUNE, TRAPS,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, ELITES, affixName,
+  MATS, salvageYield, upgradeCost, ENCHANT_COST, REROLL_COST,
   xpToLevel, statBonus,
 } from './data.js';
 import {
@@ -62,6 +63,7 @@ export function createHero(raceKey, classKey, base) {
     ail: {},          // ailment -> turns remaining
     stuck: 0,         // turns still caught in a web
     keys: 0,
+    mats: { scrap: 0, dust: 0, essence: 0 },
     spellPlus: {}, spellAffix: {},
     equip: { weapon: null, body: null, shield: null },
     pack: [],
@@ -287,6 +289,58 @@ export function equip(slotIdx) {
   }
   endTurn();
 }
+
+/* ── salvage ──────────────────────────────────────────────
+   The answer to "why is all this gear dropping". A weapon you
+   will never wear is no longer litter; it is either coin at the
+   merchant or material at the fire, and you cannot have both. */
+export const canSalvage = it => !!it && (it.kind === 'weapon' || it.kind === 'armour');
+
+export const salvagePreview = it => (canSalvage(it) ? salvageYield(it) : null);
+
+export function salvage(slotIdx) {
+  const p = G.player, slot = p.pack[slotIdx];
+  if (!slot || !canSalvage(slot.item)) return;
+  const it = slot.item;
+  const got = salvageYield(it);
+
+  p.mats = p.mats || { scrap: 0, dust: 0, essence: 0 };
+  const parts = [];
+  for (const k of ['scrap', 'dust', 'essence']) {
+    if (!got[k]) continue;
+    p.mats[k] += got[k];
+    parts.push(`${MATS[k].n} ${got[k]}`);
+  }
+  removeItem(p, slotIdx);
+  say(parts.length ? `${affixName(it)}을(를) 부쉈다 — ${parts.join(' · ')}.`
+                   : `${affixName(it)}은(는) 아무것도 남기지 않았다.`, 'good');
+  fx({ t:'salvage', x:p.x, y:p.y });
+}
+
+export const mats = () => G.player?.mats || { scrap: 0, dust: 0, essence: 0 };
+
+export function canAfford(cost) {
+  const p = G.player;
+  if (!p || !cost) return false;
+  if ((cost.gold || 0) > p.gold) return false;
+  const m = mats();
+  for (const k of ['scrap', 'dust', 'essence'])
+    if ((cost[k] || 0) > (m[k] || 0)) return false;
+  return true;
+}
+
+function spend(cost) {
+  const p = G.player;
+  p.gold -= cost.gold || 0;
+  for (const k of ['scrap', 'dust', 'essence']) p.mats[k] -= cost[k] || 0;
+}
+
+export const costText = cost => [
+  cost.gold ? `${cost.gold}금` : null,
+  cost.scrap ? `${MATS.scrap.n} ${cost.scrap}` : null,
+  cost.dust ? `${MATS.dust.n} ${cost.dust}` : null,
+  cost.essence ? `${MATS.essence.n} ${cost.essence}` : null,
+].filter(Boolean).join(' · ');
 
 /* ── item use ───────────────────────────────────────────── */
 export function useItem(slotIdx) {
@@ -1362,9 +1416,18 @@ export function campRest() {
   spendCamp();
 }
 
+export const upgradeCostFor = key => {
+  const t = targetOf(key);
+  if (!t) return null;
+  const plus = t.type === 'item' ? (t.item?.plus || 0) : (G.player.spellPlus?.[t.id] || 0);
+  return upgradeCost(plus);
+};
+
 export function campUpgrade(key) {
   const p = G.player, t = targetOf(key);
   if (!t) return;
+  const cost = upgradeCostFor(key);
+  if (!canAfford(cost)) { say(`재료가 모자란다 — ${costText(cost)}.`, 'warn'); return; }
   if (t.type === 'item') {
     if (!t.item) return;
     // Enhancement tops out, or twenty-five floors of fires would
@@ -1373,6 +1436,7 @@ export function campUpgrade(key) {
       say(`${affixName(t.item)}은(는) 더 벼릴 수 없다.`, 'warn');
       return;
     }
+    spend(cost);
     t.item.plus = (t.item.plus || 0) + 1;
     recalc(p);
     say(`${affixName(t.item)} — 날이 섰다.`, 'level');
@@ -1382,6 +1446,7 @@ export function campUpgrade(key) {
       say('그 주문은 더 연마할 수 없다.', 'warn');
       return;
     }
+    spend(cost);
     p.spellPlus[t.id] = (p.spellPlus[t.id] || 0) + 1;
     const sp = spellList(p).find(s => s.id === t.id);
     say(`${sp?.name || '주문'}을(를) 연마했다.`, 'level');
@@ -1390,9 +1455,12 @@ export function campUpgrade(key) {
   spendCamp();
 }
 
-export function campEnchant(key) {
+export function campEnchant(key, reroll) {
   const p = G.player, t = targetOf(key);
   if (!t) return;
+  const cost = reroll ? REROLL_COST : ENCHANT_COST;
+  if (!canAfford(cost)) { say(`재료가 모자란다 — ${costText(cost)}.`, 'warn'); return; }
+  spend(cost);
 
   if (t.type === 'spell') {
     p.spellAffix = p.spellAffix || {};
@@ -1411,9 +1479,17 @@ export function campEnchant(key) {
   const it = t.item;
   if (!it) return;
   const tag = it.kind;
-  // Roughly one roll in five bites back.
-  const cursed = Math.random() < 0.20;
-  const usePrefix = Math.random() < 0.5;
+  // A reroll never inflicts a curse — it is the cure for one,
+  // which is what keeps the enchant gamble survivable.
+  const cursed = !reroll && Math.random() < 0.20;
+
+  let usePrefix = Math.random() < 0.5;
+  if (reroll) {
+    const preCursed = !!PREFIXES.find(a => a.id === it.pre)?.curse;
+    const sufCursed = !!SUFFIXES.find(a => a.id === it.suf)?.curse;
+    if (preCursed !== sufCursed) usePrefix = preCursed;      // burn the curse first
+    else if (!it.pre !== !it.suf) usePrefix = !!it.pre;      // otherwise the slot in use
+  }
   const table = usePrefix ? PREFIXES : SUFFIXES;
   const a = pickAffixFor(table, tag, cursed);
   if (!a) { say('불꽃이 사그라들 뿐이다.', 'warn'); spendCamp(); return; }
@@ -1456,7 +1532,14 @@ export function shopStock(shop) {
     return WEAPONS.filter(w => w.d <= 12).map(w => ({ kind:'weapon', ...w }));
   if (shop.stock === 'armour')
     return ARMOURS.filter(a => a.d <= 12).map(a => ({ kind:'armour', ...a }));
-  return shop.stock.map(id => makeConsumable(id));
+  const out = shop.stock.map(id => makeConsumable(id));
+  /* The wandering merchant also deals in materials, which is what
+     turns a purse of gold into a +1 you actually wanted. */
+  if (shop.mats)
+    for (const k of shop.mats)
+      out.push({ kind:'mat', mat:k, id:`mat_${k}`, spr: k === 'essence' ? 'amulet' : k === 'dust' ? 'potion' : 'armor',
+                 n: MATS[k].n, cost: MATS[k].cost, desc: MATS[k].note });
+  return out;
 }
 
 export const priceOf = (item, buying) => {
@@ -1471,6 +1554,12 @@ export function buy(item) {
   const p = G.player, cost = priceOf(item, true);
   if (p.gold < cost) { say('금화가 모자란다.', 'warn'); return; }
   p.gold -= cost;
+  if (item.kind === 'mat') {
+    p.mats = p.mats || { scrap: 0, dust: 0, essence: 0 };
+    p.mats[item.mat]++;
+    say(`${item.n}을(를) 샀다. (-${cost})`, 'good');
+    return;
+  }
   addItem(p, { ...item });
   say(`${item.n}을(를) 샀다. (-${cost})`, 'good');
 }

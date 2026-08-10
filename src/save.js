@@ -50,6 +50,7 @@ function packLevel(L) {
     rooms: L.rooms,
     entry: L.entry,
     camp: L.camp || null,
+    merchant: L.merchant || null,
     campSpent: !!L.campSpent,
     downRoom: L.downRoom ? L.rooms.indexOf(L.downRoom) : -1,
     shopAt: [...L.shopAt],
@@ -77,6 +78,7 @@ function unpackLevel(d) {
   L.rooms  = d.rooms || [];
   L.entry  = d.entry || { x: 0, y: 0 };
   L.camp   = d.camp || null;
+  L.merchant = d.merchant || null;
   L.campSpent = !!d.campSpent;
   L.downRoom = d.downRoom >= 0 ? L.rooms[d.downRoom] : undefined;
   L.shopAt = new Map(d.shopAt || []);
@@ -133,6 +135,7 @@ export function apply(data) {
   p.spellAffix = p.spellAffix || {};
   p.stuck = p.stuck || 0;
   p.keys = p.keys || 0;
+  p.mats = p.mats || { scrap: 0, dust: 0, essence: 0 };
 
   refreshFov();
   return true;

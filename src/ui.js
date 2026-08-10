@@ -7,7 +7,7 @@
 import { sprite, wallTile, floorTile, CELL_SIZE, PALETTE } from './pixels.js';
 import {
   RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS,
-  PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName,
+  PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName, MATS, ENCHANT_COST, REROLL_COST,
   xpToLevel, statBonus,
 } from './data.js';
 import {
@@ -366,6 +366,12 @@ export function refresh() {
   } else combo.hidden = true;
   shownCombo = G.combo;
 
+  const m = Game.mats();
+  const matChip = $('hud-mats');
+  const total = m.scrap + m.dust + m.essence;
+  matChip.hidden = !total;
+  if (total) $('hud-mats-n').textContent = `${m.scrap}/${m.dust}/${m.essence}`;
+
   const keys = $('hud-keys');
   keys.hidden = !p.keys;
   if (p.keys) $('hud-keys-n').textContent = p.keys;
@@ -626,6 +632,16 @@ function renderInventory() {
     stat.appendChild(row);
   }
 
+  const mm = Game.mats();
+  const mats = $('mat-list'); mats.innerHTML = '';
+  for (const k of ['scrap', 'dust', 'essence']) {
+    const row = el('div', 'eqrow');
+    row.appendChild(el('span', 'eqlabel', MATS[k].n));
+    row.appendChild(el('span', 'eqname' + (mm[k] ? '' : ' dim'), String(mm[k] || 0)));
+    row.appendChild(el('span', 'eqstat dim', MATS[k].note));
+    mats.appendChild(row);
+  }
+
   const list = $('pack-list'); list.innerHTML = '';
   if (!p.pack.length) list.appendChild(el('p', 'empty', '배낭이 비었다.'));
   p.pack.forEach((slot, i) => {
@@ -648,6 +664,22 @@ function renderInventory() {
       renderInventory(); refresh();
     };
     row.oncontextmenu = e => e.preventDefault();
+
+    /* Breaking gear is how junk becomes progress, so the option
+       sits on the row itself rather than behind a mode. */
+    if (Game.canSalvage(it)) {
+      const y = Game.salvagePreview(it);
+      const bits = [['scrap','쇳'],['dust','가루'],['essence','정수']]
+        .filter(([k]) => y[k]).map(([k, short]) => `${short}${y[k]}`).join(' ');
+      const br = el('button', 'slotdel', '분해');
+      br.onclick = e => {
+        e.stopPropagation();
+        ask(`${affixName(it)}을(를) 분해할까요?`,
+            bits ? `${bits} 획득 · 되돌릴 수 없습니다.` : '아무것도 나오지 않습니다.',
+            () => { Game.salvage(i); renderInventory(); refresh(); });
+      };
+      row.appendChild(br);
+    }
     list.appendChild(row);
   });
   $('inv-gold').textContent = p.gold;
@@ -791,26 +823,37 @@ export function renderCamp() {
   wrap.hidden = false;
 
   const heal = Math.min(p.maxhp - p.hp, Math.ceil(p.maxhp * Game.CAMP_HEAL));
+  const m = Game.mats();
+  $('camp-lead').textContent =
+    `불은 한 번만 쓸 수 있다. ◍${p.gold} · ${MATS.scrap.n} ${m.scrap} · ` +
+    `${MATS.dust.n} ${m.dust} · ${MATS.essence.n} ${m.essence}`;
+
   const options = [
     { id:'rest', n:'휴식', desc:
         `체력 +${heal} (최대의 ${Math.round(Game.CAMP_HEAL * 100)}%) · 마나 회복 · 모든 상태이상 해제`,
-      tag: p.hp < p.maxhp * 0.5 ? '지금은 이게 답일지도' : '이미 멀쩡하다' },
+      tag: p.hp < p.maxhp * 0.5 ? '지금은 이게 답일지도' : '공짜' },
     { id:'upgrade', n:'강화', desc:
-        '장비 하나를 +1 하거나 주문 하나를 연마한다. 작지만 확실하고 영구적이다.',
-      tag: '확실함' },
+        '장비를 +1 하거나 주문을 연마한다. 확실하지만 값이 오른다.',
+      tag: '재료 소모' },
     { id:'enchant', n:'인챈트', desc:
-        '무작위 접두 또는 접미 속성을 건다. 다섯에 하나는 저주가 붙고, 이미 붙은 성질을 밀어낼 수 있다.',
-      tag: '도박' },
+        `무작위 속성을 건다. 다섯에 하나는 저주. (${Game.costText(ENCHANT_COST)})`,
+      tag: Game.canAfford(ENCHANT_COST) ? '도박' : '재료 부족',
+      poor: !Game.canAfford(ENCHANT_COST) },
+    { id:'reroll', n:'재련', desc:
+        `이미 붙은 속성을 다시 굴린다. 저주는 절대 붙지 않는다. (${Game.costText(REROLL_COST)})`,
+      tag: Game.canAfford(REROLL_COST) ? '저주 해제' : '재료 부족',
+      poor: !Game.canAfford(REROLL_COST) },
   ];
 
   for (const o of options) {
-    const row = el('button', 'campopt');
+    const row = el('button', 'campopt' + (o.poor ? ' poor' : ''));
+    if (o.poor) row.disabled = true;
     const head = el('div', 'camphead');
     head.appendChild(el('span', 'campname', o.n));
     head.appendChild(el('span', 'camptag', o.tag));
     row.appendChild(head);
     row.appendChild(el('span', 'campdesc', o.desc));
-    row.onclick = () => {
+    if (!o.poor) row.onclick = () => {
       if (o.id === 'rest') { Game.campRest(); setScreen('play'); refresh(); return; }
       campMode = o.id;
       renderCampTargets();
@@ -822,7 +865,8 @@ export function renderCamp() {
 function renderCampTargets() {
   $('camp-choices').hidden = true;
   $('camp-targets').hidden = false;
-  $('camp-target-head').textContent = campMode === 'upgrade' ? '무엇을 강화할까' : '무엇에 걸까';
+  $('camp-target-head').textContent =
+    campMode === 'upgrade' ? '무엇을 강화할까' : campMode === 'reroll' ? '무엇을 재련할까' : '무엇에 걸까';
 
   const list = $('camp-target-list');
   list.innerHTML = '';
@@ -840,12 +884,23 @@ function renderCampTargets() {
     row.appendChild(mid);
     // A maxed item can't take the upgrade, so don't offer it as
     // one — a dead button would silently eat the whole fire.
-    const capped = campMode === 'upgrade' && t.capped;
-    if (capped) { row.classList.add('poor'); row.disabled = true; }
-    row.appendChild(el('span', 'iact',
-      campMode === 'upgrade' ? (capped ? `최대 +${Game.MAX_PLUS}` : `+${(t.plus || 0) + 1}`) : '?'));
-    if (!capped) row.onclick = () => {
-      campMode === 'upgrade' ? Game.campUpgrade(t.key) : Game.campEnchant(t.key);
+    /* Price the row, and grey it out when it cannot be paid for —
+       a dead button would silently eat the whole fire. */
+    let blocked = false, label = '?';
+    if (campMode === 'upgrade') {
+      const cost = Game.upgradeCostFor(t.key);
+      blocked = t.capped || !Game.canAfford(cost);
+      label = t.capped ? `최대 +${Game.MAX_PLUS}`
+            : `+${(t.plus || 0) + 1} · ${Game.costText(cost)}`;
+    } else if (campMode === 'reroll') {
+      blocked = t.kind === 'spell' ? false : !(t.item?.pre || t.item?.suf);
+      label = blocked ? '속성 없음' : '재련';
+    }
+    if (blocked) { row.classList.add('poor'); row.disabled = true; }
+    row.appendChild(el('span', 'iact', label));
+    if (!blocked) row.onclick = () => {
+      if (campMode === 'upgrade') Game.campUpgrade(t.key);
+      else Game.campEnchant(t.key, campMode === 'reroll');
       setScreen('play');
       refresh();
     };
@@ -954,6 +1009,7 @@ function routeAvoiding(tx, ty, dodgeTraps) {
       const ni = idx(nx, ny);
       if (prev[ni] !== -1 || !L.seen[ni] || !walkable(L, nx, ny)) continue;
       if (Game.monsterAt(nx, ny)) continue;
+      if (L.shopAt.has(ni) && ni !== goal) continue;
       if (dodgeTraps) {
         const tr = L.traps.get(ni);
         if (tr && tr.seen && ni !== goal) continue;

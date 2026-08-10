@@ -79,7 +79,9 @@ export class Level {
       [x0 + 3,       y0 + 1],       [x0 + (w >> 1) - 2, y0 + 1],       [x0 + w - 6, y0 + 1],
       [x0 + 3,       y0 + h - 4],   [x0 + (w >> 1) - 2, y0 + h - 4],   [x0 + w - 6, y0 + h - 4],
     ];
-    SHOPS.forEach((shop, i) => {
+    // The wandering merchant has no storefront; he is placed in
+    // the dungeon instead, so he must not claim a town plot.
+    SHOPS.filter(s => !s.wander).forEach((shop, i) => {
       const [sx, sy] = spots[i];
       for (let y = sy; y < sy + 3; y++)
         for (let x = sx; x < sx + 5; x++) this.tiles[idx(x, y)] = SHOP;
@@ -155,7 +157,28 @@ export class Level {
 
     this.scatterHazards(start, st);
     this.placeCamp(start, st);
+    this.placeMerchant(start, st);
     this.unsealStairs(start, st);
+  }
+
+  /* A merchant turns up now and then. He is the reason to keep
+     gold rather than ignore it, and the reason a floor with one
+     feels different from the floor before it. */
+  placeMerchant(start, down) {
+    if (this.depth < 2 || Math.random() > 0.32) return;
+    for (let t = 0; t < 60; t++) {
+      const r = this.rooms[rnd(this.rooms.length)];
+      if (!r) return;
+      const x = r.x + rnd(r.w), y = r.y + rnd(r.h);
+      const i = idx(x, y);
+      if (this.tiles[i] !== FLOOR || this.traps.has(i)) continue;
+      if (i === idx(start.x, start.y) || i === idx(down.x, down.y)) continue;
+      this.shopAt.set(i, 7);
+      this.keeperAt.set(i, 7);
+      this.merchant = { x, y };
+      this.seen[i] = 1;                 // his lamp is visible from afar
+      return;
+    }
   }
 
   /* One fire per floor, and never in the room you arrive in or

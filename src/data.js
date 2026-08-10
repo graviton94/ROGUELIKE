@@ -188,6 +188,11 @@ export const SHOPS = [
   { id:4, n:'신전',     spr:'amulet', stock:['potHeal','potCure'] },
   { id:5, n:'연금술사', spr:'potion', stock:['potHeal','potMana','potCure'] },
   { id:6, n:'마법상',   spr:'wand',   stock:['scrMap','scrTele','scrDeep','potMana'] },
+  /* Not in town. This one walks the dungeon, which is the only
+     reason the gold in your purse means anything after floor 1. */
+  { id:7, n:'떠돌이 상인', spr:'amulet', wander:true,
+    stock:['potHeal','potCure','potMana','scrTele','scrMap','food','torch'],
+    mats:['scrap','dust','essence'] },
 ];
 
 /* ── affixes ──────────────────────────────────────────────
@@ -264,6 +269,42 @@ export const affixName = (item) => {
   const plus = item.plus ? `+${item.plus} ` : '';
   return `${plus}${pre ? pre.n + ' ' : ''}${item.n}${suf ? ' · ' + suf.n : ''}`;
 };
+
+/* ── materials ────────────────────────────────────────────
+   The loop this game was missing. Before, gold piled up with
+   nowhere to go, dropped gear was noise, and enhancement was
+   free — so power only ever went up in a straight line. Now
+   junk gear is the currency: break it for materials, spend
+   materials and gold to get stronger. Every drop becomes a
+   question (sell it, break it, or wear it) instead of litter. */
+export const MATS = {
+  scrap:   { n:'쇳조각',    note:'무기와 갑옷을 부수면 나온다', cost:14 },
+  dust:    { n:'마력 가루', note:'속성이 붙은 물건에서만 나온다', cost:40 },
+  essence: { n:'정수',      note:'정예가 떨구는 물건의 핵',      cost:150 },
+};
+
+/* What breaking a thing gives you. Tier comes from the item's
+   depth band, so a mithril hauberk is worth breaking and a
+   soft leather is not. */
+export function salvageYield(item) {
+  const tier = Math.max(0, Math.floor((item.d || 0) / 4));
+  const affixes = (item.pre ? 1 : 0) + (item.suf ? 1 : 0);
+  return {
+    scrap:   2 + tier * 2 + (item.plus || 0) * 3,
+    dust:    affixes * (1 + Math.floor(tier / 2)),
+    essence: tier >= 4 || (item.plus || 0) >= 4 ? 1 : 0,
+  };
+}
+
+/* Enhancement costs climb steeply so +5 is a campaign, not a
+   formality. Gold finally has a hole to fall into. */
+export const upgradeCost = plus => ({
+  scrap: 3 + plus * 3,
+  gold:  50 + plus * 90,
+});
+
+export const ENCHANT_COST = { dust: 4, gold: 130 };
+export const REROLL_COST  = { essence: 1, dust: 2, gold: 220 };
 
 /* ── curves ───────────────────────────────────────────────*/
 export const xpToLevel = lv => Math.floor(13 * Math.pow(lv, 1.92));

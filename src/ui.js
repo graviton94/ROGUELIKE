@@ -8,12 +8,13 @@ import { sprite, wallTile, floorTile, CELL_SIZE, PALETTE } from './pixels.js';
 import {
   RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName, MATS, ENCHANT_COST, REROLL_COST,
+  RARITY, CURSED_TONE, rarityOf, isCursed,
   xpToLevel, statBonus,
 } from './data.js';
 import {
   MW, MH, idx, clamp, walkable, isDoor,
   ROCK, FLOOR, DOWN, UP, DOOR, RUBBLE, SHOP,
-  DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN, WEB, WATER, CAMP,
+  DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN, WEB, WATER, CAMP, ALTAR,
 } from './world.js';
 import * as Game from './game.js';
 import { G } from './game.js';
@@ -128,6 +129,12 @@ export function draw() {
           ctx.drawImage(sprite('camp'), px, py, t, t);
           ctx.globalAlpha = prevA;
         }
+        if (tile === ALTAR) {
+          const prevA = ctx.globalAlpha;
+          ctx.globalAlpha = Math.max(prevA, 0.6 + Math.sin(performance.now() / 380) * 0.18);
+          ctx.drawImage(sprite('altar'), px, py, t, t);
+          ctx.globalAlpha = prevA;
+        }
         if (tile === RUBBLE)      ctx.drawImage(sprite('rubble'),     px, py, t, t);
 
         // A trap you have spotted is drawn; one you haven't isn't.
@@ -167,11 +174,37 @@ export function draw() {
 
   ctx.globalAlpha = 1;
 
-  // Items bob so loot reads as loot even at the edge of the lamp.
+  /* Items bob so loot reads as loot even at the edge of the lamp,
+     and anything better than plain throws a shaft of light you can
+     see before you can read the name. */
   const bob = Math.sin(performance.now() / 380) * t * 0.06;
   for (const it of G.items) {
-    if (!L.vis[idx(it.x, it.y)]) continue;
-    ctx.drawImage(sprite(it.spr), (it.x - cx) * t, (it.y - cy) * t + bob, t, t);
+    const vis = L.vis[idx(it.x, it.y)];
+    const grade = it.kind === 'chest' ? 2 : rarityOf(it);
+    const seenBefore = L.seen[idx(it.x, it.y)];
+    if (!vis && !(grade >= 2 && seenBefore)) continue;
+
+    const ix = (it.x - cx) * t, iy = (it.y - cy) * t;
+    if (grade >= 1) {
+      const glow = RARITY[grade].glow;
+      const pulse = 0.55 + Math.sin(performance.now() / 420 + it.x) * 0.25;
+      ctx.save();
+      const beam = ctx.createLinearGradient(0, iy - t * 3.2, 0, iy + t);
+      beam.addColorStop(0, 'transparent');
+      beam.addColorStop(1, glow);
+      ctx.globalAlpha = pulse * (grade >= 3 ? 0.5 : 0.34);
+      ctx.fillStyle = beam;
+      ctx.fillRect(ix + t * 0.28, iy - t * 3.2, t * 0.44, t * 4.2);
+      ctx.globalAlpha = pulse * 0.45;
+      ctx.beginPath();
+      ctx.ellipse(ix + t / 2, iy + t * 0.85, t * 0.55, t * 0.2, 0, 0, Math.PI * 2);
+      ctx.fillStyle = glow;
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalAlpha = vis ? 1 : 0.6;
+    ctx.drawImage(sprite(it.spr), ix, iy + bob, t, t);
+    ctx.globalAlpha = 1;
   }
 
   for (const m of G.monsters) {
@@ -403,13 +436,14 @@ export function refresh() {
 export function setScreen(name) {
   G.screen = name;
   if (name !== 'play') stopAuto();
-  for (const s of ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help', 'camp', 'slots'])
+  for (const s of ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help', 'camp', 'slots', 'altar'])
     $(`sc-${s}`).hidden = (s !== name);
   if (name === 'play') { resize(); refresh(); }
   if (name === 'inv')  renderInventory();
   if (name === 'shop') renderShop();
   if (name === 'spell') renderSpells();
   if (name === 'camp')  renderCamp();
+  if (name === 'altar') renderAltar();
   if (name === 'slots') renderSlots();
   if (name === 'title') refreshTitle();
   if (name === 'end')  renderEnd();
@@ -605,7 +639,9 @@ function renderInventory() {
       const ic = el('canvas', 'icon'); paintIcon(ic, it.spr);
       row.appendChild(ic);
       const nm = el('span', 'eqname', affixName(it));
-      if (it.pre || it.suf) nm.classList.add(cursedItem(it) ? 'cursed' : 'magic');
+      const r = rarityOf(it);
+      nm.style.color = `var(--${isCursed(it) ? CURSED_TONE : RARITY[r].tone})`;
+      if (r >= 2 && !isCursed(it)) nm.classList.add('shine');
       row.appendChild(nm);
       row.appendChild(el('span', 'eqstat',
         it.kind === 'weapon' ? `${it.dice[0]}d${it.dice[1]}` : `AC ${it.ac}`));
@@ -650,12 +686,11 @@ function renderInventory() {
     const ic = el('canvas', 'icon'); paintIcon(ic, it.spr);
     row.appendChild(ic);
     const mid = el('div', 'imid');
-    const nameEl = el('span', 'iname', affixName(it) + (slot.qty > 1 ? ` ×${slot.qty}` : ''));
-    if (it.pre || it.suf) nameEl.classList.add(cursedItem(it) ? 'cursed' : 'magic');
-    mid.appendChild(nameEl);
+    mid.appendChild(nameEl(it, slot.qty > 1 ? ` ×${slot.qty}` : ''));
+    const grade = rarityOf(it);
     mid.appendChild(el('span', 'idesc',
-      it.kind === 'weapon' ? `피해 ${it.dice[0]}d${it.dice[1]}${it.hands === 2 ? ' · 양손' : ''}${affixBlurb(it)}`
-      : it.kind === 'armour' ? `방어 +${it.ac}${affixBlurb(it)}`
+      it.kind === 'weapon' ? `${grade ? `[${RARITY[grade].n}] ` : ''}피해 ${it.dice[0]}d${it.dice[1]}${it.hands === 2 ? ' · 양손' : ''}${affixBlurb(it)}`
+      : it.kind === 'armour' ? `${grade ? `[${RARITY[grade].n}] ` : ''}방어 +${it.ac}${affixBlurb(it)}`
       : it.desc || '사용 가능'));
     row.appendChild(mid);
     row.appendChild(el('span', 'iact', it.kind === 'use' ? '사용' : '장착'));
@@ -705,7 +740,7 @@ function renderShop() {
     const ic = el('canvas', 'icon'); paintIcon(ic, item.spr);
     row.appendChild(ic);
     const mid = el('div', 'imid');
-    mid.appendChild(el('span', 'iname', affixName(item)));
+    mid.appendChild(nameEl(item));
     mid.appendChild(el('span', 'idesc',
       item.kind === 'weapon' ? `피해 ${item.dice[0]}d${item.dice[1]}${item.hands === 2 ? ' · 양손' : ''}`
       : item.kind === 'armour' ? `방어 +${item.ac}` : ''));
@@ -727,7 +762,7 @@ function renderShop() {
     const ic = el('canvas', 'icon'); paintIcon(ic, slot.item.spr);
     row.appendChild(ic);
     const mid = el('div', 'imid');
-    mid.appendChild(el('span', 'iname', affixName(slot.item) + (slot.qty > 1 ? ` ×${slot.qty}` : '')));
+    mid.appendChild(nameEl(slot.item, slot.qty > 1 ? ` ×${slot.qty}` : ''));
     row.appendChild(mid);
     const gain = Game.priceOf(slot.item, false);
     row.appendChild(el('span', 'iact', `+${gain}g`));
@@ -769,8 +804,16 @@ function renderSpells() {
 /* ── affix helpers ──────────────────────────────────────── */
 const affixOf = (id, table) => table.find(a => a.id === id);
 
-function cursedItem(it) {
-  return !!(affixOf(it.pre, PREFIXES)?.curse || affixOf(it.suf, SUFFIXES)?.curse);
+function cursedItem(it) { return isCursed(it); }
+
+/* Every place an item name appears goes through this, so rarity
+   reads the same in the pack, the shop and at the fire. */
+function nameEl(it, extra) {
+  const n = el('span', 'iname', affixName(it) + (extra || ''));
+  const r = rarityOf(it);
+  n.style.color = `var(--${isCursed(it) ? CURSED_TONE : RARITY[r].tone})`;
+  if (r >= 2 && !isCursed(it)) n.classList.add('shine');
+  return n;
 }
 
 /* Spell out what an affix actually does. A name like "연쇄의"
@@ -875,7 +918,10 @@ function renderCampTargets() {
     if (t.item) { const ic = el('canvas', 'icon'); paintIcon(ic, t.item.spr); row.appendChild(ic); }
     const mid = el('div', 'imid');
     const nm = el('span', 'iname', t.name);
-    if (t.item && (t.item.pre || t.item.suf)) nm.classList.add(cursedItem(t.item) ? 'cursed' : 'magic');
+    if (t.item) {
+      const r = rarityOf(t.item);
+      nm.style.color = `var(--${isCursed(t.item) ? CURSED_TONE : RARITY[r].tone})`;
+    } else nm.classList.add('magic');
     mid.appendChild(nm);
     mid.appendChild(el('span', 'idesc',
       t.kind === 'spell' ? '주문'
@@ -909,6 +955,49 @@ function renderCampTargets() {
 }
 
 $('camp-back').onclick = () => { campMode = null; renderCamp(); };
+
+/* ── the altar ──────────────────────────────────────────────
+   The odds go on the screen as a bar, not as prose. Seeing that
+   "재앙" is a visible red sliver next to a fat green one is the
+   whole point — you should be able to feel the shape of the bet
+   before you read a single number. */
+const ODD_CLASS = { '대성공':'great', '성공':'good', '허탕':'none', '재앙':'doom' };
+
+export function renderAltar() {
+  $('altar-depth').textContent = `${G.depth}층`;
+  const list = $('altar-list');
+  list.innerHTML = '';
+
+  for (const o of Game.altarOffers()) {
+    const row = el('button', 'altopt' + (o.can ? '' : ' poor'));
+    if (!o.can) row.disabled = true;
+
+    const head = el('div', 'camphead');
+    head.appendChild(el('span', 'altname', o.n));
+    head.appendChild(el('span', 'camptag', o.can ? o.cost : '바칠 것이 없다'));
+    row.appendChild(head);
+    row.appendChild(el('span', 'altcost', o.detail));
+
+    const bar = el('div', 'altodds');
+    for (const [name, w] of o.odds) {
+      const seg = el('i', ODD_CLASS[name], `${name} ${w}%`);
+      seg.style.flex = `${w} 1 0`;
+      bar.appendChild(seg);
+    }
+    row.appendChild(bar);
+
+    if (o.can) row.onclick = () => {
+      ask(`${o.n}?`, `${o.detail} — 되돌릴 수 없습니다.`, () => {
+        Game.altarOffer(o.id);
+        setScreen('play');
+        refresh();
+      });
+    };
+    list.appendChild(row);
+  }
+}
+
+$('altar-leave').onclick = () => { setScreen('play'); refresh(); };
 
 /* ending */
 function renderEnd() {
@@ -1032,6 +1121,7 @@ function takeStep(dx, dy) {
   act(() => Game.step(dx, dy));
   if (G.screen === 'shop') { stopAuto(); setScreen('shop'); return false; }
   if (G.screen === 'camp') { stopAuto(); setScreen('camp'); return false; }
+  if (G.screen === 'altar') { stopAuto(); setScreen('altar'); return false; }
   if (G.screen === 'end') { stopAuto(); return false; }
   return true;
 }
@@ -1108,6 +1198,7 @@ export function bindInput() {
       btn.setPointerCapture?.(e.pointerId);
       press(dx, dy);
       if (G.screen === 'camp') setScreen('camp');
+      if (G.screen === 'altar') setScreen('altar');
     });
     for (const ev of ['pointerup', 'pointercancel', 'pointerleave'])
       btn.addEventListener(ev, release);
@@ -1130,7 +1221,7 @@ export function bindInput() {
       return;
     }
     if (G.screen === 'end') { if (e.key === 'Enter') location.reload(); return; }
-    if (G.screen === 'camp') return;         // the fire is a decision, not a menu
+    if (G.screen === 'camp' || G.screen === 'altar') return;   // decisions, not menus
     if (G.screen !== 'play') { if (e.key === 'Escape') setScreen('play'); return; }
     if (e.key === 'Escape') { stopAuto(); return; }
 

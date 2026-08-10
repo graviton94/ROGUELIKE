@@ -3,16 +3,17 @@
    ═══════════════════════════════════════════════════════════ */
 
 import {
-  MAX_DEPTH, STATS, RACES, CLASSES, SPELLS, MONSTERS, BOSS, mimicFor,
+  MAX_DEPTH, STATS, STAT_NAME, RACES, CLASSES, SPELLS, MONSTERS, BOSS, mimicFor,
   WEAPONS, ARMOURS, CONSUMABLES, SHOPS, AILMENTS, IMMUNE, TRAPS,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, ELITES, affixName,
   MATS, salvageYield, upgradeCost, ENCHANT_COST, REROLL_COST,
+  ALTAR_OFFERS, rarityOf, isCursed,
   xpToLevel, statBonus,
 } from './data.js';
 import {
   Level, computeFov, lineClear, idx, rnd, roll, clamp, MW, MH,
   FLOOR, DOWN, UP, DOOR, RUBBLE, DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN,
-  WEB, WATER, CAMP, isDoor, isShut,
+  WEB, WATER, CAMP, ALTAR, isDoor, isShut,
 } from './world.js';
 
 export const G = {
@@ -735,7 +736,8 @@ export function step(dx, dy) {
   if (shopId) { G.shop = SHOPS.find(s => s.id === shopId); G.screen = 'shop'; return; }
 
   const t = L.tiles[ni];
-  if (t === CAMP) { p.x = nx; p.y = ny; refreshFov(); G.screen = 'camp'; return; }
+  if (t === CAMP)  { p.x = nx; p.y = ny; refreshFov(); G.screen = 'camp'; return; }
+  if (t === ALTAR) { p.x = nx; p.y = ny; refreshFov(); G.screen = 'altar'; return; }
   if (t === DOOR)        { openDoor(nx, ny); endTurn(); return; }
   if (t === DOOR_LOCKED) { forceDoor(nx, ny); endTurn(); return; }
   if (L.solid(nx, ny)) return;
@@ -865,6 +867,20 @@ function springTrap(x, y, trap) {
       return false;
     }
     case 'pit': {
+      /* Catching the edge. Falling a floor skips content you were
+         in the middle of, so it should be the unlucky outcome and
+         not the default — and dexterity should be the thing that
+         decides it. */
+      const grab = clamp(0.45 + statBonus(p.stats.dex) * 0.07
+                         + (p.cls === 'rogue' ? 0.15 : p.cls === 'ranger' ? 0.07 : 0), 0.2, 0.92);
+      if (Math.random() < grab) {
+        const graze = roll(1, 4);
+        p.hp -= graze;
+        say(`가장자리를 붙잡았다. ${graze}의 피해.`, 'good');
+        fx({ t:'struggle', x:p.x, y:p.y });
+        if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'구덩이' }); }
+        return false;
+      }
       const dmg = roll(2, 6) + Math.floor(G.depth * 0.5);
       p.hp -= dmg;
       say(`떨어지며 ${dmg}의 피해를 입었다.`, 'hit');
@@ -1123,6 +1139,7 @@ function dropElite(m) {
   const it = pickItem(G.depth + 4);
   if (!it) return;
   rollAffixes(it, G.depth + 8, true);
+  if (Math.random() < 0.45) it.plus = 1 + rnd(2);
   G.items.push({ ...it, ...spot });
   say(`${affixName(it)}을(를) 떨어뜨렸다.`, 'level');
   fx({ t:'drop', x: spot.x, y: spot.y });
@@ -1524,6 +1541,143 @@ function spendCamp() {
   L.campSpent = true;
   G.screen = 'play';
   endTurn();
+}
+
+/* ── the altar ────────────────────────────────────────────
+   Pure luck, priced in advance. The odds are shown before you
+   commit — a gamble you cannot price is not a decision, it is a
+   surprise. Blood is cheap while you are healthy and lethal when
+   you are not; gold costs nothing if you had nowhere to spend it;
+   gear is the offer that actually hurts, and it pays the best. */
+export const altarOffers = () => {
+  const p = G.player;
+  return ALTAR_OFFERS.map(o => ({
+    ...o,
+    detail: o.id === 'blood' ? `체력 ${p.hp} → ${Math.max(1, Math.ceil(p.hp * 0.6))}`
+          : o.id === 'gold'  ? `금화 ${p.gold} → ${Math.floor(p.gold / 2)}`
+          : '착용 중인 무기·갑옷·방패 하나가 사라진다',
+    can: o.id === 'blood' ? p.hp > 6
+       : o.id === 'gold'  ? p.gold >= 60
+       : !!(p.equip.weapon || p.equip.body || p.equip.shield),
+  }));
+};
+
+function altarRoll(odds) {
+  const total = odds.reduce((s, [, w]) => s + w, 0);
+  let r = rnd(total);
+  for (const [name, w] of odds) { if (r < w) return name; r -= w; }
+  return odds[odds.length - 1][0];
+}
+
+export function altarOffer(id) {
+  const p = G.player;
+  const offer = ALTAR_OFFERS.find(o => o.id === id);
+  if (!offer) return;
+
+  let weight = 1;                       // how much the gods got
+  if (id === 'blood') {
+    const pay = Math.max(1, Math.floor(p.hp * 0.4));
+    p.hp -= pay;
+    weight = 1.0;
+    say(`제단이 피를 받는다. 체력 -${pay}.`, 'warn');
+  } else if (id === 'gold') {
+    const pay = Math.floor(p.gold / 2);
+    p.gold -= pay;
+    weight = clamp(pay / (250 + G.depth * 90), 0.4, 2.0);
+    say(`금화 ${pay}닢이 사라진다.`, 'warn');
+  } else {
+    const slots = ['weapon', 'body', 'shield'].filter(k => p.equip[k]);
+    const k = slots[rnd(slots.length)];
+    const given = p.equip[k];
+    weight = 1.1 + rarityOf(given) * 0.5 + (given.plus || 0) * 0.15;
+    p.equip[k] = null;
+    recalc(p);
+    say(`${affixName(given)}이(가) 재가 되어 흩어진다.`, 'warn');
+  }
+
+  const result = altarRoll(offer.odds);
+  fx({ t:'altar', result, x:p.x, y:p.y });
+  grantBoon(result, weight);
+
+  G.level.tiles[idx(p.x, p.y)] = FLOOR;   // one use, then it is stone
+  G.level.altar = null;
+  G.screen = 'play';
+  if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'제단' }); return; }
+  endTurn();
+}
+
+function grantBoon(result, weight) {
+  const p = G.player, d = G.depth;
+
+  if (result === '재앙') {
+    const roll3 = rnd(3);
+    if (roll3 === 0) {
+      const slots = ['weapon', 'body', 'shield'].filter(k => p.equip[k]);
+      if (slots.length) {
+        const it = p.equip[slots[rnd(slots.length)]];
+        const table = Math.random() < 0.5 ? PREFIXES : SUFFIXES;
+        const a = pickAffixFor(table, it.kind, true);
+        if (a) { it[table === PREFIXES ? 'pre' : 'suf'] = a.id; recalc(p); }
+        say(`${affixName(it)} — 저주가 스며든다.`, 'warn');
+      }
+    } else if (roll3 === 1) {
+      let woke = 0;
+      for (const m of G.monsters) if (!m.awake) { m.awake = true; woke++; }
+      say(`제단이 비명을 지른다. ${woke}마리가 깨어났다.`, 'warn');
+    } else {
+      afflict(p, ['poison', 'blind', 'fear'][rnd(3)], 24);
+      say('무언가가 몸에 들러붙었다.', 'warn');
+    }
+    return;
+  }
+
+  if (result === '허탕') { say('아무 일도 일어나지 않았다.', ''); return; }
+
+  if (result === '대성공') {
+    const pick = rnd(3);
+    if (pick === 0) {
+      const it = pickItem(d + 8);
+      if (it) {
+        rollAffixes(it, d + 14, true);
+        it.plus = 1 + rnd(2);
+        addItem(p, it);
+        say(`제단이 ${affixName(it)}을(를) 내놓는다.`, 'level');
+      }
+    } else if (pick === 1) {
+      const k = STATS[rnd(STATS.length)];
+      p.stats[k] = Math.min(20, p.stats[k] + 1);
+      recalc(p);
+      say(`몸이 달라진다 — ${STAT_NAME[k]} +1. 영구적이다.`, 'level');
+    } else {
+      p.mats.essence += 1 + rnd(2);
+      p.mats.dust += 4 + rnd(5);
+      p.mats.scrap += 10 + rnd(12);
+      say('제단 위에 재료가 수북이 쌓인다.', 'level');
+    }
+    return;
+  }
+
+  // 성공
+  const pick = rnd(4);
+  if (pick === 0) {
+    const heal = Math.ceil(p.maxhp * 0.5);
+    const got = Math.min(p.maxhp - p.hp, heal);
+    p.hp += got; p.mana = p.maxmana;
+    p.ail = {};
+    fx({ t:'heal', x:p.x, y:p.y, amt:got });
+    say(`상처가 전부 닫힌다. 체력 +${got}.`, 'good');
+  } else if (pick === 1) {
+    const g = Math.round((160 + d * 70) * weight);
+    p.gold += g;
+    say(`금화 ${g}닢이 쏟아진다.`, 'good');
+  } else if (pick === 2) {
+    p.mats.scrap += Math.round((6 + d) * weight);
+    p.mats.dust += Math.round((2 + d * 0.3) * weight);
+    say('쓸 만한 재료가 남는다.', 'good');
+  } else {
+    const it = pickItem(d + 4);
+    if (it) { rollAffixes(it, d + 6, true); addItem(p, it); say(`${affixName(it)}을(를) 얻었다.`, 'good'); }
+  }
 }
 
 /* ── shops ──────────────────────────────────────────────── */

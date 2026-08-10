@@ -28,7 +28,7 @@
     </p>
     <button class="big" id="btn-new">새 게임</button>
     <button class="big" id="btn-load" hidden>이어하기</button>
-    <p class="fine">도트는 전부 코드로 그려집니다. 이미지 파일 없음.<br><span id="build">v8</span></p>
+    <p class="fine">도트는 전부 코드로 그려집니다. 이미지 파일 없음.<br><span id="build">v9</span></p>
   </div>
 </section>
 
@@ -179,6 +179,17 @@
   </div>
 </section>
 
+<!-- ══ altar ══ -->
+<section id="sc-altar" class="screen" hidden>
+  <header class="bar"><h2>제단</h2><span class="chip depth" id="altar-depth">1층</span></header>
+  <div class="scroll">
+    <p class="note">돌 위에 무언가를 올려놓으라는 듯한 홈이 파여 있다.<br>
+      바친 것은 돌아오지 않고, 제단은 한 번만 응답한다.</p>
+    <div id="altar-list"></div>
+    <button class="mini" id="altar-leave">물러난다</button>
+  </div>
+</section>
+
 <!-- ══ help ══ -->
 <section id="sc-help" class="screen" hidden>
   <header class="bar"><h2>조작법</h2><button class="mini" data-back>닫기</button></header>
@@ -221,6 +232,7 @@
       <tr><td>문 닫기 (c)</td><td>곁에 열린 문이 있을 때만 나타납니다. <b>추격을 끊는 가장 확실한 수단</b> — 오크와 흡혈귀는 열고, 오우거와 트롤은 부수지만, 나머지는 막힙니다.</td></tr>
       <tr><td>잠긴 문</td><td>열쇠로 열거나 힘으로 부숩니다. 부수는 소리는 멀리까지 갑니다.</td></tr>
       <tr><td>함정</td><td>화살·독침·구덩이·전이·경보. 밟기 전에는 보이지 않지만, <b>지혜가 높거나 도적이면</b> 미리 발견합니다. 발견한 함정은 자동 이동이 알아서 피해 갑니다.</td></tr>
+      <tr><td>구덩이</td><td>함정 중 가장 드뭅니다(약 5%). 밟아도 <b>민첩으로 가장자리를 붙잡습니다</b> — 민첩 높은 도적은 90%, 둔한 전사는 40%. 놓치면 한 층 떨어집니다.</td></tr>
       <tr><td>거미줄</td><td>걸리면 힘으로 뜯어내야 합니다. 거미는 그냥 지나갑니다.</td></tr>
       <tr><td>얕은 물</td><td>건너도 다치지 않지만 <b>소리가 크게 납니다.</b> 은신이 거의 사라집니다.</td></tr>
     </table>
@@ -231,6 +243,22 @@
       <tr><td>함정 상자</td><td>뚜껑에 무언가 걸려 있을 수 있습니다.</td></tr>
       <tr><td>미믹</td><td>상자처럼 생긴 것이 전부 상자는 아닙니다. 깊이 내려갈수록 흔해집니다.
         건드리면 먼저 뭅니다. 다만 <b>미믹은 숨을 쉽니다</b> — 가만히 보면 아주 조금 위아래로 움직입니다. 생명 탐지 주문은 한 번에 벗겨냅니다.</td></tr>
+    </table>
+
+    <h3 class="sect">제단 — 확률이 보이는 도박</h3>
+    <table class="keys">
+      <tr><td>어디에</td><td>2층부터 약 30%의 층. 입장하면 지도에 보라색으로 표시됩니다. <b>한 번만 응답합니다.</b></td></tr>
+      <tr><td>무엇을</td><td><b>피</b>(현재 체력 40%) · <b>금화</b>(절반) · <b>장비</b>(착용 중 하나). 바친 것은 돌아오지 않습니다.</td></tr>
+      <tr><td>확률</td><td>고르기 <b>전에</b> 막대로 보여 줍니다. 장비를 바치면 대성공이 30%로 가장 높고, 피는 재앙이 12%로 가장 높습니다.</td></tr>
+      <tr><td>대성공</td><td>유물급 장비 · <b>능력치 영구 +1</b> · 재료 무더기 중 하나.</td></tr>
+      <tr><td>재앙</td><td>장비에 저주 · 층 전체 각성 · 상태이상 중 하나.</td></tr>
+    </table>
+
+    <h3 class="sect">등급</h3>
+    <table class="keys">
+      <tr><td>네 등급</td><td><b>평범</b>(흰색) · <b>마법</b>(파랑) · <b>희귀</b>(금색) · <b>유물</b>(보라). 저주받은 물건은 <b>붉게</b> 표시됩니다.</td></tr>
+      <tr><td>바닥에서</td><td>마법 이상은 <b>빛기둥</b>이 섭니다. 희귀 이상은 <b>한 번 본 곳이면 어둠 속에서도</b> 계속 보입니다.</td></tr>
+      <tr><td>유물</td><td>정예가 떨구는 물건 중 일부만 이 등급에 닿습니다. 전체 드롭의 2% 정도입니다.</td></tr>
     </table>
 
     <h3 class="sect">재료와 경제</h3>

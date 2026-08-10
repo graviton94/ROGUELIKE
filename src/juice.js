@@ -345,6 +345,27 @@ export function pump(queue, player) {
         buzz(18);
         break;
 
+      /* The altar answering. The scale of the flash is the news:
+         you know it was good before you read the log. */
+      case 'altar': {
+        const spec = {
+          '대성공': { hue:'y', r:9, n:26, txt:'대성공', size:2.0, buzz:[40,40,40,40,120] },
+          '성공':   { hue:'E', r:5, n:16, txt:'성공',   size:1.5, buzz:[25,35,60] },
+          '허탕':   { hue:'g', r:2, n:6,  txt:'허탕',   size:1.2, buzz:20 },
+          '재앙':   { hue:'R', r:8, n:24, txt:'재앙',   size:2.0, buzz:[80,60,80,60,160] },
+        }[e.result] || { hue:'P', r:3, n:8, txt:'…', size:1.2, buzz:20 };
+        ring(e.x, e.y, spec.r, PALETTE[spec.hue], 900);
+        ring(e.x, e.y, spec.r * 0.55, PALETTE.W, 640);
+        burstShards(e.x, e.y, [PALETTE[spec.hue], PALETTE.W], spec.n, 2.0);
+        number(e.x, e.y - 0.9, spec.txt, PALETTE[spec.hue], spec.size);
+        flashScreen = Math.max(flashScreen, e.result === '허탕' ? 0.2 : 0.7);
+        flashHue = spec.hue;
+        shake = Math.max(shake, e.result === '허탕' ? 0.2 : 0.75);
+        freeze = Math.max(freeze, e.result === '허탕' ? 60 : 220);
+        buzz(spec.buzz);
+        break;
+      }
+
       case 'spot':
         number(e.x, e.y - 0.3, '!', PALETTE.o, 1.1);
         ring(e.x, e.y, 1.2, PALETTE.o, 380);

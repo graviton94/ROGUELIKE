@@ -462,6 +462,16 @@ export const SPRITES = {
     'nnnnnnnn',
     '........',
   ],
+  altar: [
+    '..PPPP..',
+    '.PWWWWP.',
+    '..PPPP..',
+    '...pp...',
+    '...pp...',
+    '..pppp..',
+    '.pPPPPp.',
+    'pppppppp',
+  ],
   camp: [
     '........',
     '...o....',

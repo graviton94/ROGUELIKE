@@ -7,6 +7,7 @@ import * as UI from './ui.js';
 import { G } from './game.js';
 import * as Game from './game.js';
 import * as Save from './save.js';
+import * as Data from './data.js';
 
 bakeAll();
 UI.bindInput();
@@ -51,3 +52,4 @@ if ('serviceWorker' in navigator) {
 window.G = G;
 window.Game = Game;
 window.Save = Save;
+window.Data = Data;

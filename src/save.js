@@ -51,6 +51,7 @@ function packLevel(L) {
     entry: L.entry,
     camp: L.camp || null,
     merchant: L.merchant || null,
+    altar: L.altar || null,
     campSpent: !!L.campSpent,
     downRoom: L.downRoom ? L.rooms.indexOf(L.downRoom) : -1,
     shopAt: [...L.shopAt],
@@ -79,6 +80,7 @@ function unpackLevel(d) {
   L.entry  = d.entry || { x: 0, y: 0 };
   L.camp   = d.camp || null;
   L.merchant = d.merchant || null;
+  L.altar = d.altar || null;
   L.campSpent = !!d.campSpent;
   L.downRoom = d.downRoom >= 0 ? L.rooms[d.downRoom] : undefined;
   L.shopAt = new Map(d.shopAt || []);

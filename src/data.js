@@ -263,6 +263,32 @@ export const ELITES = [
   { id:'leech',  n:'흡혈하는', drain:0.35 },
 ];
 
+/* ── rarity ───────────────────────────────────────────────
+   A good drop has to *look* good from across the room, or it is
+   just another line in a list. Four tiers, one colour each, and
+   anything above plain throws a beam of light on the floor so
+   you can see it before you can read it. */
+export const RARITY = [
+  { n:'평범', tone:'w', glow:null },
+  { n:'마법', tone:'B', glow:'#5b9bd5' },
+  { n:'희귀', tone:'y', glow:'#e8c76a' },
+  { n:'유물', tone:'P', glow:'#b57ad0' },
+];
+export const CURSED_TONE = 'R';
+
+export function rarityOf(item) {
+  if (!item || (item.kind !== 'weapon' && item.kind !== 'armour')) return 0;
+  const pre = PREFIXES.find(a => a.id === item.pre);
+  const suf = SUFFIXES.find(a => a.id === item.suf);
+  const score = (pre ? 2 : 0) + (suf ? 2 : 0) + (item.plus || 0)
+              + (item.d >= 13 ? 1 : 0);
+  return score >= 6 ? 3 : score >= 4 ? 2 : score >= 1 ? 1 : 0;
+}
+
+export const isCursed = item =>
+  !!(PREFIXES.find(a => a.id === item?.pre)?.curse
+  || SUFFIXES.find(a => a.id === item?.suf)?.curse);
+
 export const affixName = (item) => {
   const pre = item.pre ? PREFIXES.find(a => a.id === item.pre) : null;
   const suf = item.suf ? SUFFIXES.find(a => a.id === item.suf) : null;
@@ -305,6 +331,22 @@ export const upgradeCost = plus => ({
 
 export const ENCHANT_COST = { dust: 4, gold: 130 };
 export const REROLL_COST  = { essence: 1, dust: 2, gold: 220 };
+
+/* ── the altar ────────────────────────────────────────────
+   Luck, made legible. The odds are printed on the screen before
+   you commit, because a gamble you cannot price is not a
+   decision — it is just a surprise. Three things to offer, each
+   with its own risk profile: blood is cheap when you are healthy
+   and suicidal when you are not; gold is painless if you have
+   nowhere to spend it; gear is the real cost. */
+export const ALTAR_OFFERS = [
+  { id:'blood', n:'피를 바친다',   cost:'현재 체력의 40%',
+    odds:[['대성공', 18], ['성공', 44], ['허탕', 26], ['재앙', 12]] },
+  { id:'gold',  n:'금화를 바친다', cost:'가진 금화의 절반',
+    odds:[['대성공', 14], ['성공', 52], ['허탕', 28], ['재앙', 6]] },
+  { id:'gear',  n:'장비를 바친다', cost:'착용 중인 물건 하나',
+    odds:[['대성공', 30], ['성공', 46], ['허탕', 18], ['재앙', 6]] },
+];
 
 /* ── curves ───────────────────────────────────────────────*/
 export const xpToLevel = lv => Math.floor(13 * Math.pow(lv, 1.92));

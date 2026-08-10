@@ -12,7 +12,7 @@ export const MW = 66, MH = 40;
    sight, and shutting one behind you is a real move. */
 export const ROCK = 0, FLOOR = 1, DOWN = 2, UP = 3, DOOR = 4, RUBBLE = 5, SHOP = 6,
              DOOR_OPEN = 7, DOOR_LOCKED = 8, DOOR_BROKEN = 9,
-             WEB = 10, WATER = 11, CAMP = 12;
+             WEB = 10, WATER = 11, CAMP = 12, ALTAR = 13;
 
 export const isDoor = t => t === DOOR || t === DOOR_OPEN || t === DOOR_LOCKED || t === DOOR_BROKEN;
 export const isShut = t => t === DOOR || t === DOOR_LOCKED;
@@ -158,7 +158,27 @@ export class Level {
     this.scatterHazards(start, st);
     this.placeCamp(start, st);
     this.placeMerchant(start, st);
+    this.placeAltar(start, st);
     this.unsealStairs(start, st);
+  }
+
+  /* The altar. Rarer than the fire and louder than it — this is
+     the one place a floor can hand you something enormous or take
+     something away. Visible from arrival so it can be *wanted*. */
+  placeAltar(start, down) {
+    if (this.depth < 2 || Math.random() > 0.3) return;
+    for (let t = 0; t < 60; t++) {
+      const r = this.rooms[rnd(this.rooms.length)];
+      if (!r) return;
+      const x = r.x + rnd(r.w), y = r.y + rnd(r.h);
+      const i = idx(x, y);
+      if (this.tiles[i] !== FLOOR || this.traps.has(i)) continue;
+      if (i === idx(start.x, start.y) || i === idx(down.x, down.y)) continue;
+      this.tiles[i] = ALTAR;
+      this.altar = { x, y };
+      this.seen[i] = 1;
+      return;
+    }
   }
 
   /* A merchant turns up now and then. He is the reason to keep
@@ -311,8 +331,14 @@ export class Level {
         if (this.roomOf[i] < 0) spots.push(i);   // corridor, counted twice
       }
 
-    const kinds = ['dart', 'poison', 'pit', 'teleport', 'alarm'];
-    const count = Math.min(11, 1 + Math.floor(d * 0.45) + rnd(2));
+    const kinds = [
+      'dart', 'dart', 'dart', 'dart',
+      'poison', 'poison', 'poison',
+      'alarm', 'alarm',
+      'teleport',
+      'pit',                       // one in eleven, not one in five
+    ];
+    const count = Math.min(9, 1 + Math.floor(d * 0.35) + rnd(2));
     for (let n = 0; n < count && spots.length; n++) {
       const pick = rnd(spots.length);
       const i = spots[pick];

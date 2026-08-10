@@ -108,8 +108,17 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 
 /* ── play HUD ── */
 #hud { flex: 0 0 auto; padding: 8px 12px 6px; background: var(--d); border-bottom: 2px solid var(--g); }
-.hudtop { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
-.who { flex: 1 1 auto; font-size: 12px; color: var(--w); white-space: nowrap; }
+/* Two rows, always — reserved whether or not the chips need
+   them. The row wraps as chips come and go (materials, keys, a
+   kill streak, the floor clock), and every wrap moved the map
+   underneath by a whole line. Reserving the space costs 27px
+   once; not reserving it costs a jump mid-fight. */
+.hudtop {
+  display: flex; align-items: center; align-content: flex-start;
+  gap: 6px; flex-wrap: wrap;
+  min-height: 48px; margin-bottom: 6px;
+}
+.who { flex: 0 0 auto; font-size: 10px; color: var(--w); white-space: nowrap; }
 /* Fixed height, not padding around a line box. The combo chip
    holds 13px text next to the others' 10.5px, and baseline
    alignment made its line box a pixel taller — so the HUD grew
@@ -127,6 +136,16 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 .chip.gold { color: var(--y); border-color: #4a3f22; } .chip.gold b { color: var(--y); }
 .chip.mana { color: var(--B); border-color: #23364f; } .chip.mana b { color: var(--B); }
 .chip.depth { color: var(--o); border-color: #4a331a; }
+.chip.relics { color: var(--P); border-color: #40265c; } .chip.relics b { color: var(--P); }
+
+/* The floor's patience. Quiet while there is room to breathe,
+   orange when it is nearly gone, red once the floor is feeding. */
+.chip.clock { color: var(--G); border-color: var(--g); }
+.chip.clock b { color: var(--w); }
+.chip.clock.warn { color: var(--o); border-color: #4a331a; }
+.chip.clock.warn b { color: var(--o); }
+.chip.clock.bad { color: var(--R); border-color: var(--r); background: rgba(143, 47, 40, .22); }
+.chip.clock.bad b { color: var(--R); }
 
 /* The kill chain. --heat runs 0..1 with the streak, so the
    chip literally warms up as it grows. */
@@ -240,6 +259,22 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 #acts button:disabled { opacity: .38; cursor: default; }
 #acts button:disabled:active { background: var(--d); color: var(--w); border-color: var(--g); }
 
+/* A phone on its side has ~400px of height to spend and the
+   panels were sized for 900. Without this the map collapsed to
+   under 80px — technically correct and completely unplayable.
+   Trim the chrome rather than redesign the layout: the game is
+   meant to be held upright. */
+@media (max-height: 560px) {
+  #hud { padding: 4px 10px 3px; }
+  .hudtop { min-height: 0; margin-bottom: 3px; }
+  .gauge { margin-bottom: 2px; }
+  #log { height: 2.6em; padding: 3px 12px; }
+  #controls { padding: 6px 10px calc(6px + env(safe-area-inset-bottom)); gap: 8px;
+              grid-template-columns: min(112px, 26vw) minmax(0, 1fr); }
+  #acts button { padding: 5px 8px; font-size: 10.5px; }
+  #acts { gap: 3px; }
+}
+
 /* ── item rows ── */
 .itemrow {
   display: flex; align-items: center; gap: 10px; width: 100%;
@@ -265,9 +300,12 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 .eqstat.dim { color: var(--G); }
 
 /* ── help ── */
-.keys { width: 100%; border-collapse: collapse; font-size: 11.5px; }
-.keys td { padding: 6px 4px; vertical-align: top; border-bottom: 1px solid var(--d); }
-.keys td:first-child { width: 40%; color: var(--G); }
+/* Scoped to the element: `.keys` is also a HUD chip modifier,
+   and an unscoped width:100% stretched that chip across the
+   whole row, which pushed everything after it onto a new line. */
+table.keys { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+table.keys td { padding: 6px 4px; vertical-align: top; border-bottom: 1px solid var(--d); }
+table.keys td:first-child { width: 40%; color: var(--G); }
 
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

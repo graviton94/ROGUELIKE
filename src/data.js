@@ -376,6 +376,99 @@ export const ALTAR_OFFERS = [
     odds:[['대성공', 30], ['성공', 46], ['허탕', 18], ['재앙', 6]] },
 ];
 
+/* ── relics ───────────────────────────────────────────────
+   Affixes make a number bigger. A relic changes what the game
+   does — that is the whole difference, and it is why five of
+   these produce more distinct runs than fifty +1 swords.
+
+   Every one is a trade with a real downside, so picking one is
+   a decision rather than a pickup. `k` is the hook the rules
+   layer switches on; `v` is that hook's single parameter. Five
+   slots, no more: a build you cannot fill is a build you had to
+   choose. */
+export const RELIC_SLOTS = 5;
+
+export const RELICS = [
+  { id:'pact',    n:'피의 계약',     spr:'amulet', k:'pact',    v:0.25,
+    t:'최대 체력 −25%. 치명타 확률 +20%p.' },
+  { id:'echo',    n:'메아리의 종',   spr:'amulet', k:'echo',    v:6,
+    t:'연격 6 이상이면 공격이 한 번 더 들어간다.' },
+  { id:'hunger',  n:'굶주린 칼날',   spr:'sword',  k:'hunger',  v:3,
+    t:'처치할 때마다 체력 +3. 식량이 두 배로 준다.' },
+  { id:'mirror',  n:'거울 방패',     spr:'shield', k:'mirror',  v:0.35,
+    t:'받은 피해의 35%를 때린 쪽에 돌려준다.' },
+  { id:'eye',     n:'심연의 눈',     spr:'scroll', k:'eye',     v:3,
+    t:'층에 들어설 때 지도가 전부 보인다. 최대 마나 −3.' },
+  { id:'glove',   n:'도굴꾼의 장갑', spr:'ring',   k:'glove',   v:2,
+    t:'상자와 바닥의 전리품이 두 배. 함정을 영영 못 본다.' },
+  { id:'ember',   n:'불씨 항아리',   spr:'potion', k:'ember',   v:1,
+    t:'모닥불을 두 번 쓸 수 있다.' },
+  { id:'scale',   n:'저울추',        spr:'ring',   k:'scale',   v:0.6,
+    t:'체력이 30% 아래일 때 주는 피해 +60%.' },
+  { id:'twin',    n:'쌍둥이 룬',     spr:'wand',   k:'twin',    v:2,
+    t:'주문 비용 −2. 주문 피해 −20%.' },
+  { id:'thief',   n:'시간 도둑',     spr:'ring',   k:'thief',   v:0.35,
+    t:'층을 내려갈 때 체력을 전부 회복한다. 층의 여유 시간 −35%.' },
+  { id:'bone',    n:'뼈 목걸이',     spr:'amulet', k:'bone',    v:1,
+    t:'처치할 때마다 최대 체력 +1 (최대 +30).' },
+  { id:'chain',   n:'사슬 갑주',     spr:'armor',  k:'chain',   v:4,
+    t:'방어 +4. 은신이 사라진다 — 기습은 없다.' },
+  { id:'compass', n:'부러진 나침반', spr:'ring',   k:'compass', v:1,
+    t:'함정 피해를 입지 않는다. 대신 함정이 보이지 않는다.' },
+  { id:'gut',     n:'폭식의 위장',   spr:'potion', k:'gut',     v:2,
+    t:'물약 효과가 두 배. 배낭에 물약을 세 종류까지만 넣는다.' },
+  { id:'reckless',n:'무모함의 인장', spr:'sword',  k:'reckless',v:0.8,
+    t:'명중 −15%. 치명타 배율 ×1.8.' },
+  { id:'vow',     n:'침묵의 서약',   spr:'scroll', k:'vow',     v:0.3,
+    t:'주문을 쓸 수 없다. 근접 피해 +30%.' },
+];
+
+export const relicById = id => RELICS.find(r => r.id === id);
+
+/* ── the descent ──────────────────────────────────────────
+   Slay the Spire's map, folded into one screen. Two ways down,
+   both printed in advance, neither free. This is where a run
+   stops being a straight line: the same character reaches floor
+   9 rich and fragile or poor and armoured depending on six of
+   these choices.
+
+   `mon`/`item`/`elite` scale what populate() rolls; `flags` are
+   read by the rules where they matter. Every branch that gives
+   must also take, or it is not a choice. */
+export const BRANCHES = [
+  { id:'plain',  n:'평범한 계단', t:'특별할 것 없는 층.',
+    mon:1,    item:1,   elite:1 },
+  { id:'den',    n:'정예의 소굴', t:'정예가 두 배. 대신 유물이 하나 확정으로 떨어진다.',
+    mon:1,    item:1,   elite:2.4, relic:1, tone:'R' },
+  { id:'hoard',  n:'묻힌 보물고', t:'전리품 +80%, 상자 두 배. 몬스터도 30% 더 많다.',
+    mon:1.3,  item:1.8, elite:1,   chests:2, tone:'y' },
+  { id:'hush',   n:'고요한 층',   t:'몬스터 40% 감소. 전리품도 상자도 모닥불도 없다.',
+    mon:0.6,  item:0.35, elite:0.5, noCamp:true, tone:'B' },
+  { id:'starve', n:'마른 층',     t:'식량과 횃불이 두 배로 준다. 금화는 두 배로 나온다.',
+    mon:1,    item:1,   elite:1,   drain:2, gold:2, tone:'o' },
+  { id:'curse',  n:'저주받은 층', t:'모든 몬스터가 정예. 제단이 반드시 있고 유물도 하나.',
+    mon:0.75, item:1,   elite:99,  relic:1, altar:true, tone:'P' },
+  { id:'warren2',n:'무너진 굴',   t:'함정 두 배, 시야가 좁다. 재료가 두 배로 나온다.',
+    mon:1,    item:1,   elite:1,   traps:2, mats:2, dim:true, tone:'N' },
+  { id:'rush',   n:'무너지는 층', t:'여유 시간이 절반. 경험치가 두 배.',
+    mon:1.15, item:1,   elite:1.3, clock:0.5, xp:2, tone:'R' },
+];
+
+/* ── the clock ────────────────────────────────────────────
+   Vampire Survivors' real design is not the weapons, it is the
+   timer: the screen fills whether you are ready or not, so
+   power has to arrive faster than pressure. A dungeon without
+   one lets a patient player rest away every mistake, which is
+   exactly the "too easy and too slow" this game had.
+
+   You get a generous budget per floor. After it runs out the
+   floor starts feeding: a monster every so often, stronger each
+   wave, and they know where you are. Nothing insta-kills you —
+   it just makes standing still the losing move. */
+export const FLOOR_BUDGET = d => 320 - d * 8;   // 15층 = 200턴
+export const WAVE_EVERY   = 16;
+export const WAVE_GROWTH  = 0.13;               // 파도마다 능력치 +13%
+
 /* ── curves ───────────────────────────────────────────────*/
 export const xpToLevel = lv => Math.floor(10 * Math.pow(lv, 1.78));
 export const statBonus = v => Math.floor((v - 10) / 2);

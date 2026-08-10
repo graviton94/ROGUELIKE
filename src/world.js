@@ -43,8 +43,14 @@ export const roll = (c, s) => { let t = 0; for (let i = 0; i < c; i++) t += 1 + 
 export const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
 export class Level {
-  constructor(depth) {
+  /* `branch` is the stair the player chose to get here (see
+     BRANCHES in data.js). Generation reads it for the things
+     that are structural — whether there is a fire at all, an
+     altar for certain, twice the traps — while the rules layer
+     reads it for the rest. */
+  constructor(depth, branch) {
     this.depth = depth;
+    this.branch = branch || {};
     this.tiles  = new Uint8Array(MW * MH);
     this.seen   = new Uint8Array(MW * MH);
     this.vis    = new Uint8Array(MW * MH);
@@ -193,7 +199,8 @@ export class Level {
      the one place a floor can hand you something enormous or take
      something away. Visible from arrival so it can be *wanted*. */
   placeAltar(start, down) {
-    if (this.depth < 2 || Math.random() > 0.3) return;
+    if (this.depth < 2) return;
+    if (!this.branch.altar && Math.random() > 0.3) return;
     for (let t = 0; t < 60; t++) {
       const r = this.rooms[rnd(this.rooms.length)];
       if (!r) return;
@@ -239,6 +246,7 @@ export class Level {
     /* Not every floor has one. A fire on every level makes rest
        free and turns the choice into "always upgrade"; making it
        scarce is what puts weight on the one you do find. */
+    if (this.branch.noCamp) return;
     if (this.depth > 1 && Math.random() > 0.6) return;
     const banned = new Set([this.roomOf[idx(start.x, start.y)], this.roomOf[idx(down.x, down.y)]]);
     const rooms = this.rooms.filter((r, i) => !banned.has(i));
@@ -369,7 +377,8 @@ export class Level {
       'teleport',
       'pit',                       // one in eleven, not one in five
     ];
-    const count = Math.min(9, 1 + Math.floor(d * 0.35) + rnd(2));
+    const count = Math.round(Math.min(9, 1 + Math.floor(d * 0.35) + rnd(2))
+                             * (this.branch.traps || 1));
     for (let n = 0; n < count && spots.length; n++) {
       const pick = rnd(spots.length);
       const i = spots[pick];

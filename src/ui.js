@@ -9,6 +9,7 @@ import {
   RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName, MATS, ENCHANT_COST, REROLL_COST,
   RARITY, CURSED_TONE, rarityOf, isCursed,
+  RELIC_SLOTS, relicById,
   xpToLevel, statBonus,
 } from './data.js';
 import {
@@ -260,6 +261,8 @@ export function draw() {
       ctx.fillText('z', zx, zy);
     }
 
+    if (seenNow && m.awake && m.intent) drawIntent(m.intent, mx, my, t);
+
     if (seenNow && m.hp < m.maxhp) {
       const w = Math.round(t * (m.hp / m.maxhp));
       ctx.fillStyle = PALETTE.r;
@@ -282,6 +285,114 @@ export function draw() {
 
   Juice.drawEffects(ctx, cx, cy, t);
   Juice.drawScreenFlash(ctx, viewW, viewH);
+}
+
+/* ── intent ───────────────────────────────────────────────
+   One glyph over the head, saying what this thing does on its
+   next turn. It is the difference between a fight you trade
+   through and a fight you solve: the wind-up marker in
+   particular is an invitation to step back, shut a door, or
+   drink — and to decide the hit is worth eating anyway.
+
+   Drawn as paths, not as text. The obvious glyphs for this —
+   ✸ ➤ ☣ — are missing from the monospace stacks on plenty of
+   phones and render as tofu boxes, which is worse than no
+   telegraph at all. Eight shapes, hand-drawn, always present. */
+const SHAPES = {
+  // winding up: a four-pointed star, and it pulses
+  heavy:   [star4,                                    'R'],
+  wind:    [(c, x, y, r) => star4(c, x, y, r * 0.8),  'o'],
+  // about to swing: a solid diamond
+  melee:   [(c, x, y, r) => diamond(c, x, y, r * 0.8),'W'],
+  // about to poison or blind you: three dots
+  hex:     [dots3,                                    'P'],
+  // about to shoot: an arrowhead with a shaft
+  shoot:   [arrow,                                    'y'],
+  // closing / running: chevrons down and up
+  close:   [(c, x, y, r) => chevrons(c, x, y, r, 1),  'G'],
+  flee:    [(c, x, y, r) => chevrons(c, x, y, r, -1), 'B'],
+  erratic: [(c, x, y, r) => ring(c, x, y, r * 0.7),   'p'],
+  watch:   [(c, x, y, r) => dot(c, x, y, r * 0.30),   'G'],
+  held:    [(c, x, y, r) => cross(c, x, y, r * 0.7),  'G'],
+};
+
+function star4(c, x, y, r) {
+  const i = r * 0.3;
+  c.moveTo(x, y - r);
+  c.lineTo(x + i, y - i); c.lineTo(x + r, y);
+  c.lineTo(x + i, y + i); c.lineTo(x, y + r);
+  c.lineTo(x - i, y + i); c.lineTo(x - r, y);
+  c.lineTo(x - i, y - i); c.closePath();
+}
+function diamond(c, x, y, r) {
+  c.moveTo(x, y - r); c.lineTo(x + r * 0.72, y);
+  c.lineTo(x, y + r); c.lineTo(x - r * 0.72, y); c.closePath();
+}
+function arrow(c, x, y, r) {
+  c.moveTo(x + r, y);
+  c.lineTo(x - r * 0.18, y - r * 0.78);
+  c.lineTo(x - r * 0.02, y - r * 0.26);
+  c.lineTo(x - r, y - r * 0.26);
+  c.lineTo(x - r, y + r * 0.26);
+  c.lineTo(x - r * 0.02, y + r * 0.26);
+  c.lineTo(x - r * 0.18, y + r * 0.78);
+  c.closePath();
+}
+function chevrons(c, x, y, r, dir) {
+  for (const off of [-r * 0.5, r * 0.28]) {
+    c.moveTo(x - r * 0.78, y + off - dir * r * 0.28);
+    c.lineTo(x,            y + off + dir * r * 0.34);
+    c.lineTo(x + r * 0.78, y + off - dir * r * 0.28);
+    c.lineTo(x + r * 0.78, y + off + dir * r * 0.06);
+    c.lineTo(x,            y + off + dir * r * 0.68);
+    c.lineTo(x - r * 0.78, y + off + dir * r * 0.06);
+    c.closePath();
+  }
+}
+function dots3(c, x, y, r) {
+  for (const [ox, oy] of [[0, -r * 0.6], [-r * 0.6, r * 0.42], [r * 0.6, r * 0.42]]) {
+    c.moveTo(x + ox + r * 0.32, y + oy);
+    c.arc(x + ox, y + oy, r * 0.32, 0, Math.PI * 2);
+  }
+}
+function ring(c, x, y, r) {
+  c.moveTo(x + r, y); c.arc(x, y, r, 0, Math.PI * 2);
+  c.moveTo(x + r * 0.44, y); c.arc(x, y, r * 0.44, 0, Math.PI * 2, true);
+}
+function dot(c, x, y, r) { c.moveTo(x + r, y); c.arc(x, y, r, 0, Math.PI * 2); }
+function cross(c, x, y, r) {
+  const w = r * 0.34;
+  for (const s of [1, -1]) {
+    c.moveTo(x - r * s, y - r + w); c.lineTo(x - r * s + w * s * 1.5, y - r);
+    c.lineTo(x + r * s, y + r - w); c.lineTo(x + r * s - w * s * 1.5, y + r);
+    c.closePath();
+  }
+}
+
+/* Shared by the map and by the key on the help screen, so the
+   two can never drift apart. */
+export function drawIntentInto(c, kind, gx, gy, t, beat = 1) {
+  const spec = SHAPES[kind];
+  if (!spec) return;
+  const [shape, tone] = spec;
+  const r = t * 0.24 * beat;
+  c.save();
+  c.beginPath();
+  shape(c, gx, gy, r);
+  // A dark stroke under the fill keeps the mark readable on a
+  // lit floor and against a wall alike.
+  c.lineJoin = 'round';
+  c.lineWidth = Math.max(2, t * 0.13);
+  c.strokeStyle = PALETTE.k;
+  c.stroke();
+  c.fillStyle = PALETTE[tone] || PALETTE.w;
+  c.fill();
+  c.restore();
+}
+
+function drawIntent(kind, mx, my, t) {
+  const beat = kind === 'heavy' ? 1 + Math.sin(performance.now() / 140) * 0.18 : 1;
+  drawIntentInto(ctx, kind, mx + t / 2, my - t * 0.24, t, beat);
 }
 
 /* One sprite, plus a squash-punch on impact and an additive
@@ -389,11 +500,15 @@ export function refresh() {
   $('hud-depth').textContent = G.depth === 0 ? '마을' : `${G.depth}층`;
   $('hud-xp').textContent    = `${p.xp}/${xpToLevel(p.lv)}`;
 
+  /* Tied to the class, not to the current pool. A priest who
+     rolled poor wisdom has 0 mana at level 1 but still has a
+     spellbook — showing the button without the bar told them
+     nothing about why nothing worked. */
   const mana = $('hud-mana-wrap');
-  if (p.maxmana > 0) {
+  if (CLASSES[p.cls].realm) {
     mana.hidden = false;
     $('hud-mana').textContent = `${p.mana}/${p.maxmana}`;
-    $('hud-manabar').style.width = `${(p.mana / p.maxmana) * 100}%`;
+    $('hud-manabar').style.width = p.maxmana ? `${(p.mana / p.maxmana) * 100}%` : '0%';
   } else mana.hidden = true;
 
   const combo = $('hud-combo');
@@ -445,6 +560,27 @@ export function refresh() {
   for (const line of G.log.slice(-4)) logBox.appendChild(el('p', line.tone, line.text));
 
   $('btn-cast').hidden = Game.spellList(p).length === 0;
+
+  /* The clock, shown as a chip rather than a number: how much of
+     the floor's patience is left. It only appears once it starts
+     to matter, and it turns red when the floor is already
+     feeding — a player who ignores it should at least have been
+     told. */
+  const clock = $('hud-clock');
+  if (G.depth > 0) {
+    const budget = Game.floorBudget();
+    const left = budget - G.floorTurn;
+    const lvl = Game.pressureLevel();
+    clock.hidden = left > budget * 0.35 && !lvl;
+    clock.className = 'chip clock' + (lvl ? ' bad' : left < budget * 0.15 ? ' warn' : '');
+    $('hud-clock-n').textContent = lvl ? `습격 ${lvl}` : `여유 ${Math.max(0, left)}`;
+  } else clock.hidden = true;
+
+  const rel = $('hud-relics');
+  const held = Game.relicList();
+  rel.hidden = !held.length;
+  $('hud-relics-n').textContent = `${held.length}/${RELIC_SLOTS}`;
+
   draw();
 }
 
@@ -452,7 +588,8 @@ export function refresh() {
 export function setScreen(name) {
   G.screen = name;
   if (name !== 'play') stopAuto();
-  for (const s of ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help', 'camp', 'slots', 'altar'])
+  for (const s of ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help',
+                   'camp', 'slots', 'altar', 'stairs', 'relic'])
     $(`sc-${s}`).hidden = (s !== name);
   if (name === 'play') { resize(); refresh(); }
   if (name === 'inv')  renderInventory();
@@ -463,6 +600,39 @@ export function setScreen(name) {
   if (name === 'slots') renderSlots();
   if (name === 'title') refreshTitle();
   if (name === 'end')  renderEnd();
+  if (name === 'stairs') renderStairs();
+  if (name === 'relic')  renderRelicSwap();
+  if (name === 'help')   renderLegend();
+}
+
+/* The telegraph is only a mechanic if the player can read it.
+   Same draw call as the map uses, so the key can never drift
+   from what the map actually shows. */
+const INTENT_NAMES = [
+  ['heavy',   '크게 내리치기 직전 — 물러서면 헛손질'],
+  ['melee',   '다음 턴에 때린다'],
+  ['hex',     '독·실명 같은 것을 건다'],
+  ['shoot',   '멀리서 쏜다'],
+  ['close',   '다가온다'],
+  ['flee',    '달아난다'],
+  ['erratic', '어디로 갈지 모른다'],
+  ['watch',   '움직이지 않고 지켜본다'],
+  ['held',    '거미줄에 묶여 한 턴 쉰다'],
+];
+
+function renderLegend() {
+  const box = $('intent-legend');
+  if (!box || box.dataset.done) return;
+  box.dataset.done = '1';
+  for (const [kind, text] of INTENT_NAMES) {
+    const row = el('div', 'eqrow');
+    const c = el('canvas', 'icon');
+    c.width = 72; c.height = 72;
+    drawIntentInto(c.getContext('2d'), kind, 36, 38, 72);
+    row.appendChild(c);
+    row.appendChild(el('span', 'eqname', text));
+    box.appendChild(row);
+  }
 }
 
 /* ── confirm ────────────────────────────────────────────────
@@ -665,6 +835,22 @@ function renderInventory() {
       row.appendChild(el('span', 'eqname dim', '없음'));
     }
     eq.appendChild(row);
+  }
+
+  /* The relics, in full, with their downsides written out. A
+     build you cannot read is a build you cannot plan around. */
+  const rl = $('relic-held'); rl.innerHTML = '';
+  const held = Game.relicList();
+  $('relic-count').textContent = `${held.length}/${RELIC_SLOTS}`;
+  if (!held.length) rl.appendChild(el('p', 'empty', '아직 없다. 정예와 제단이 내놓는다.'));
+  for (const r of held) {
+    const row = el('div', 'eqrow');
+    const ic = el('canvas', 'icon'); paintIcon(ic, r.spr); row.appendChild(ic);
+    const mid = el('div', 'imid');
+    mid.appendChild(el('span', 'iname magic', r.n));
+    mid.appendChild(el('span', 'idesc', r.t));
+    row.appendChild(mid);
+    rl.appendChild(row);
   }
 
   /* Armour buys AC and costs silence. Show both here, where the
@@ -930,6 +1116,16 @@ export function renderCamp() {
     };
     wrap.appendChild(row);
   }
+
+  /* Walking away has to be on the menu. Arriving at full health
+     with no materials used to leave "waste the fire on a rest you
+     do not need" as the only exit, which reads as being trapped —
+     and is, in every way that matters. */
+  const out = el('button', 'mini');
+  out.textContent = '불을 남겨두고 물러난다';
+  out.style.marginTop = '12px';
+  out.onclick = () => { Game.leaveCamp(); setScreen('play'); refresh(); };
+  wrap.appendChild(out);
 }
 
 function renderCampTargets() {
@@ -990,6 +1186,78 @@ $('camp-back').onclick = () => { campMode = null; renderCamp(); };
    before you read a single number. */
 const ODD_CLASS = { '대성공':'great', '성공':'good', '허탕':'none', '재앙':'doom' };
 
+/* ── the fork ─────────────────────────────────────────────
+   Three doors, each with its price printed on it. Everything
+   the branch will do is on the card before you commit — that is
+   the whole mechanic. A modifier the player discovers after
+   descending is a trap, not a choice. */
+export function renderStairs() {
+  const list = $('stairs-list');
+  list.innerHTML = '';
+  $('stairs-depth').textContent = `${G.depth + 1}층`;
+
+  for (const b of G.pendingBranch || []) {
+    const row = el('button', 'campopt branch');
+    if (b.tone) row.style.borderColor = `var(--${b.tone})`;
+    const head = el('div', 'camphead');
+    const nm = el('span', 'campname', b.n);
+    if (b.tone) nm.style.color = `var(--${b.tone})`;
+    head.appendChild(nm);
+    head.appendChild(el('span', 'camptag', tagsFor(b)));
+    row.appendChild(head);
+    row.appendChild(el('span', 'campdesc', b.t));
+    row.onclick = () => { Game.chooseBranch(b.id); setScreen('play'); refresh(); };
+    list.appendChild(row);
+  }
+}
+
+/* A one-glance summary beside the prose, so the branches can be
+   compared without reading three sentences each time. */
+function tagsFor(b) {
+  const out = [];
+  if (b.mon && b.mon !== 1)     out.push(`적 ${b.mon > 1 ? '+' : ''}${Math.round((b.mon - 1) * 100)}%`);
+  if (b.elite > 1)              out.push(b.elite > 10 ? '전원 정예' : `정예 ×${b.elite}`);
+  if (b.item && b.item !== 1)   out.push(`전리품 ${b.item > 1 ? '+' : ''}${Math.round((b.item - 1) * 100)}%`);
+  if (b.relic)                  out.push('유물 확정');
+  if (b.clock)                  out.push(`시간 ${Math.round(b.clock * 100)}%`);
+  if (b.xp > 1)                 out.push(`경험치 ×${b.xp}`);
+  if (b.gold > 1)               out.push(`금화 ×${b.gold}`);
+  if (b.mats > 1)               out.push(`재료 ×${b.mats}`);
+  if (b.chests > 1)             out.push(`상자 ×${b.chests}`);
+  if (b.traps > 1)              out.push(`함정 ×${b.traps}`);
+  if (b.drain > 1)              out.push(`식량·횃불 ×${b.drain}`);
+  if (b.altar)                  out.push('제단 확정');
+  if (b.noCamp)                 out.push('모닥불 없음');
+  return out.join(' · ') || '기준';
+}
+
+/* ── a full hand ──────────────────────────────────────────
+   Five slots is the entire point: the sixth relic is only a
+   decision because something has to go. */
+export function renderRelicSwap() {
+  const want = relicById(G.pendingRelic);
+  const list = $('relic-list');
+  list.innerHTML = '';
+  if (!want) { setScreen('play'); return; }
+
+  $('relic-lead').textContent = `${want.n} — ${want.t}`;
+  $('relic-sub').textContent = `자리가 다 찼다. 무엇을 버릴까?`;
+
+  (G.player.relics || []).forEach((id, i) => {
+    const r = relicById(id);
+    if (!r) return;
+    const row = el('button', 'itemrow');
+    const ic = el('canvas', 'icon'); paintIcon(ic, r.spr); row.appendChild(ic);
+    const mid = el('div', 'imid');
+    mid.appendChild(el('span', 'iname magic', r.n));
+    mid.appendChild(el('span', 'idesc', r.t));
+    row.appendChild(mid);
+    row.appendChild(el('span', 'iact', '버린다'));
+    row.onclick = () => { Game.swapRelic(i); setScreen('play'); refresh(); };
+    list.appendChild(row);
+  });
+}
+
 export function renderAltar() {
   $('altar-depth').textContent = `${G.depth}층`;
   const list = $('altar-list');
@@ -1016,7 +1284,9 @@ export function renderAltar() {
     if (o.can) row.onclick = () => {
       ask(`${o.n}?`, `${o.detail} — 되돌릴 수 없습니다.`, () => {
         Game.altarOffer(o.id);
-        setScreen('play');
+        // A jackpot relic with no free slot opens the swap
+        // screen from inside here; don't stamp over it.
+        setScreen(G.screen === 'relic' ? 'relic' : 'play');
         refresh();
       });
     };
@@ -1025,6 +1295,7 @@ export function renderAltar() {
 }
 
 $('altar-leave').onclick = () => { setScreen('play'); refresh(); };
+$('relic-skip').onclick  = () => { Game.swapRelic(-1); setScreen('play'); refresh(); };
 
 /* ending */
 function renderEnd() {
@@ -1063,7 +1334,12 @@ let heldWait = 0, heldCount = 0;
 let route = null, routeWait = 0;
 let guard = null;          // situation snapshot that cancels auto-movement
 
-function act(fn) { fn(); refresh(); if (G.screen === 'end') setScreen('end'); }
+function act(fn) {
+  fn();
+  refresh();
+  if (G.screen === 'end') setScreen('end');
+  else if (INTERRUPTS.includes(G.screen)) setScreen(G.screen);
+}
 
 /* What "something happened" means: we lost health, another
    monster came into view, we picked something up, or the floor
@@ -1144,11 +1420,15 @@ function walkTo(tx, ty) {
   return true;
 }
 
+/* The rules layer can hand control to a screen from inside a
+   step — walking onto a fire, opening a chest with a relic in
+   it. One list, so a new screen is never routed from three
+   places and forgotten in a fourth. */
+const INTERRUPTS = ['shop', 'camp', 'altar', 'stairs', 'relic'];
+
 function takeStep(dx, dy) {
   act(() => Game.step(dx, dy));
-  if (G.screen === 'shop') { stopAuto(); setScreen('shop'); return false; }
-  if (G.screen === 'camp') { stopAuto(); setScreen('camp'); return false; }
-  if (G.screen === 'altar') { stopAuto(); setScreen('altar'); return false; }
+  if (INTERRUPTS.includes(G.screen)) { stopAuto(); setScreen(G.screen); return false; }
   if (G.screen === 'end') { stopAuto(); return false; }
   return true;
 }

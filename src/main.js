@@ -53,3 +53,4 @@ window.G = G;
 window.Game = Game;
 window.Save = Save;
 window.Data = Data;
+window.UI = UI;

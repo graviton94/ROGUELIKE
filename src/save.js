@@ -13,10 +13,11 @@
 
 import { G, say, refreshFov } from './game.js';
 import { Level, THEMES, MW, MH, idx } from './world.js';
+import { BRANCHES } from './data.js';
 
 const PREFIX = 'deepdelve.slot.';
 export const SLOTS = 3;
-const FORMAT = 1;
+const FORMAT = 2;
 
 /* ── byte packing ───────────────────────────────────────── */
 function toB64(bytes) {
@@ -104,6 +105,8 @@ export function snapshot() {
     opened: G.opened, mimicsBitten: G.mimicsBitten, trapsSprung: G.trapsSprung,
     detectPulse: G.detectPulse || 0,
     looks: G.looks || {}, known: G.known || {},
+    branch: G.branch?.id || 'plain',
+    floorTurn: G.floorTurn || 0, waves: G.waves || 0, campUses: G.campUses ?? 1,
     player: G.player,
     monsters: G.monsters,
     items: G.items,
@@ -125,6 +128,12 @@ export function apply(data) {
   G.detectPulse  = data.detectPulse || 0;
   G.looks = data.looks || {};
   G.known = data.known || {};
+  G.branch = BRANCHES.find(b => b.id === data.branch) || BRANCHES[0];
+  G.floorTurn = data.floorTurn || 0;
+  G.waves = data.waves || 0;
+  G.campUses = data.campUses ?? 1;
+  G.pendingBranch = null;
+  G.pendingRelic = null;
   G.player  = data.player;
   G.monsters = data.monsters || [];
   G.items    = data.items || [];
@@ -145,6 +154,8 @@ export function apply(data) {
   p.mats = p.mats || { scrap: 0, dust: 0, essence: 0 };
   p.might = p.might || 0;
   p.iron = p.iron || 0;
+  p.relics = p.relics || [];
+  p.boneHp = p.boneHp || 0;
 
   refreshFov();
   return true;

@@ -66,14 +66,13 @@
 <section id="sc-play" class="screen" hidden>
   <header id="hud">
     <div class="hudtop">
-      <span id="hud-name" class="who"></span>
-      <span class="chip">Lv <b id="hud-lv">1</b></span>
-      <span class="chip">AC <b id="hud-ac">0</b></span>
       <span class="chip gold">◍ <b id="hud-gold">0</b></span>
       <span class="chip depth" id="hud-depth">마을</span>
-      <span class="chip mats" id="hud-mats" hidden>⚒ <b id="hud-mats-n">0</b></span>
-      <span class="chip keys" id="hud-keys" hidden>⚿ <b id="hud-keys-n">0</b></span>
+      <span class="chip mats" id="hud-mats" hidden>재료 <b id="hud-mats-n">0</b></span>
+      <span class="chip keys" id="hud-keys" hidden>열쇠 <b id="hud-keys-n">0</b></span>
       <span class="chip combo" id="hud-combo" hidden><b id="hud-combo-n">0</b> 연격</span>
+      <span class="chip relics" id="hud-relics" hidden>유물 <b id="hud-relics-n">0/5</b></span>
+      <span class="chip clock" id="hud-clock" hidden><b id="hud-clock-n"></b></span>
     </div>
     <div class="gauge">
       <span class="glabel">HP</span>
@@ -86,6 +85,9 @@
       <span class="gval" id="hud-mana">0/0</span>
     </div>
     <div class="hudbot">
+      <span id="hud-name" class="who"></span>
+      <span class="xp">Lv <b id="hud-lv">1</b></span>
+      <span class="xp">AC <b id="hud-ac">0</b></span>
       <span class="xp">XP <b id="hud-xp">0/0</b></span>
       <span id="hud-flags" class="flags"></span>
     </div>
@@ -130,6 +132,8 @@
   <div class="scroll">
     <h3 class="sect">착용 중</h3>
     <div id="equip-list"></div>
+    <h3 class="sect">유물 <span id="relic-count" style="margin-left:auto;color:var(--P)"></span></h3>
+    <div id="relic-held"></div>
     <h3 class="sect">전투</h3>
     <div id="combat-stats"></div>
     <h3 class="sect">재료</h3>
@@ -179,6 +183,27 @@
   </div>
 </section>
 
+<!-- ══ the fork ══ -->
+<section id="sc-stairs" class="screen" hidden>
+  <header class="bar"><h2>내려가는 길</h2><span class="chip depth" id="stairs-depth">2층</span></header>
+  <div class="scroll">
+    <p class="note">계단이 갈라진다. 어느 쪽이든 내려가는 길이지만, 같은 층은 아니다.<br>
+      한 번 고르면 돌아올 수 없다.</p>
+    <div id="stairs-list"></div>
+  </div>
+</section>
+
+<!-- ══ relic swap ══ -->
+<section id="sc-relic" class="screen" hidden>
+  <header class="bar"><h2>유물</h2></header>
+  <div class="scroll">
+    <p class="note" id="relic-lead"></p>
+    <p class="note" id="relic-sub"></p>
+    <div id="relic-list"></div>
+    <button class="mini" id="relic-skip">그대로 둔다</button>
+  </div>
+</section>
+
 <!-- ══ altar ══ -->
 <section id="sc-altar" class="screen" hidden>
   <header class="bar"><h2>제단</h2><span class="chip depth" id="altar-depth">1층</span></header>
@@ -194,6 +219,12 @@
 <section id="sc-help" class="screen" hidden>
   <header class="bar"><h2>조작법</h2><button class="mini" data-back>닫기</button></header>
   <div class="scroll">
+    <h3 class="sect">몬스터 머리 위의 표시</h3>
+    <p class="note">깨어 있는 적은 <b>다음 턴에 무엇을 할지</b>를 머리 위에 내겁니다.
+      붉은 별은 크게 내리치기 직전이라는 뜻입니다 — 그 턴에 물러서면 헛손질을 시키고,
+      버티고 때리면 2.5배를 맞습니다. 고르는 것은 당신입니다.</p>
+    <div id="intent-legend"></div>
+    <h3 class="sect">조작</h3>
     <table class="keys">
       <tr><td>D-pad 꾹 누르기</td><td>그 방향으로 계속 이동</td></tr>
       <tr><td>지도 스와이프 유지</td><td>손가락 방향으로 계속 이동</td></tr>
@@ -267,6 +298,39 @@
       <tr><td>재앙</td><td>장비에 저주 · 층 전체 각성 · 상태이상 중 하나.</td></tr>
     </table>
 
+    <h3 class="sect">유물 — 규칙을 바꾸는 물건</h3>
+    <table class="keys">
+      <tr><td>무엇이 다른가</td><td>속성은 숫자를 키우고, <b>유물은 게임이 하는 일을 바꿉니다</b>. 그래서 다섯 개가 +1 검 쉰 자루보다 많은 경우의 수를 만듭니다.</td></tr>
+      <tr><td>자리는 다섯</td><td>여섯 번째를 주우려면 <b>하나를 버려야 합니다</b>. 채울 수 없는 빌드는 고를 필요도 없는 빌드입니다.</td></tr>
+      <tr><td>어디서</td><td>정예 처치 시 약 22%, 제단 <b>대성공</b>의 절반, 그리고 <b>정예의 소굴 · 저주받은 층</b>은 하나를 확정으로 깔아 둡니다.</td></tr>
+      <tr><td>전부 거래</td><td>공짜는 하나도 없습니다. <b>피의 계약</b>은 최대 체력의 4분의 1을 받고 치명타를 주고, <b>침묵의 서약</b>은 주문 전부를 받고 근접 피해를 줍니다.</td></tr>
+      <tr><td>말도 안 되는 조합</td><td><b>메아리의 종</b>(연격 6 이상이면 한 번 더)에 <b>연쇄의</b> + <b>작열하는</b> 무기를 물리면,
+        한 번 두드릴 때 두 번 휘둘러 네 마리가 맞고 죽은 것들이 연쇄로 터집니다.
+        <b>저울추</b>(체력 30% 아래에서 피해 +60%)와 <b>거울 방패</b>(받은 피해 35% 반사)는
+        "죽기 직전이 가장 강한" 빌드가 됩니다.</td></tr>
+    </table>
+
+    <h3 class="sect">내려가는 길 — 갈림길</h3>
+    <table class="keys">
+      <tr><td>세 갈래</td><td>2층부터 계단이 갈라집니다. <b>주는 것과 가져가는 것이 미리 다 적혀 있습니다.</b> 고른 뒤에야 알게 되는 조건은 없습니다.</td></tr>
+      <tr><td>평범한 계단</td><td>항상 있습니다. 안전한 길이 없는 갈림길은 선택이 아니라 통행료입니다.</td></tr>
+      <tr><td>정예의 소굴</td><td>정예 2.4배. 대신 유물 하나 확정.</td></tr>
+      <tr><td>묻힌 보물고</td><td>전리품 +80%, 상자 두 배. 몬스터도 30% 더.</td></tr>
+      <tr><td>고요한 층</td><td>몬스터 40% 감소. 전리품도 상자도 <b>모닥불도</b> 없습니다. 도망칠 때 쓰는 길입니다.</td></tr>
+      <tr><td>마른 층</td><td>식량·횃불 두 배로 소모. 금화 두 배.</td></tr>
+      <tr><td>저주받은 층</td><td><b>전원 정예.</b> 제단 확정 + 유물 하나.</td></tr>
+      <tr><td>무너진 굴</td><td>함정 두 배, 시야가 좁습니다. 분해 재료 두 배.</td></tr>
+      <tr><td>무너지는 층</td><td>여유 시간 절반. 경험치 두 배.</td></tr>
+    </table>
+
+    <h3 class="sect">층의 시계 — 오래 머물 수 없습니다</h3>
+    <table class="keys">
+      <tr><td>여유</td><td>층마다 턴 예산이 있습니다(1층 312턴, 깊어질수록 줄어듭니다). 남은 양이 3분의 1 아래로 떨어지면 위쪽에 <b>여유</b> 칩이 뜹니다.</td></tr>
+      <tr><td>다 쓰면</td><td>"심연이 눈을 뜬다" — 이후 <b>16턴마다</b> 몬스터가 깨어난 채로, 당신 위치를 알고 나타납니다. 파도마다 능력치가 13%씩 붙습니다.</td></tr>
+      <tr><td>왜 있는가</td><td>시계가 없으면 참을성 있는 플레이어는 모든 실수를 휴식으로 지울 수 있습니다. 힘이 압박보다 빨리 자라야 한다 — 그게 이 게임의 속도입니다.</td></tr>
+      <tr><td>대처</td><td>습격이 시작되면 <b>정리를 포기하고 계단으로 가는 것이 정답</b>입니다. 층을 다 비우는 것은 시계 안에서만 가능한 사치입니다.</td></tr>
+    </table>
+
     <h3 class="sect">등급</h3>
     <table class="keys">
       <tr><td>네 등급</td><td><b>평범</b>(흰색) · <b>마법</b>(파랑) · <b>희귀</b>(금색) · <b>유물</b>(보라). 저주받은 물건은 <b>붉게</b> 표시됩니다.</td></tr>
@@ -289,7 +353,8 @@
       <tr><td>강화</td><td>장비 +1 또는 주문 연마. <b>쇳조각과 금화</b>가 듭니다. 값은 +1마다 오르고 <b>+5가 상한</b>입니다.</td></tr>
       <tr><td>인챈트</td><td>무작위 속성. <b>마력 가루 4 + 130금.</b> 다섯에 하나는 저주고, 이미 붙은 성질을 밀어냅니다.</td></tr>
       <tr><td>재련</td><td>붙어 있는 속성을 다시 굴립니다. <b>정수 1 + 가루 2 + 220금.</b> <b>저주는 절대 붙지 않고, 저주가 있으면 그것부터 지웁니다.</b></td></tr>
-      <tr><td></td><td>셋 중 <b>하나만</b> 고를 수 있고, 고르면 불은 꺼집니다. 체력이 가득할 때 휴식은 낭비고, 20%일 때 강화는 자살입니다.</td></tr>
+      <tr><td>물러나기</td><td>아무것도 고르지 않고 <b>불을 남겨둔 채 나갈 수 있습니다</b>. 나중에 쓸모가 생기면 돌아오세요.</td></tr>
+      <tr><td></td><td>넷 중 <b>하나만</b> 고를 수 있고, 고르면 불은 꺼집니다. 체력이 가득할 때 휴식은 낭비고, 20%일 때 강화는 자살입니다.</td></tr>
     </table>
 
     <h3 class="sect">접두 · 접미 속성</h3>
@@ -306,7 +371,9 @@
     <h3 class="sect">정예</h3>
     <table class="keys">
       <tr><td>정예 몬스터</td><td>이름 앞에 접두가 붙고 <b>주황색 고리</b>가 돕니다(두 개면 보라색). 재빠른 · 거대한 · 강철의 · 맹독의 · 광폭한 · 흡혈하는.</td></tr>
-      <tr><td>보상</td><td>경험치가 약 두 배고, 죽으면 <b>반드시 속성이 붙은 장비</b>를 떨어뜨립니다. 싸울지 피할지가 선택입니다.</td></tr>
+      <tr><td>보상</td><td>경험치가 약 두 배고, 죽으면 <b>반드시 속성이 붙은 장비</b>(또는 22%로 <b>유물</b>)를 떨어뜨립니다. 싸울지 피할지가 선택입니다.</td></tr>
+      <tr><td>내리치기</td><td>정예는 <b>한 턴 팔을 당긴 뒤</b> 2.5배로 내리칩니다. 머리 위 <b>붉은 별</b>이 그 신호입니다.<br>
+        그 턴에 한 칸 물러나면 헛손질이 되고 처음부터 다시 당겨야 합니다 — 대신 당신도 그 턴을 씁니다. 물러설지 맞고 때릴지가 매번 선택입니다.</td></tr>
     </table>
 
     <p class="note">

@@ -9,6 +9,8 @@ import {
   MATS, salvageYield, upgradeCost, ENCHANT_COST, REROLL_COST,
   ALTAR_OFFERS, rarityOf, isCursed,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
+  RELICS, RELIC_SLOTS, relicById, BRANCHES,
+  FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH,
   xpToLevel, statBonus,
 } from './data.js';
 import {
@@ -24,7 +26,57 @@ export const G = {
   fx: [], combo: 0, comboT: 0, bestCombo: 0,
   opened: 0, mimicsBitten: 0, trapsSprung: 0,
   looks: {}, known: {},        // appearance per id, and what you have learned
+
+  branch: null,          // which stair was taken into this floor
+  pendingBranch: null,   // the two on offer, while the choice screen is up
+  pendingRelic: null,    // a relic waiting for a slot to be freed
+  floorTurn: 0,          // turns spent on this floor — the clock
+  waves: 0,              // how many times the floor has answered
+  campUses: 0,           // fires still owed on this floor
 };
+
+/* ── relics ───────────────────────────────────────────────
+   Gear makes numbers bigger; a relic changes what the game
+   does. Everything below is a lookup against the five the
+   player is carrying — cheap enough to call per swing. */
+export const hasRelic = id => !!G.player?.relics?.some(r => r === id);
+export const relicVal = id => (hasRelic(id) ? relicById(id).v : 0);
+export const relicList = () => (G.player?.relics || []).map(relicById).filter(Boolean);
+
+export function takeRelic(id) {
+  const p = G.player;
+  if (!p || hasRelic(id)) return false;
+  p.relics = p.relics || [];
+  if (p.relics.length >= RELIC_SLOTS) { G.pendingRelic = id; G.screen = 'relic'; return false; }
+  p.relics.push(id);
+  say(`${relicById(id).n} — ${relicById(id).t}`, 'level');
+  fx({ t:'altar', x:p.x, y:p.y, good:true });
+  recalc(p);
+  return true;
+}
+
+/* Swapping is the whole point of a slot limit: taking the new
+   thing has to cost the old thing. */
+export function swapRelic(dropIdx) {
+  const p = G.player, id = G.pendingRelic;
+  if (!id) return;
+  if (dropIdx >= 0) {
+    const gone = relicById(p.relics[dropIdx]);
+    p.relics[dropIdx] = id;
+    say(`${gone.n}을(를) 버리고 ${relicById(id).n}을(를) 걸었다.`, 'level');
+  } else {
+    /* Refused. Put it back on the ground rather than destroying
+       it — the whole point of a slot limit is that the decision
+       stays open, and a relic that evaporates on "no" turns the
+       screen into a trap. */
+    const r = relicById(id);
+    G.items.push({ kind:'relic', id, spr:r.spr, n:r.n, x:p.x, y:p.y });
+    say(`${r.n}을(를) 발치에 두었다. 마음이 바뀌면 다시 밟으시오.`);
+  }
+  G.pendingRelic = null;
+  G.screen = 'play';
+  recalc(p);
+}
 
 export function say(text, tone = '') {
   G.log.push({ text, tone });
@@ -69,6 +121,7 @@ export function createHero(raceKey, classKey, base) {
     mats: { scrap: 0, dust: 0, essence: 0 },
     might: 0, iron: 0,
     spellPlus: {}, spellAffix: {},
+    relics: [], boneHp: 0,
     equip: { weapon: null, body: null, shield: null },
     pack: [],
     x: 0, y: 0,
@@ -94,8 +147,8 @@ export function recalc(p, init) {
     p.maxmana = Math.max(0, Math.floor((b + 1) * p.lv * 0.85));
   } else p.maxmana = 0;
   const g = gearBonus(p);
-  p.maxhp = Math.max(8, Math.round(p.maxhp * (1 + g.maxhpPct)));
-  p.maxmana = Math.max(0, Math.round(p.maxmana * (1 + g.manaPct)));
+  p.maxhp = Math.max(8, Math.round(p.maxhp * (1 + g.maxhpPct)) + (p.boneHp || 0));
+  p.maxmana = Math.max(0, Math.round(p.maxmana * (1 + g.manaPct)) + g.manaFlat);
   if (init) return;
   p.hp = Math.min(p.hp, p.maxhp);
   p.mana = Math.min(p.mana, p.maxmana);
@@ -106,9 +159,10 @@ export function recalc(p, init) {
    affix only ever has to be declared once in data.js. Cheap
    enough to recompute per swing: three slots, two affixes each. */
 const EMPTY_BONUS = {
-  dmg:0, dmgPct:0, hit:0, crit:0, critMult:0, ac:0, stealth:0,
+  dmg:0, dmgPct:0, hit:0, hitPct:1, crit:0, critMult:0, ac:0, stealth:0,
   lifesteal:0, chain:0, burst:0, execute:0, pierce:0,
-  regen:0, lightR:0, maxhpPct:0, manaPct:0, on:null, resistAll:false,
+  regen:0, lightR:0, maxhpPct:0, manaPct:0, manaFlat:0,
+  on:null, resistAll:false, noStealth:false,
 };
 
 export function gearBonus(p) {
@@ -151,6 +205,22 @@ export function gearBonus(p) {
       if (a.resist === 'all') b.resistAll = true;
     }
   }
+
+  /* Relics ride the same funnel, so a relic and an affix can
+     never disagree about what a number means. The ones with a
+     condition are resolved here too — 저울추 only pays while you
+     are nearly dead, which is what makes it a gamble rather
+     than a stat. */
+  for (const id of p.relics || []) {
+    switch (id) {
+      case 'pact':     b.maxhpPct -= 0.25; b.crit += 0.20; break;
+      case 'chain':    b.ac += 4; b.noStealth = true; break;
+      case 'reckless': b.hitPct *= 0.85; b.critMult += 0.8; break;
+      case 'eye':      b.manaFlat -= 3; break;
+      case 'vow':      b.dmgPct += 0.30; break;
+      case 'scale':    if (p.hp <= p.maxhp * 0.3) b.dmgPct += 0.60; break;
+    }
+  }
   return b;
 }
 
@@ -164,7 +234,7 @@ export const toHit = p => {
     + statBonus(p.stats.str) + (p.blessed > 0 ? 5 : 0) + gearBonus(p).hit;
   // Proportional, not flat: a flat penalty would cripple level 1
   // and barely register at level 20.
-  return has(p, 'fear') ? base * 0.55 : base;
+  return (has(p, 'fear') ? base * 0.55 : base) * gearBonus(p).hitPct;
 };
 
 /* ── ailments ─────────────────────────────────────────────
@@ -210,14 +280,14 @@ export const critMult = p =>
    the sneak attack above is a real option or a dead letter, and
    it is deliberately wired to armour: plate keeps you alive and
    announces you down the corridor. Pick one. */
-export const stealth = p => clamp(
+export const stealth = p => (gearBonus(p).noStealth ? 0 : clamp(
   0.10 + statBonus(p.stats.dex) * 0.05
   + (p.race === 'halfling' ? 0.20 : p.race === 'elf' ? 0.10 : p.race === 'halfTroll' ? -0.15 : 0)
   + (p.cls === 'rogue' ? 0.25 : p.cls === 'ranger' ? 0.12 : 0)
   - (p.equip.body?.ac || 0) * 0.012
   - (p.equip.shield?.ac || 0) * 0.010
   + gearBonus(p).stealth,
-  0, 0.92);
+  0, 0.92));
 
 /* Each link in the chain adds damage; the chain is the reward
    for clearing a room without letting anything touch you. */
@@ -311,8 +381,10 @@ export function salvage(slotIdx) {
 
   p.mats = p.mats || { scrap: 0, dust: 0, essence: 0 };
   const parts = [];
+  const mult = G.branch?.mats || 1;
   for (const k of ['scrap', 'dust', 'essence']) {
     if (!got[k]) continue;
+    got[k] *= mult;
     p.mats[k] += got[k];
     parts.push(`${MATS[k].n} ${got[k]}`);
   }
@@ -356,18 +428,22 @@ export function useItem(slotIdx) {
   // Using it is how you find out what it was.
   identify(it.id);
 
+  // 폭식의 위장 doubles what a flask does. It is the only relic
+  // that makes the potions you were already hoarding matter.
+  const gulp = hasRelic('gut') ? 2 : 1;
+
   switch (it.use) {
     case 'heal': {
-      const h = Math.min(p.maxhp - p.hp, 20 + roll(2, 8) + p.lv * 2);
+      const h = Math.min(p.maxhp - p.hp, (20 + roll(2, 8) + p.lv * 2) * gulp);
       p.hp += h; if (h) fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(h ? `상처가 아문다. 체력 +${h}.` : '이미 멀쩡하다.', 'good'); break;
     }
     case 'bigHeal': {
-      const h = Math.min(p.maxhp - p.hp, Math.floor(p.maxhp * 0.6) + roll(3, 10));
+      const h = Math.min(p.maxhp - p.hp, (Math.floor(p.maxhp * 0.6) + roll(3, 10)) * gulp);
       p.hp += h; fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(`깊은 상처까지 닫힌다. 체력 +${h}.`, 'good'); break;
     }
     case 'mana': {
       if (!p.maxmana) { say('아무 일도 일어나지 않았다.'); break; }
-      const m = Math.min(p.maxmana - p.mana, Math.ceil(p.maxmana * 0.5) + roll(1, 6));
+      const m = Math.min(p.maxmana - p.mana, (Math.ceil(p.maxmana * 0.5) + roll(1, 6)) * gulp);
       p.mana += m; say(`머리가 맑아진다. 마나 +${m}.`, 'good'); break;
     }
     case 'map':   revealMap(); say('층의 구조가 머릿속에 그려진다.', 'good'); break;
@@ -381,10 +457,10 @@ export function useItem(slotIdx) {
     /* The unknown half. Three of these are worth drinking and
        three are not, so an unidentified flask is a real bet. */
     case 'might':
-      p.might = 40; say('피가 끓는다. 잠시 훨씬 세게 때린다.', 'good');
+      p.might = 40 * gulp; say('피가 끓는다. 잠시 훨씬 세게 때린다.', 'good');
       fx({ t:'ail', kind:'fear', x:p.x, y:p.y }); break;
     case 'iron':
-      p.iron = 40; say('살갗이 쇠처럼 굳는다.', 'good');
+      p.iron = 40 * gulp; say('살갗이 쇠처럼 굳는다.', 'good');
       fx({ t:'ail', kind:'slow', x:p.x, y:p.y }); break;
     case 'venom': {
       const dmg = roll(2, 5) + G.depth;
@@ -437,6 +513,9 @@ export function cast(spellId) {
   const p = G.player;
   const sp = spellList(p).find(s => s.id === spellId);
   if (!sp) return;
+  // 침묵의 서약 trades the whole spellbook for a third more
+  // damage in the hand — the sharpest build commitment here.
+  if (hasRelic('vow')) { say('서약이 혀를 막는다. 주문은 나오지 않는다.', 'warn'); return; }
   const cost = spellCost(p, sp);
   if (p.mana < cost) { say('마나가 모자란다.', 'warn'); return; }
   p.mana -= cost;
@@ -517,12 +596,14 @@ export function cast(spellId) {
 /* Spell enhancement is the same two dials as gear: a flat safe
    climb, and an affix that changes what the spell *does*. */
 export const spellPower = (p, id) =>
-  1 + (p.spellPlus?.[id] || 0) * 0.22
-    + (SPELL_AFFIXES.find(a => a.id === p.spellAffix?.[id])?.powPct || 0);
+  (1 + (p.spellPlus?.[id] || 0) * 0.22
+     + (SPELL_AFFIXES.find(a => a.id === p.spellAffix?.[id])?.powPct || 0))
+  * (hasRelic('twin') ? 0.8 : 1);
 
 export const spellCost = (p, sp) => {
   const a = SPELL_AFFIXES.find(x => x.id === p.spellAffix?.[sp.id]);
-  return Math.max(1, sp.cost - (a?.costCut || 0) + (a?.costUp || 0));
+  return Math.max(1, sp.cost - (a?.costCut || 0) + (a?.costUp || 0)
+                     - (hasRelic('twin') ? relicVal('twin') : 0));
 };
 
 function spellDrain(aff, dmg) {
@@ -535,11 +616,15 @@ function spellDrain(aff, dmg) {
 }
 
 /* ── level flow ─────────────────────────────────────────── */
-export function enterDepth(depth, fromBelow = false) {
+export function enterDepth(depth, fromBelow = false, branch = null) {
   G.depth = depth;
-  G.level = new Level(depth);
+  G.branch = branch || BRANCHES[0];
+  G.level = new Level(depth, G.branch);
   G.monsters = [];
   G.items = [];
+  G.floorTurn = 0;
+  G.waves = 0;
+  G.campUses = 1 + (hasRelic('ember') ? 1 : 0);
 
   const L = G.level;
   const p = G.player;
@@ -560,6 +645,16 @@ export function enterDepth(depth, fromBelow = false) {
     if (depth > 0) say('멀리서 불빛이 흔들린다.', 'good');
   }
   if (depth > 0 && L.theme?.n) say(`${L.theme.n}이다.`, 'warn');
+
+  // 심연의 눈 pays out the moment you arrive, which is the only
+  // moment a whole map is worth anything.
+  if (depth > 0 && hasRelic('eye')) { L.seen.fill(1); say('심연의 눈이 층 전체를 훑는다.', 'good'); }
+  // 시간 도둑 buys the descent back — and charges for it in turns.
+  if (depth > 0 && hasRelic('thief') && p.hp < p.maxhp) {
+    p.hp = p.maxhp; p.mana = p.maxmana;
+    say('시간 도둑이 상처를 되감았다.', 'good');
+    fx({ t:'heal', x:p.x, y:p.y, amt:0 });
+  }
 }
 
 function findTile(L, t) {
@@ -580,8 +675,10 @@ function populate(depth) {
   /* Pack animals arrive as a pack. Six wolves coming down one
      corridor is a different problem from six wolves scattered
      across a floor, and it is the problem doors are for. */
+  const br = G.branch || {};
   const mob = G.level.theme?.mob || 1;
-  const budget = Math.round((6 + rnd(5) + Math.floor(depth * 0.9)) * Math.min(mob, 1.35));
+  const budget = Math.round((6 + rnd(5) + Math.floor(depth * 0.9))
+                            * Math.min(mob, 1.35) * (br.mon || 1));
   let placed = 0;
   for (let guard = 0; placed < budget && guard < budget * 4; guard++) {
     const m = pickMonster(depth);
@@ -596,14 +693,14 @@ function populate(depth) {
         : L.openSpot({ x: lead.x - 2, y: lead.y - 2, w: 5, h: 5 }, busy);
       if (!spot) continue;
       const one = { ...m, x: spot.x, y: spot.y, awake: false, energy: 0 };
-      if (Math.random() < eliteChance(depth)) makeElite(one, depth);
+      if (Math.random() < eliteChance(depth) * (br.elite ?? 1)) makeElite(one, depth);
       one.maxhp = one.hp;
       G.monsters.push(one);
       placed++;
     }
   }
 
-  const loot = 4 + rnd(5);
+  const loot = Math.round((4 + rnd(5)) * (br.item || 1));
   for (let i = 0; i < loot; i++) {
     const item = pickItem(depth);
     const spot = L.randomFloor(busy);
@@ -612,13 +709,24 @@ function populate(depth) {
   const piles = 2 + rnd(4);
   for (let i = 0; i < piles; i++) {
     const spot = L.randomFloor(busy);
-    if (spot) G.items.push({ kind:'gold', spr:'gold', n:'금화', amount: 15 + rnd(40 + depth * 25), x: spot.x, y: spot.y });
+    if (spot) G.items.push({ kind:'gold', spr:'gold', n:'금화',
+      amount: Math.round((15 + rnd(40 + depth * 25)) * (br.gold || 1)), x: spot.x, y: spot.y });
+  }
+
+  /* A branch that promised a relic has to deliver one on the
+     floor, not as a maybe-drop — the printed odds on the stairs
+     screen are a contract. */
+  if (br.relic) {
+    const spot = L.randomFloor(busy);
+    const id = unownedRelic();
+    if (spot && id) G.items.push({ kind:'relic', id, spr: relicById(id).spr,
+                                   n: relicById(id).n, x: spot.x, y: spot.y });
   }
 
   /* Chests, and the thing that is pretending to be one. The
      mimic share climbs with depth, so by the time a chest is
      worth opening you are no longer sure you should. */
-  const chests = 1 + rnd(3);
+  const chests = (1 + rnd(3)) * (br.chests || 1);
   const mimicShare = Math.min(0.34, 0.06 + depth * 0.013);
   for (let i = 0; i < chests; i++) {
     const spot = L.randomFloor(busy);
@@ -694,6 +802,7 @@ function makeElite(m, depth) {
     if (a.drain)  m.drain = a.drain;
   }
   m.xp = Math.round(m.xp * (1.9 + 0.4 * (count - 1)));
+  m.heavy = true;                       // elites telegraph and hit for two and a half
   return m;
 }
 
@@ -893,6 +1002,13 @@ function springTrap(x, y, trap) {
   const p = G.player, L = G.level;
   L.traps.delete(idx(x, y));
   G.trapsSprung++;
+  // 부러진 나침반: you walk into every one of them and none of
+  // them matter. Blind and immune is a build, not a handicap.
+  if (hasRelic('compass')) {
+    say('나침반 바늘이 홱 돌더니, 발밑의 무언가가 죽는다.', 'good');
+    fx({ t:'resist', x, y });
+    return false;
+  }
   const spec = TRAPS[trap.kind];
   say(spec.msg, 'warn');
   fx({ t:'trap', kind:trap.kind, x, y });
@@ -967,6 +1083,9 @@ function scanForTraps() {
     const trap = L.traps.get(idx(x, y));
     if (!trap || trap.seen) continue;
     const near = Math.max(Math.abs(dx), Math.abs(dy));
+    // 도굴꾼의 장갑 and 부러진 나침반 both blind you to traps —
+    // one for greed, one because it no longer matters.
+    if (hasRelic('glove') || hasRelic('compass')) continue;
     if (Math.random() < skill / near) {
       trap.seen = true;
       say(`${TRAPS[trap.kind].n}을(를) 발견했다.`, 'good');
@@ -981,6 +1100,13 @@ function pickUp() {
   if (i < 0) return;
   const it = G.items[i];
   if (it.kind === 'chest') { openChest(i, it); return; }
+  if (it.kind === 'relic') {
+    // Leave it lying there if the swap screen is refused, so the
+    // choice can be walked away from and come back to.
+    if (!takeRelic(it.id) && G.screen !== 'relic') return;
+    G.items.splice(i, 1);
+    return;
+  }
   G.items.splice(i, 1);
   if (it.kind === 'gold') { p.gold += it.amount; say(`금화 ${it.amount}닢.`, 'good'); return; }
   if (it.kind === 'key')  { p.keys++; say(`녹슨 열쇠를 주웠다. (${p.keys})`, 'good'); return; }
@@ -1028,11 +1154,18 @@ function openChest(index, chest) {
   fx({ t:'chest', x:chest.x, y:chest.y });
   say('상자를 열었다.', 'good');
 
-  const gold = chest.gold || 0;
+  // 도굴꾼의 장갑: everything in the box, twice. The cost is
+  // paid in every trap you no longer see coming.
+  const twice = hasRelic('glove');
+  const gold = Math.round((chest.gold || 0) * (twice ? 2 : 1));
   if (gold) { p.gold += gold; say(`금화 ${gold}닢.`, 'good'); }
   for (const it of chest.loot || []) {
-    addItem(p, it);
-    say(`${it.n}을(를) 얻었다.`, 'good');
+    addItem(p, it, twice && it.kind === 'use' ? 2 : 1);
+    say(`${it.n}을(를) 얻었다.${twice ? ' (장갑이 한 번 더 훑었다)' : ''}`, 'good');
+  }
+  if (twice) {
+    const extra = pickItem(G.depth + 2);
+    if (extra) { addItem(p, extra); say(`${extra.n}도 딸려 나왔다.`, 'good'); }
   }
 }
 
@@ -1107,6 +1240,38 @@ function playerAttack(m) {
       drainLife(spill);
     }
   }
+
+  /* 메아리의 종. Deliberately placed last, after 연쇄 and 흡혈,
+     so the second swing runs the whole chain again — a long
+     streak with the right two suffixes turns one tap into a
+     room-clearing cascade. That is the absurd combination this
+     relic exists to make possible. */
+  if (hasRelic('echo') && G.combo >= relicVal('echo')
+      && G.monsters.includes(m) && !p.echoing) {
+    p.echoing = true;
+    fx({ t:'arc', fx:p.x, fy:p.y, tx:m.x, ty:m.y });
+    say('종이 한 번 더 울렸다.', 'level');
+    playerAttack(m);
+    p.echoing = false;
+  }
+}
+
+/* Relics that pay on a kill. 굶주린 칼날 is the aggression
+   engine — it out-heals a room only if you keep killing — and
+   뼈 목걸이 is the slow one, worth taking early or not at all. */
+function onKill(m) {
+  const p = G.player;
+  if (hasRelic('hunger') && p.hp < p.maxhp) {
+    const got = Math.min(p.maxhp - p.hp, relicVal('hunger'));
+    p.hp += got;
+    fx({ t:'drain', x:p.x, y:p.y, amt:got });
+  }
+  if (hasRelic('bone') && (p.boneHp || 0) < 30) {
+    p.boneHp = (p.boneHp || 0) + 1;
+    recalc(p);
+    p.hp += 1;
+    if (p.boneHp % 10 === 0) say(`뼈 목걸이가 무거워진다. (최대 체력 +${p.boneHp})`, 'level');
+  }
 }
 
 function adjacentMonsters(from) {
@@ -1170,7 +1335,8 @@ export function hurtMonster(m, dmg, source, opt = {}) {
     fx({ t:'kill', x:m.x, y:m.y, spr:m.spr, dmg, crit:!!opt.crit, over, boss:!!m.boss, combo:G.combo });
     say(`${m.n}이(가) 쓰러졌다. (+${m.xp} 경험치)`, 'good');
     if (m.elite?.length) dropElite(m);
-    gainXp(m.xp);
+    onKill(m);
+    gainXp(Math.round(m.xp * (G.branch?.xp || 1)));
     if (m.boss) victory();
   } else {
     fx({ t:'hit', on:'monster', x:m.x, y:m.y, dmg, crit:!!opt.crit, sneak:!!opt.sneak, spr:m.spr });
@@ -1181,9 +1347,27 @@ export function hurtMonster(m, dmg, source, opt = {}) {
   }
 }
 
-/* An elite always leaves something with a name on it. */
+/* Relics never repeat within a run — a second 뼈 목걸이 is not a
+   choice, it is filler. */
+export function unownedRelic() {
+  const held = new Set(G.player?.relics || []);
+  const pool = RELICS.filter(r => !held.has(r.id));
+  return pool.length ? pool[rnd(pool.length)].id : null;
+}
+
+/* An elite always leaves something with a name on it — and one
+   in five leaves the thing that changes the run instead. */
 function dropElite(m) {
   const spot = { x: m.x, y: m.y };
+  if (Math.random() < 0.22) {
+    const id = unownedRelic();
+    if (id) {
+      G.items.push({ kind:'relic', id, spr: relicById(id).spr, n: relicById(id).n, ...spot });
+      say(`${relicById(id).n}이(가) 굴러떨어졌다.`, 'level');
+      fx({ t:'drop', x: spot.x, y: spot.y, relic:true });
+      return;
+    }
+  }
   const it = pickItem(G.depth + 4);
   if (!it) return;
   rollAffixes(it, G.depth + 8, true);
@@ -1209,13 +1393,41 @@ function gainXp(n) {
   }
 }
 
+/* ── the fork ─────────────────────────────────────────────
+   Two staircases, both described in advance. This is where a
+   run stops being a straight line: the same character comes out
+   of floor 9 rich and fragile or poor and armoured depending on
+   six of these. Every branch that gives also takes, or it is not
+   a choice — it is a reward.
+
+   The town and the boss floor get no fork: one has nothing to
+   trade and the other is not a place you pick your way into. */
 export function descend() {
   const L = G.level, p = G.player;
   if (L.tiles[idx(p.x, p.y)] !== DOWN) { say('여기엔 내려가는 계단이 없다.'); return; }
   if (G.depth >= MAX_DEPTH) { say('이 아래로는 아무것도 없다.'); return; }
-  enterDepth(G.depth + 1);
+  if (G.depth + 1 >= MAX_DEPTH || G.depth === 0) { takeStairs(BRANCHES[0]); return; }
+
+  const pool = BRANCHES.slice(1).filter(b => !(b.id === 'rush' && G.depth < 3));
+  const a = pool.splice(rnd(pool.length), 1)[0];
+  const b = pool.splice(rnd(pool.length), 1)[0];
+  // Plain is always on the table. A fork with no safe road is a
+  // toll, not a decision.
+  G.pendingBranch = [BRANCHES[0], a, b].slice(0, 3);
+  G.screen = 'stairs';
+}
+
+export function chooseBranch(id) {
+  const b = BRANCHES.find(x => x.id === id) || BRANCHES[0];
+  G.pendingBranch = null;
+  G.screen = 'play';
+  takeStairs(b);
+}
+
+function takeStairs(branch) {
+  enterDepth(G.depth + 1, false, branch);
   say(G.depth === MAX_DEPTH ? '공기가 뜨겁다. 무언가 커다란 것이 숨쉬고 있다.'
-                            : `던전 ${G.depth}층.`, 'warn');
+                            : `던전 ${G.depth}층 — ${branch.n}.`, 'warn');
   endTurn(true);
 }
 
@@ -1239,12 +1451,15 @@ export function endTurn(skipMonsters = false) {
   if (G.comboT > 0 && --G.comboT === 0) breakCombo(true);
 
   if (G.depth > 0) {
-    p.food--;
-    p.lightTurns--;
+    const drain = (G.branch?.drain || 1) * (hasRelic('hunger') ? 2 : 1);
+    p.food -= drain;
+    p.lightTurns -= drain;
     if (p.food === 200) say('배가 고프다.', 'warn');
     if (p.food <= 0) { p.food = 0; if (G.turn % 12 === 0) { p.hp -= 1; if (p.hp <= 0) return death({ n:'굶주림' }); } }
     if (p.lightTurns === 100) say('횃불이 사그라든다.', 'warn');
     if (p.lightTurns < 0) p.lightTurns = 0;
+    G.floorTurn++;
+    pressure();
   }
 
   tickAilments(p);
@@ -1259,6 +1474,73 @@ export function endTurn(skipMonsters = false) {
   if (G.depth > 0) scanForTraps();
   if (!skipMonsters) runMonsters();
   refreshFov();
+  readIntents();
+}
+
+/* ── the clock ────────────────────────────────────────────
+   Vampire Survivors' actual design is not the weapons, it is
+   the timer: the screen fills whether you are ready or not, so
+   power has to arrive faster than pressure does. A dungeon with
+   no clock lets a patient player rest away every mistake, which
+   is exactly the "too easy, too slow" this floor plan had.
+
+   The budget is generous — you can clear a floor properly and
+   never see a wave. Overstay and the floor starts feeding, each
+   wave a little stronger than the last, and they arrive awake
+   and knowing where you are. Nothing here kills you outright.
+   It just makes standing still the losing move. */
+export function floorBudget() {
+  return Math.max(60, Math.round(
+    FLOOR_BUDGET(G.depth) * (G.branch?.clock || 1) * (hasRelic('thief') ? 0.65 : 1)));
+}
+
+export const pressureLevel = () => {
+  const over = G.floorTurn - floorBudget();
+  return over <= 0 ? 0 : 1 + Math.floor(over / WAVE_EVERY);
+};
+
+function pressure() {
+  const over = G.floorTurn - floorBudget();
+  if (over < 0) return;
+  if (over === 0) {
+    say('발밑에서 무언가 깨어난다. 이 층은 더 이상 안전하지 않다.', 'hit');
+    fx({ t:'noise', x:G.player.x, y:G.player.y });
+    return;
+  }
+  if (over % WAVE_EVERY) return;
+  spawnWave();
+}
+
+function spawnWave() {
+  const L = G.level, p = G.player;
+  G.waves++;
+  const grow = 1 + WAVE_GROWTH * G.waves;
+  const count = 1 + (G.waves >= 4 ? 1 : 0);
+  let born = 0;
+  for (let i = 0; i < count; i++) {
+    // Far enough away to be a warning rather than an ambush.
+    let spot = null;
+    for (let t = 0; t < 60 && !spot; t++) {
+      const s = L.randomFloor((x, y) => monsterAt(x, y) || (p.x === x && p.y === y));
+      if (!s) break;
+      if (Math.hypot(s.x - p.x, s.y - p.y) < 9) continue;
+      spot = s;
+    }
+    if (!spot) continue;
+    const m = pickMonster(Math.min(MAX_DEPTH, G.depth + 1));
+    m.hp = Math.round(m.hp * grow);
+    m.atk = Math.round(m.atk * grow);
+    m.maxhp = m.hp;
+    Object.assign(m, { x: spot.x, y: spot.y, awake: true, energy: 0 });
+    if (Math.random() < eliteChance(G.depth) * 1.5) makeElite(m, G.depth);
+    m.maxhp = m.hp;
+    G.monsters.push(m);
+    born++;
+  }
+  if (born) {
+    say(`심연이 ${born === 1 ? '하나' : '둘'}를 더 게워냈다. (${G.waves}번째)`, 'hit');
+    fx({ t:'noise', x:p.x, y:p.y });
+  }
 }
 
 /* Speed is an energy budget rather than a turn order: a wolf at
@@ -1333,7 +1615,22 @@ function monsterTurn(m) {
   // Webs hold everything that did not spin them.
   if (m.snared > 0 && !m.web) { m.snared--; return; }
 
-  if (dist2 <= 2) { monsterMelee(m); return; }
+  /* Heavy hitters wind up. One turn of nothing, then a blow
+     worth two and a half — which is the turn the player gets to
+     step back, shut a door, drink, or decide the trade is worth
+     it anyway. Without the pause an elite is just a bigger
+     number; with it, it is a problem to solve. */
+  if (dist2 <= 2) {
+    if (m.heavy && !m.wind) {
+      m.wind = 1;
+      say(`${m.n}이(가) 크게 팔을 당긴다.`, 'warn');
+      fx({ t:'wake', x:m.x, y:m.y });
+      return;
+    }
+    monsterMelee(m);
+    return;
+  }
+  m.wind = 0;                           // lost the swing; must wind up again
 
   /* Archers keep their distance: they shoot from range, back off
      when you close, and only advance when they have lost you.  */
@@ -1358,24 +1655,36 @@ function monsterTurn(m) {
 function monsterMelee(m) {
   const p = G.player;
   const ac = armourClass(p);
+  const heavy = m.wind > 0;
+  m.wind = 0;
   const chance = clamp(0.24 + (m.atk * 1.45 - ac * 1.75) / 62, 0.06, 0.90);
   if (Math.random() > chance) {
-    say(`${m.n}의 공격이 빗나갔다.`);
+    say(`${m.n}의 ${heavy ? '내리친 일격이' : '공격이'} 빗나갔다.`);
     fx({ t:'miss', x:p.x, y:p.y });
     return;
   }
-  const dmg = Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.72))) - Math.floor(ac / 5));
+  const dmg = Math.max(1, Math.round(
+    (roll(2, Math.max(3, Math.floor(m.atk * 0.72))) - Math.floor(ac / 5)) * (heavy ? 2.5 : 1)));
   p.hp -= dmg;
   breakCombo(false);
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        severe: dmg >= p.maxhp * 0.18 });
-  say(`${m.n}이(가) ${dmg}의 피해를 입혔다.`, 'hit');
+  say(`${m.n}이(가) ${heavy ? '내리쳐 ' : ''}${dmg}의 피해를 입혔다.`, 'hit');
   if (m.drain) {                       // 흡혈하는: it heals off you
     const back = Math.max(1, Math.round(dmg * m.drain));
     m.hp = Math.min(m.maxhp, m.hp + back);
   }
   if (m.on && Math.random() < 0.28) afflict(p, m.on, 9 + rnd(9));
+  reflect(m, dmg);
   if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death(m); }
+}
+
+/* 거울 방패. Deliberately placed after the damage is applied, so
+   a reflected killing blow still trades — you both go down. */
+function reflect(m, dmg) {
+  if (!hasRelic('mirror') || !G.monsters.includes(m)) return;
+  const back = Math.max(1, Math.round(dmg * relicVal('mirror')));
+  hurtMonster(m, back, '거울 방패');
 }
 
 function monsterShoot(m) {
@@ -1395,6 +1704,7 @@ function monsterShoot(m) {
        severe: dmg >= p.maxhp * 0.18 });
   say(`${m.n}이(가) 멀리서 ${dmg}의 피해를 입혔다.`, 'hit');
   if (m.on && Math.random() < 0.22) afflict(p, m.on, 8 + rnd(8));
+  reflect(m, dmg);
   if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death(m); }
 }
 
@@ -1428,6 +1738,40 @@ function advance(m, sx, sy) {
 }
 
 const retreat = m => advance(m, Math.sign(m.x - G.player.x), Math.sign(m.y - G.player.y));
+
+/* ── intent ───────────────────────────────────────────────
+   The one idea worth stealing wholesale from Slay the Spire.
+   A fight you cannot read is a dice roll; a fight where every
+   enemy announces next turn is a puzzle — step back, shut the
+   door, drink now or swing now. This mirrors the branches in
+   monsterTurn above without touching a thing, so what the icon
+   promises is what the monster does.
+
+   Keep the two in step: any new branch up there needs a line
+   down here, or the telegraph starts lying. */
+export function predictIntent(m) {
+  if (!m.awake || m.disguise) return null;
+  const p = G.player, L = G.level;
+  const dx = p.x - m.x, dy = p.y - m.y;
+  const dist2 = dx * dx + dy * dy, dist = Math.sqrt(dist2);
+
+  if (m.snared > 0 && !m.web) return 'held';
+  if (m.wind > 0) return 'heavy';
+  if (dist2 <= 2) return m.heavy ? 'wind' : (m.on ? 'hex' : 'melee');
+  if (m.ai === 'still') return 'watch';
+  if (m.ai === 'ranged' && m.rng
+      && dist <= m.rng && dist >= 2.5 && lineClear(L, m.x, m.y, p.x, p.y)) return 'shoot';
+  if ((m.ai === 'coward' || m.fleeing) && m.hp < m.maxhp * 0.35) return 'flee';
+  if (m.ai === 'erratic') return 'erratic';
+  return 'close';
+}
+
+/* Recomputed once per player turn rather than per monster act,
+   because what the player needs is the state of the board when
+   it is their move again. */
+function readIntents() {
+  for (const m of G.monsters) m.intent = predictIntent(m);
+}
 
 /* ── the fire ─────────────────────────────────────────────
    One per floor, one choice, no take-backs. Rest is the safe
@@ -1587,10 +1931,25 @@ function pickAffixFor(table, tag, cursed) {
 
 function spendCamp() {
   const L = G.level, p = G.player;
-  if (L.tiles[idx(p.x, p.y)] === CAMP) L.tiles[idx(p.x, p.y)] = FLOOR;
-  L.campSpent = true;
+  G.campUses = Math.max(0, (G.campUses || 1) - 1);
+  if (G.campUses > 0) {
+    say(`불씨 항아리 덕에 불이 아직 살아 있다. (${G.campUses}회 남음)`, 'good');
+  } else if (L.tiles[idx(p.x, p.y)] === CAMP) {
+    L.tiles[idx(p.x, p.y)] = FLOOR;
+    L.campSpent = true;
+  }
   G.screen = 'play';
   endTurn();
+}
+
+/* Walking away without spending it. There was no way out of the
+   fire screen at all, which meant arriving at full health with
+   no materials forced you to burn the one real decision on the
+   floor for nothing. The fire keeps: come back when it is worth
+   something. */
+export function leaveCamp() {
+  G.screen = 'play';
+  say('불은 그대로 두고 물러났다.');
 }
 
 /* ── the altar ────────────────────────────────────────────
@@ -1684,6 +2043,13 @@ function grantBoon(result, weight) {
   if (result === '허탕') { say('아무 일도 일어나지 않았다.', ''); return; }
 
   if (result === '대성공') {
+    /* Half of every jackpot is a relic. This is the luck route
+       to a run-defining item — the reason to bleed on a stone
+       when you already have a good sword. */
+    if (Math.random() < 0.5) {
+      const id = unownedRelic();
+      if (id) { takeRelic(id); return; }
+    }
     const pick = rnd(3);
     if (pick === 0) {
       const it = pickItem(d + 8);
@@ -1819,6 +2185,8 @@ export function startGame(raceKey, classKey, base) {
   G.log = []; G.turn = 0; G.running = true; G.ending = null;
   G.fx = []; G.combo = 0; G.comboT = 0; G.bestCombo = 0;
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0;
+  G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
+  G.floorTurn = 0; G.waves = 0; G.campUses = 1;
   shuffleAppearances(G.player);
   enterDepth(0);
   say('마을. 여섯 개의 문이 열려 있고, 광장 한가운데에 계단이 있다.', 'warn');

@@ -145,19 +145,36 @@ export const PATTERNS = {
    Two mid-bosses and the emperor. A floor you *know* has a
    named thing on it is a floor you approach differently, and
    the patterns are the reason the approach matters. */
+/* Set against the surveyed hero at each depth rather than by
+   feel. On floor 5 that hero is level 6 with 79 health and deals
+   15 a turn; on 15 it is level 28 with 341 and deals 41. A named
+   thing should take ten turns to bring down and be able to kill
+   a careless hero in five.
+
+   The emperor is sized by staging the fight rather than by
+   arithmetic: a hero at each power level the survey says can
+   arrive on floor 15, dropped in a room with it, thirty times.
+   900/60 was unwinnable at every level; 620/38 was won thirty
+   times out of thirty from level 20 up, which is not a final
+   boss. 780/46 sits where a level-18 hero with no upgrades
+   loses about half the time and a well-built one wins.
+
+   That lab result is generous by construction — full health, a
+   pocket of potions, an empty room and no clock. Arriving on
+   floor 15 in that shape is the actual test. */
 export const NAMED = [
-  { at:5,  spr:'ogre',  n:'뼈를 씹는 자', hp:210, atk:24, ac:16, xp:900,
+  { at:5,  spr:'ogre',  n:'뼈를 씹는 자', hp:150, atk:13, ac:14, xp:700,
     ai:'hunt', spd:0.9, door:'smash', regen:2, heavy:true, named:true,
     casts:['quake', 'zone'], cool:5,
     intro:'무언가 커다란 것이 이 층에서 기다리고 있다.' },
-  { at:10, spr:'wraith', n:'재 속의 사제', hp:340, atk:33, ac:22, xp:2200,
+  { at:10, spr:'wraith', n:'재 속의 사제', hp:300, atk:26, ac:22, xp:1800,
     ai:'hunt', spd:1.1, on:'fear', door:'open', regen:3, heavy:true, named:true,
     casts:['cross', 'wave'], cool:4,
     intro:'차가운 것이 이 층의 공기를 마시고 있다.' },
 ];
 
 export const BOSS = {
-  spr:'balemperor', n:'잿불의 대군주', hp:700, atk:46, ac:30, xp:6000,
+  spr:'balemperor', n:'잿불의 대군주', hp:780, atk:46, ac:30, xp:5000,
   ai:'hunt', spd:1.15, on:'fear', door:'smash', regen:4, boss:true, heavy:true,
   casts:['beam', 'wave', 'zone', 'quake'], cool:3,
 };
@@ -269,24 +286,42 @@ export const SCROLL_LOOKS = [
   '봉인된', '찢어진', '금박', '낡은', '붉은 인장', '기호가 적힌', '피로 쓴', '눅눅한',
 ];
 
+/* `desc` is what it does, in numbers, once you know what it is.
+   Every identified flask showed "사용 가능" — which is to say,
+   the game hid the effect twice: before identification because
+   that is the gamble, and after identification for no reason at
+   all. The second one was just missing text. */
 export const CONSUMABLES = [
-  { id:'potHeal',  spr:'potion', n:'치유의 물약',     d:0,  cost:22,  rar:12, use:'heal' },
-  { id:'potCure',  spr:'potion', n:'중상 치유 물약',  d:5,  cost:90,  rar:7,  use:'bigHeal' },
-  { id:'potMana',  spr:'potion', n:'정신의 물약',     d:2,  cost:60,  rar:8,  use:'mana' },
-  { id:'scrMap',   spr:'scroll', n:'지도 두루마리',   d:2,  cost:70,  rar:8,  use:'map' },
-  { id:'scrTele',  spr:'scroll', n:'전이 두루마리',   d:3,  cost:80,  rar:8,  use:'teleport' },
-  { id:'scrFlee',  spr:'scroll', n:'탈출의 두루마리', d:3,  cost:120, rar:7,  use:'flee' },
-  { id:'torch',    spr:'torch',  n:'횃불',            d:0,  cost:14,  rar:12, use:'torch' },
+  { id:'potHeal',  spr:'potion', n:'치유의 물약',     d:0,  cost:22,  rar:12, use:'heal',
+    desc:'체력 20 + 2d8 + 레벨×2 회복' },
+  { id:'potCure',  spr:'potion', n:'중상 치유 물약',  d:5,  cost:90,  rar:7,  use:'bigHeal',
+    desc:'최대 체력의 60% + 3d10 회복' },
+  { id:'potMana',  spr:'potion', n:'정신의 물약',     d:2,  cost:60,  rar:8,  use:'mana',
+    desc:'최대 마나의 50% + 1d6 회복' },
+  { id:'scrMap',   spr:'scroll', n:'지도 두루마리',   d:2,  cost:70,  rar:8,  use:'map',
+    desc:'이 층의 지형이 전부 드러난다' },
+  { id:'scrTele',  spr:'scroll', n:'전이 두루마리',   d:3,  cost:80,  rar:8,  use:'teleport',
+    desc:'이 층의 무작위 지점으로 날아간다' },
+  { id:'scrFlee',  spr:'scroll', n:'탈출의 두루마리', d:3,  cost:120, rar:7,  use:'flee',
+    desc:'선 자리에서 즉시 한 층 내려간다 (갈림길 없음)' },
+  { id:'torch',    spr:'torch',  n:'횃불',            d:0,  cost:14,  rar:12, use:'torch',
+    desc:'기름 +900 (최대 2600)' },
 
   /* Only ever found, never stocked — the merchant will not sell
      you something he cannot name either. Half of these are worth
      drinking and half are not, which is the point. */
-  { id:'potMight', spr:'potion', n:'격노의 물약',   d:2, cost:110, rar:6, use:'might',   found:true },
-  { id:'potIron',  spr:'potion', n:'무쇠의 물약',   d:3, cost:110, rar:6, use:'iron',    found:true },
-  { id:'potVenom', spr:'potion', n:'독의 물약',     d:1, cost:20,  rar:7, use:'venom',   found:true },
-  { id:'potMurk',  spr:'potion', n:'혼탁의 물약',   d:2, cost:20,  rar:6, use:'murk',    found:true },
-  { id:'scrForge', spr:'scroll', n:'제련의 두루마리', d:4, cost:200, rar:5, use:'forge',  found:true },
-  { id:'scrHex',   spr:'scroll', n:'저주의 두루마리', d:2, cost:20,  rar:5, use:'hex',    found:true },
+  { id:'potMight', spr:'potion', n:'격노의 물약',   d:2, cost:110, rar:6, use:'might',   found:true,
+    desc:'40턴 동안 피해 +60%' },
+  { id:'potIron',  spr:'potion', n:'무쇠의 물약',   d:3, cost:110, rar:6, use:'iron',    found:true,
+    desc:'40턴 동안 방어 +10' },
+  { id:'potVenom', spr:'potion', n:'독의 물약',     d:1, cost:20,  rar:7, use:'venom',   found:true,
+    desc:'2d5 + 깊이 피해를 입고 20턴 중독 — 나쁜 물약' },
+  { id:'potMurk',  spr:'potion', n:'혼탁의 물약',   d:2, cost:20,  rar:6, use:'murk',    found:true,
+    desc:'22턴 실명, 시야가 한 칸 — 나쁜 물약' },
+  { id:'scrForge', spr:'scroll', n:'제련의 두루마리', d:4, cost:200, rar:5, use:'forge',  found:true,
+    desc:'착용 중인 물건 하나가 +1 (최대 +5)' },
+  { id:'scrHex',   spr:'scroll', n:'저주의 두루마리', d:2, cost:20,  rar:5, use:'hex',    found:true,
+    desc:'착용 중인 물건 하나에 저주가 붙는다 — 나쁜 두루마리' },
 ];
 
 /* Which item ids hide behind an appearance until you try them. */
@@ -589,6 +624,25 @@ export const FLOOR_BUDGET = d => 320 - d * 8;   // 15층 = 200턴
 export const WAVE_EVERY   = 16;
 export const WAVE_GROWTH  = 0.13;               // 파도마다 능력치 +13%
 
-/* ── curves ───────────────────────────────────────────────*/
-export const xpToLevel = lv => Math.floor(10 * Math.pow(lv, 1.78));
+/* ── curves ───────────────────────────────────────────────
+   The single number that decided this game was too easy. At
+   10·lv^1.78 a run hit the level cap on floor 12 of 15: max
+   health 554 against a bestiary whose deepest thing has 143,
+   which meant one swing killed anything and forty swings were
+   needed to kill you. Every system layered on top of that — the
+   clock, the patterns, the elites — was a bandage on an
+   arithmetic problem.
+
+   2.28 lands the same total experience at roughly level 22 by
+   the boss instead of 50 by floor 12, so the bestiary and the
+   hero stay in the same conversation for the whole descent.
+   The exponent is what matters; the coefficient was then set so
+   that the hero is level 7 arriving on floor 5, which is where
+   the bestiary steps up (검은 오크 and wolf packs) and where
+   most deaths were landing.
+
+   Cumulative, not per-level: gainXp compares the running total
+   against this, it does not subtract. */
+export const MAX_LEVEL = 30;
+export const xpToLevel = lv => Math.floor(6 * Math.pow(lv, 2.28));
 export const statBonus = v => Math.floor((v - 10) / 2);

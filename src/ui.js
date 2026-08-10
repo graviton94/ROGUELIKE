@@ -1167,7 +1167,8 @@ function renderShop() {
     mid.appendChild(nameEl(item));
     mid.appendChild(el('span', 'idesc',
       item.kind === 'weapon' ? `${WEAPON_TYPES[item.t]?.n || ''} ${item.dice[0]}d${item.dice[1]}${item.hands === 2 ? ' · 양손' : ''}`
-      : item.kind === 'armour' ? `방어 +${item.ac}` : ''));
+      : item.kind === 'armour' ? `방어 +${item.ac}`
+      : (item.desc || '')));
     row.appendChild(mid);
     row.appendChild(el('span', 'iact', `${cost}g`));
     row.onclick = () => {

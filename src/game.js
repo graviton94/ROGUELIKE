@@ -3,7 +3,7 @@
    ═══════════════════════════════════════════════════════════ */
 
 import {
-  MAX_DEPTH, STATS, STAT_NAME, RACES, CLASSES, SPELLS, MONSTERS, BOSS, mimicFor,
+  MAX_DEPTH, MAX_LEVEL, STATS, STAT_NAME, RACES, CLASSES, SPELLS, MONSTERS, BOSS, mimicFor,
   WEAPONS, ARMOURS, CONSUMABLES, SHOPS, AILMENTS, IMMUNE, TRAPS,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, ELITES, affixName,
   MATS, salvageYield, upgradeCost, ENCHANT_COST, REROLL_COST,
@@ -816,9 +816,18 @@ function populate(depth) {
      on arrival, because a floor you know holds one is a floor you
      walk differently — and the patterns are the reason walking
      differently matters. */
+  /* A named thing waits on two floors on the way down, and it
+     waits somewhere you do not have to go. Putting it in the
+     stairs room made it a toll rather than a decision — the
+     arrival message announces it, so the player can weigh the
+     relic against the fight and walk the other way. */
   const named = NAMED.find(n => n.at === depth);
   if (named) {
-    const spot = L.openSpot(L.downRoom || L.rooms[L.rooms.length - 1], busy);
+    const banned = new Set([L.roomOf[idx(G.player.x, G.player.y)],
+                            L.downRoom ? L.rooms.indexOf(L.downRoom) : -1]);
+    const away = L.rooms.filter((r, i) => !banned.has(i));
+    const room = (away.length ? away : L.rooms)[rnd(Math.max(1, away.length || L.rooms.length))];
+    const spot = L.openSpot(room, busy);
     if (spot) {
       G.monsters.push({ ...named, maxhp: named.hp, x: spot.x, y: spot.y, awake: false, energy: 0 });
       say(named.intro, 'hit');
@@ -830,7 +839,13 @@ function populate(depth) {
      across a floor, and it is the problem doors are for. */
   const br = G.branch || {};
   const mob = G.level.theme?.mob || 1;
-  const budget = Math.round((6 + rnd(5) + Math.floor(depth * 0.9))
+  /* Fewer, heavier. Twelve monsters a floor at two turns each
+     cost more health than every healing source on the floor
+     could return, so runs ended on floor four or five no matter
+     how well an individual fight went. Cutting the count is the
+     lever that makes each fight matter *and* makes the descent
+     survivable — the opposite of raising everyone's health. */
+  const budget = Math.round((4 + rnd(3) + Math.floor(depth * 0.55))
                             * Math.min(mob, 1.35) * (br.mon || 1));
   let placed = 0;
   for (let guard = 0; placed < budget && guard < budget * 4; guard++) {
@@ -924,11 +939,26 @@ function pickMonster(depth) {
   return scaleMonster(pool[0], depth);
 }
 
+/* Two scalings, and they do different jobs.
+
+   `over` is how far past its home depth this thing is being
+   used, and keeps a rat from being a rat forever. `depth` is
+   the floor itself, and is the one that was missing: without
+   it the deepest monster in the book topped out at 143 health
+   against a hero with 554, so the bestiary simply stopped
+   being a threat somewhere around floor 6. */
 function scaleMonster(m, depth) {
   const over = Math.max(0, depth - m.d);
+  /* Kept deliberately mild. The bestiary already ramps hard on
+     its own — five health on floor 1, a hundred and forty on
+     twelve — so a large multiplier on top compounds into a
+     cliff around floor 11 where a single monster trades evenly
+     with the hero and there are eighteen of them. */
+  const deep = 1 + depth * 0.055;
   return { ...m,
-    hp:  Math.round(m.hp  * (1 + over * 0.07)),
-    atk: Math.round(m.atk * (1 + over * 0.05)),
+    hp:  Math.round(m.hp  * (1 + over * 0.10) * deep),
+    atk: Math.round(m.atk * (1 + over * 0.06) * (1 + depth * 0.02)),
+    ac:  Math.round(m.ac  * (1 + depth * 0.025)),
     xp:  Math.round(m.xp  * (1 + over * 0.10)) };
 }
 
@@ -1651,7 +1681,7 @@ function dropElite(m) {
 function gainXp(n) {
   const p = G.player;
   p.xp += Math.round(n / RACES[p.race].xp);
-  while (p.lv < 50 && p.xp >= xpToLevel(p.lv)) {
+  while (p.lv < MAX_LEVEL && p.xp >= xpToLevel(p.lv)) {
     p.lv++;
     const before = p.maxhp;
     recalc(p);
@@ -1741,9 +1771,19 @@ export function endTurn(skipMonsters = false) {
   tickAilments(p);
   if (!G.running) return;
 
-  const regen = Math.max(0, 1 + Math.floor(p.lv / 6)
+  /* Natural recovery is the only healing that scales with the
+     hero, and it was flat enough to be decorative: two points
+     every fourteen turns against a hundred and fifty of health.
+     Clearing a floor cost far more than the floor gave back, so
+     runs ended by attrition on floor four or five regardless of
+     how well any single fight went.
+
+     This does bring resting-to-heal back as a tactic — which is
+     exactly what the floor clock is there to price. The two
+     systems check each other. */
+  const regen = Math.max(0, 1 + Math.floor(p.lv / 4)
     + (p.race === 'halfTroll' ? 1 : 0) + gearBonus(p).regen);
-  if (G.turn % 14 === 0 && p.hp < p.maxhp) p.hp = Math.min(p.maxhp, p.hp + regen);
+  if (G.turn % 8 === 0 && p.hp < p.maxhp) p.hp = Math.min(p.maxhp, p.hp + regen);
   if (G.turn % 10 === 0 && p.mana < p.maxmana) p.mana = Math.min(p.maxmana, p.mana + 1);
 
   refreshFov();
@@ -2242,7 +2282,7 @@ function readIntents() {
    land on top of one you already had. The whole point is that
    at full health the first option is worthless and at 20% it is
    the only sane one. */
-export const CAMP_HEAL = 0.30;
+export const CAMP_HEAL = 0.40;
 export const MAX_PLUS = 5;
 
 export function campTargets() {

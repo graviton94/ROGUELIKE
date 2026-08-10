@@ -368,6 +368,37 @@ export const spellList = p => {
   return realm ? SPELLS[realm].filter(s => s.lv <= p.lv) : [];
 };
 
+/* Spells that do nothing at all without something in sight. */
+const TARGETED = ['bolt', 'smite'];
+
+/* The whole book at once — always the same five, always in the
+   same order, with what is not yet learned shown as a locked
+   frame rather than left out. A row that grows as you level is a
+   row you misfire on, and the point of putting spells on the
+   play screen is that casting stops costing a screen change. */
+export function spellSlots() {
+  const p = G.player;
+  if (!p) return [];
+  const realm = CLASSES[p.cls].realm;
+  if (!realm) return [];
+  const silent = hasRelic('vow');
+  /* A bolt with nothing to shoot at stays dark. The row doubles
+     as a read of the room that way. */
+  const seen = G.level && G.monsters.some(m => G.level.vis[idx(m.x, m.y)]);
+  return SPELLS[realm].map(s => {
+    const locked = s.lv > p.lv;
+    const cost = spellCost(p, s);
+    const noTarget = TARGETED.includes(s.id) && !seen;
+    return {
+      id: s.id, name: s.name, short: s.short || s.name.slice(0, 2),
+      lv: s.lv, cost, locked, silent, noTarget,
+      plus: p.spellPlus?.[s.id] || 0,
+      affix: p.spellAffix?.[s.id] || null,
+      ready: !locked && !silent && !noTarget && p.mana >= cost,
+    };
+  });
+}
+
 /* ── inventory ──────────────────────────────────────────── */
 export const makeConsumable = id => ({ kind:'use', ...CONSUMABLES.find(c => c.id === id) });
 
@@ -621,13 +652,20 @@ export function cast(spellId) {
   if (hasRelic('vow')) { say('서약이 혀를 막는다. 주문은 나오지 않는다.', 'warn'); return; }
   const cost = spellCost(p, sp);
   if (p.mana < cost) { say('마나가 모자란다.', 'warn'); return; }
-  p.mana -= cost;
-  const pow = spellPower(p, sp.id);
-  const aff = SPELL_AFFIXES.find(a => a.id === p.spellAffix?.[sp.id]);
 
   const visible = G.monsters.filter(m => G.level.vis[idx(m.x, m.y)]);
   const nearest = visible.sort((a, b) =>
     Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
+
+  /* Checked *before* the mana leaves the pool. A spell that has
+     nothing to hit used to still cost the mana and the turn, and
+     one-tap casting would have turned that from a rare slip into
+     a routine one. */
+  if (TARGETED.includes(sp.id) && !nearest) { say('시야에 적이 없다.', 'warn'); return; }
+
+  p.mana -= cost;
+  const pow = spellPower(p, sp.id);
+  const aff = SPELL_AFFIXES.find(a => a.id === p.spellAffix?.[sp.id]);
 
   switch (sp.id) {
     case 'bolt':

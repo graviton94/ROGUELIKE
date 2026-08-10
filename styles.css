@@ -295,6 +295,24 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 #acts .quick button:disabled { opacity: .3; }
 #acts .quick button:disabled b { color: var(--G); }
 #acts .pair button { flex: 1 1 0; text-align: center; padding: 9px 4px; font-size: 10.5px; }
+/* Five frames, one per spell, in book order and never in any
+   other. A locked slot is a dead frame rather than a gap, so the
+   position of 서리 폭발 is the same at level 1 as at level 30.
+   Declared after `.pair button` on purpose — same specificity,
+   so the later rule is the one that lands. */
+#acts .spells button {
+  flex: 1 1 0; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 1px; padding: 3px 1px;
+  font-size: 8.5px; line-height: 1; text-align: center; overflow: hidden;
+}
+#acts .spells canvas { width: 15px; height: 15px; flex: 0 0 auto; }
+#acts .spells .sn { white-space: nowrap; overflow: hidden; }
+#acts .spells b { color: var(--B); font-size: 8.5px; margin-left: 2px; }
+/* Three shades of "no": not learned, learned but cold (no mana
+   or nothing to aim at), and live. */
+#acts .spells button.locked { opacity: .22; }
+#acts .spells button.cold { opacity: .45; }
+#acts .spells button.cold b { color: var(--G); }
 #acts .ghost { color: var(--g); border-color: var(--d); }
 #acts button[hidden] { display: none; }
 /* Dead rather than gone — see refresh() in ui.js. It has to keep

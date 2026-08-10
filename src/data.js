@@ -42,18 +42,18 @@ export const CLASSES = {
    Unlocked by class level; cost mana.                       */
 export const SPELLS = {
   arcane: [
-    { id:'bolt',   name:'마력 화살',   lv:1,  cost:1,  desc:'시야의 적 하나에게 마력을 쏜다.' },
-    { id:'blink',  name:'점멸',        lv:3,  cost:2,  desc:'가까운 곳으로 순간 이동한다.' },
-    { id:'detect', name:'생명 탐지',   lv:5,  cost:3,  desc:'층의 모든 몬스터 위치를 읽는다.' },
-    { id:'frost',  name:'서리 폭발',   lv:9,  cost:6,  desc:'주변 모든 적을 얼려 찢는다.' },
-    { id:'map',    name:'지형 파악',   lv:13, cost:8,  desc:'이 층의 지도를 기억해 낸다.' },
+    { id:'bolt',   name:'마력 화살',   short:'화살', lv:1,  cost:1,  desc:'시야의 적 하나에게 마력을 쏜다.' },
+    { id:'blink',  name:'점멸',        short:'점멸', lv:3,  cost:2,  desc:'가까운 곳으로 순간 이동한다.' },
+    { id:'detect', name:'생명 탐지',   short:'탐지', lv:5,  cost:3,  desc:'층의 모든 몬스터 위치를 읽는다.' },
+    { id:'frost',  name:'서리 폭발',   short:'서리', lv:9,  cost:6,  desc:'주변 모든 적을 얼려 찢는다.' },
+    { id:'map',    name:'지형 파악',   short:'지도', lv:13, cost:8,  desc:'이 층의 지도를 기억해 낸다.' },
   ],
   divine: [
-    { id:'cure',   name:'경상 치유',   lv:1,  cost:1,  desc:'상처를 닫는다.' },
-    { id:'bless',  name:'축복',        lv:3,  cost:2,  desc:'잠시 명중과 방어가 오른다.' },
-    { id:'detect', name:'악 감지',     lv:5,  cost:3,  desc:'층의 모든 몬스터 위치를 읽는다.' },
-    { id:'smite',  name:'응징의 빛',   lv:9,  cost:5,  desc:'시야의 적 하나를 빛으로 태운다.' },
-    { id:'heal',   name:'중상 치유',   lv:13, cost:8,  desc:'깊은 상처까지 되돌린다.' },
+    { id:'cure',   name:'경상 치유',   short:'치유', lv:1,  cost:1,  desc:'상처를 닫는다.' },
+    { id:'bless',  name:'축복',        short:'축복', lv:3,  cost:2,  desc:'잠시 명중과 방어가 오른다.' },
+    { id:'detect', name:'악 감지',     short:'감지', lv:5,  cost:3,  desc:'층의 모든 몬스터 위치를 읽는다.' },
+    { id:'smite',  name:'응징의 빛',   short:'응징', lv:9,  cost:5,  desc:'시야의 적 하나를 빛으로 태운다.' },
+    { id:'heal',   name:'중상 치유',   short:'회복', lv:13, cost:8,  desc:'깊은 상처까지 되돌린다.' },
   ],
 };
 

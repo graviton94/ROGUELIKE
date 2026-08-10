@@ -10,7 +10,7 @@ import {
   PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName, MATS, ENCHANT_COST, REROLL_COST,
   RARITY, CURSED_TONE, rarityOf, isCursed,
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
-  MONSTERS, BRANCHES,
+  MONSTERS, BRANCHES, SPELLS,
   xpToLevel, statBonus,
 } from './data.js';
 import { EVENTS } from './events.js';
@@ -534,6 +534,93 @@ function cross(c, x, y, r) {
   }
 }
 
+/* ── spell glyphs ───────────────────────────────────────────
+   Same reasoning as the intent marks: drawn, not typed. These
+   sit on the play screen at 15px, so they are read as silhouettes
+   — one is a plus, one is a flake, one is an eye — and the short
+   name under each carries the rest. */
+function plus(c, x, y, r) {
+  const w = r * 0.34;
+  c.moveTo(x - w, y - r); c.lineTo(x + w, y - r); c.lineTo(x + w, y - w);
+  c.lineTo(x + r, y - w); c.lineTo(x + r, y + w); c.lineTo(x + w, y + w);
+  c.lineTo(x + w, y + r); c.lineTo(x - w, y + r); c.lineTo(x - w, y + w);
+  c.lineTo(x - r, y + w); c.lineTo(x - r, y - w); c.lineTo(x - w, y - w);
+  c.closePath();
+}
+function flake(c, x, y, r) {
+  const w = r * 0.15;
+  for (let i = 0; i < 3; i++) {
+    const a = i * Math.PI / 3, dx = Math.cos(a), dy = Math.sin(a);
+    c.moveTo(x - dx * r - dy * w, y - dy * r + dx * w);
+    c.lineTo(x + dx * r - dy * w, y + dy * r + dx * w);
+    c.lineTo(x + dx * r + dy * w, y + dy * r - dx * w);
+    c.lineTo(x - dx * r + dy * w, y - dy * r - dx * w);
+    c.closePath();
+  }
+}
+function zigzag(c, x, y, r) {
+  c.moveTo(x + r * 0.55, y - r);
+  c.lineTo(x - r * 0.6,  y + r * 0.14);
+  c.lineTo(x - r * 0.05, y + r * 0.14);
+  c.lineTo(x - r * 0.5,  y + r);
+  c.lineTo(x + r * 0.62, y - r * 0.2);
+  c.lineTo(x + r * 0.06, y - r * 0.2);
+  c.closePath();
+}
+function grid(c, x, y, r) {
+  const w = r * 0.2;
+  c.moveTo(x - r, y - r); c.lineTo(x + r, y - r);
+  c.lineTo(x + r, y + r); c.lineTo(x - r, y + r); c.closePath();
+  // wound the other way so the middle punches out
+  c.moveTo(x - r + w, y - r + w); c.lineTo(x - r + w, y + r - w);
+  c.lineTo(x + r - w, y + r - w); c.lineTo(x + r - w, y - r + w); c.closePath();
+  c.moveTo(x - w * 0.5, y - r + w); c.lineTo(x + w * 0.5, y - r + w);
+  c.lineTo(x + w * 0.5, y + r - w); c.lineTo(x - w * 0.5, y + r - w); c.closePath();
+  c.moveTo(x - r + w, y - w * 0.5); c.lineTo(x + r - w, y - w * 0.5);
+  c.lineTo(x + r - w, y + w * 0.5); c.lineTo(x - r + w, y + w * 0.5); c.closePath();
+}
+function beamDown(c, x, y, r) {
+  c.moveTo(x - r * 0.2, y - r); c.lineTo(x + r * 0.2, y - r);
+  c.lineTo(x + r * 0.66, y + r); c.lineTo(x - r * 0.66, y + r); c.closePath();
+}
+function eye(c, x, y, r) {
+  c.moveTo(x + r, y);
+  c.bezierCurveTo(x + r * 0.34, y - r * 0.86, x - r * 0.34, y - r * 0.86, x - r, y);
+  c.bezierCurveTo(x - r * 0.34, y + r * 0.86, x + r * 0.34, y + r * 0.86, x + r, y);
+  c.closePath();
+  // The pupil has to survive a 15px render — any smaller and the
+  // dark outline stroke closes the hole and it reads as a blob.
+  c.moveTo(x + r * 0.5, y); c.arc(x, y, r * 0.5, 0, Math.PI * 2, false);
+}
+
+const SPELL_ICONS = {
+  bolt:   [arrow,                                     'P'],
+  blink:  [zigzag,                                    'B'],
+  detect: [eye,                                       'y'],
+  frost:  [flake,                                     'B'],
+  map:    [(c, x, y, r) => grid(c, x, y, r * 0.86),   'G'],
+  cure:   [(c, x, y, r) => plus(c, x, y, r * 0.82),   'W'],
+  heal:   [plus,                                      'W'],
+  bless:  [(c, x, y, r) => star4(c, x, y, r * 0.95),  'y'],
+  smite:  [beamDown,                                  'y'],
+};
+
+export function drawSpellInto(c, id, cx, cy, size) {
+  const spec = SPELL_ICONS[id];
+  if (!spec) return;
+  const [shape, tone] = spec;
+  c.save();
+  c.beginPath();
+  shape(c, cx, cy, size * 0.34);
+  c.lineJoin = 'round';
+  c.lineWidth = Math.max(2, size * 0.1);
+  c.strokeStyle = PALETTE.k;
+  c.stroke();
+  c.fillStyle = PALETTE[tone] || PALETTE.w;
+  c.fill();
+  c.restore();
+}
+
 /* Shared by the map and by the key on the help screen, so the
    two can never drift apart. */
 export function drawIntentInto(c, kind, gx, gy, t, beat = 1) {
@@ -738,8 +825,9 @@ export function refresh() {
   logBox.innerHTML = '';
   for (const line of G.log.slice(-4)) logBox.appendChild(el('p', line.tone, line.text));
 
-  $('btn-cast').hidden = Game.spellList(p).length === 0;
+  $('btn-cast').hidden = !Game.spellSlots().length;
   renderQuick();
+  renderSpellRow();
 
   /* The clock, shown as a chip rather than a number: how much of
      the floor's patience is left. It only appears once it starts
@@ -806,6 +894,60 @@ function renderQuick() {
   });
 }
 
+/* Casting used to cost a screen change every single time: open
+   주문, read the list, tap, come back. That is a tax paid once
+   per turn by every caster. The book is five entries and never
+   more, so it fits on the play screen as five fixed frames — the
+   ones you have not learned yet stay as dead slots, so the row
+   never reflows as you level and the position is memorisable
+   from level 1.
+
+   `주문서` stays: names, descriptions, affixes and enhancement
+   live there. This row is only the trigger. */
+function renderSpellRow() {
+  const row = $('spell-row');
+  const slots = Game.spellSlots();
+  row.hidden = !slots.length;
+  if (!slots.length) return;
+  if (row.children.length !== slots.length) {
+    row.innerHTML = '';
+    for (let i = 0; i < slots.length; i++) {
+      const b = el('button');
+      b.appendChild(el('canvas', 'sic'));
+      b.appendChild(el('span', 'sn'));
+      row.appendChild(b);
+    }
+  }
+  slots.forEach((s, i) => {
+    const b = row.children[i];
+    const cv = b.querySelector('canvas');
+    const label = b.querySelector('.sn');
+    b.disabled = !s.ready;
+    b.className = s.locked ? 'locked' : s.ready ? '' : 'cold';
+    if (cv.dataset.spell !== s.id || cv.dataset.lock !== String(s.locked)) {
+      cv.dataset.spell = s.id; cv.dataset.lock = String(s.locked);
+      cv.width = cv.height = 40;
+      const c = cv.getContext('2d');
+      c.clearRect(0, 0, 40, 40);
+      if (!s.locked) drawSpellInto(c, s.id, 20, 20, 40);
+    }
+    label.innerHTML = '';
+    if (s.locked) {
+      // Latin here on purpose: "13레벨" does not fit in 23px of
+      // button on a 320px phone, and "Lv13" does.
+      label.appendChild(document.createTextNode(`Lv${s.lv}`));
+      b.title = `${s.lv}레벨에 익힙니다`;
+    } else {
+      label.appendChild(document.createTextNode(s.short));
+      label.appendChild(el('b', '', String(s.cost)));
+      b.title = s.silent ? `${s.name} — 침묵의 서약으로 봉인됨`
+              : s.noTarget ? `${s.name} — 시야에 적이 없다`
+              : `${s.name} · ${s.cost}mp`;
+    }
+    b.onclick = () => { stopAuto(); act(() => Game.cast(s.id)); };
+  });
+}
+
 /* ── screens ────────────────────────────────────────────── */
 export function setScreen(name) {
   G.screen = name;
@@ -856,6 +998,30 @@ function renderLegend() {
     row.appendChild(c);
     row.appendChild(el('span', 'eqname', text));
     box.appendChild(row);
+  }
+
+  /* Both realms in one key, so a mage can read what a priest's
+     row would look like and the shapes stay learnable. */
+  const sbox = $('spell-legend');
+  if (!sbox) return;
+  // 탐지 is one glyph shared by both realms under two names —
+  // listed once, or the key reads like a rendering bug.
+  const byId = new Map();
+  for (const realm of ['arcane', 'divine'])
+    for (const s of SPELLS[realm]) {
+      const had = byId.get(s.id);
+      if (had) had.names.push(s.name);
+      else byId.set(s.id, { ...s, names: [s.name] });
+    }
+  for (const s of byId.values()) {
+    const row = el('div', 'eqrow');
+    const c = el('canvas', 'icon');
+    c.width = 72; c.height = 72;
+    drawSpellInto(c.getContext('2d'), s.id, 36, 36, 72);
+    row.appendChild(c);
+    row.appendChild(el('span', 'eqname',
+      `${s.names.join(' · ')} — ${s.lv}레벨 · ${s.cost}mp · ${s.desc}`));
+    sbox.appendChild(row);
   }
 }
 
@@ -1563,6 +1729,8 @@ const LESSONS = [
   { id:'bank',   t:'쉬지 않고 내려갈수록 <b>판돈</b>이 불어납니다. 모닥불에서 챙길 수 있고, <b>죽으면 전부 잃습니다.</b>' },
   { id:'oil',    t:'기름이 줄면 <b>보이는 반경이 좁아집니다.</b> 횃불을 쓰거나, 좁은 시야로 싸우거나.' },
   { id:'thief',  t:'<b>금빛 도둑</b>은 보자마자 달아납니다. 걸어서는 절대 못 잡습니다 — 구르거나 주문을 쓰거나, 보내주거나.' },
+  { id:'cast',   t:'주문은 <b>아래 줄의 아이콘을 눌러 바로</b> 씁니다(단축키 <b>1~5</b>).<br>' +
+                    '어두운 칸은 아직 못 배웠거나, 마나가 모자라거나, <b>쏠 대상이 없다</b>는 뜻입니다.' },
 ];
 
 let lessonQueue = [];
@@ -1596,6 +1764,7 @@ function closeLesson() {
 export function checkLessons() {
   if (!Meta.isNewcomer() || !G.player || G.screen !== 'play') return;
   if (G.depth > 0) teach('move');
+  if (Game.spellSlots().length) teach('cast');
   if (G.monsters.some(m => G.level.vis[idx(m.x, m.y)])) teach('fight');
   if (G.monsters.some(m => m.awake && m.intent && G.level.vis[idx(m.x, m.y)])) teach('intent');
   if (G.monsters.some(m => m.intent === 'heavy' || m.intent === 'wind')) teach('heavy');
@@ -2177,6 +2346,15 @@ export function bindInput() {
     else if (e.key === 'm') { stopAuto(); setScreen('spell'); }
     else if (e.key === 'c') { stopAuto(); act(Game.closeDoor); }
     else if (e.key === 'Tab') { e.preventDefault(); cycleMini(); }
+    // 1–5 cast, q/w/e drink — the same order as the two rows read
+    else if (e.key >= '1' && e.key <= '5') {
+      const s = Game.spellSlots()[+e.key - 1];
+      if (s?.ready) { stopAuto(); act(() => Game.cast(s.id)); }
+    }
+    else if ('qwe'.includes(e.key)) {
+      const s = Game.quickSlots()['qwe'.indexOf(e.key)];
+      if (s) { stopAuto(); act(() => Game.useItem(s.idx)); }
+    }
   });
 
   window.addEventListener('keyup', e => { if (DIRS[e.key]) release(); });

@@ -121,9 +121,14 @@
     </div>
     <div id="acts">
       <div class="pair quick" id="quick-row"></div>
+      <div class="pair spells" id="spell-row" hidden></div>
       <button id="btn-inv">배낭 · 장비</button>
-      <button id="btn-cast">주문</button>
-      <button id="btn-door" disabled>문 닫기</button>
+      <!-- Paired so the new spell row pays for itself: the book is
+           now a reference screen, not the thing you tap every turn. -->
+      <div class="pair">
+        <button id="btn-cast">주문서</button>
+        <button id="btn-door" disabled>문 닫기</button>
+      </div>
       <div class="pair">
         <button id="btn-down">▼ 내려가기</button>
         <button id="btn-up">▲ 올라가기</button>
@@ -300,10 +305,17 @@
       <tr><td>키보드</td><td>방향키 · hjkl · yubn (누르고 있으면 연속 이동)</td></tr>
       <tr><td>빠른 칸 3개</td><td>d-pad 오른쪽 맨 윗줄. <b>회복 · 강화 · 탈출</b> 역할이 배낭에서 자동으로 채워집니다.
         한 번 누르면 바로 씁니다. 미확인 물건은 자동으로 올라오지 않습니다 — 도박은 당신이 해야 합니다.</td></tr>
+      <tr><td>주문 줄</td><td>빠른 칸 바로 아래. <b>다섯 칸이 늘 같은 자리</b>에 있고, 아직 못 배운 주문은 레벨만 적힌 빈 칸으로 남습니다.
+        한 번 누르면 바로 시전합니다. 어두우면 마나가 모자라거나 <b>쏠 대상이 없다</b>는 뜻입니다 —
+        대상이 없을 때는 눌러도 마나가 나가지 않습니다.</td></tr>
       <tr><td>저장</td><td>층을 옮길 때마다, 그리고 40턴마다 <b>자동</b>으로 저장됩니다. 저장 버튼은 없습니다.<br>
         죽으면 슬롯이 비워집니다 — 퍼머데스는 그대로입니다.</td></tr>
-      <tr><td></td><td>. 대기 · &gt; 하강 · &lt; 상승 · i 배낭 · m 주문 · Esc 정지</td></tr>
+      <tr><td></td><td>. 대기 · &gt; 하강 · &lt; 상승 · i 배낭 · m 주문서 · Esc 정지<br>
+        <b>1~5</b> 주문 시전 · <b>q w e</b> 빠른 칸</td></tr>
     </table>
+
+    <h3 class="sect">주문 아이콘</h3>
+    <div id="spell-legend"></div>
 
     <h3 class="sect">전투</h3>
     <table class="keys">

@@ -26,8 +26,21 @@
       등불이 닿는 곳까지가 당신이 아는 전부다.<br>
       죽으면 처음부터다.
     </p>
-    <button class="big" id="btn-new">모험 시작</button>
-    <p class="fine">도트는 전부 코드로 그려집니다. 이미지 파일 없음.<br><span id="build">v4</span></p>
+    <button class="big" id="btn-new">새 게임</button>
+    <button class="big" id="btn-load" hidden>이어하기</button>
+    <p class="fine">도트는 전부 코드로 그려집니다. 이미지 파일 없음.<br><span id="build">v5</span></p>
+  </div>
+</section>
+
+<!-- ══ save slots ══ -->
+<section id="sc-slots" class="screen" hidden>
+  <header class="bar">
+    <h2 id="slots-title">저장 슬롯</h2>
+    <button class="mini" id="slots-back">닫기</button>
+  </header>
+  <div class="scroll">
+    <p class="note" id="slots-lead"></p>
+    <div id="slot-list"></div>
   </div>
 </section>
 
@@ -176,6 +189,8 @@
       <tr><td>아이템</td><td>밟으면 자동으로 주움</td></tr>
       <tr><td>몬스터</td><td>부딪치면 공격</td></tr>
       <tr><td>키보드</td><td>방향키 · hjkl · yubn (누르고 있으면 연속 이동)</td></tr>
+      <tr><td>저장</td><td>층을 옮길 때마다, 그리고 40턴마다 <b>자동</b>으로 저장됩니다. 저장 버튼은 없습니다.<br>
+        죽으면 슬롯이 비워집니다 — 퍼머데스는 그대로입니다.</td></tr>
       <tr><td></td><td>. 대기 · &gt; 하강 · &lt; 상승 · i 배낭 · m 주문 · Esc 정지</td></tr>
     </table>
 
@@ -252,7 +267,7 @@
     <h1 id="end-title" class="endtitle"></h1>
     <p class="tag" id="end-sub"></p>
     <p class="blurb" id="end-body"></p>
-    <button class="big" onclick="location.reload()">다시 내려가기</button>
+    <button class="big" id="btn-again">다시 내려가기</button>
   </div>
 </section>
 

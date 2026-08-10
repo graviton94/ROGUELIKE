@@ -235,3 +235,21 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 .campdesc { font-size: 11.5px; line-height: 1.65; color: var(--w); }
 .campopt:active .campname, .campopt:active .camptag, .campopt:active .campdesc { color: var(--k); }
 #camp-back { margin-top: 12px; }
+
+/* ── save slots ── */
+.slotrow {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 12px 13px; margin-bottom: 8px; text-align: left;
+  border: 1px solid var(--g); background: var(--d);
+}
+.slotrow.empty { border-style: dashed; }
+.slotnum { width: 26px; font-size: 15px; color: var(--o); }
+.slotmid { flex: 1 1 auto; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.slotwho  { font-size: 13px; color: var(--w); }
+.slotmeta { font-size: 10.5px; color: var(--G); }
+.slotrow.empty .slotwho { color: var(--g); }
+.slotdel {
+  flex: 0 0 auto; padding: 7px 10px; font-size: 10.5px;
+  color: var(--R); border-color: #4a2320; background: transparent;
+}
+.slotrow:active .slotwho, .slotrow:active .slotmeta, .slotrow:active .slotnum { color: var(--k); }

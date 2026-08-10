@@ -6,15 +6,18 @@ import { bakeAll } from './pixels.js';
 import * as UI from './ui.js';
 import { G } from './game.js';
 import * as Game from './game.js';
+import * as Save from './save.js';
 
 bakeAll();
 UI.bindInput();
 UI.startLoop();
 
-document.getElementById('btn-new').onclick = () => {
-  UI.setScreen('create');
-  UI.renderCreate();
-};
+const $ = id => document.getElementById(id);
+
+$('btn-new').onclick    = () => UI.openSlots('new');
+$('btn-load').onclick   = () => UI.openSlots('load');
+$('slots-back').onclick = () => UI.setScreen('title');
+$('btn-again').onclick  = () => location.reload();
 
 UI.setScreen('title');
 
@@ -47,3 +50,4 @@ if ('serviceWorker' in navigator) {
 // expose for console tinkering while developing
 window.G = G;
 window.Game = Game;
+window.Save = Save;

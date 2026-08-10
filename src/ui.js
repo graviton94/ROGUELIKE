@@ -18,6 +18,7 @@ import {
 import * as Game from './game.js';
 import { G } from './game.js';
 import * as Juice from './juice.js';
+import * as Save from './save.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -249,13 +250,45 @@ function blitActor(img, px, py, t, o) {
    animations blend instead of queueing. */
 let rafId = 0, lastTs = 0, lastDepth = -1;
 
+/* Autosave lives here rather than in game.js so the rules layer
+   never touches localStorage — that boundary is what keeps the
+   headless simulation runnable. Floor changes are the natural
+   checkpoint; the turn counter catches long floors. */
+let savedTurn = -1, savedEnding = false;
+const SAVE_EVERY = 40;
+
+function autosave(reason) {
+  if (!G.player || !G.running) return;
+  Save.save(activeSlot);
+  savedTurn = G.turn;
+}
+
 function frame(ts) {
   rafId = requestAnimationFrame(frame);
   const dt = Math.min(50, ts - (lastTs || ts));
   lastTs = ts;
-  if (!G.player || !G.level || G.screen !== 'play') return;
+  if (!G.player) return;
 
-  if (lastDepth !== G.depth) { lastDepth = G.depth; Juice.reset(); snapCamera(); }
+  /* Permadeath: the slot dies with the run. This lives in the
+     loop rather than on the ending screen because death can
+     arrive from a trap, from poison, or from a monster during
+     an auto-walk — and a save that outlives the character would
+     quietly turn the whole game into save-scumming. */
+  if (!G.running && G.ending && !savedEnding) {
+    savedEnding = true;
+    Save.clear(activeSlot);
+  }
+
+  if (!G.level || G.screen !== 'play') return;
+
+  if (lastDepth !== G.depth) {
+    lastDepth = G.depth;
+    Juice.reset();
+    snapCamera();
+    autosave('floor');
+  } else if (G.turn - savedTurn >= SAVE_EVERY) {
+    autosave('turns');
+  }
 
   tickInput(dt);
   if (G.screen !== 'play') return;
@@ -346,14 +379,111 @@ export function refresh() {
 export function setScreen(name) {
   G.screen = name;
   if (name !== 'play') stopAuto();
-  for (const s of ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help', 'camp'])
+  for (const s of ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help', 'camp', 'slots'])
     $(`sc-${s}`).hidden = (s !== name);
   if (name === 'play') { resize(); refresh(); }
   if (name === 'inv')  renderInventory();
   if (name === 'shop') renderShop();
   if (name === 'spell') renderSpells();
   if (name === 'camp')  renderCamp();
+  if (name === 'slots') renderSlots();
+  if (name === 'title') refreshTitle();
   if (name === 'end')  renderEnd();
+}
+
+/* ── save slots ─────────────────────────────────────────────
+   The same screen serves both doors: "새 게임" asks where to put
+   the run, "이어하기" asks which one to resume. Occupied slots
+   warn before they are overwritten, because a roguelike that
+   silently eats a level-20 run is a bad roguelike. */
+let slotMode = 'load';        // 'load' | 'new'
+let activeSlot = 0;           // where the current run autosaves
+
+export const currentSlot = () => activeSlot;
+
+const RELATIVE = ms => {
+  const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+  if (s < 60) return '방금';
+  if (s < 3600) return `${Math.floor(s / 60)}분 전`;
+  if (s < 86400) return `${Math.floor(s / 3600)}시간 전`;
+  return `${Math.floor(s / 86400)}일 전`;
+};
+
+export function renderSlots() {
+  $('slots-title').textContent = slotMode === 'new' ? '어디에 저장할까' : '이어하기';
+  $('slots-lead').textContent = slotMode === 'new'
+    ? '고른 자리에 자동으로 저장됩니다. 층을 옮길 때마다, 그리고 이따금.'
+    : '저장된 모험을 고르시오.';
+
+  const list = $('slot-list');
+  list.innerHTML = '';
+
+  for (let i = 0; i < Save.SLOTS; i++) {
+    const info = Save.describe(i);
+    const row = el('button', 'slotrow' + (info ? '' : ' empty'));
+    row.appendChild(el('span', 'slotnum', String(i + 1)));
+
+    const mid = el('div', 'slotmid');
+    if (info) {
+      mid.appendChild(el('span', 'slotwho',
+        `${RACES[info.race].name} ${CLASSES[info.cls].name} · Lv ${info.lv}`));
+      mid.appendChild(el('span', 'slotmeta',
+        `${info.depth === 0 ? '마을' : info.depth + '층'} · HP ${info.hp}/${info.maxhp}` +
+        ` · ${info.turn}턴 · ${RELATIVE(info.savedAt)}`));
+    } else {
+      mid.appendChild(el('span', 'slotwho', '비어 있음'));
+      mid.appendChild(el('span', 'slotmeta', slotMode === 'new' ? '여기에 시작' : '—'));
+    }
+    row.appendChild(mid);
+
+    if (slotMode === 'load' && !info) { row.disabled = true; row.classList.add('poor'); }
+
+    row.onclick = () => {
+      if (slotMode === 'new') {
+        if (info && !confirm(
+          `${i + 1}번 슬롯의 ${RACES[info.race].name} ${CLASSES[info.cls].name} ` +
+          `(${info.depth}층, Lv ${info.lv})을 지우고 새로 시작할까요?`)) return;
+        activeSlot = i;
+        setScreen('create');
+        renderCreate();
+      } else {
+        if (!info) return;
+        if (!Save.load(i)) { alert('저장을 읽지 못했습니다.'); return; }
+        activeSlot = i;
+        savedEnding = false;
+        savedTurn = G.turn;
+        lastDepth = G.depth;
+        stopAuto();
+        snapCamera();
+        setScreen('play');
+        refresh();
+      }
+    };
+    list.appendChild(row);
+
+    if (info) {
+      const del = el('button', 'slotdel', '삭제');
+      del.onclick = e => {
+        e.stopPropagation();
+        if (!confirm(`${i + 1}번 슬롯을 지울까요? 되돌릴 수 없습니다.`)) return;
+        Save.clear(i);
+        renderSlots();
+        refreshTitle();
+      };
+      row.appendChild(del);
+    }
+  }
+}
+
+export function openSlots(mode) {
+  slotMode = mode;
+  setScreen('slots');
+  renderSlots();
+}
+
+export function refreshTitle() {
+  const btn = $('btn-load');
+  if (btn) btn.hidden = !(Save.available() && Save.anySaved());
 }
 
 /* character creation */
@@ -400,7 +530,14 @@ export function renderCreate() {
 }
 
 $('btn-reroll').onclick = () => { pick.base = Game.rollStats(); renderCreate(); };
-$('btn-begin').onclick  = () => { Game.startGame(pick.race, pick.cls, pick.base); setScreen('play'); };
+$('btn-begin').onclick  = () => {
+  Game.startGame(pick.race, pick.cls, pick.base);
+  savedEnding = false;
+  savedTurn = -1;
+  lastDepth = -1;
+  Save.save(activeSlot);          // claim the slot immediately
+  setScreen('play');
+};
 
 /* inventory */
 function renderInventory() {
@@ -660,6 +797,10 @@ $('camp-back').onclick = () => { campMode = null; renderCamp(); };
 
 /* ending */
 function renderEnd() {
+  // The frame loop normally does this; belt and braces for a
+  // death that somehow resolves without a frame in between.
+  if (!savedEnding) { savedEnding = true; Save.clear(activeSlot); }
+
   const p = G.player, e = G.ending || {};
   $('end-title').textContent = e.win ? '대군주가 무너졌다' : '당신은 죽었다';
   $('end-sub').textContent = e.win

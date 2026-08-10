@@ -1,0 +1,15 @@
+{
+  "name": "깊은 곳 · Deepdelve",
+  "short_name": "Deepdelve",
+  "description": "도트와 텍스트로 만든 25층짜리 던전 로그라이크",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#0a0c12",
+  "theme_color": "#0a0c12",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

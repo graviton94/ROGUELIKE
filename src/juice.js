@@ -278,6 +278,60 @@ export function pump(queue, player) {
         ring(e.x, e.y, e.r, PALETTE.o, 720);
         break;
 
+      // Enhancement: small, certain, permanent. Sparks, not fireworks.
+      case 'forge':
+        ring(e.x, e.y, 2.2, PALETTE.y, 560);
+        number(e.x, e.y - 0.5, '+1', PALETTE.y, 1.5);
+        for (let i = 0; i < 18 && shards.length < MAX_SHARDS; i++)
+          shards.push({
+            x: e.x + Math.random(), y: e.y + 0.5,
+            vx: (Math.random() - 0.5) * 5, vy: -3.5 - Math.random() * 3,
+            life: 640, age: 0, size: 1,
+            color: Math.random() < 0.5 ? PALETTE.y : PALETTE.o,
+          });
+        flashScreen = Math.max(flashScreen, 0.22); flashHue = 'y';
+        buzz([25, 30, 45]);
+        break;
+
+      // The gamble resolving. Violet for a curse, gold for a gift.
+      case 'enchant': {
+        const hue = e.cursed ? 'P' : 'y';
+        ring(e.x, e.y, 4.4, PALETTE[hue], 780);
+        ring(e.x, e.y, 2.6, PALETTE.W, 560);
+        number(e.x, e.y - 0.7, e.cursed ? '저주' : '인챈트', PALETTE[hue], 1.6);
+        burstShards(e.x, e.y, [PALETTE[hue], PALETTE.W], 26, 1.7);
+        flashScreen = Math.max(flashScreen, e.cursed ? 0.5 : 0.38); flashHue = hue;
+        shake = Math.max(shake, 0.4);
+        freeze = Math.max(freeze, 120);
+        buzz(e.cursed ? [70, 50, 120] : [25, 35, 25, 35, 70]);
+        break;
+      }
+
+      case 'drain':
+        number(e.x, e.y - 0.2, `+${e.amt}`, PALETTE.R, 1.05);
+        ring(e.x, e.y, 1.4, PALETTE.r, 380);
+        break;
+
+      case 'execute':
+        number(e.x, e.y - 0.6, '처형', PALETTE.R, 1.6);
+        ring(e.x, e.y, 3.0, PALETTE.R, 560);
+        shake = Math.max(shake, 0.55);
+        freeze = Math.max(freeze, 110);
+        buzz([40, 30, 80]);
+        break;
+
+      // 연쇄 arcing to the next body.
+      case 'arc':
+        beams.push({ fx: e.fx, fy: e.fy, tx: e.tx, ty: e.ty,
+                     color: PALETTE.B, life: 240, age: 0 });
+        shake = Math.max(shake, 0.2);
+        break;
+
+      case 'drop':
+        ring(e.x, e.y, 2.0, PALETTE.y, 620);
+        number(e.x, e.y - 0.5, '전리품', PALETTE.y, 1.2);
+        break;
+
       case 'spot':
         number(e.x, e.y - 0.3, '!', PALETTE.o, 1.1);
         ring(e.x, e.y, 1.2, PALETTE.o, 380);

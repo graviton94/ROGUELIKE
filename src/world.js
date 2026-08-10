@@ -12,7 +12,7 @@ export const MW = 66, MH = 40;
    sight, and shutting one behind you is a real move. */
 export const ROCK = 0, FLOOR = 1, DOWN = 2, UP = 3, DOOR = 4, RUBBLE = 5, SHOP = 6,
              DOOR_OPEN = 7, DOOR_LOCKED = 8, DOOR_BROKEN = 9,
-             WEB = 10, WATER = 11;
+             WEB = 10, WATER = 11, CAMP = 12;
 
 export const isDoor = t => t === DOOR || t === DOOR_OPEN || t === DOOR_LOCKED || t === DOOR_BROKEN;
 export const isShut = t => t === DOOR || t === DOOR_LOCKED;
@@ -145,7 +145,31 @@ export class Level {
     this.downRoom = far;
 
     this.scatterHazards(start, st);
+    this.placeCamp(start, st);
     this.unsealStairs(start, st);
+  }
+
+  /* One fire per floor, and never in the room you arrive in or
+     the one you leave by — you should have to go and find it,
+     and finding it should mean the floor was worth walking. */
+  placeCamp(start, down) {
+    /* Not every floor has one. A fire on every level makes rest
+       free and turns the choice into "always upgrade"; making it
+       scarce is what puts weight on the one you do find. */
+    if (this.depth > 1 && Math.random() > 0.6) return;
+    const banned = new Set([this.roomOf[idx(start.x, start.y)], this.roomOf[idx(down.x, down.y)]]);
+    const rooms = this.rooms.filter((r, i) => !banned.has(i));
+    const pool = rooms.length ? rooms : this.rooms;
+    for (let t = 0; t < 80; t++) {
+      const r = pool[rnd(pool.length)];
+      if (!r) return;
+      const x = r.x + rnd(r.w), y = r.y + rnd(r.h);
+      const i = idx(x, y);
+      if (this.tiles[i] !== FLOOR || this.traps.has(i)) continue;
+      this.tiles[i] = CAMP;
+      this.camp = { x, y };
+      return;
+    }
   }
 
   /* A locked door across the only corridor to the stairs turns a

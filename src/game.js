@@ -5,12 +5,13 @@
 import {
   MAX_DEPTH, STATS, RACES, CLASSES, SPELLS, MONSTERS, BOSS, mimicFor,
   WEAPONS, ARMOURS, CONSUMABLES, SHOPS, AILMENTS, IMMUNE, TRAPS,
+  PREFIXES, SUFFIXES, SPELL_AFFIXES, ELITES, affixName,
   xpToLevel, statBonus,
 } from './data.js';
 import {
   Level, computeFov, lineClear, idx, rnd, roll, clamp, MW, MH,
   FLOOR, DOWN, UP, DOOR, RUBBLE, DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN,
-  WEB, WATER, isDoor, isShut,
+  WEB, WATER, CAMP, isDoor, isShut,
 } from './world.js';
 
 export const G = {
@@ -61,6 +62,7 @@ export function createHero(raceKey, classKey, base) {
     ail: {},          // ailment -> turns remaining
     stuck: 0,         // turns still caught in a web
     keys: 0,
+    spellPlus: {}, spellAffix: {},
     equip: { weapon: null, body: null, shield: null },
     pack: [],
     x: 0, y: 0,
@@ -85,18 +87,74 @@ export function recalc(p, init) {
     const b = statBonus(p.stats[key]);
     p.maxmana = Math.max(0, Math.floor((b + 1) * p.lv * 0.85));
   } else p.maxmana = 0;
+  const g = gearBonus(p);
+  p.maxhp = Math.max(8, Math.round(p.maxhp * (1 + g.maxhpPct)));
+  p.maxmana = Math.max(0, Math.round(p.maxmana * (1 + g.manaPct)));
   if (init) return;
   p.hp = Math.min(p.hp, p.maxhp);
   p.mana = Math.min(p.mana, p.maxmana);
 }
 
+/* ── gear resolution ──────────────────────────────────────
+   Every derived number the player has runs through here, so an
+   affix only ever has to be declared once in data.js. Cheap
+   enough to recompute per swing: three slots, two affixes each. */
+const EMPTY_BONUS = {
+  dmg:0, dmgPct:0, hit:0, crit:0, critMult:0, ac:0, stealth:0,
+  lifesteal:0, chain:0, burst:0, execute:0, pierce:0,
+  regen:0, lightR:0, maxhpPct:0, manaPct:0, on:null, resistAll:false,
+};
+
+export function gearBonus(p) {
+  const b = { ...EMPTY_BONUS };
+  if (!p) return b;
+  for (const slot of ['weapon', 'body', 'shield']) {
+    const it = p.equip[slot];
+    if (!it) continue;
+
+    // Enhancement is flat and boring on purpose — it is the safe
+    // pick at the fire, the one you take when a gamble would end you.
+    if (it.plus) {
+      if (it.kind === 'weapon') { b.dmg += it.plus * 2; b.hit += it.plus * 1.5; }
+      else b.ac += it.plus * 2;
+    }
+    if (it.kind === 'armour') b.ac += it.ac || 0;
+
+    for (const a of [
+      it.pre && PREFIXES.find(x => x.id === it.pre),
+      it.suf && SUFFIXES.find(x => x.id === it.suf),
+    ]) {
+      if (!a) continue;
+      b.dmg       += a.dmg || 0;
+      b.dmgPct    += a.dmgPct || 0;
+      b.hit       += a.hit || 0;
+      b.crit      += a.crit || 0;
+      b.critMult  += a.critMult || 0;
+      b.ac        += a.ac || 0;
+      b.stealth   += a.stealth || 0;
+      b.lifesteal += a.lifesteal || 0;
+      b.chain     += a.chain || 0;
+      b.burst     += a.burst || 0;
+      b.execute   += a.execute || 0;
+      b.pierce    += a.pierce || 0;
+      b.regen     += a.regen || 0;
+      b.lightR    += a.lightR || 0;
+      b.maxhpPct  += a.maxhpPct || 0;
+      b.manaPct   += a.manaPct || 0;
+      if (a.on) b.on = a.on;
+      if (a.resist === 'all') b.resistAll = true;
+    }
+  }
+  return b;
+}
+
 export const armourClass = p =>
-  (p.equip.body?.ac || 0) + (p.equip.shield?.ac || 0)
+  gearBonus(p).ac
   + statBonus(p.stats.dex) + Math.floor(p.lv / 4) + (p.blessed > 0 ? 4 : 0);
 
 export const toHit = p => {
   const base = CLASSES[p.cls].bth * p.lv / 3 + statBonus(p.stats.dex) * 2
-    + statBonus(p.stats.str) + (p.blessed > 0 ? 5 : 0);
+    + statBonus(p.stats.str) + (p.blessed > 0 ? 5 : 0) + gearBonus(p).hit;
   // Proportional, not flat: a flat penalty would cripple level 1
   // and barely register at level 20.
   return has(p, 'fear') ? base * 0.55 : base;
@@ -106,7 +164,8 @@ export const toHit = p => {
    The race notes have always claimed a gnome cannot be
    paralysed and a dwarf cannot be blinded. Now they can't. */
 export const has = (p, kind) => (p.ail?.[kind] || 0) > 0;
-export const immuneTo = (p, kind) => (IMMUNE[p.race] || []).includes(kind);
+export const immuneTo = (p, kind) =>
+  (IMMUNE[p.race] || []).includes(kind) || gearBonus(p).resistAll;
 
 export function afflict(p, kind, turns) {
   if (!kind || !AILMENTS[kind]) return;
@@ -132,11 +191,13 @@ export const ailList = p =>
    be able to read these three lines and plan around them.   */
 export const critChance = p => clamp(
   0.04 + statBonus(p.stats.dex) * 0.022 + p.lv * 0.004
-  + (p.cls === 'rogue' ? 0.10 : p.cls === 'ranger' ? 0.04 : 0),
-  0.02, 0.55);
+  + (p.cls === 'rogue' ? 0.10 : p.cls === 'ranger' ? 0.04 : 0)
+  + gearBonus(p).crit,
+  0.02, 0.80);
 
 export const critMult = p =>
-  2.0 + (p.cls === 'rogue' ? 0.6 : 0) + Math.floor(p.lv / 10) * 0.25;
+  2.0 + (p.cls === 'rogue' ? 0.6 : 0) + Math.floor(p.lv / 10) * 0.25
+  + gearBonus(p).critMult;
 
 /* How quietly you move. This is the dial that decides whether
    the sneak attack above is a real option or a dead letter, and
@@ -147,8 +208,9 @@ export const stealth = p => clamp(
   + (p.race === 'halfling' ? 0.20 : p.race === 'elf' ? 0.10 : p.race === 'halfTroll' ? -0.15 : 0)
   + (p.cls === 'rogue' ? 0.25 : p.cls === 'ranger' ? 0.12 : 0)
   - (p.equip.body?.ac || 0) * 0.012
-  - (p.equip.shield?.ac || 0) * 0.010,
-  0, 0.85);
+  - (p.equip.shield?.ac || 0) * 0.010
+  + gearBonus(p).stealth,
+  0, 0.92);
 
 /* Each link in the chain adds damage; the chain is the reward
    for clearing a room without letting anything touch you. */
@@ -274,8 +336,11 @@ export function cast(spellId) {
   const p = G.player;
   const sp = spellList(p).find(s => s.id === spellId);
   if (!sp) return;
-  if (p.mana < sp.cost) { say('마나가 모자란다.', 'warn'); return; }
-  p.mana -= sp.cost;
+  const cost = spellCost(p, sp);
+  if (p.mana < cost) { say('마나가 모자란다.', 'warn'); return; }
+  p.mana -= cost;
+  const pow = spellPower(p, sp.id);
+  const aff = SPELL_AFFIXES.find(a => a.id === p.spellAffix?.[sp.id]);
 
   const visible = G.monsters.filter(m => G.level.vis[idx(m.x, m.y)]);
   const nearest = visible.sort((a, b) =>
@@ -283,15 +348,28 @@ export function cast(spellId) {
 
   switch (sp.id) {
     case 'bolt':
+    case 'smite': {
       if (!nearest) { say('시야에 적이 없다.'); break; }
-      fx({ t:'beam', fx:p.x, fy:p.y, tx:nearest.x, ty:nearest.y, color:'P' });
-      hurtMonster(nearest, roll(2 + Math.floor(p.lv / 3), 5) + statBonus(p.stats.int) * 2, '마력 화살');
+      const holy = sp.id === 'smite';
+      const raw = holy
+        ? roll(3 + Math.floor(p.lv / 3), 6) + statBonus(p.stats.wis) * 2
+        : roll(2 + Math.floor(p.lv / 3), 5) + statBonus(p.stats.int) * 2;
+      const dmg = Math.max(1, Math.round(raw * pow));
+      fx({ t:'beam', fx:p.x, fy:p.y, tx:nearest.x, ty:nearest.y, color: holy ? 'y' : 'P' });
+      hurtMonster(nearest, dmg, holy ? '응징의 빛' : '마력 화살');
+      spellDrain(aff, dmg);
+      // 메아리치는: half of it carries to a second target.
+      if (aff?.chainSpell) {
+        const second = visible.filter(o => o !== nearest && G.monsters.includes(o))[0];
+        if (second) {
+          const echo = Math.max(1, Math.round(dmg * 0.5));
+          fx({ t:'beam', fx:nearest.x, fy:nearest.y, tx:second.x, ty:second.y, color: holy ? 'y' : 'P' });
+          hurtMonster(second, echo, '메아리');
+          spellDrain(aff, echo);
+        }
+      }
       break;
-    case 'smite':
-      if (!nearest) { say('시야에 적이 없다.'); break; }
-      fx({ t:'beam', fx:p.x, fy:p.y, tx:nearest.x, ty:nearest.y, color:'y' });
-      hurtMonster(nearest, roll(3 + Math.floor(p.lv / 3), 6) + statBonus(p.stats.wis) * 2, '응징의 빛');
-      break;
+    }
     case 'blink': {
       for (let t = 0; t < 60; t++) {
         const x = p.x + rnd(15) - 7, y = p.y + rnd(15) - 7;
@@ -300,11 +378,11 @@ export function cast(spellId) {
       say('한 걸음 옆이 아닌 곳에 서 있다.', 'good'); break;
     }
     case 'cure': {
-      const h = Math.min(p.maxhp - p.hp, 12 + roll(2, 6) + statBonus(p.stats.wis) * 3);
+      const h = Math.min(p.maxhp - p.hp, Math.round((12 + roll(2, 6) + statBonus(p.stats.wis) * 3) * pow));
       p.hp += h; fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(`상처가 닫힌다. 체력 +${h}.`, 'good'); break;
     }
     case 'heal': {
-      const h = Math.min(p.maxhp - p.hp, Math.floor(p.maxhp * 0.55) + roll(3, 8));
+      const h = Math.min(p.maxhp - p.hp, Math.round((Math.floor(p.maxhp * 0.55) + roll(3, 8)) * pow));
       p.hp += h; fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(`빛이 몸을 훑고 지나간다. 체력 +${h}.`, 'good'); break;
     }
     case 'bless': p.blessed = 25 + p.lv; say('가벼워진 기분이다.', 'good'); break;
@@ -324,12 +402,35 @@ export function cast(spellId) {
       let n = 0;
       fx({ t:'burst', x:p.x, y:p.y, r:5, color:'B' });
       for (const m of [...visible])
-        if (Math.hypot(m.x - p.x, m.y - p.y) <= 5) { hurtMonster(m, roll(3, 8) + p.lv, '서리'); n++; }
+        if (Math.hypot(m.x - p.x, m.y - p.y) <= 5) {
+          const d = Math.max(1, Math.round((roll(3, 8) + p.lv) * pow));
+          hurtMonster(m, d, '서리'); spellDrain(aff, d); n++;
+        }
       say(n ? '주변 공기가 얼어붙는다.' : '얼릴 것이 없다.', n ? 'good' : ''); break;
     }
     case 'map': revealMap(); say('층의 구조가 머릿속에 그려진다.', 'good'); break;
   }
   endTurn();
+}
+
+/* Spell enhancement is the same two dials as gear: a flat safe
+   climb, and an affix that changes what the spell *does*. */
+export const spellPower = (p, id) =>
+  1 + (p.spellPlus?.[id] || 0) * 0.22
+    + (SPELL_AFFIXES.find(a => a.id === p.spellAffix?.[id])?.powPct || 0);
+
+export const spellCost = (p, sp) => {
+  const a = SPELL_AFFIXES.find(x => x.id === p.spellAffix?.[sp.id]);
+  return Math.max(1, sp.cost - (a?.costCut || 0) + (a?.costUp || 0));
+};
+
+function spellDrain(aff, dmg) {
+  if (!aff?.spellSteal) return;
+  const p = G.player;
+  const got = Math.min(p.maxhp - p.hp, Math.max(1, Math.round(dmg * aff.spellSteal)));
+  if (got <= 0) return;
+  p.hp += got;
+  fx({ t:'drain', x:p.x, y:p.y, amt:got });
 }
 
 /* ── level flow ─────────────────────────────────────────── */
@@ -348,6 +449,15 @@ export function enterDepth(depth, fromBelow = false) {
 
   if (depth > 0) populate(depth);
   refreshFov();
+
+  /* A fire burns whether or not you are looking at it. Mark it
+     as remembered the moment you arrive, so the floor has a
+     destination other than the stairs — otherwise most players
+     would walk past the one real decision on the level. */
+  if (L.camp) {
+    L.seen[idx(L.camp.x, L.camp.y)] = 1;
+    if (depth > 0) say('멀리서 불빛이 흔들린다.', 'good');
+  }
 }
 
 function findTile(L, t) {
@@ -382,7 +492,10 @@ function populate(depth) {
       const spot = k === 0 ? lead
         : L.openSpot({ x: lead.x - 2, y: lead.y - 2, w: 5, h: 5 }, busy);
       if (!spot) continue;
-      G.monsters.push({ ...m, maxhp: m.hp, x: spot.x, y: spot.y, awake: false, energy: 0 });
+      const one = { ...m, x: spot.x, y: spot.y, awake: false, energy: 0 };
+      if (Math.random() < eliteChance(depth)) makeElite(one, depth);
+      one.maxhp = one.hp;
+      G.monsters.push(one);
       placed++;
     }
   }
@@ -455,6 +568,32 @@ function scaleMonster(m, depth) {
     xp:  Math.round(m.xp  * (1 + over * 0.10)) };
 }
 
+/* Elites are the monster side of the affix vocabulary. A
+   "재빠른 광폭한 늑대" is a different fight from a wolf, and it is
+   worth the risk: roughly double experience and a guaranteed
+   affixed drop. Rolled per individual — rolling it per pack
+   turned one lucky draw into four identical elites at once. */
+export const eliteChance = depth => Math.min(0.20, 0.025 + depth * 0.009);
+
+function makeElite(m, depth) {
+  const count = depth >= 12 && Math.random() < 0.35 ? 2 : 1;
+  const pool = [...ELITES];
+  m.elite = [];
+  for (let i = 0; i < count && pool.length; i++) {
+    const a = pool.splice(rnd(pool.length), 1)[0];
+    m.elite.push(a.id);
+    m.n = `${a.n} ${m.n}`;
+    if (a.spd)    m.spd = (m.spd || 1) + a.spd;
+    if (a.hpPct)  m.hp = Math.max(1, Math.round(m.hp * (1 + a.hpPct)));
+    if (a.atkPct) m.atk = Math.round(m.atk * (1 + a.atkPct));
+    if (a.ac)     m.ac += a.ac;
+    if (a.on)     m.on = a.on;
+    if (a.drain)  m.drain = a.drain;
+  }
+  m.xp = Math.round(m.xp * (1.9 + 0.4 * (count - 1)));
+  return m;
+}
+
 function pickItem(depth) {
   const r = Math.random();
   if (r < 0.45) {
@@ -466,15 +605,42 @@ function pickItem(depth) {
   }
   if (r < 0.75) {
     const pool = WEAPONS.filter(w => w.d <= depth + 3);
-    return { kind:'weapon', ...pool[rnd(pool.length)] };
+    const it = { kind:'weapon', ...pool[rnd(pool.length)] };
+    rollAffixes(it, depth);
+    return it;
   }
   const pool = ARMOURS.filter(a => a.d <= depth + 3);
-  return { kind:'armour', ...pool[rnd(pool.length)] };
+  const it = { kind:'armour', ...pool[rnd(pool.length)] };
+  rollAffixes(it, depth);
+  return it;
+}
+
+/* Affixes on found gear. The odds climb with depth, so an early
+   named weapon is a genuine event and a late one is expected. */
+export function rollAffixes(item, depth, guaranteed) {
+  if (item.kind !== 'weapon' && item.kind !== 'armour') return item;
+  const tag = item.kind;
+  const odds = Math.min(0.55, 0.05 + depth * 0.02);
+  if (guaranteed || Math.random() < odds) {
+    const a = pickAffix(PREFIXES, tag, false);
+    if (a) item.pre = a.id;
+  }
+  if ((guaranteed && Math.random() < 0.5) || Math.random() < odds * 0.6) {
+    const a = pickAffix(SUFFIXES, tag, false);
+    if (a) item.suf = a.id;
+  }
+  return item;
+}
+
+export function pickAffix(table, tag, allowCurse) {
+  const pool = table.filter(a => a.tags.includes(tag) && (allowCurse || !a.curse));
+  return pool.length ? pool[rnd(pool.length)] : null;
 }
 
 export function refreshFov() {
   const p = G.player;
   let radius = p.lightTurns > 0 ? (G.depth === 0 ? 12 : 7) : 2;
+  radius += gearBonus(p).lightR;
   if (p.race === 'elf') radius += 1;          // "눈이 밝다"
   if (has(p, 'blind')) radius = 1;
   computeFov(G.level, p.x, p.y, radius);
@@ -515,6 +681,7 @@ export function step(dx, dy) {
   if (shopId) { G.shop = SHOPS.find(s => s.id === shopId); G.screen = 'shop'; return; }
 
   const t = L.tiles[ni];
+  if (t === CAMP) { p.x = nx; p.y = ny; refreshFov(); G.screen = 'camp'; return; }
   if (t === DOOR)        { openDoor(nx, ny); endTurn(); return; }
   if (t === DOOR_LOCKED) { forceDoor(nx, ny); endTurn(); return; }
   if (L.solid(nx, ny)) return;
@@ -773,7 +940,9 @@ function playerAttack(m) {
 
   /* A sleeping target never gets a saving throw. This is the
      reason to take the long way round instead of the short. */
-  const chance = asleep ? 1 : clamp(0.44 + (toHit(p) - m.ac * 1.15) / 55, 0.18, 0.95);
+  const gp = gearBonus(p);
+  const armour = m.ac * 1.15 * (1 - gp.pierce);   // 꿰뚫는: armour counts for less
+  const chance = asleep ? 1 : clamp(0.44 + (toHit(p) - armour) / 55, 0.18, 0.95);
   if (Math.random() > chance) {
     say(`${m.n}을(를) 빗맞혔다.`);
     fx({ t:'miss', x:m.x, y:m.y });
@@ -782,14 +951,69 @@ function playerAttack(m) {
 
   const w = p.equip.weapon;
   const dice = w ? w.dice : [1, 3];
-  let dmg = roll(dice[0], dice[1]) + statBonus(p.stats.str) * 2 + Math.floor(p.lv / 3);
+  const g = gp;
+  let dmg = roll(dice[0], dice[1]) + statBonus(p.stats.str) * 2 + Math.floor(p.lv / 3) + g.dmg;
+  dmg *= (1 + g.dmgPct);
 
   const crit = asleep || Math.random() < critChance(p);
   if (crit) dmg *= critMult(p) * (asleep ? 1.5 : 1);
   dmg = Math.max(1, Math.round(dmg * comboMult()));
 
   if (asleep) say(`잠든 ${m.n}의 급소를 찔렀다.`, 'level');
-  hurtMonster(m, dmg, null, { crit, sneak: asleep });
+
+  /* 처형: below the threshold nothing survives, so a suffix that
+     looks small on paper decides whether a wounded troll gets one
+     more turn to hit back. */
+  if (g.execute > 0 && !m.boss && m.hp <= m.maxhp * g.execute) {
+    say(`${m.n}을(를) 처형했다.`, 'level');
+    fx({ t:'execute', x:m.x, y:m.y });
+    hurtMonster(m, m.hp + 999, null, { crit: true, execute: true });
+  } else {
+    hurtMonster(m, dmg, null, { crit, sneak: asleep });
+  }
+  if (!G.running) return;
+
+  drainLife(dmg * (crit ? 0.6 : 1));
+  if (g.on) poisonMonster(m, g.on);
+
+  /* 연쇄: the swing carries into one more body. This is the line
+     that turns 작열 into a chain of detonations and 흡혈 into a
+     way to out-heal a whole room. */
+  if (g.chain > 0 && Math.random() < g.chain) {
+    const near = adjacentMonsters(p).filter(o => o !== m);
+    if (near.length) {
+      const o = near[rnd(near.length)];
+      const spill = Math.max(1, Math.round(dmg * 0.6));
+      fx({ t:'arc', fx:m.x, fy:m.y, tx:o.x, ty:o.y });
+      hurtMonster(o, spill, '연쇄', {});
+      drainLife(spill);
+    }
+  }
+}
+
+function adjacentMonsters(from) {
+  const out = [];
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    if (!dx && !dy) continue;
+    const m = monsterAt(from.x + dx, from.y + dy);
+    if (m && !m.disguise) out.push(m);
+  }
+  return out;
+}
+
+function drainLife(dmg) {
+  const p = G.player, g = gearBonus(p);
+  if (g.lifesteal <= 0 || p.hp >= p.maxhp) return;
+  const heal = Math.max(1, Math.round(dmg * g.lifesteal));
+  const got = Math.min(p.maxhp - p.hp, heal);
+  if (got <= 0) return;
+  p.hp += got;
+  fx({ t:'drain', x:p.x, y:p.y, amt:got });
+}
+
+function poisonMonster(m, kind) {
+  if (kind !== 'poison') return;
+  m.poison = Math.max(m.poison || 0, 6 + Math.floor(G.player.lv / 3));
 }
 
 export function hurtMonster(m, dmg, source, opt = {}) {
@@ -813,15 +1037,41 @@ export function hurtMonster(m, dmg, source, opt = {}) {
     const over = clamp(-m.hp / Math.max(1, before), 0, 3);
     G.monsters.splice(G.monsters.indexOf(m), 1);
     bumpCombo(m.x, m.y);
+
+    /* 작열: the corpse goes off. Chained kills chain detonations,
+       which is the whole point of stacking it with 연쇄. */
+    const g = gearBonus(G.player);
+    if (g.burst > 0 && !opt.noBurst) {
+      const blast = Math.max(2, Math.round((m.maxhp || 10) * g.burst * 0.5));
+      const caught = adjacentMonsters(m);
+      if (caught.length) {
+        fx({ t:'burst', x:m.x, y:m.y, r:1.9, color:'o' });
+        for (const o of caught) hurtMonster(o, blast, '폭발', { noBurst: true });
+      }
+    }
     fx({ t:'kill', x:m.x, y:m.y, spr:m.spr, dmg, crit:!!opt.crit, over, boss:!!m.boss, combo:G.combo });
     say(`${m.n}이(가) 쓰러졌다. (+${m.xp} 경험치)`, 'good');
+    if (m.elite?.length) dropElite(m);
     gainXp(m.xp);
     if (m.boss) victory();
   } else {
     fx({ t:'hit', on:'monster', x:m.x, y:m.y, dmg, crit:!!opt.crit, sneak:!!opt.sneak, spr:m.spr });
-    const tag = opt.sneak ? ' 기습!' : opt.crit ? ' 치명타!' : '';
-    say(`${via}${m.n}에게 ${dmg}의 피해.${tag}`, opt.crit ? 'level' : 'hit');
+    if (!opt.quiet) {
+      const tag = opt.sneak ? ' 기습!' : opt.crit ? ' 치명타!' : '';
+      say(`${via}${m.n}에게 ${dmg}의 피해.${tag}`, opt.crit ? 'level' : 'hit');
+    }
   }
+}
+
+/* An elite always leaves something with a name on it. */
+function dropElite(m) {
+  const spot = { x: m.x, y: m.y };
+  const it = pickItem(G.depth + 4);
+  if (!it) return;
+  rollAffixes(it, G.depth + 8, true);
+  G.items.push({ ...it, ...spot });
+  say(`${affixName(it)}을(를) 떨어뜨렸다.`, 'level');
+  fx({ t:'drop', x: spot.x, y: spot.y });
 }
 
 function gainXp(n) {
@@ -879,7 +1129,8 @@ export function endTurn(skipMonsters = false) {
   tickAilments(p);
   if (!G.running) return;
 
-  const regen = 1 + Math.floor(p.lv / 6) + (p.race === 'halfTroll' ? 1 : 0);
+  const regen = Math.max(0, 1 + Math.floor(p.lv / 6)
+    + (p.race === 'halfTroll' ? 1 : 0) + gearBonus(p).regen);
   if (G.turn % 14 === 0 && p.hp < p.maxhp) p.hp = Math.min(p.maxhp, p.hp + regen);
   if (G.turn % 10 === 0 && p.mana < p.maxmana) p.mana = Math.min(p.maxmana, p.mana + 1);
 
@@ -932,6 +1183,12 @@ function monsterTurn(m) {
   const dist2 = dx * dx + dy * dy;
   const dist = Math.sqrt(dist2);
 
+  if (m.poison > 0) {
+    m.poison--;
+    const tick = Math.max(1, Math.round((m.maxhp || 10) * 0.045));
+    hurtMonster(m, tick, '독', { quiet: true });
+    if (!G.monsters.includes(m)) return;
+  }
   if (m.regen && m.hp < m.maxhp) m.hp = Math.min(m.maxhp, m.hp + m.regen);
 
   if (!m.awake) {
@@ -992,6 +1249,10 @@ function monsterMelee(m) {
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        severe: dmg >= p.maxhp * 0.18 });
   say(`${m.n}이(가) ${dmg}의 피해를 입혔다.`, 'hit');
+  if (m.drain) {                       // 흡혈하는: it heals off you
+    const back = Math.max(1, Math.round(dmg * m.drain));
+    m.hp = Math.min(m.maxhp, m.hp + back);
+  }
   if (m.on && Math.random() < 0.28) afflict(p, m.on, 9 + rnd(9));
   if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death(m); }
 }
@@ -1046,6 +1307,148 @@ function advance(m, sx, sy) {
 }
 
 const retreat = m => advance(m, Math.sign(m.x - G.player.x), Math.sign(m.y - G.player.y));
+
+/* ── the fire ─────────────────────────────────────────────
+   One per floor, one choice, no take-backs. Rest is the safe
+   pick and buys you nothing lasting. Enhancement is a small,
+   certain, permanent gain. The enchant is the gamble: a real
+   affix most of the time, a curse some of the time, and it can
+   land on top of one you already had. The whole point is that
+   at full health the first option is worthless and at 20% it is
+   the only sane one. */
+export const CAMP_HEAL = 0.30;
+export const MAX_PLUS = 5;
+
+export function campTargets() {
+  const p = G.player, out = [];
+  for (const [slot, label] of [['weapon', '무기'], ['body', '갑옷'], ['shield', '방패']]) {
+    const it = p.equip[slot];
+    if (it) out.push({
+      key: `eq:${slot}`, label, name: affixName(it), kind: it.kind, item: it,
+      plus: it.plus || 0, capped: (it.plus || 0) >= MAX_PLUS,
+    });
+  }
+  for (const s of spellList(p)) {
+    const plus = p.spellPlus?.[s.id] || 0;
+    const aff = p.spellAffix?.[s.id];
+    const affN = aff ? SPELL_AFFIXES.find(a => a.id === aff)?.n : null;
+    out.push({
+      key: `sp:${s.id}`, label: '주문', kind: 'spell', spell: s,
+      name: `${plus ? `+${plus} ` : ''}${affN ? affN + ' ' : ''}${s.name}`,
+      plus, capped: plus >= MAX_PLUS,
+    });
+  }
+  return out;
+}
+
+const targetOf = key => {
+  const p = G.player;
+  if (key.startsWith('eq:')) return { type: 'item', item: p.equip[key.slice(3)] };
+  if (key.startsWith('sp:')) return { type: 'spell', id: key.slice(3) };
+  return null;
+};
+
+export function campRest() {
+  const p = G.player;
+  const heal = Math.min(p.maxhp - p.hp, Math.ceil(p.maxhp * CAMP_HEAL));
+  p.hp += heal;
+  p.mana = p.maxmana;
+  const cured = ailList(p);
+  p.ail = {};
+  p.stuck = 0;
+  if (heal) fx({ t:'heal', x:p.x, y:p.y, amt:heal });
+  say(heal ? `불 앞에서 숨을 돌렸다. 체력 +${heal}.` : '불 앞에 앉았지만 이미 멀쩡하다.', 'good');
+  if (cured.length) say(`${cured.map(k => AILMENTS[k].n).join(' · ')}이(가) 가셨다.`, 'good');
+  spendCamp();
+}
+
+export function campUpgrade(key) {
+  const p = G.player, t = targetOf(key);
+  if (!t) return;
+  if (t.type === 'item') {
+    if (!t.item) return;
+    // Enhancement tops out, or twenty-five floors of fires would
+    // outscale everything the dungeon can put in front of you.
+    if ((t.item.plus || 0) >= MAX_PLUS) {
+      say(`${affixName(t.item)}은(는) 더 벼릴 수 없다.`, 'warn');
+      return;
+    }
+    t.item.plus = (t.item.plus || 0) + 1;
+    recalc(p);
+    say(`${affixName(t.item)} — 날이 섰다.`, 'level');
+  } else {
+    p.spellPlus = p.spellPlus || {};
+    if ((p.spellPlus[t.id] || 0) >= MAX_PLUS) {
+      say('그 주문은 더 연마할 수 없다.', 'warn');
+      return;
+    }
+    p.spellPlus[t.id] = (p.spellPlus[t.id] || 0) + 1;
+    const sp = spellList(p).find(s => s.id === t.id);
+    say(`${sp?.name || '주문'}을(를) 연마했다.`, 'level');
+  }
+  fx({ t:'forge', x:p.x, y:p.y });
+  spendCamp();
+}
+
+export function campEnchant(key) {
+  const p = G.player, t = targetOf(key);
+  if (!t) return;
+
+  if (t.type === 'spell') {
+    p.spellAffix = p.spellAffix || {};
+    const a = SPELL_AFFIXES[rnd(SPELL_AFFIXES.length)];
+    const had = p.spellAffix[t.id];
+    p.spellAffix[t.id] = a.id;
+    const sp = spellList(p).find(s => s.id === t.id);
+    say(had && had !== a.id
+      ? `${sp?.name}의 성질이 뒤바뀌었다 — ${a.n}. ${a.note}.`
+      : `${sp?.name}이(가) ${a.n} 주문이 되었다. ${a.note}.`, 'level');
+    fx({ t:'enchant', x:p.x, y:p.y, cursed:false });
+    spendCamp();
+    return;
+  }
+
+  const it = t.item;
+  if (!it) return;
+  const tag = it.kind;
+  // Roughly one roll in five bites back.
+  const cursed = Math.random() < 0.20;
+  const usePrefix = Math.random() < 0.5;
+  const table = usePrefix ? PREFIXES : SUFFIXES;
+  const a = pickAffixFor(table, tag, cursed);
+  if (!a) { say('불꽃이 사그라들 뿐이다.', 'warn'); spendCamp(); return; }
+
+  const slotKey = usePrefix ? 'pre' : 'suf';
+  const replaced = it[slotKey];
+  it[slotKey] = a.id;
+  recalc(p);
+
+  if (cursed) {
+    say(`${it.n}에서 검은 연기가 피어오른다 — ${a.n}.`, 'warn');
+  } else if (replaced && replaced !== a.id) {
+    say(`${affixName(it)} — 이전의 성질을 밀어냈다.`, 'level');
+  } else {
+    say(`${affixName(it)} — 새 성질이 깃들었다.`, 'level');
+  }
+  fx({ t:'enchant', x:p.x, y:p.y, cursed });
+  spendCamp();
+}
+
+/* Cursed rolls draw from the cursed pool only, so a bad outcome
+   is genuinely bad rather than merely a weaker good one. */
+function pickAffixFor(table, tag, cursed) {
+  const pool = table.filter(a => a.tags.includes(tag) && !!a.curse === cursed);
+  if (pool.length) return pool[rnd(pool.length)];
+  return pickAffix(table, tag, false);
+}
+
+function spendCamp() {
+  const L = G.level, p = G.player;
+  if (L.tiles[idx(p.x, p.y)] === CAMP) L.tiles[idx(p.x, p.y)] = FLOOR;
+  L.campSpent = true;
+  G.screen = 'play';
+  endTurn();
+}
 
 /* ── shops ──────────────────────────────────────────────── */
 export function shopStock(shop) {

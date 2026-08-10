@@ -27,7 +27,7 @@
       죽으면 처음부터다.
     </p>
     <button class="big" id="btn-new">모험 시작</button>
-    <p class="fine">도트는 전부 코드로 그려집니다. 이미지 파일 없음.</p>
+    <p class="fine">도트는 전부 코드로 그려집니다. 이미지 파일 없음.<br><span id="build">v4</span></p>
   </div>
 </section>
 
@@ -148,6 +148,20 @@
   <div class="scroll"><div id="spell-list"></div></div>
 </section>
 
+<!-- ══ campfire ══ -->
+<section id="sc-camp" class="screen" hidden>
+  <header class="bar"><h2>모닥불</h2><span class="chip depth" id="camp-depth">1층</span></header>
+  <div class="scroll">
+    <p class="note" id="camp-lead">불은 한 번만 쓸 수 있다. 하나만 고르시오.</p>
+    <div id="camp-choices"></div>
+    <div id="camp-targets" hidden>
+      <h3 class="sect" id="camp-target-head">대상</h3>
+      <div id="camp-target-list"></div>
+      <button class="mini" id="camp-back">← 돌아가기</button>
+    </div>
+  </div>
+</section>
+
 <!-- ══ help ══ -->
 <section id="sc-help" class="screen" hidden>
   <header class="bar"><h2>조작법</h2><button class="mini" data-back>닫기</button></header>
@@ -197,6 +211,32 @@
       <tr><td>함정 상자</td><td>뚜껑에 무언가 걸려 있을 수 있습니다.</td></tr>
       <tr><td>미믹</td><td>상자처럼 생긴 것이 전부 상자는 아닙니다. 깊이 내려갈수록 흔해집니다.
         건드리면 먼저 뭅니다. 다만 <b>미믹은 숨을 쉽니다</b> — 가만히 보면 아주 조금 위아래로 움직입니다. 생명 탐지 주문은 한 번에 벗겨냅니다.</td></tr>
+    </table>
+
+    <h3 class="sect">모닥불 — 한 번의 선택</h3>
+    <table class="keys">
+      <tr><td>찾기</td><td>층에 들어서면 "멀리서 불빛이 흔들린다"는 말과 함께 <b>지도에 미리 표시</b>됩니다. 다만 <b>모든 층에 있지는 않습니다</b>(약 60%).</td></tr>
+      <tr><td>휴식</td><td>최대 체력의 30% 회복 · 마나 전부 · 모든 상태이상 해제. 안전하지만 남는 게 없습니다.</td></tr>
+      <tr><td>강화</td><td>장비 하나를 +1 하거나 주문 하나를 연마합니다. 작지만 확실하고 영구적입니다. <b>+5가 상한.</b></td></tr>
+      <tr><td>인챈트</td><td>무작위 접두/접미 속성. <b>다섯에 하나는 저주</b>고, 이미 붙은 성질을 밀어낼 수 있습니다. 도박입니다.</td></tr>
+      <tr><td></td><td>셋 중 <b>하나만</b> 고를 수 있고, 고르면 불은 꺼집니다. 체력이 가득할 때 휴식은 낭비고, 20%일 때 강화는 자살입니다.</td></tr>
+    </table>
+
+    <h3 class="sect">접두 · 접미 속성</h3>
+    <table class="keys">
+      <tr><td>어디에</td><td>주운 장비, 정예가 떨어뜨린 전리품, 모닥불 인챈트, 그리고 <b>주문</b>에도 붙습니다.</td></tr>
+      <tr><td>겹치기</td><td>같은 무기에 접두 하나 + 접미 하나. 배낭 화면에서 실제 수치를 볼 수 있습니다.</td></tr>
+      <tr><td>시너지</td><td><b>연쇄의</b>(45%로 옆 적에게 파급) + <b>작열하는</b>(처치 시 폭발) + <b>갈증</b>(흡혈)을 한 무기에 모으면,
+        한 번 휘두를 때 두 마리가 맞고, 죽은 쪽이 터지고, 그 피해가 당신을 회복시킵니다. 셋 중 어느 것도 나머지 둘을 알지 못합니다.</td></tr>
+      <tr><td>그 외</td><td>꿰뚫는(방어 관통) · 처형(체력 22% 이하 즉사) · 예리한(치명타) · 분노(피해 배수) ·
+        룬이 새겨진(상태이상 면역) · 등불의(시야 +3) · 그림자(은신).</td></tr>
+      <tr><td>저주</td><td>무딘 · 시끄러운 · 삭은 · 짐 · 부패. 인챈트 도박에서만 나옵니다. 이름이 <b>보라색</b>으로 표시됩니다.</td></tr>
+    </table>
+
+    <h3 class="sect">정예</h3>
+    <table class="keys">
+      <tr><td>정예 몬스터</td><td>이름 앞에 접두가 붙고 <b>주황색 고리</b>가 돕니다(두 개면 보라색). 재빠른 · 거대한 · 강철의 · 맹독의 · 광폭한 · 흡혈하는.</td></tr>
+      <tr><td>보상</td><td>경험치가 약 두 배고, 죽으면 <b>반드시 속성이 붙은 장비</b>를 떨어뜨립니다. 싸울지 피할지가 선택입니다.</td></tr>
     </table>
 
     <p class="note">

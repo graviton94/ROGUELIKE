@@ -190,6 +190,81 @@ export const SHOPS = [
   { id:6, n:'마법상',   spr:'wand',   stock:['scrMap','scrTele','scrDeep','potMana'] },
 ];
 
+/* ── affixes ──────────────────────────────────────────────
+   One vocabulary, three users: gear, spells and monsters. The
+   fields are all additive except dmgPct, and that is on purpose
+   — the multiplicative one is where the absurd builds live. Put
+   흡혈 + 연쇄 + 작열 on one weapon and a swing chains into a
+   second target, the kill detonates, and the detonation feeds
+   you. None of those three lines knows about the other two.
+
+   tags gates what a roll can land on. `curse` marks a downside
+   so the enchant gamble has something to lose to.             */
+export const PREFIXES = [
+  { id:'keen',    n:'예리한',   tags:['weapon'], crit:0.09, critMult:0.15 },
+  { id:'heavy',   n:'묵직한',   tags:['weapon'], dmg:4, hit:-3 },
+  { id:'vamp',    n:'흡혈의',   tags:['weapon'], lifesteal:0.18 },
+  { id:'chain',   n:'연쇄의',   tags:['weapon'], chain:0.45 },
+  { id:'venom',   n:'맹독의',   tags:['weapon'], on:'poison' },
+  { id:'blazing', n:'작열하는', tags:['weapon'], burst:0.55 },
+  { id:'swift',   n:'신속한',   tags:['weapon'], hit:5, crit:0.04 },
+  { id:'rending', n:'꿰뚫는',   tags:['weapon'], pierce:0.5 },
+
+  { id:'sturdy',  n:'견고한',   tags:['armour'], ac:5 },
+  { id:'light',   n:'가벼운',   tags:['armour'], ac:-2, stealth:0.14 },
+  { id:'runed',   n:'룬이 새겨진', tags:['armour'], resist:'all' },
+  { id:'living',  n:'살아있는', tags:['armour'], regen:2 },
+  { id:'lantern', n:'등불의',   tags:['armour'], lightR:3 },
+
+  { id:'dull',    n:'무딘',     tags:['weapon'], dmg:-3, curse:true },
+  { id:'loud',    n:'시끄러운', tags:['weapon','armour'], stealth:-0.25, curse:true },
+  { id:'brittle', n:'삭은',     tags:['armour'], ac:-4, curse:true },
+];
+
+export const SUFFIXES = [
+  { id:'fury',    n:'분노',     tags:['weapon'], dmgPct:0.28 },
+  { id:'precision', n:'정밀',   tags:['weapon'], hit:8 },
+  { id:'thirst',  n:'갈증',     tags:['weapon'], lifesteal:0.12, dmg:2 },
+  { id:'execution', n:'처형',   tags:['weapon'], execute:0.22 },
+  { id:'storm',   n:'폭풍',     tags:['weapon'], chain:0.30, dmg:2 },
+  { id:'ruin',    n:'파멸',     tags:['weapon'], critMult:0.7 },
+
+  { id:'ward',    n:'수호',     tags:['armour'], ac:4 },
+  { id:'shadow',  n:'그림자',   tags:['armour'], stealth:0.16 },
+  { id:'vigour',  n:'활력',     tags:['armour'], maxhpPct:0.12 },
+  { id:'mind',    n:'정신',     tags:['armour'], manaPct:0.25 },
+
+  { id:'weight',  n:'짐',       tags:['weapon','armour'], hit:-6, curse:true },
+  { id:'decay',   n:'부패',     tags:['armour'], regen:-1, curse:true },
+];
+
+/* Spells take the same shape, smaller vocabulary. */
+export const SPELL_AFFIXES = [
+  { id:'echo',    n:'메아리치는', chainSpell:true, note:'두 번째 대상에게도 절반이 간다' },
+  { id:'greater', n:'강대한',   powPct:0.40,   note:'위력 +40%' },
+  { id:'cheap',   n:'간결한',   costCut:1,     note:'소모 마나 -1' },
+  { id:'draining',n:'흡수하는', spellSteal:0.25, note:'입힌 피해의 1/4을 회복한다' },
+  { id:'wild',    n:'거친',     powPct:0.9, costUp:2, note:'위력 +90%, 마나 +2' },
+];
+
+/* Monsters get prefixes too — the same idea, pointed at you. An
+   elite is worth killing: more experience, better drops. */
+export const ELITES = [
+  { id:'quick',  n:'재빠른',   spd:0.45 },
+  { id:'huge',   n:'거대한',   hpPct:0.65, atkPct:0.20 },
+  { id:'iron',   n:'강철의',   ac:7 },
+  { id:'toxic',  n:'맹독의',   on:'poison' },
+  { id:'feral',  n:'광폭한',   atkPct:0.45, hpPct:-0.15 },
+  { id:'leech',  n:'흡혈하는', drain:0.35 },
+];
+
+export const affixName = (item) => {
+  const pre = item.pre ? PREFIXES.find(a => a.id === item.pre) : null;
+  const suf = item.suf ? SUFFIXES.find(a => a.id === item.suf) : null;
+  const plus = item.plus ? `+${item.plus} ` : '';
+  return `${plus}${pre ? pre.n + ' ' : ''}${item.n}${suf ? ' · ' + suf.n : ''}`;
+};
+
 /* ── curves ───────────────────────────────────────────────*/
 export const xpToLevel = lv => Math.floor(13 * Math.pow(lv, 1.92));
 export const statBonus = v => Math.floor((v - 10) / 2);

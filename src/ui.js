@@ -7,12 +7,13 @@
 import { sprite, wallTile, floorTile, CELL_SIZE, PALETTE } from './pixels.js';
 import {
   RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS,
+  PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName,
   xpToLevel, statBonus,
 } from './data.js';
 import {
   MW, MH, idx, clamp, walkable, isDoor,
   ROCK, FLOOR, DOWN, UP, DOOR, RUBBLE, SHOP,
-  DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN, WEB, WATER,
+  DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN, WEB, WATER, CAMP,
 } from './world.js';
 import * as Game from './game.js';
 import { G } from './game.js';
@@ -120,6 +121,12 @@ export function draw() {
         if (tile === DOOR_BROKEN) ctx.drawImage(sprite('doorBroken'), px, py, t, t);
         if (tile === WEB)         ctx.drawImage(sprite('web'),        px, py, t, t);
         if (tile === WATER)       ctx.drawImage(sprite('water'),      px, py, t, t);
+        if (tile === CAMP) {
+          const prevA = ctx.globalAlpha;
+          ctx.globalAlpha = Math.max(prevA, 0.55 + Math.sin(performance.now() / 300) * 0.12);
+          ctx.drawImage(sprite('camp'), px, py, t, t);
+          ctx.globalAlpha = prevA;
+        }
         if (tile === RUBBLE)      ctx.drawImage(sprite('rubble'),     px, py, t, t);
 
         // A trap you have spotted is drawn; one you haven't isn't.
@@ -159,6 +166,19 @@ export function draw() {
        like a chest looks, but it breathes — a slow half-pixel
        rise a patient player can catch and a hurried one can't. */
     if (m.disguise) my += Math.sin(performance.now() / 900 + m.x) * t * 0.045;
+
+    /* An elite gets a ring so you can decide to walk away from
+       it before you are already in melee with it. */
+    if (m.elite?.length && seenNow) {
+      ctx.save();
+      ctx.globalAlpha = 0.55 + Math.sin(performance.now() / 420) * 0.18;
+      ctx.strokeStyle = m.elite.length > 1 ? PALETTE.P : PALETTE.o;
+      ctx.lineWidth = Math.max(1.5, t * 0.09);
+      ctx.beginPath();
+      ctx.arc(mx + t / 2, my + t / 2, t * 0.56, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     blitActor(sprite(m.spr), mx, my, t, o);
     if (m.disguise) continue;     // no sleep marker, no health bar — it is furniture
@@ -326,12 +346,13 @@ export function refresh() {
 export function setScreen(name) {
   G.screen = name;
   if (name !== 'play') stopAuto();
-  for (const s of ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help'])
+  for (const s of ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help', 'camp'])
     $(`sc-${s}`).hidden = (s !== name);
   if (name === 'play') { resize(); refresh(); }
   if (name === 'inv')  renderInventory();
   if (name === 'shop') renderShop();
   if (name === 'spell') renderSpells();
+  if (name === 'camp')  renderCamp();
   if (name === 'end')  renderEnd();
 }
 
@@ -393,7 +414,9 @@ function renderInventory() {
     if (it) {
       const ic = el('canvas', 'icon'); paintIcon(ic, it.spr);
       row.appendChild(ic);
-      row.appendChild(el('span', 'eqname', it.n));
+      const nm = el('span', 'eqname', affixName(it));
+      if (it.pre || it.suf) nm.classList.add(cursedItem(it) ? 'cursed' : 'magic');
+      row.appendChild(nm);
       row.appendChild(el('span', 'eqstat',
         it.kind === 'weapon' ? `${it.dice[0]}d${it.dice[1]}` : `AC ${it.ac}`));
     } else {
@@ -427,10 +450,12 @@ function renderInventory() {
     const ic = el('canvas', 'icon'); paintIcon(ic, it.spr);
     row.appendChild(ic);
     const mid = el('div', 'imid');
-    mid.appendChild(el('span', 'iname', it.n + (slot.qty > 1 ? ` ×${slot.qty}` : '')));
+    const nameEl = el('span', 'iname', affixName(it) + (slot.qty > 1 ? ` ×${slot.qty}` : ''));
+    if (it.pre || it.suf) nameEl.classList.add(cursedItem(it) ? 'cursed' : 'magic');
+    mid.appendChild(nameEl);
     mid.appendChild(el('span', 'idesc',
-      it.kind === 'weapon' ? `피해 ${it.dice[0]}d${it.dice[1]}${it.hands === 2 ? ' · 양손' : ''}`
-      : it.kind === 'armour' ? `방어 +${it.ac}`
+      it.kind === 'weapon' ? `피해 ${it.dice[0]}d${it.dice[1]}${it.hands === 2 ? ' · 양손' : ''}${affixBlurb(it)}`
+      : it.kind === 'armour' ? `방어 +${it.ac}${affixBlurb(it)}`
       : it.desc || '사용 가능'));
     row.appendChild(mid);
     row.appendChild(el('span', 'iact', it.kind === 'use' ? '사용' : '장착'));
@@ -463,7 +488,7 @@ function renderShop() {
     const ic = el('canvas', 'icon'); paintIcon(ic, item.spr);
     row.appendChild(ic);
     const mid = el('div', 'imid');
-    mid.appendChild(el('span', 'iname', item.n));
+    mid.appendChild(el('span', 'iname', affixName(item)));
     mid.appendChild(el('span', 'idesc',
       item.kind === 'weapon' ? `피해 ${item.dice[0]}d${item.dice[1]}${item.hands === 2 ? ' · 양손' : ''}`
       : item.kind === 'armour' ? `방어 +${item.ac}` : ''));
@@ -480,7 +505,7 @@ function renderShop() {
     const ic = el('canvas', 'icon'); paintIcon(ic, slot.item.spr);
     row.appendChild(ic);
     const mid = el('div', 'imid');
-    mid.appendChild(el('span', 'iname', slot.item.n + (slot.qty > 1 ? ` ×${slot.qty}` : '')));
+    mid.appendChild(el('span', 'iname', affixName(slot.item) + (slot.qty > 1 ? ` ×${slot.qty}` : '')));
     row.appendChild(mid);
     row.appendChild(el('span', 'iact', `+${Game.priceOf(slot.item, false)}g`));
     row.onclick = () => { Game.sell(i); renderShop(); refresh(); };
@@ -496,16 +521,142 @@ function renderSpells() {
   if (!spells.length) list.appendChild(el('p', 'empty', '아직 익힌 주문이 없다.'));
   $('spell-mana').textContent = `${p.mana}/${p.maxmana}`;
   for (const s of spells) {
-    const row = el('button', 'itemrow' + (p.mana < s.cost ? ' poor' : ''));
+    const cost = Game.spellCost(p, s);
+    const plus = p.spellPlus?.[s.id] || 0;
+    const aff = SPELL_AFFIXES.find(a => a.id === p.spellAffix?.[s.id]);
+    const row = el('button', 'itemrow' + (p.mana < cost ? ' poor' : ''));
     const mid = el('div', 'imid');
-    mid.appendChild(el('span', 'iname', s.name));
-    mid.appendChild(el('span', 'idesc', s.desc));
+    const nm = el('span', 'iname', `${plus ? `+${plus} ` : ''}${aff ? aff.n + ' ' : ''}${s.name}`);
+    if (plus || aff) nm.classList.add('magic');
+    mid.appendChild(nm);
+    mid.appendChild(el('span', 'idesc', s.desc + (aff ? ` · ${aff.note}` : '')));
     row.appendChild(mid);
-    row.appendChild(el('span', 'iact', `${s.cost}mp`));
+    row.appendChild(el('span', 'iact', `${cost}mp`));
     row.onclick = () => { Game.cast(s.id); setScreen('play'); refresh(); };
     list.appendChild(row);
   }
 }
+
+/* ── affix helpers ──────────────────────────────────────── */
+const affixOf = (id, table) => table.find(a => a.id === id);
+
+function cursedItem(it) {
+  return !!(affixOf(it.pre, PREFIXES)?.curse || affixOf(it.suf, SUFFIXES)?.curse);
+}
+
+/* Spell out what an affix actually does. A name like "연쇄의"
+   is flavour until the player can read the number behind it. */
+const AFFIX_WORDS = {
+  dmg: v => `피해 ${v > 0 ? '+' : ''}${v}`,
+  dmgPct: v => `피해 ${v > 0 ? '+' : ''}${Math.round(v * 100)}%`,
+  hit: v => `명중 ${v > 0 ? '+' : ''}${v}`,
+  crit: v => `치명타 +${Math.round(v * 100)}%`,
+  critMult: v => `치명 배수 +${v.toFixed(2)}`,
+  ac: v => `방어 ${v > 0 ? '+' : ''}${v}`,
+  stealth: v => `은신 ${v > 0 ? '+' : ''}${Math.round(v * 100)}%`,
+  lifesteal: v => `흡혈 ${Math.round(v * 100)}%`,
+  chain: v => `연쇄 ${Math.round(v * 100)}%`,
+  burst: v => '처치 시 폭발',
+  execute: v => `체력 ${Math.round(v * 100)}% 이하 처형`,
+  pierce: v => `방어 관통 ${Math.round(v * 100)}%`,
+  regen: v => `재생 ${v > 0 ? '+' : ''}${v}`,
+  lightR: v => `시야 +${v}`,
+  maxhpPct: v => `최대 체력 +${Math.round(v * 100)}%`,
+  manaPct: v => `최대 마나 +${Math.round(v * 100)}%`,
+  on: v => `타격 시 ${AILMENTS[v]?.n || v}`,
+  resist: () => '상태이상 면역',
+};
+
+function affixText(a) {
+  if (!a) return '';
+  return Object.entries(a)
+    .filter(([k]) => AFFIX_WORDS[k])
+    .map(([k, v]) => AFFIX_WORDS[k](v))
+    .join(' · ');
+}
+
+function affixBlurb(it) {
+  const parts = [affixText(affixOf(it.pre, PREFIXES)), affixText(affixOf(it.suf, SUFFIXES))]
+    .filter(Boolean);
+  return parts.length ? ' · ' + parts.join(' · ') : '';
+}
+
+/* ── the fire ───────────────────────────────────────────── */
+let campMode = null;   // null | 'upgrade' | 'enchant'
+
+export function renderCamp() {
+  const p = G.player;
+  $('camp-depth').textContent = `${G.depth}층`;
+
+  const wrap = $('camp-choices');
+  wrap.innerHTML = '';
+  $('camp-targets').hidden = true;
+  wrap.hidden = false;
+
+  const heal = Math.min(p.maxhp - p.hp, Math.ceil(p.maxhp * Game.CAMP_HEAL));
+  const options = [
+    { id:'rest', n:'휴식', desc:
+        `체력 +${heal} (최대의 ${Math.round(Game.CAMP_HEAL * 100)}%) · 마나 회복 · 모든 상태이상 해제`,
+      tag: p.hp < p.maxhp * 0.5 ? '지금은 이게 답일지도' : '이미 멀쩡하다' },
+    { id:'upgrade', n:'강화', desc:
+        '장비 하나를 +1 하거나 주문 하나를 연마한다. 작지만 확실하고 영구적이다.',
+      tag: '확실함' },
+    { id:'enchant', n:'인챈트', desc:
+        '무작위 접두 또는 접미 속성을 건다. 다섯에 하나는 저주가 붙고, 이미 붙은 성질을 밀어낼 수 있다.',
+      tag: '도박' },
+  ];
+
+  for (const o of options) {
+    const row = el('button', 'campopt');
+    const head = el('div', 'camphead');
+    head.appendChild(el('span', 'campname', o.n));
+    head.appendChild(el('span', 'camptag', o.tag));
+    row.appendChild(head);
+    row.appendChild(el('span', 'campdesc', o.desc));
+    row.onclick = () => {
+      if (o.id === 'rest') { Game.campRest(); setScreen('play'); refresh(); return; }
+      campMode = o.id;
+      renderCampTargets();
+    };
+    wrap.appendChild(row);
+  }
+}
+
+function renderCampTargets() {
+  $('camp-choices').hidden = true;
+  $('camp-targets').hidden = false;
+  $('camp-target-head').textContent = campMode === 'upgrade' ? '무엇을 강화할까' : '무엇에 걸까';
+
+  const list = $('camp-target-list');
+  list.innerHTML = '';
+  for (const t of Game.campTargets()) {
+    const row = el('button', 'itemrow');
+    if (t.item) { const ic = el('canvas', 'icon'); paintIcon(ic, t.item.spr); row.appendChild(ic); }
+    const mid = el('div', 'imid');
+    const nm = el('span', 'iname', t.name);
+    if (t.item && (t.item.pre || t.item.suf)) nm.classList.add(cursedItem(t.item) ? 'cursed' : 'magic');
+    mid.appendChild(nm);
+    mid.appendChild(el('span', 'idesc',
+      t.kind === 'spell' ? '주문'
+      : t.item.kind === 'weapon' ? `피해 ${t.item.dice[0]}d${t.item.dice[1]}${affixBlurb(t.item)}`
+      : `방어 +${t.item.ac}${affixBlurb(t.item)}`));
+    row.appendChild(mid);
+    // A maxed item can't take the upgrade, so don't offer it as
+    // one — a dead button would silently eat the whole fire.
+    const capped = campMode === 'upgrade' && t.capped;
+    if (capped) { row.classList.add('poor'); row.disabled = true; }
+    row.appendChild(el('span', 'iact',
+      campMode === 'upgrade' ? (capped ? `최대 +${Game.MAX_PLUS}` : `+${(t.plus || 0) + 1}`) : '?'));
+    if (!capped) row.onclick = () => {
+      campMode === 'upgrade' ? Game.campUpgrade(t.key) : Game.campEnchant(t.key);
+      setScreen('play');
+      refresh();
+    };
+    list.appendChild(row);
+  }
+}
+
+$('camp-back').onclick = () => { campMode = null; renderCamp(); };
 
 /* ending */
 function renderEnd() {
@@ -623,6 +774,7 @@ function walkTo(tx, ty) {
 function takeStep(dx, dy) {
   act(() => Game.step(dx, dy));
   if (G.screen === 'shop') { stopAuto(); setScreen('shop'); return false; }
+  if (G.screen === 'camp') { stopAuto(); setScreen('camp'); return false; }
   if (G.screen === 'end') { stopAuto(); return false; }
   return true;
 }
@@ -697,6 +849,7 @@ export function bindInput() {
       e.preventDefault();
       btn.setPointerCapture?.(e.pointerId);
       press(dx, dy);
+      if (G.screen === 'camp') setScreen('camp');
     });
     for (const ev of ['pointerup', 'pointercancel', 'pointerleave'])
       btn.addEventListener(ev, release);
@@ -712,6 +865,7 @@ export function bindInput() {
 
   window.addEventListener('keydown', e => {
     if (G.screen === 'end') { if (e.key === 'Enter') location.reload(); return; }
+    if (G.screen === 'camp') return;         // the fire is a decision, not a menu
     if (G.screen !== 'play') { if (e.key === 'Escape') setScreen('play'); return; }
     if (e.key === 'Escape') { stopAuto(); return; }
 

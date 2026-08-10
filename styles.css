@@ -217,3 +217,21 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 
 @media (max-width: 340px) { #dpad { width: 126px; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* ── affixes ── */
+.iname.magic, .eqname.magic  { color: var(--y); }
+.iname.cursed, .eqname.cursed { color: var(--P); }
+
+/* ── the fire ── */
+.campopt {
+  display: flex; flex-direction: column; gap: 5px; align-items: stretch;
+  width: 100%; padding: 13px 14px; margin-bottom: 8px; text-align: left;
+  border: 1px solid var(--g); background: var(--d);
+}
+.campopt:active { background: var(--o); }
+.camphead { display: flex; align-items: baseline; gap: 10px; }
+.campname { font-size: 15px; color: var(--o); letter-spacing: .06em; }
+.camptag  { flex: 1 1 auto; text-align: right; font-size: 10px; color: var(--G); }
+.campdesc { font-size: 11.5px; line-height: 1.65; color: var(--w); }
+.campopt:active .campname, .campopt:active .camptag, .campopt:active .campdesc { color: var(--k); }
+#camp-back { margin-top: 12px; }

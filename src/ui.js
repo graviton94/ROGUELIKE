@@ -9,9 +9,14 @@ import {
   RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName, MATS, ENCHANT_COST, REROLL_COST,
   RARITY, CURSED_TONE, rarityOf, isCursed,
-  RELIC_SLOTS, relicById, WEAPON_TYPES, PATTERNS,
+  RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
+  MONSTERS, BRANCHES,
   xpToLevel, statBonus,
 } from './data.js';
+import { EVENTS } from './events.js';
+
+const EVENTS_TOTAL = EVENTS.length;
+const BRANCH_TOTAL = BRANCHES.length;
 import {
   MW, MH, idx, clamp, walkable, isDoor,
   ROCK, FLOOR, DOWN, UP, DOOR, RUBBLE, SHOP,
@@ -21,6 +26,8 @@ import * as Game from './game.js';
 import { G } from './game.js';
 import * as Juice from './juice.js';
 import * as Save from './save.js';
+import * as Audio from './audio.js';
+import * as Meta from './meta.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -623,6 +630,7 @@ function frame(ts) {
 
   tickInput(dt);
   if (G.screen !== 'play') return;
+  checkLessons();
 
   Juice.pump(G.fx, G.player);
   Juice.update(dt, [G.player, ...G.monsters]);
@@ -748,6 +756,14 @@ export function refresh() {
     $('hud-clock-n').textContent = lvl ? `습격 ${lvl}` : `여유 ${Math.max(0, left)}`;
   } else clock.hidden = true;
 
+  const wager = $('hud-bank');
+  wager.hidden = !(G.bank >= 2);
+  if (G.bank >= 2) {
+    const bp = Game.bankPurse2();
+    $('hud-bank-n').textContent = `${G.bank}층 ${bp ? bp.gold : 0}닢`;
+    wager.classList.toggle('hot', G.bank >= 4);
+  }
+
   const rel = $('hud-relics');
   const held = Game.relicList();
   rel.hidden = !held.length;
@@ -801,12 +817,12 @@ export function setScreen(name) {
   if (name === 'inv')  renderInventory();
   if (name === 'shop') renderShop();
   if (name === 'spell') renderSpells();
-  if (name === 'camp')  renderCamp();
+  if (name === 'camp')  { teach('fire'); renderCamp(); }
   if (name === 'altar') renderAltar();
   if (name === 'slots') renderSlots();
   if (name === 'title') refreshTitle();
   if (name === 'end')  renderEnd();
-  if (name === 'stairs') renderStairs();
+  if (name === 'stairs') { teach('fork'); renderStairs(); }
   if (name === 'relic')  renderRelicSwap();
   if (name === 'event')  renderEvent();
   if (name === 'help')   renderLegend();
@@ -1334,6 +1350,31 @@ export function renderCamp() {
     wrap.appendChild(row);
   }
 
+  /* The pile, if there is one. It sits above the other options
+     because it is the one that expires — every other choice at
+     this fire is still there on the next floor, and this one
+     burns the moment you rest. */
+  const purse = Game.bankPurse2();
+  if (purse) {
+    const row = el('button', 'campopt wager');
+    const head = el('div', 'camphead');
+    const nm = el('span', 'campname', '판돈을 챙긴다');
+    nm.style.color = 'var(--y)';
+    head.appendChild(nm);
+    head.appendChild(el('span', 'camptag', `${purse.floors}층 연속`));
+    row.appendChild(head);
+    row.appendChild(el('span', 'campdesc',
+      `금화 ${purse.gold} · 쇳조각 ${purse.scrap} · 가루 ${purse.dust}` +
+      (purse.essence ? ` · 정수 ${purse.essence}` : '') +
+      ' — 불을 쓰고 판돈은 사라진다.'));
+    row.onclick = () => { Game.campCash(); setScreen('play'); refresh(); };
+    wrap.appendChild(row);
+
+    const note = el('p', 'note');
+    note.textContent = '한 층 더 내려가면 판돈은 더 불어난다. 죽으면 전부 잃는다.';
+    wrap.appendChild(note);
+  }
+
   /* Walking away has to be on the menu. Arriving at full health
      with no materials used to leave "waste the fire on a rest you
      do not need" as the only exit, which reads as being trapped —
@@ -1402,6 +1443,169 @@ $('camp-back').onclick = () => { campMode = null; renderCamp(); };
    whole point — you should be able to feel the shape of the bet
    before you read a single number. */
 const ODD_CLASS = { '대성공':'great', '성공':'good', '허탕':'none', '재앙':'doom' };
+
+/* ── look at it ───────────────────────────────────────────
+   Everything the game knows about a thing, at the moment the
+   player wants to know it. A help table is somewhere else; this
+   is here, under the thumb, about the specific creature that is
+   currently walking towards you.
+
+   Reading is free — no turn passes — because charging a turn
+   for information turns "let me check" into "never mind". */
+export function inspect(x, y) {
+  const L = G.level;
+  if (!L || x < 0 || y < 0 || x >= MW || y >= MH) return;
+  if (!L.seen[idx(x, y)]) return;
+
+  const m = Game.monsterAt(x, y);
+  const it = G.items.find(i => i.x === x && i.y === y);
+  const haz = Game.hazardAt(x, y);
+  const rows = [];
+  let title = '', sub = '';
+
+  if (m && L.vis[idx(x, y)] && !m.disguise) {
+    title = m.n;
+    sub = m.boss ? '대군주' : m.named ? '이름 있는 것'
+        : m.elite?.length ? '정예' : m.thief ? '도둑' : '';
+    rows.push(['체력', `${m.hp} / ${m.maxhp}`]);
+    rows.push(['공격 · 방어', `${m.atk} · ${m.ac}`]);
+    rows.push(['속도', `${(m.spd || 1).toFixed(2)}× ${m.spd > 1 ? '(당신보다 빠름)' : m.spd < 1 ? '(느림)' : ''}`]);
+    if (m.rng) rows.push(['사거리', `${m.rng}칸에서 쏜다`]);
+    if (m.on) rows.push(['맞으면', AILMENTS[m.on].n]);
+    if (m.regen) rows.push(['재생', `턴마다 ${m.regen}`]);
+    if (m.door) rows.push(['문', m.door === 'smash' ? '부순다' : '연다']);
+    if (m.heavy) rows.push(['내리치기', '한 턴 당긴 뒤 2.5배']);
+    if (m.casts?.length)
+      rows.push(['바닥 공격', m.casts.map(k => PATTERNS[k].n).join(' · ')]);
+    if (m.elite?.length) rows.push(['정예 속성', m.elite.join(' · ')]);
+    if (m.intent) {
+      const name = INTENT_NAMES.find(([k]) => k === m.intent);
+      if (name) rows.push(['다음 턴', name[1]]);
+    }
+    rows.push(['경험치', `${m.xp}`]);
+  } else if (it) {
+    title = Game.isKnown(it.id) ? (it.n || '무언가') : Game.lookOf(it.id);
+    if (it.kind === 'relic') {
+      const r = relicById(it.id);
+      title = r?.n || title; sub = '유물';
+      if (r) rows.push(['효과', r.t]);
+    } else if (it.kind === 'weapon') {
+      sub = WEAPON_TYPES[it.t]?.n || '무기';
+      rows.push(['피해', `${it.dice[0]}d${it.dice[1]}${it.hands === 2 ? ' · 양손' : ''}`]);
+      if (WEAPON_TYPES[it.t]) rows.push(['계열 규칙', WEAPON_TYPES[it.t].t]);
+      if (affixBlurb(it)) rows.push(['속성', affixBlurb(it).replace(/^ · /, '')]);
+    } else if (it.kind === 'armour') {
+      sub = '방어구';
+      rows.push(['방어', `+${it.ac}`]);
+      if (affixBlurb(it)) rows.push(['속성', affixBlurb(it).replace(/^ · /, '')]);
+    } else if (it.kind === 'chest') {
+      sub = '상자'; rows.push(['', it.locked ? '잠겨 있다 — 열쇠나 완력이 필요하다' : '열려 있다']);
+    } else if (it.kind === 'use') {
+      sub = '소모품';
+      rows.push(['', Game.isKnown(it.id) ? (it.desc || '') : '마셔 보기 전에는 알 수 없다']);
+    } else if (it.kind === 'gold') { sub = '금화'; rows.push(['', `${it.amount}닢`]); }
+  } else if (haz) {
+    title = PATTERNS[haz.key].n;
+    sub = `${haz.owner}의 공격`;
+    rows.push(['남은 턴', `${haz.left}`]);
+    rows.push(['피해', `${haz.dmg}`]);
+    rows.push(['', '표시된 칸에서 나가거나 구르시오. 몬스터도 함께 맞습니다.']);
+  } else {
+    const tile = L.tiles[idx(x, y)];
+    const trap = L.traps.get(idx(x, y));
+    const names = { [DOWN]:'내려가는 계단', [UP]:'올라가는 계단', [CAMP]:'모닥불',
+                    [ALTAR]:'제단', [EVENT]:'? 표지', [WATER]:'물', [WEB]:'거미줄',
+                    [DOOR]:'닫힌 문', [DOOR_OPEN]:'열린 문', [DOOR_LOCKED]:'잠긴 문',
+                    [DOOR_BROKEN]:'부서진 문', [RUBBLE]:'돌무더기' };
+    if (trap?.seen) { title = TRAPS[trap.kind].n; sub = '함정'; }
+    else if (names[tile]) { title = names[tile]; sub = '지형'; }
+    else return;                        // plain floor: nothing to say
+  }
+
+  const box = $('look-rows');
+  box.innerHTML = '';
+  $('look-name').textContent = title;
+  $('look-sub').textContent = sub;
+  for (const [k, v] of rows) {
+    const row = el('div', 'endrow');
+    row.appendChild(el('span', 'endlabel', k));
+    row.appendChild(el('span', 'endval', v));
+    box.appendChild(row);
+  }
+  $('look').hidden = false;
+}
+
+/* ── the first five minutes ───────────────────────────────
+   Fifteen interlocking systems and, until now, one way to learn
+   them: a help screen with twelve tables that a new player has
+   no reason to open. This is the other way — one line, at the
+   moment the thing first happens, and never again.
+
+   Deliberately not a tutorial *level*. Scripting the first
+   floor would mean the first floor is not the game; teaching at
+   the point of contact means the first floor is the game and
+   the game explains itself while you play it.
+
+   Each prompt fires once per *player*, not per run, because the
+   second run should be silent. The ledger already knows whether
+   this is someone's first time. */
+const LESSONS = [
+  { id:'move',   t:'방향을 <b>꾹 누르면</b> 계속 걷습니다. 가본 곳을 <b>탭하면</b> 거기까지 걸어갑니다.' },
+  { id:'fight',  t:'적에게 <b>부딪치면</b> 공격입니다. 잠든 적(z)을 치면 <b>무조건 치명타</b>입니다 — 돌아가서라도 먼저 치세요.' },
+  { id:'intent', t:'깨어난 적은 머리 위에 <b>다음 턴에 할 일</b>을 겁니다. 도움말의 그림표에 전부 있습니다.' },
+  { id:'heavy',  t:'<b>붉은 별</b>은 다음 턴에 2.5배로 내리친다는 뜻입니다.<br>' +
+                    '<b>같은 방향을 빠르게 두 번</b> 누르면 두 칸 굴러 피합니다(기력 2).' },
+  { id:'ground', t:'바닥이 칠해지고 숫자가 뜨면 <b>그 칸이 곧 맞습니다.</b> 숫자는 남은 턴 수입니다. 나가거나 구르세요.' },
+  { id:'fire',   t:'모닥불은 <b>한 번만</b> 씁니다. 휴식 · 강화 · 인챈트 · 재련 중 하나 — 아니면 남겨두고 갈 수도 있습니다.' },
+  { id:'fork',   t:'계단이 갈라지면 <b>주는 것과 가져가는 것이 전부 적혀 있습니다.</b> 평범한 계단은 항상 있습니다.' },
+  { id:'relic',  t:'<b>유물</b>은 숫자가 아니라 규칙을 바꿉니다. 자리는 4칸에서 시작해 7칸까지 늘어납니다.' },
+  { id:'clock',  t:'층마다 <b>여유 턴</b>이 있습니다. 다 쓰면 몬스터가 계속 나타납니다 — 그때는 정리를 포기하고 계단으로.' },
+  { id:'bank',   t:'쉬지 않고 내려갈수록 <b>판돈</b>이 불어납니다. 모닥불에서 챙길 수 있고, <b>죽으면 전부 잃습니다.</b>' },
+  { id:'oil',    t:'기름이 줄면 <b>보이는 반경이 좁아집니다.</b> 횃불을 쓰거나, 좁은 시야로 싸우거나.' },
+  { id:'thief',  t:'<b>금빛 도둑</b>은 보자마자 달아납니다. 걸어서는 절대 못 잡습니다 — 구르거나 주문을 쓰거나, 보내주거나.' },
+];
+
+let lessonQueue = [];
+let teaching = false;
+
+export function teach(id) {
+  if (!Meta.isNewcomer()) return;
+  if (Meta.seen('taught', id)) return;
+  Meta.see('taught', id);
+  const l = LESSONS.find(x => x.id === id);
+  if (!l) return;
+  lessonQueue.push(l);
+  if (!teaching) showLesson();
+}
+
+function showLesson() {
+  const l = lessonQueue.shift();
+  if (!l) { teaching = false; return; }
+  teaching = true;
+  $('lesson-text').innerHTML = l.t;
+  $('lesson').hidden = false;
+}
+
+function closeLesson() {
+  $('lesson').hidden = true;
+  if (lessonQueue.length) showLesson(); else teaching = false;
+}
+
+/* Read once per frame from the loop: the rules layer sets flags
+   on G and never has to know a teaching system exists. */
+export function checkLessons() {
+  if (!Meta.isNewcomer() || !G.player || G.screen !== 'play') return;
+  if (G.depth > 0) teach('move');
+  if (G.monsters.some(m => G.level.vis[idx(m.x, m.y)])) teach('fight');
+  if (G.monsters.some(m => m.awake && m.intent && G.level.vis[idx(m.x, m.y)])) teach('intent');
+  if (G.monsters.some(m => m.intent === 'heavy' || m.intent === 'wind')) teach('heavy');
+  if (G.hazards.length) teach('ground');
+  if (G.bank >= 2) teach('bank');
+  if (G.player.lightTurns < 320) teach('oil');
+  if (G.monsters.some(m => m.thief && G.level.vis[idx(m.x, m.y)])) teach('thief');
+  if (Game.pressureLevel() > 0) teach('clock');
+  if ((G.player.relics || []).length) teach('relic');
+}
 
 /* ── the ? room ───────────────────────────────────────────
    Prose, then two or three buttons with their consequences
@@ -1508,6 +1712,71 @@ export function renderRelicSwap() {
   });
 }
 
+/* ── the wheel ────────────────────────────────────────────
+   The odds were always printed; what was missing was the
+   moment. A marker runs along the same bar the player has been
+   staring at, slowing as it goes, and stops on the segment that
+   was already decided. Everything it passes on the way is a
+   jackpot that did not happen — which is the entire reason
+   anyone enjoys a gamble, and it costs one animation.
+
+   The outcome is rolled before the first frame. The wheel
+   cannot change it, and slowing down is not the game deciding
+   late — it is the game showing you what it already decided. */
+function spinAltar(odds) {
+  const bar = $('altar-wheel');
+  const mark = $('altar-mark');
+  const label = $('altar-result');
+  const pend = G.pendingAltar;
+  if (!bar || !pend) { Game.altarSettle(); setScreen(G.screen === 'relic' ? 'relic' : 'play'); refresh(); return; }
+
+  // Lay out the same segments the offer showed.
+  bar.innerHTML = '';
+  const total = odds.reduce((s, [, w]) => s + w, 0);
+  const tone = { '대성공':'great', '성공':'good', '허탕':'none', '재앙':'doom' };
+  for (const [name, w] of odds) {
+    const seg = el('i', tone[name] || 'none', name);
+    seg.style.flex = `${w} 1 0`;
+    bar.appendChild(seg);
+  }
+  $('altar-spin').hidden = false;
+  label.textContent = '';
+
+  // Where it has to stop: the middle of the winning segment.
+  let acc = 0, stop = 0.5;
+  for (const [name, w] of odds) {
+    if (name === pend.result) { stop = (acc + w / 2) / total; break; }
+    acc += w;
+  }
+
+  /* Three and a bit laps, decelerating. The tick is per segment
+     crossed, not per frame, so the ear hears it slow down too. */
+  const LAPS = 3;
+  const dur = 1500;
+  const t0 = performance.now();
+  let lastSeg = -1;
+  const step = () => {
+    const k = Math.min(1, (performance.now() - t0) / dur);
+    const ease = 1 - Math.pow(1 - k, 3);          // fast, then crawling
+    const pos = (LAPS * ease + stop * ease) % 1;
+    mark.style.left = `${pos * 100}%`;
+    const seg = Math.floor(pos * odds.length);
+    if (seg !== lastSeg) { lastSeg = seg; Audio.sfx.tick(seg); }
+    if (k < 1) { requestAnimationFrame(step); return; }
+
+    mark.style.left = `${stop * 100}%`;
+    label.textContent = pend.result;
+    label.style.color = `var(--${{'대성공':'y','성공':'E','허탕':'g','재앙':'R'}[pend.result] || 'w'})`;
+    setTimeout(() => {
+      $('altar-spin').hidden = true;
+      Game.altarSettle();
+      setScreen(G.screen === 'relic' ? 'relic' : 'play');
+      refresh();
+    }, 620);
+  };
+  requestAnimationFrame(step);
+}
+
 export function renderAltar() {
   $('altar-depth').textContent = `${G.depth}층`;
   const list = $('altar-list');
@@ -1534,10 +1803,7 @@ export function renderAltar() {
     if (o.can) row.onclick = () => {
       ask(`${o.n}?`, `${o.detail} — 되돌릴 수 없습니다.`, () => {
         Game.altarOffer(o.id);
-        // A jackpot relic with no free slot opens the swap
-        // screen from inside here; don't stamp over it.
-        setScreen(G.screen === 'relic' ? 'relic' : 'play');
-        refresh();
+        spinAltar(o.odds);
       });
     };
     list.appendChild(row);
@@ -1548,19 +1814,92 @@ $('altar-leave').onclick = () => { setScreen('play'); refresh(); };
 $('relic-skip').onclick  = () => { Game.swapRelic(-1); setScreen('play'); refresh(); };
 
 /* ending */
+/* The end of a run should read like an account of it, not like
+   a receipt. Three numbers told the player nothing about what
+   they had just spent an hour doing — which relics they wore,
+   which roads they took, what the last three things that
+   happened were. All of it was already in G; it was simply
+   never collected. */
+let recorded = null;
+
 function renderEnd() {
   // The frame loop normally does this; belt and braces for a
   // death that somehow resolves without a frame in between.
   if (!savedEnding) { savedEnding = true; Save.clear(activeSlot); }
 
   const p = G.player, e = G.ending || {};
+  /* Built here if the ending arrived without one — a death
+     routed around death() would otherwise print a blank sheet,
+     and the same function makes both paths identical. */
+  const s = e.summary || Game.summarise(!!e.win, e.by);
+
+  // Ledger it once, however many times this screen re-renders.
+  if (recorded !== s) { recorded = s; Meta.finish(s); }
+  const m = Meta.read();
+
   $('end-title').textContent = e.win ? '대군주가 무너졌다' : '당신은 죽었다';
   $('end-sub').textContent = e.win
     ? `${MAX_DEPTH}층에서, 등불을 든 채로.`
-    : `${G.depth === 0 ? '마을' : G.depth + '층'}에서 ${e.by}에게.`;
-  $('end-body').innerHTML =
-    `${RACES[p.race].name} ${CLASSES[p.cls].name} · 레벨 <b>${p.lv}</b><br>` +
-    `도달 깊이 <b>${G.depth}층</b> · 금화 <b>${p.gold}</b>닢 · <b>${G.turn}</b>턴`;
+    : `${s.depth === 0 ? '마을' : s.depth + '층'}에서 ${e.by}에게.`;
+
+  const box = $('end-body');
+  box.innerHTML = '';
+
+  const line = (label, value, tone) => {
+    const row = el('div', 'endrow');
+    row.appendChild(el('span', 'endlabel', label));
+    const v = el('span', 'endval', value);
+    if (tone) v.style.color = `var(--${tone})`;
+    row.appendChild(v);
+    box.appendChild(row);
+  };
+
+  line('인물', `${RACES[s.race || p.race].name} ${CLASSES[s.cls || p.cls].name} · Lv ${s.lv}`);
+  line('도달', `${s.depth}층 / ${MAX_DEPTH}`, s.depth >= 10 ? 'o' : '');
+  line('무기', s.weapon || '맨손', s.weaponType ? 'w' : 'g');
+  if (s.relics?.length)
+    line('유물', s.relics.map(id => relicById(id)?.n).filter(Boolean).join(' · '), 'P');
+  else line('유물', '없음', 'g');
+  line('최고 연격', `${s.combo}`, s.combo >= 10 ? 'y' : '');
+  line('처치 · 상자 · 사건', `${s.kills || 0} · ${s.opened || 0} · ${s.events || 0}`);
+  line('금화 · 턴', `${s.gold}닢 · ${s.turn}턴`);
+  if (s.bank >= 2) line('잃은 판돈', `${s.bank}층치`, 'R');
+  if (s.waves) line('심연의 습격', `${s.waves}번`, 'R');
+
+  if (s.tail?.length) {
+    const tail = el('div', 'endtail');
+    for (const t of s.tail) tail.appendChild(el('p', '', t));
+    box.appendChild(tail);
+  }
+
+  /* The ledger. This is the only reason to press 새 게임 again
+     that the game itself provides — so it goes on the screen
+     where that decision is made. */
+  const led = el('div', 'ledger');
+  led.appendChild(el('h3', 'sect', '발견'));
+  const bars = [
+    ['유물',   Meta.count('relics'),   RELICS.length,   'P'],
+    ['사건',   Meta.count('events'),   EVENTS_TOTAL,    'B'],
+    ['몬스터', Meta.count('monsters'), MONSTERS.length + 4, 'R'],
+    ['무기 계열', Meta.count('weapons'), Object.keys(WEAPON_TYPES).length, 'o'],
+    ['갈림길', Meta.count('branches'), BRANCH_TOTAL,    'y'],
+  ];
+  for (const [label, have, all, tone] of bars) {
+    const row = el('div', 'endrow');
+    row.appendChild(el('span', 'endlabel', label));
+    const bar = el('div', 'ledbar');
+    const fill = el('i');
+    fill.style.width = `${Math.min(100, (have / all) * 100)}%`;
+    fill.style.background = `var(--${tone})`;
+    bar.appendChild(fill);
+    row.appendChild(bar);
+    row.appendChild(el('span', 'endval', `${have}/${all}`));
+    led.appendChild(row);
+  }
+  const rec = el('p', 'note');
+  rec.textContent = `${m.runs}판 · ${m.wins}승 · 최고 ${m.best.depth}층 · 최고 연격 ${m.best.combo}`;
+  led.appendChild(rec);
+  box.appendChild(led);
 }
 
 /* ── input ──────────────────────────────────────────────────
@@ -1792,6 +2131,17 @@ export function bindInput() {
 
   mini.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); cycleMini(); });
 
+  $('lesson-ok').onclick = () => closeLesson();
+  $('look-close').onclick = () => { $('look').hidden = true; };
+  $('look').addEventListener('pointerdown', e => {
+    if (e.target.id === 'look') $('look').hidden = true;   // tap the backdrop
+  });
+
+  const soundBtn = $('btn-sound');
+  const paintSound = () => { soundBtn.textContent = Audio.isMuted() ? '소리 꺼짐' : '소리 켜짐'; };
+  soundBtn.onclick = () => { Audio.init(); Audio.toggleMute(); paintSound(); };
+  paintSound();
+
   $('btn-inv').onclick    = () => { stopAuto(); setScreen('inv'); };
   $('btn-cast').onclick   = () => { stopAuto(); setScreen('spell'); };
   $('btn-down').onclick   = () => { stopAuto(); act(Game.descend); };
@@ -1886,7 +2236,14 @@ function bindMapGestures() {
     release();
     if (G.screen !== 'play') return;
     if (moved) return;
-    if (performance.now() - st > 700) return;      // long press: read the map, don't move
+    /* Long press reads instead of walking. This is where the
+       manual goes: a monster you can question is worth more
+       than a table you have to go and find. */
+    if (performance.now() - st > 550) {
+      const t = tileUnder(e.clientX, e.clientY);
+      inspect(t.x, t.y);
+      return;
+    }
 
     const { x, y } = tileUnder(e.clientX, e.clientY);
     const p = G.player;

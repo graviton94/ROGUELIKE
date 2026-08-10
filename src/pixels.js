@@ -361,6 +361,19 @@ export const SPRITES = {
     '...n....',
     '...n....',
   ],
+  /* The golden thief. A hunched shape with a sack — it has to
+     read as a *creature* at a glance, not as a coin pile, or
+     the player will walk into it expecting loot. */
+  thief: [
+    '..yy....',
+    '.yWWy...',
+    '.yyyy...',
+    '.oyyoy..',
+    'yoyyyoy.',
+    '.oyyyo..',
+    '.y.y....',
+    'y...y...',
+  ],
   gold: [
     '........',
     '..yyyy..',

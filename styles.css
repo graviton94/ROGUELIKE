@@ -138,6 +138,18 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 .chip.depth { color: var(--o); border-color: #4a331a; }
 .chip.relics { color: var(--P); border-color: #40265c; } .chip.relics b { color: var(--P); }
 
+/* The pile on the table. It glows brighter as it grows, which
+   is the entire persuasion — the number is supposed to be hard
+   to walk past. */
+.chip.wager { color: var(--y); border-color: #6a5320; }
+.chip.wager b { color: var(--y); }
+.chip.wager.hot {
+  color: var(--o); border-color: var(--o);
+  background: rgba(232, 199, 106, .14);
+  animation: comboPulse 1.4s ease-in-out infinite;
+}
+.campopt.wager { border-color: var(--y); background: #241f14; }
+
 /* The floor's patience. Quiet while there is room to breathe,
    orange when it is nearly gone, red once the floor is feeding. */
 .chip.clock { color: var(--G); border-color: var(--g); }
@@ -306,6 +318,21 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   #acts { gap: 3px; }
 }
 
+/* ── the ending ── */
+.endrow { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 12px; }
+.endlabel { flex: 0 0 92px; color: var(--G); font-size: 10.5px; text-align: left; }
+.endval { flex: 1 1 auto; color: var(--w); text-align: left; }
+.endtail {
+  margin: 14px 0 0; padding: 10px 12px;
+  border-left: 2px solid var(--g); background: var(--d); text-align: left;
+}
+.endtail p { margin: 0 0 3px; font-size: 11px; color: var(--G); line-height: 1.6; }
+.endtail p:last-child { color: var(--w); margin: 0; }
+.ledger { margin-top: 20px; text-align: left; }
+.ledbar { flex: 1 1 auto; height: 6px; background: var(--k); border: 1px solid var(--g); }
+.ledbar i { display: block; height: 100%; }
+.ledger .endval { flex: 0 0 46px; text-align: right; font-size: 11px; }
+
 /* ── item rows ── */
 .itemrow {
   display: flex; align-items: center; gap: 10px; width: 100%;
@@ -401,6 +428,21 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .askbtns { display: flex; gap: 8px; }
 .askbtns button { flex: 1 1 0; padding: 12px 8px; font-size: 12.5px; }
 .askbtns b { color: var(--o); margin-left: 4px; }
+/* A lesson, not a question: one button, and the prose gets room
+   to breathe because it is being read rather than answered. */
+.lessonbox { border-color: var(--B); }
+.lessonbox p { font-size: 12.5px; line-height: 1.85; margin-bottom: 16px; }
+.lessonbox b { color: var(--y); }
+#lesson-ok { border-color: var(--B); color: var(--B); }
+/* The look-at card. Reached by holding a finger on the map, so
+   it has to be dismissable by tapping anywhere. */
+.lookbox { border-color: var(--o); max-width: 320px; }
+.lookbox .camphead { margin-bottom: 10px; }
+.lookbox .endrow { padding: 3px 0; }
+.lookbox .endlabel { flex: 0 0 74px; }
+.lookbox .endval { font-size: 11.5px; line-height: 1.55; }
+#look-rows { margin-bottom: 14px; }
+#look-close { border-color: var(--o); color: var(--o); }
 #ask-yes { border-color: var(--o); color: var(--o); }
 #ask-yes:active b, #ask-no:active b { color: var(--k); }
 
@@ -427,3 +469,18 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .altodds i.doom  { background: var(--R); }
 .altopt:active { background: var(--p); }
 #altar-leave { margin-top: 10px; }
+
+/* The wheel. Same bar as the printed odds, with a marker on top
+   — so what sweeps past is literally the thing the player was
+   just reading. */
+.wheel { position: relative; margin: 22px 0 10px; }
+.wheel .altodds i { height: 26px; line-height: 26px; font-size: 11px; }
+#altar-mark {
+  position: absolute; top: -7px; bottom: -7px; left: 0;
+  width: 3px; margin-left: -1px;
+  background: var(--W); box-shadow: 0 0 8px var(--W);
+}
+.wheelresult {
+  margin: 4px 0 0; text-align: center;
+  font-size: 20px; letter-spacing: .12em; min-height: 26px;
+}

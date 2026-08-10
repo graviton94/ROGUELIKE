@@ -13,6 +13,7 @@ import {
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH,
   WEAPON_TYPES, PATTERNS, NAMED,
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
+  BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus,
 } from './data.js';
 import {
@@ -21,6 +22,7 @@ import {
   WEB, WATER, CAMP, ALTAR, EVENT, isDoor, isShut,
 } from './world.js';
 import { EVENTS } from './events.js';
+import * as Meta from './meta.js';
 
 export const G = {
   level: null, depth: 0, player: null, monsters: [], items: [],
@@ -36,6 +38,7 @@ export const G = {
   floorTurn: 0,          // turns spent on this floor — the clock
   waves: 0,              // how many times the floor has answered
   hazards: [],           // telegraphed ground, counting down
+  bank: 0,               // floors descended without sitting at a fire
   campUses: 0,           // fires still owed on this floor
 };
 
@@ -56,7 +59,8 @@ export function takeRelic(id) {
   p.relics = p.relics || [];
   if (p.relics.length >= slotCount()) { G.pendingRelic = id; G.screen = 'relic'; return false; }
   p.relics.push(id);
-  say(`${relicById(id).n} — ${relicById(id).t}`, 'level');
+  const first = Meta.see('relics', id);
+  say(`${relicById(id).n} — ${relicById(id).t}${first ? ' (처음 본 유물)' : ''}`, 'level');
   fx({ t:'altar', x:p.x, y:p.y, good:true });
   recalc(p);
   return true;
@@ -401,6 +405,7 @@ export function equip(slotIdx) {
     p.equip[key] = it;
     removeItem(p, slotIdx);
     if (old) addItem(p, old);
+    if (it.kind === 'weapon' && it.t) Meta.see('weapons', it.t);
     say(`${nameOf(it)}을(를) 착용했다.`, 'good');
   }
   endTurn();
@@ -565,7 +570,7 @@ export function useItem(slotIdx) {
       p.hp -= dmg;
       afflict(p, 'poison', 20);
       say(`목이 타들어 간다. ${dmg}의 피해.`, 'hit');
-      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, severe:true });
+      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, low: p.hp <= p.maxhp * 0.25 && p.hp + dmg > p.maxhp * 0.25, severe:true });
       if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'독의 물약' }); }
       break;
     }
@@ -789,6 +794,17 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     say(`돌씨가 자란다. 방어 +${p.seedAc}.`, 'good');
   }
   if (depth > 0) p.grudge = 0;      // 앙심 forgets between floors
+
+  /* The wager climbs with every floor you take without sitting
+     down. Nothing is banked in the town, and nothing survives
+     you — that is the whole tension. */
+  if (depth > 0) {
+    G.bank = Math.min(BANK_MAX, (G.bank || 0) + 1);
+    if (G.bank >= 2) {
+      const purse = bankPurse(G.bank, depth);
+      say(`쉬지 않고 ${G.bank}층 — 판돈이 ${purse.gold}닢까지 불었다.`, 'level');
+    }
+  } else G.bank = 0;
   // 시간 도둑 buys the descent back — and charges for it in turns.
   if (depth > 0 && hasRelic('thief') && p.hp < p.maxhp) {
     p.hp = p.maxhp; p.mana = p.maxmana;
@@ -910,6 +926,23 @@ function populate(depth) {
   if (Math.random() < 0.45) {
     const spot = L.randomFloor(busy);
     if (spot) G.items.push({ kind:'key', spr:'ring', n:'녹슨 열쇠', x: spot.x, y: spot.y });
+  }
+
+  /* The golden thief. Fast, fragile, worth a fortune, and it
+     runs the instant it sees you — so catching one costs a roll,
+     a spell or a scroll, and every turn spent chasing is a turn
+     the floor clock keeps. Letting it go has to stay a real
+     option or it is not a gamble, it is a tax. */
+  if (Math.random() < thiefChance(depth)) {
+    const spot = L.randomFloor(busy);
+    if (spot) {
+      const t = { ...THIEF, x: spot.x, y: spot.y, awake: false, energy: 0, fleeing: true };
+      t.hp = Math.round(t.hp * (1 + depth * 0.12));
+      t.ac = Math.round(t.ac * (1 + depth * 0.05));
+      t.maxhp = t.hp;
+      G.monsters.push(t);
+      say('금붙이가 부딪치는 소리가 어디선가 난다.', 'level');
+    }
   }
 }
 
@@ -1233,7 +1266,7 @@ function springTrap(x, y, trap) {
     case 'dart': {
       const dmg = roll(2, 4) + Math.floor(G.depth * 0.8);
       p.hp -= dmg; breakCombo(false);
-      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, severe: dmg >= p.maxhp * 0.18 });
+      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, low: p.hp <= p.maxhp * 0.25 && p.hp + dmg > p.maxhp * 0.25, severe: dmg >= p.maxhp * 0.18 });
       say(`화살이 ${dmg}의 피해를 입혔다.`, 'hit');
       if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'화살 함정' }); }
       return false;
@@ -1472,7 +1505,7 @@ function swing(m, scale) {
     fx({ t:'execute', x:m.x, y:m.y });
     hurtMonster(m, m.hp + 999, null, { crit: true, execute: true });
   } else {
-    hurtMonster(m, dmg, null, { crit, sneak: asleep });
+    hurtMonster(m, dmg, null, { crit, sneak: asleep, weapon: kind });
   }
   if (!G.running) return;
 
@@ -1626,7 +1659,17 @@ export function hurtMonster(m, dmg, source, opt = {}) {
       }
     }
     fx({ t:'kill', x:m.x, y:m.y, spr:m.spr, dmg, crit:!!opt.crit, over, boss:!!m.boss, combo:G.combo });
+    G.kills = (G.kills || 0) + 1;
     say(`${m.n}이(가) 쓰러졌다. (+${m.xp} 경험치)`, 'good');
+    if (m.thief) {
+      const who = G.player;
+      const purse = thiefPurse(G.depth);
+      who.gold += goldGain(purse.gold);
+      who.mats = who.mats || { scrap: 0, dust: 0, essence: 0 };
+      for (const k of ['scrap', 'dust', 'essence']) who.mats[k] += purse[k] || 0;
+      say(`자루가 터졌다 — 금화 ${goldGain(purse.gold)}닢과 재료가 쏟아진다.`, 'level');
+      fx({ t:'altar', x:m.x, y:m.y, result:'대성공' });
+    }
     if (m.named) {
       const id = unownedRelic();
       if (id) {
@@ -1640,7 +1683,8 @@ export function hurtMonster(m, dmg, source, opt = {}) {
     gainXp(Math.round(m.xp * (G.branch?.xp || 1)));
     if (m.boss) victory();
   } else {
-    fx({ t:'hit', on:'monster', x:m.x, y:m.y, dmg, crit:!!opt.crit, sneak:!!opt.sneak, spr:m.spr });
+    fx({ t:'hit', on:'monster', x:m.x, y:m.y, dmg, crit:!!opt.crit, sneak:!!opt.sneak,
+         weapon: opt.weapon, spr:m.spr });
     if (!opt.quiet) {
       const tag = opt.sneak ? ' 기습!' : opt.crit ? ' 치명타!' : '';
       say(`${via}${m.n}에게 ${dmg}의 피해.${tag}`, opt.crit ? 'level' : 'hit');
@@ -1726,6 +1770,7 @@ export function chooseBranch(id) {
 }
 
 function takeStairs(branch) {
+  Meta.see('branches', branch.id);
   enterDepth(G.depth + 1, false, branch);
   say(G.depth === MAX_DEPTH ? '공기가 뜨겁다. 무언가 커다란 것이 숨쉬고 있다.'
                             : `던전 ${G.depth}층 — ${branch.n}.`, 'warn');
@@ -1930,6 +1975,7 @@ function monsterTurn(m) {
     const notice = clamp((1 - quiet) * (0.62 - reach * 0.055), 0.02, 0.9);
     if (Math.random() >= notice) return;
     m.awake = true;
+    Meta.see('monsters', m.n);
     if (m.disguise) return;              // a mimic that has noticed you keeps very still
     fx({ t:'wake', x:m.x, y:m.y });
   }
@@ -1978,9 +2024,14 @@ function monsterTurn(m) {
 
   /* A wounded hound runs, and a runner that gets away lives to
      bring friends. Cornering one is a decision. */
-  if ((m.ai === 'coward' || m.fleeing) && m.hp < m.maxhp * 0.35) {
+  /* The thief runs from full health, which is what makes it a
+     decision rather than a fight: you cannot walk it down, so
+     catching it costs a roll, a spell or a scroll. */
+  if (m.thief || ((m.ai === 'coward' || m.fleeing) && m.hp < m.maxhp * 0.35)) {
     if (!m.fleeing) { m.fleeing = true; say(`${m.n}이(가) 달아나기 시작한다.`); }
     if (retreat(m)) return;
+    // Cornered: it stops, it does not turn and charge.
+    if (m.thief) return;
   }
 
   let sx = Math.sign(dx), sy = Math.sign(dy);
@@ -2107,6 +2158,7 @@ export function castPattern(m, key) {
   m.cooling = m.cool || 4;
   say(`${m.n}${spec.say}`, 'warn');
   fx({ t:'wake', x:m.x, y:m.y });
+  fx({ t:'telegraph', urgent: spec.warn <= 1 });
   return true;
 }
 
@@ -2184,7 +2236,7 @@ function resolveHazard(h) {
       const dmg = Math.max(1, Math.round((h.dmg - ac * 0.25) * (1 + (p.perm?.takeMore || 0))));
       p.hp -= dmg;
       breakCombo(false); tookHit();
-      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, severe:true });
+      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, low: p.hp <= p.maxhp * 0.25 && p.hp + dmg > p.maxhp * 0.25, severe:true });
       say(`${h.owner}의 ${PATTERNS[h.key].n}에 ${dmg}의 피해.`, 'hit');
       if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n: h.owner }); return; }
     }
@@ -2258,11 +2310,12 @@ export function predictIntent(m) {
   if (m.wind > 0) return 'heavy';
   if (m.casts?.length && !m.cooling && dist2 > 2 && dist <= 9
       && lineClear(L, m.x, m.y, p.x, p.y)) return 'cast';
+  if (m.thief) return 'flee';        // it is always running, adjacent or not
   if (dist2 <= 2) return m.heavy ? 'wind' : (m.on ? 'hex' : 'melee');
   if (m.ai === 'still') return 'watch';
   if (m.ai === 'ranged' && m.rng
       && dist <= m.rng && dist >= 2.5 && lineClear(L, m.x, m.y, p.x, p.y)) return 'shoot';
-  if ((m.ai === 'coward' || m.fleeing) && m.hp < m.maxhp * 0.35) return 'flee';
+  if (m.thief || ((m.ai === 'coward' || m.fleeing) && m.hp < m.maxhp * 0.35)) return 'flee';
   if (m.ai === 'erratic') return 'erratic';
   return 'close';
 }
@@ -2314,8 +2367,34 @@ const targetOf = key => {
   return null;
 };
 
+/* What the bank is worth right now, or null if there is
+   nothing on the table. The fire screen prints this next to
+   "rest", because the price of resting *is* the pile. */
+export function bankPurse2() {
+  if (!(G.bank >= 2)) return null;
+  return { floors: G.bank, ...bankPurse(G.bank, G.depth) };
+}
+
+/* Taking the pile. Deliberately its own option rather than a
+   side effect of resting, so cashing out is a decision the
+   player makes with their thumb — and so it can be refused. */
+export function campCash() {
+  const p = G.player, purse = bankPurse2();
+  if (!purse) { say('걸린 판돈이 없다.'); return; }
+  p.gold += goldGain(purse.gold);
+  p.mats = p.mats || { scrap: 0, dust: 0, essence: 0 };
+  for (const k of ['scrap', 'dust', 'essence']) p.mats[k] += purse[k] || 0;
+  G.bank = 0;
+  say(`${purse.floors}층치 판돈을 챙겼다 — 금화 ${goldGain(purse.gold)}닢.`, 'level');
+  fx({ t:'altar', x:p.x, y:p.y, result:'대성공' });
+  spendCamp();
+}
+
 export function campRest() {
   const p = G.player;
+  // Sitting down ends the run of unrested floors, pile or not.
+  if (G.bank >= 2) say(`판돈 ${G.bank}층치가 불에 탔다.`, 'warn');
+  G.bank = 0;
   const heal = Math.min(p.maxhp - p.hp, Math.ceil(p.maxhp * CAMP_HEAL));
   p.hp += heal;
   p.mana = p.maxmana;
@@ -2497,7 +2576,7 @@ function eventApi() {
     },
     hurt: (n, from) => {
       p.hp -= n; breakCombo(false); tookHit();
-      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg:n, severe: n >= p.maxhp * 0.18 });
+      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg:n, low: p.hp <= p.maxhp * 0.25 && p.hp + dmg > p.maxhp * 0.25, severe: n >= p.maxhp * 0.18 });
       say(`${n}의 피해.`, 'hit');
       if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n: from || '사건' }); }
     },
@@ -2667,6 +2746,8 @@ export function eventChoose(i) {
   /* Consumed before the effect runs: an option that opens another
      screen (the relic swap, the fire) must not leave the tile
      behind for a second helping. */
+  Meta.see('events', e.id);
+  G.eventsSeen = (G.eventsSeen || 0) + 1;
   if (L.tiles[idx(G.player.x, G.player.y)] === EVENT) L.tiles[idx(G.player.x, G.player.y)] = FLOOR;
   L.eventId = null;
   G.screen = 'play';
@@ -2727,9 +2808,26 @@ export function altarOffer(id) {
     say(`${affixName(given)}이(가) 재가 되어 흩어진다.`, 'warn');
   }
 
+  /* The roll happens now; the *reveal* happens in the UI, over
+     about a second, with the marker slowing as it passes the
+     segments it did not land on. Resolving instantly threw away
+     the only part of a gamble that is actually enjoyable — the
+     part where you can still see the jackpot going by. */
   const result = altarRoll(offer.odds);
-  fx({ t:'altar', result, x:p.x, y:p.y });
-  grantBoon(result, weight);
+  G.pendingAltar = { result, weight, odds: offer.odds };
+  return result;
+}
+
+/* Called by the UI when the wheel has finished moving. Kept
+   apart from the roll so the outcome cannot be influenced by
+   how long the animation ran. */
+export function altarSettle() {
+  const p = G.player, pend = G.pendingAltar;
+  if (!pend) return;
+  G.pendingAltar = null;
+
+  fx({ t:'altar', result: pend.result, x:p.x, y:p.y });
+  grantBoon(pend.result, pend.weight);
 
   G.level.tiles[idx(p.x, p.y)] = FLOOR;   // one use, then it is stone
   G.level.altar = null;
@@ -2875,15 +2973,37 @@ export function sell(slotIdx) {
 }
 
 /* ── endings ────────────────────────────────────────────── */
+/* The shape of a run, assembled once at the end. Everything
+   here was already in G — it was simply never collected, so a
+   death printed three numbers and told no story. */
+export function summarise(win, by) {
+  const p = G.player;
+  return {
+    win, by,
+    race: p.race, cls: p.cls, lv: p.lv,
+    depth: G.depth, turn: G.turn,
+    gold: p.gold, combo: G.bestCombo || 0,
+    hp: p.hp, maxhp: p.maxhp,
+    relics: [...(p.relics || [])],
+    weapon: p.equip.weapon ? affixName(p.equip.weapon) : null,
+    weaponType: p.equip.weapon?.t || null,
+    branch: G.branch?.n || null,
+    bank: G.bank || 0,
+    kills: G.kills || 0, opened: G.opened || 0,
+    events: G.eventsSeen || 0, waves: G.waves || 0,
+    tail: G.log.slice(-3).map(l => l.text),
+  };
+}
+
 function death(killer) {
   G.running = false;
-  G.ending = { win:false, by: killer.n };
+  G.ending = { win:false, by: killer.n, summary: summarise(false, killer.n) };
   G.screen = 'end';
 }
 
 function victory() {
   G.running = false;
-  G.ending = { win:true };
+  G.ending = { win:true, summary: summarise(true, null) };
   G.screen = 'end';
 }
 
@@ -2922,10 +3042,11 @@ export function startGame(raceKey, classKey, base) {
   G.player = createHero(raceKey, classKey, base);
   G.log = []; G.turn = 0; G.running = true; G.ending = null;
   G.fx = []; G.combo = 0; G.comboT = 0; G.bestCombo = 0;
-  G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0;
+  G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0; G.kills = 0; G.eventsSeen = 0;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
-  G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = [];
+  G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.bank = 0;
+  G.pendingAltar = null;
   shuffleAppearances(G.player);
   enterDepth(0);
   say('마을. 여섯 개의 문이 열려 있고, 광장 한가운데에 계단이 있다.', 'warn');

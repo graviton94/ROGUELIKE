@@ -8,6 +8,7 @@
 
 import { PALETTE, spriteColors } from './pixels.js';
 import { MW as MAP_W } from './world.js';
+import { sfx } from './audio.js';
 
 /* ── stores ─────────────────────────────────────────────── */
 const shards = [];     // pixel chunks knocked off a sprite
@@ -118,7 +119,7 @@ export function pump(queue, player) {
         beams.push({ fx: e.x - e.dx * e.dist, fy: e.y - e.dy * e.dist,
                      tx: e.x, ty: e.y, color: PALETTE.B, age: 0, life: 240, thin: true });
         ring(e.x, e.y, 1.1, PALETTE.B, 300);
-        buzz(8);
+        buzz(8); sfx.roll();
         break;
       }
 
@@ -133,17 +134,24 @@ export function pump(queue, player) {
         }
         shake = Math.max(shake, 0.5);
         flashScreen = Math.max(flashScreen, 0.26); flashHue = e.tone || 'o';
-        buzz([18, 26, 18]);
+        buzz([18, 26, 18]); sfx.blast();
         break;
       }
 
       case 'miss':
         number(e.x, e.y, '빗나감', PALETTE.s, 0.8);
+        sfx.miss();
         break;
 
       // The moment your free critical evaporates. Worth a beat.
       case 'wake':
         number(e.x, e.y - 0.3, '!', PALETTE.R, 1.2);
+        break;
+
+      /* The ground being marked. Louder than the mark is bright,
+         because the shape can be off the edge of the view. */
+      case 'telegraph':
+        sfx.warn(e.urgent);
         break;
 
       case 'hit': {
@@ -158,6 +166,7 @@ export function pump(queue, player) {
           shake = Math.max(shake, big ? 0.42 : 0.13);
           if (big) { freeze = 70; ring(e.x, e.y, 1.6, PALETTE.y); flashScreen = 0.22; flashHue = 'y'; }
           buzz(big ? 32 : 10);
+          if (e.sneak) sfx.sneak(); else if (e.crit) sfx.crit(); else sfx.hit(e.weapon, 1);
         } else {
           /* Getting hit is the one thing that should always read.
              A full-screen wash hides the board at the exact moment
@@ -175,11 +184,23 @@ export function pump(queue, player) {
           if (e.severe) { freeze = 60; ring(e.x, e.y, 1.5, PALETTE.R, 260); }
           burstShards(e.x, e.y, [PALETTE.R, PALETTE.r, PALETTE.W], e.severe ? 16 : 8, e.severe ? 1.5 : 1.0);
           buzz(e.severe ? [22, 40, 22] : 18);
+          sfx.hurt(e.severe);
+          if (e.low) sfx.lowHp();
         }
         break;
       }
 
       case 'kill': {
+        /* Overkill deserves to be named. Erasing something that
+           still had most of its health is the loudest thing a
+           player can do to a monster, and until now it was the
+           same three shards as a finishing tap. */
+        if (e.over > 0.7) {
+          const word = e.over > 2 ? '박살' : e.over > 1.3 ? '분쇄' : '오버킬';
+          number(e.x, e.y - 1.0, word, PALETTE.o, 1.6 + Math.min(e.over, 3) * 0.25);
+          freeze = Math.max(freeze, 120 + e.over * 70);
+          ring(e.x, e.y, 3.4 + e.over, PALETTE.W, 520);
+        }
         const power = 1.3 + e.over * 0.9 + (e.crit ? 0.5 : 0);
         burstShards(e.x, e.y, spriteColors(e.spr || 'rat'), Math.round(20 + e.over * 22), power);
         ring(e.x, e.y, 2.2 + e.over, PALETTE.o, 460);
@@ -189,10 +210,12 @@ export function pump(queue, player) {
         flashHue = e.boss ? 'W' : 'o';
         if (e.boss) { ring(e.x, e.y, 26, PALETTE.o, 1500); ring(e.x, e.y, 18, PALETTE.y, 1100); }
         buzz(e.boss ? [60, 60, 60, 60, 140] : e.over > 0.5 ? [16, 26, 40] : 26);
+        if (e.boss) sfx.victory(); else sfx.kill(e.over);
         break;
       }
 
       case 'comboTier':
+        sfx.combo(e.n);
         ring(e.x, e.y, 4 + e.n * 0.2, PALETTE.y, 620);
         number(e.x, e.y - 0.6, `${e.n} 연격`, PALETTE.y, 1.5);
         flashScreen = Math.max(flashScreen, 0.3); flashHue = 'y';
@@ -209,6 +232,7 @@ export function pump(queue, player) {
             vy: -1.4 - Math.random() * 0.8, life: 620, age: 0, size: 1,
             color: Math.random() < 0.5 ? PALETTE.E : PALETTE.e, float: true,
           });
+        sfx.heal();
         break;
       }
 
@@ -218,6 +242,7 @@ export function pump(queue, player) {
         number(e.x, e.y - 0.8, 'LEVEL UP', PALETTE.y, 1.6);
         flashScreen = Math.max(flashScreen, 0.45); flashHue = 'y';
         buzz([30, 40, 30, 40, 90]);
+        sfx.levelup();
         break;
 
       case 'beam':
@@ -235,6 +260,7 @@ export function pump(queue, player) {
         flashScreen = 1; flashHue = 'r';
         shake = Math.max(shake, 0.9);
         buzz([80, 60, 200]);
+        sfx.death();
         break;
 
       // An arrow out of the dark. The trail is the warning.
@@ -277,6 +303,7 @@ export function pump(queue, player) {
             color: Math.random() < 0.6 ? PALETTE.y : PALETTE.W,
           });
         buzz(24);
+        sfx.pick();
         break;
 
       case 'ail': {
@@ -320,6 +347,7 @@ export function pump(queue, player) {
         } else {
           shake = Math.max(shake, 0.08);
         }
+        sfx.door();
         break;
 
       // Something heard you. Show how far the sound carried.
@@ -379,6 +407,7 @@ export function pump(queue, player) {
       case 'drop':
         ring(e.x, e.y, 2.0, PALETTE.y, 620);
         number(e.x, e.y - 0.5, '전리품', PALETTE.y, 1.2);
+        if (e.relic) sfx.relic(); else sfx.pick();
         break;
 
       // Breaking gear down: sparks, not fireworks.
@@ -412,12 +441,16 @@ export function pump(queue, player) {
         shake = Math.max(shake, e.result === '허탕' ? 0.2 : 0.75);
         freeze = Math.max(freeze, e.result === '허탕' ? 60 : 220);
         buzz(spec.buzz);
+        if (e.result === '대성공') sfx.jackpot();
+        else if (e.result === '재앙') sfx.bust();
+        else sfx.tick(e.result === '성공' ? 10 : 2);
         break;
       }
 
       case 'spot':
         number(e.x, e.y - 0.3, '!', PALETTE.o, 1.1);
         ring(e.x, e.y, 1.2, PALETTE.o, 380);
+        sfx.tick(6);
         break;
     }
   }

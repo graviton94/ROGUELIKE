@@ -8,6 +8,7 @@ import { G } from './game.js';
 import * as Game from './game.js';
 import * as Save from './save.js';
 import * as Data from './data.js';
+import * as Audio from './audio.js';
 
 bakeAll();
 UI.bindInput();
@@ -54,3 +55,15 @@ window.Game = Game;
 window.Save = Save;
 window.Data = Data;
 window.UI = UI;
+window.Audio2 = Audio;
+
+/* Browsers refuse to start audio before a real gesture, and
+   asking earlier only logs warnings. Hook the first one, take
+   the stored preference with it, then get out of the way. */
+Audio.loadPref();
+const wake = () => {
+  Audio.init();
+  Audio.loadPref();
+  for (const ev of ['pointerdown', 'keydown']) window.removeEventListener(ev, wake);
+};
+for (const ev of ['pointerdown', 'keydown']) window.addEventListener(ev, wake, { passive: true });

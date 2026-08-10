@@ -28,7 +28,7 @@
     </p>
     <button class="big" id="btn-new">새 게임</button>
     <button class="big" id="btn-load" hidden>이어하기</button>
-    <p class="fine">도트는 전부 코드로 그려집니다. 이미지 파일 없음.<br><span id="build">v15</span></p>
+    <p class="fine">도트도 소리도 전부 코드로 만듭니다. 이미지·음원 파일 없음.<br><span id="build">v17</span></p>
   </div>
 </section>
 
@@ -73,6 +73,7 @@
       <span class="chip combo" id="hud-combo" hidden><b id="hud-combo-n">0</b> 연격</span>
       <span class="chip relics" id="hud-relics" hidden>유물 <b id="hud-relics-n">0/5</b></span>
       <span class="chip clock" id="hud-clock" hidden><b id="hud-clock-n"></b></span>
+      <span class="chip wager" id="hud-bank" hidden>판돈 <b id="hud-bank-n"></b></span>
     </div>
     <div class="gauge">
       <span class="glabel">HP</span>
@@ -136,6 +137,7 @@
   <header class="bar">
     <h2>배낭 · 장비</h2>
     <span class="chip gold">◍ <b id="inv-gold">0</b></span>
+    <button class="mini" id="btn-sound">소리 켜짐</button>
     <button class="mini" id="btn-help">조작법</button>
     <button class="mini" data-back>닫기</button>
   </header>
@@ -230,6 +232,10 @@
     <p class="note">돌 위에 무언가를 올려놓으라는 듯한 홈이 파여 있다.<br>
       바친 것은 돌아오지 않고, 제단은 한 번만 응답한다.</p>
     <div id="altar-list"></div>
+    <div id="altar-spin" hidden>
+      <div class="wheel"><div id="altar-wheel" class="altodds"></div><i id="altar-mark"></i></div>
+      <p class="wheelresult" id="altar-result"></p>
+    </div>
     <button class="mini" id="altar-leave">물러난다</button>
   </div>
 </section>
@@ -410,6 +416,22 @@
       <tr><td>유물</td><td>정예가 떨구는 물건 중 일부만 이 등급에 닿습니다. 전체 드롭의 2% 정도입니다.</td></tr>
     </table>
 
+    <h3 class="sect">판돈 · 도둑 · 살펴보기</h3>
+    <table class="keys">
+      <tr><td><b>판돈</b></td><td>모닥불에서 <b>쉬지 않고</b> 층을 내려갈 때마다 불어납니다(최대 6층치).
+        모닥불에서 <b>챙길 수 있고</b>, 쉬면 타 버리고, <b>죽으면 전부 잃습니다.</b><br>
+        한 층 더 갈 것인가 여기서 챙길 것인가 — 그게 전부입니다.</td></tr>
+      <tr><td><b>금빛 도둑</b></td><td>2층부터 가끔. <b>보자마자 달아나고</b> 걸어서는 못 잡습니다 —
+        구르거나, 주문을 쓰거나, 전이 두루마리를 쓰거나, 막다른 곳으로 몰거나.
+        잡으면 금화와 재료가 한꺼번에 쏟아집니다. <b>쫓는 턴은 전부 층의 시계가 가져갑니다.</b></td></tr>
+      <tr><td><b>살펴보기</b></td><td>지도 위 아무것이나 <b>길게 누르면</b> 그것이 무엇인지 나옵니다 —
+        몬스터의 체력·속도·상태이상·바닥 공격, 무기 계열 규칙, 유물 효과, 표시된 공격의 남은 턴.
+        턴은 지나가지 않습니다.</td></tr>
+      <tr><td>제단</td><td>바친 뒤 <b>바늘이 돌아갑니다.</b> 지나가는 칸이 당신이 놓친 결과입니다.</td></tr>
+      <tr><td>소리</td><td>배낭 화면의 <b>소리</b> 버튼으로 끄고 켭니다. 음원 파일은 없습니다 — 전부 코드로 만듭니다.</td></tr>
+      <tr><td>기록</td><td>죽거나 이기면 <b>그 판의 기록과 발견 목록</b>이 나옵니다. 도감은 판을 넘어 남습니다.</td></tr>
+    </table>
+
     <h3 class="sect">성장 곡선</h3>
     <table class="keys">
       <tr><td>레벨</td><td>보스까지 <b>대략 Lv 20~30</b>입니다. 예전에는 12층에서 상한 50에 닿아
@@ -480,10 +502,30 @@
   <div class="col">
     <h1 id="end-title" class="endtitle"></h1>
     <p class="tag" id="end-sub"></p>
-    <p class="blurb" id="end-body"></p>
+    <div class="blurb" id="end-body"></div>
     <button class="big" id="btn-again">다시 내려가기</button>
   </div>
 </section>
+
+<!-- ══ look at it ══ -->
+<div id="look" class="modal" hidden>
+  <div class="askbox lookbox">
+    <div class="camphead">
+      <span class="campname" id="look-name"></span>
+      <span class="camptag" id="look-sub"></span>
+    </div>
+    <div id="look-rows"></div>
+    <div class="askbtns"><button id="look-close">닫기</button></div>
+  </div>
+</div>
+
+<!-- ══ a lesson, once ══ -->
+<div id="lesson" class="modal" hidden>
+  <div class="askbox lessonbox">
+    <p id="lesson-text"></p>
+    <div class="askbtns"><button id="lesson-ok">알겠다</button></div>
+  </div>
+</div>
 
 <!-- ══ confirm ══ -->
 <div id="ask" class="modal" hidden>

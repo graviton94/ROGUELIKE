@@ -17,7 +17,7 @@ import { BRANCHES } from './data.js';
 
 const PREFIX = 'deepdelve.slot.';
 export const SLOTS = 3;
-const FORMAT = 4;
+const FORMAT = 5;
 
 /* ── byte packing ───────────────────────────────────────── */
 function toB64(bytes) {
@@ -113,7 +113,8 @@ export function snapshot() {
     branch: G.branch?.id || 'plain',
     floorTurn: G.floorTurn || 0, waves: G.waves || 0, campUses: G.campUses ?? 1,
     deepest: G.deepest || 0, campPromise: G.campPromise || 0,
-    hazards: G.hazards || [],
+    hazards: G.hazards || [], bank: G.bank || 0,
+    kills: G.kills || 0, eventsSeen: G.eventsSeen || 0,
     nextMods: G.nextMods || null,
     player: G.player,
     monsters: G.monsters,
@@ -143,6 +144,10 @@ export function apply(data) {
   G.deepest = data.deepest || data.depth || 0;
   G.campPromise = data.campPromise || 0;
   G.hazards = data.hazards || [];
+  G.bank = data.bank || 0;
+  G.kills = data.kills || 0;
+  G.eventsSeen = data.eventsSeen || 0;
+  G.pendingAltar = null;
   G.nextMods = data.nextMods || null;
   G.pendingBranch = null;
   G.pendingRelic = null;

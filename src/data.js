@@ -179,6 +179,46 @@ export const BOSS = {
   casts:['beam', 'wave', 'zone', 'quake'], cool:3,
 };
 
+/* ── the wager ────────────────────────────────────────────
+   Two systems for the part of the brain that plays slot
+   machines, both built on the same principle: the player must
+   be able to *stop*, and stopping must feel like a loss.
+
+   The bank grows every floor you descend without sitting at a
+   fire. It is paid out in full the moment you do sit — and it
+   dies with you. So every fire is the same question a gambler
+   asks at every table: take the pile, or go one more.
+
+   Deliberately paid in materials and gold rather than health.
+   A payout you cannot spend until the next fire is a promise;
+   a payout you can spend on the fire you are sitting at closes
+   the loop in one gesture. */
+export const BANK_STEP = 0.5;          // multiplier gained per floor unrested
+export const BANK_MAX  = 6;
+
+export const bankPurse = (floors, depth) => ({
+  gold:  Math.round(floors * BANK_STEP * (40 + depth * 22)),
+  scrap: Math.round(floors * BANK_STEP * 1.6),
+  dust:  Math.round(floors * BANK_STEP * 1.0),
+  essence: floors >= 4 ? Math.floor(floors / 4) : 0,
+});
+
+/* The golden thief. Runs the moment it sees you, is worth a
+   great deal, and cannot be cornered by walking — you have to
+   spend something (a roll, a spell, a scroll) or let it go.
+   The clock is what makes letting it go a real option. */
+export const THIEF = {
+  spr:'thief', n:'금빛 도둑', ai:'coward', spd:1.6, thief:true,
+  hp:26, atk:4, ac:18, xp:120, d:2, rar:0,
+};
+export const thiefChance = depth => (depth >= 2 ? 0.16 : 0);
+export const thiefPurse = depth => ({
+  gold: 220 + depth * 90,
+  scrap: 4 + Math.floor(depth / 2),
+  dust: 3 + Math.floor(depth / 3),
+  essence: depth >= 6 ? 2 : 1,
+});
+
 /* ── stamina ──────────────────────────────────────────────
    One resource, one use: the dodge roll. A telegraphed attack
    with no way to answer it is a tax; the roll is the answer,

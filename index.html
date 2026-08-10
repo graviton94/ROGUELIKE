@@ -28,7 +28,7 @@
     </p>
     <button class="big" id="btn-new">새 게임</button>
     <button class="big" id="btn-load" hidden>이어하기</button>
-    <p class="fine">도트는 전부 코드로 그려집니다. 이미지 파일 없음.<br><span id="build">v5</span></p>
+    <p class="fine">도트는 전부 코드로 그려집니다. 이미지 파일 없음.<br><span id="build">v6</span></p>
   </div>
 </section>
 
@@ -96,15 +96,15 @@
 
   <div id="controls">
     <div id="dpad">
-      <button data-dir="-1,-1" aria-label="북서">↖</button>
-      <button data-dir="0,-1"  aria-label="북">↑</button>
-      <button data-dir="1,-1"  aria-label="북동">↗</button>
-      <button data-dir="-1,0"  aria-label="서">←</button>
-      <button data-dir="0,0"   aria-label="대기" class="wait">·</button>
-      <button data-dir="1,0"   aria-label="동">→</button>
-      <button data-dir="-1,1"  aria-label="남서">↙</button>
-      <button data-dir="0,1"   aria-label="남">↓</button>
-      <button data-dir="1,1"   aria-label="남동">↘</button>
+      <button data-dir="-1,-1" aria-label="북서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 L20.5 20.5 L3.5 20.5 Z"/></svg></button>
+      <button data-dir="0,-1"  aria-label="북"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 L20.5 20.5 L3.5 20.5 Z"/></svg></button>
+      <button data-dir="1,-1"  aria-label="북동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 L20.5 20.5 L3.5 20.5 Z"/></svg></button>
+      <button data-dir="-1,0"  aria-label="서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 L20.5 20.5 L3.5 20.5 Z"/></svg></button>
+      <button data-dir="0,0"   aria-label="대기" class="wait"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.6"/></svg></button>
+      <button data-dir="1,0"   aria-label="동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 L20.5 20.5 L3.5 20.5 Z"/></svg></button>
+      <button data-dir="-1,1"  aria-label="남서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 L20.5 20.5 L3.5 20.5 Z"/></svg></button>
+      <button data-dir="0,1"   aria-label="남"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 L20.5 20.5 L3.5 20.5 Z"/></svg></button>
+      <button data-dir="1,1"   aria-label="남동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 L20.5 20.5 L3.5 20.5 Z"/></svg></button>
     </div>
     <div id="acts">
       <button id="btn-inv">배낭 · 장비</button>
@@ -185,7 +185,8 @@
       <tr><td>가본 곳 탭</td><td>거기까지 자동으로 걸어감</td></tr>
       <tr><td>D-pad 가운데 꾹</td><td>제자리에서 휴식</td></tr>
       <tr><td>자동 이동 중단</td><td>피격 · 새 몬스터 발견 · 아이템 습득 시 자동 정지</td></tr>
-      <tr><td>상점 문(1~6)</td><td>밟으면 자동으로 들어감</td></tr>
+      <tr><td>상점</td><td>가게마다 <b>팻말</b>에 취급 품목이 그려져 있고 <b>상인</b>이 서 있습니다. 문을 밟으면 들어갑니다.</td></tr>
+      <tr><td>구매 · 판매</td><td>확인을 받고 진행합니다. <b>Y</b>는 예, <b>N</b>이나 Esc는 아니오.</td></tr>
       <tr><td>아이템</td><td>밟으면 자동으로 주움</td></tr>
       <tr><td>몬스터</td><td>부딪치면 공격</td></tr>
       <tr><td>키보드</td><td>방향키 · hjkl · yubn (누르고 있으면 연속 이동)</td></tr>
@@ -270,6 +271,18 @@
     <button class="big" id="btn-again">다시 내려가기</button>
   </div>
 </section>
+
+<!-- ══ confirm ══ -->
+<div id="ask" class="modal" hidden>
+  <div class="askbox">
+    <p id="ask-text"></p>
+    <p id="ask-sub" class="asksub"></p>
+    <div class="askbtns">
+      <button id="ask-no">아니오 <b>N</b></button>
+      <button id="ask-yes">예 <b>Y</b></button>
+    </div>
+  </div>
+</div>
 
 <script type="module" src="src/main.js"></script>
 </body>

@@ -436,6 +436,32 @@ export const SPRITES = {
     'nNNNNNNn',
     '.nn.nnn.',
   ],
+  /* Shopkeeper — the C channel is tinted per shop, same trick
+     the hero uses for classes. Drawn as a torso behind a counter
+     because he is standing in a shopfront, not walking about. */
+  keeper: [
+    '..wwww..',
+    '.wWWWWw.',
+    '.wkwwkw.',
+    '..wwww..',
+    '.CCCCCC.',
+    'CCCCCCCC',
+    'nnnnnnnn',
+    'nNNNNNNn',
+  ],
+  /* A blank plank. The shop's goods sprite is drawn on top, and
+     the goods sprites all have transparent margins, so the plank
+     reads as a frame around the icon. */
+  sign: [
+    'n......n',
+    'nnnnnnnn',
+    'nNNNNNNn',
+    'nNNNNNNn',
+    'nNNNNNNn',
+    'nNNNNNNn',
+    'nnnnnnnn',
+    '........',
+  ],
   camp: [
     '........',
     '...o....',
@@ -545,11 +571,16 @@ function bakeGrid(grid, tint) {
   return c;
 }
 
+/* One keeper per shop, so the six of them are not identical. */
+export const SHOP_TINT = ['e', 's', 'r', 'W', 'P', 'b'];
+
 export function bakeAll() {
   for (const [name, grid] of Object.entries(SPRITES)) {
     if (name === 'hero') {
       for (const [cls, tint] of Object.entries(CLASS_TINT))
         baked.set(`hero:${cls}`, bakeGrid(grid, tint));
+    } else if (name === 'keeper') {
+      SHOP_TINT.forEach((tint, i) => baked.set(`keeper:${i + 1}`, bakeGrid(grid, tint)));
     } else {
       baked.set(name, bakeGrid(grid));
     }

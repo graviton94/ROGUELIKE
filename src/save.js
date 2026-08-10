@@ -53,6 +53,8 @@ function packLevel(L) {
     campSpent: !!L.campSpent,
     downRoom: L.downRoom ? L.rooms.indexOf(L.downRoom) : -1,
     shopAt: [...L.shopAt],
+    keeperAt: [...(L.keeperAt || [])],
+    signAt: [...(L.signAt || [])],
     traps: [...L.traps].map(([i, t]) => [i, t.kind, t.seen ? 1 : 0]),
   };
 }
@@ -78,6 +80,8 @@ function unpackLevel(d) {
   L.campSpent = !!d.campSpent;
   L.downRoom = d.downRoom >= 0 ? L.rooms[d.downRoom] : undefined;
   L.shopAt = new Map(d.shopAt || []);
+  L.keeperAt = new Map(d.keeperAt || []);
+  L.signAt = new Map(d.signAt || []);
   L.traps  = new Map((d.traps || []).map(([i, kind, seen]) => [i, { kind, seen: !!seen }]));
   return L;
 }

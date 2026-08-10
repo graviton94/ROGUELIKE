@@ -39,6 +39,8 @@ export class Level {
     this.vis    = new Uint8Array(MW * MH);
     this.roomOf = new Int16Array(MW * MH).fill(-1);
     this.shopAt = new Map();     // tile index -> shop id
+    this.keeperAt = new Map();   // tile index -> shop id (who stands there)
+    this.signAt = new Map();     // tile index -> shop id (what the sign shows)
     /* Traps stay off the tile grid on purpose: a hidden trap has
        to look exactly like the floor it is sitting in, and the
        grid is what the renderer reads. */
@@ -84,6 +86,13 @@ export class Level {
       const dx = sx + 2, dy = (i < 3) ? sy + 3 : sy - 1;
       this.tiles[idx(dx, dy)] = DOOR_OPEN;   // shopfronts are never shut
       this.shopAt.set(idx(dx, dy), shop.id);
+
+      /* A shopfront should say what it sells without the player
+         having to walk in and find out. The keeper stands in the
+         doorway on the building side; the sign hangs above him. */
+      const inward = (i < 3) ? -1 : 1;             // toward the building
+      this.keeperAt.set(idx(dx, dy + inward), shop.id);
+      this.signAt.set(idx(dx, dy + inward * 2), shop.id);
     });
 
     const cx = x0 + (w >> 1), cy = y0 + (h >> 1);

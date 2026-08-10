@@ -174,8 +174,24 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   background: var(--d); border-top: 2px solid var(--g);
 }
 #dpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 150px; flex: 0 0 auto; }
-#dpad button { aspect-ratio: 1; font-size: 15px; color: var(--G); display: grid; place-items: center;
+#dpad button { aspect-ratio: 1; color: var(--G); display: grid; place-items: center;
+               padding: 0;   /* default button padding is not symmetric, which
+                                skewed the rotated arrow into an oval */
                touch-action: none; user-select: none; -webkit-user-select: none; }
+
+/* One shape, eight rotations. Arrow glyphs were resolving to
+   different fallback fonts for the diagonals, which is why the
+   d-pad looked ragged. */
+#dpad svg { width: 54%; height: 54%; fill: currentColor; display: block; }
+#dpad [data-dir="0,-1"]  svg { transform: rotate(0deg); }
+#dpad [data-dir="1,-1"]  svg { transform: rotate(45deg); }
+#dpad [data-dir="1,0"]   svg { transform: rotate(90deg); }
+#dpad [data-dir="1,1"]   svg { transform: rotate(135deg); }
+#dpad [data-dir="0,1"]   svg { transform: rotate(180deg); }
+#dpad [data-dir="-1,1"]  svg { transform: rotate(225deg); }
+#dpad [data-dir="-1,0"]  svg { transform: rotate(270deg); }
+#dpad [data-dir="-1,-1"] svg { transform: rotate(315deg); }
+#dpad button.wait svg { width: 34%; height: 34%; }
 #dpad button:active { background: var(--g); color: var(--W); }
 #dpad button.wait { color: var(--g); }
 
@@ -253,3 +269,23 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   color: var(--R); border-color: #4a2320; background: transparent;
 }
 .slotrow:active .slotwho, .slotrow:active .slotmeta, .slotrow:active .slotnum { color: var(--k); }
+
+/* ── confirm ── */
+.modal {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; background: rgba(10, 12, 18, .82);
+}
+.modal[hidden] { display: none; }
+.askbox {
+  width: 100%; max-width: 340px; padding: 18px 18px 14px;
+  border: 1px solid var(--o); background: var(--d);
+}
+.askbox p { margin: 0 0 6px; font-size: 13px; line-height: 1.7; color: var(--w); }
+.askbox .asksub { font-size: 11px; color: var(--G); margin-bottom: 16px; }
+.askbox .asksub:empty { display: none; }
+.askbtns { display: flex; gap: 8px; }
+.askbtns button { flex: 1 1 0; padding: 12px 8px; font-size: 12.5px; }
+.askbtns b { color: var(--o); margin-left: 4px; }
+#ask-yes { border-color: var(--o); color: var(--o); }
+#ask-yes:active b, #ask-no:active b { color: var(--k); }

@@ -135,14 +135,32 @@ export function draw() {
         if (tr && tr.seen) ctx.drawImage(sprite('trap'), px, py, t, t);
       }
 
-      // shop numerals painted over the doorway
+      /* A shopfront tells you what it sells before you walk in:
+         a plank with the goods painted on it, the keeper standing
+         under it, and the door number small in the corner. */
+      const signId = L.signAt?.get(i);
+      if (signId && L.seen[i]) {
+        const shop = SHOPS.find(s => s.id === signId);
+        ctx.globalAlpha = 1;
+        ctx.drawImage(sprite('sign'), px, py, t, t);
+        if (shop) ctx.drawImage(sprite(shop.spr), px, py, t, t);
+      }
+
+      const keeperId = L.keeperAt?.get(i);
+      if (keeperId && L.seen[i]) {
+        ctx.globalAlpha = 1;
+        // A slow shift of weight, so the town does not look embalmed.
+        const sway = Math.sin(performance.now() / 700 + keeperId) * t * 0.035;
+        ctx.drawImage(sprite(`keeper:${keeperId}`), px + sway, py, t, t);
+      }
+
       const shopId = L.shopAt.get(i);
       if (shopId && lit) {
         ctx.globalAlpha = 1;
         ctx.fillStyle = PALETTE.y;
-        ctx.font = `bold ${Math.floor(t * 0.6)}px ui-monospace, monospace`;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(String(shopId), px + t / 2, py + t / 2);
+        ctx.font = `bold ${Math.floor(t * 0.42)}px ui-monospace, monospace`;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+        ctx.fillText(String(shopId), px + t * 0.08, py + t * 0.06);
       }
     }
   }
@@ -391,6 +409,34 @@ export function setScreen(name) {
   if (name === 'end')  renderEnd();
 }
 
+/* ── confirm ────────────────────────────────────────────────
+   A Y/N gate in the game's own type rather than the browser's.
+   Native confirm() blocks the render loop and looks like a
+   security warning, which is the wrong tone for "이 검을 살까". */
+let askResolve = null;
+
+export function ask(text, sub, onYes) {
+  $('ask-text').textContent = text;
+  $('ask-sub').textContent = sub || '';
+  $('ask').hidden = false;
+  askResolve = onYes;
+}
+
+function closeAsk(yes) {
+  if ($('ask').hidden) return false;
+  $('ask').hidden = true;
+  const fn = askResolve;
+  askResolve = null;
+  if (yes && fn) fn();
+  return true;
+}
+
+export const asking = () => !$('ask').hidden;
+
+$('ask-yes').onclick = () => closeAsk(true);
+$('ask-no').onclick  = () => closeAsk(false);
+$('ask').onclick = e => { if (e.target.id === 'ask') closeAsk(false); };
+
 /* ── save slots ─────────────────────────────────────────────
    The same screen serves both doors: "새 게임" asks where to put
    the run, "이어하기" asks which one to resume. Occupied slots
@@ -440,15 +486,17 @@ export function renderSlots() {
 
     row.onclick = () => {
       if (slotMode === 'new') {
-        if (info && !confirm(
-          `${i + 1}번 슬롯의 ${RACES[info.race].name} ${CLASSES[info.cls].name} ` +
-          `(${info.depth}층, Lv ${info.lv})을 지우고 새로 시작할까요?`)) return;
-        activeSlot = i;
-        setScreen('create');
-        renderCreate();
+        const begin = () => { activeSlot = i; setScreen('create'); renderCreate(); };
+        if (info) {
+          ask(`${i + 1}번 슬롯을 덮어쓸까요?`,
+              `${RACES[info.race].name} ${CLASSES[info.cls].name} · ` +
+              `${info.depth}층 · Lv ${info.lv} — 되돌릴 수 없습니다.`, begin);
+          return;
+        }
+        begin();
       } else {
         if (!info) return;
-        if (!Save.load(i)) { alert('저장을 읽지 못했습니다.'); return; }
+        if (!Save.load(i)) { ask('저장을 읽지 못했습니다.', '파일이 손상되었을 수 있습니다.', null); return; }
         activeSlot = i;
         savedEnding = false;
         savedTurn = G.turn;
@@ -465,10 +513,9 @@ export function renderSlots() {
       const del = el('button', 'slotdel', '삭제');
       del.onclick = e => {
         e.stopPropagation();
-        if (!confirm(`${i + 1}번 슬롯을 지울까요? 되돌릴 수 없습니다.`)) return;
-        Save.clear(i);
-        renderSlots();
-        refreshTitle();
+        ask(`${i + 1}번 슬롯을 지울까요?`,
+            `${RACES[info.race].name} ${CLASSES[info.cls].name} · ${info.depth}층 — 되돌릴 수 없습니다.`,
+            () => { Save.clear(i); renderSlots(); refreshTitle(); });
       };
       row.appendChild(del);
     }
@@ -600,6 +647,7 @@ function renderInventory() {
       it.kind === 'use' ? Game.useItem(i) : Game.equip(i);
       renderInventory(); refresh();
     };
+    row.oncontextmenu = e => e.preventDefault();
     list.appendChild(row);
   });
   $('inv-gold').textContent = p.gold;
@@ -631,7 +679,12 @@ function renderShop() {
       : item.kind === 'armour' ? `방어 +${item.ac}` : ''));
     row.appendChild(mid);
     row.appendChild(el('span', 'iact', `${cost}g`));
-    row.onclick = () => { Game.buy(item); renderShop(); refresh(); };
+    row.onclick = () => {
+      if (p.gold < cost) { Game.say('금화가 모자란다.', 'warn'); refresh(); return; }
+      ask(`${affixName(item)}을(를) ${cost}금에 사시겠습니까?`,
+          `가진 금화 ${p.gold} → ${p.gold - cost}`,
+          () => { Game.buy(item); renderShop(); refresh(); });
+    };
     buyList.appendChild(row);
   }
 
@@ -644,8 +697,15 @@ function renderShop() {
     const mid = el('div', 'imid');
     mid.appendChild(el('span', 'iname', affixName(slot.item) + (slot.qty > 1 ? ` ×${slot.qty}` : '')));
     row.appendChild(mid);
-    row.appendChild(el('span', 'iact', `+${Game.priceOf(slot.item, false)}g`));
-    row.onclick = () => { Game.sell(i); renderShop(); refresh(); };
+    const gain = Game.priceOf(slot.item, false);
+    row.appendChild(el('span', 'iact', `+${gain}g`));
+    row.onclick = () => {
+      ask(`${affixName(slot.item)}을(를) ${gain}금에 파시겠습니까?`,
+          (slot.item.pre || slot.item.suf || slot.item.plus)
+            ? '속성이 붙은 물건입니다. 되돌릴 수 없습니다.'
+            : `가진 금화 ${p.gold} → ${p.gold + gain}`,
+          () => { Game.sell(i); renderShop(); refresh(); });
+    };
     sellList.appendChild(row);
   });
 }
@@ -923,6 +983,7 @@ function takeStep(dx, dy) {
 /* Driven from the render loop so movement is frame-synced and
    the animation layer always has time to blend between steps. */
 export function tickInput(dt) {
+  if (asking()) { stopAuto(); return; }     // the modal holds the world still
   if (G.screen !== 'play' || !G.running) { stopAuto(); return; }
 
   if (route) {
@@ -1005,6 +1066,13 @@ export function bindInput() {
   for (const b of document.querySelectorAll('[data-back]')) b.onclick = () => setScreen('play');
 
   window.addEventListener('keydown', e => {
+    // The modal owns the keyboard while it is up.
+    if (asking()) {
+      const k = e.key.toLowerCase();
+      if (k === 'y' || k === 'enter') { e.preventDefault(); closeAsk(true); }
+      else if (k === 'n' || k === 'escape') { e.preventDefault(); closeAsk(false); }
+      return;
+    }
     if (G.screen === 'end') { if (e.key === 'Enter') location.reload(); return; }
     if (G.screen === 'camp') return;         // the fire is a decision, not a menu
     if (G.screen !== 'play') { if (e.key === 'Escape') setScreen('play'); return; }

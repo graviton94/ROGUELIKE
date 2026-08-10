@@ -32,12 +32,23 @@ const el = (tag, cls, text) => {
 const cv = $('map'), ctx = cv.getContext('2d');
 let scale = 3, viewW = 0, viewH = 0, cols = 0, rows = 0;
 
-/* ── viewport ───────────────────────────────────────────── */
+/* ── viewport ───────────────────────────────────────────────
+   The canvas fills #stage with CSS, but its *bitmap* only
+   changes here. Anything that resizes #stage without calling
+   this leaves an old bitmap stretched into a new box — the map
+   goes squat or tall. #stage is a flex child, so it moves
+   whenever the panels around it do: the action column gaining
+   "문 닫기", the HUD chips wrapping to a second line, the
+   mobile URL bar sliding away. Watching the window is not
+   enough; the observer below watches the box itself. */
 export function resize() {
   const box = cv.parentElement.getBoundingClientRect();
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
-  cv.width  = Math.round(box.width  * dpr);
-  cv.height = Math.round(box.height * dpr);
+  const w = Math.round(box.width * dpr), h = Math.round(box.height * dpr);
+  if (!w || !h) return;                            // screen is hidden
+  if (w === cv.width && h === cv.height) return;   // nothing moved
+
+  cv.width = w; cv.height = h;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.imageSmoothingEnabled = false;
 
@@ -421,8 +432,13 @@ export function refresh() {
   $('hud-flags').textContent = flags.join(' · ');
   $('hud-flags').className = flags.length ? 'flags on' : 'flags';
 
-  // Shutting a door is only ever offered when there is one to shut.
-  $('btn-door').hidden = !Game.doorToClose();
+  /* Shutting a door is only ever *offered* when there is one to
+     shut — but the row stays in the layout either way. Hiding it
+     shortened the action column by a whole button, which pushed
+     the map taller, and the view jumped every time the player
+     walked past a doorway. A dim, dead row costs 40px once; a
+     jumping map costs it on every step. */
+  $('btn-door').disabled = !Game.doorToClose();
 
   const logBox = $('log');
   logBox.innerHTML = '';
@@ -1256,6 +1272,13 @@ export function bindInput() {
 
   window.addEventListener('resize', resize);
   if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
+
+  /* The stage moves for reasons the window never hears about —
+     a button appearing in the action column, a HUD chip wrapping
+     onto a second line. Observe the box, not the window. Safe
+     from feedback: the canvas is sized *from* #stage and never
+     the other way round, so re-sizing it cannot move the box. */
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(cv.parentElement);
 }
 
 /* Swipe sets a heading and *keeps* it while the finger stays

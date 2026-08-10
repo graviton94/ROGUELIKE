@@ -19,6 +19,12 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* Any author rule that sets `display` outranks the browser's
+   `[hidden] { display: none }`, so a styled element stays on
+   screen after JS hides it. The game toggles `hidden` everywhere
+   — screens, chips, buttons — and one leak is a stray widget. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0; height: 100%; overflow: hidden;
   background: var(--k); color: var(--w);
@@ -104,8 +110,17 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 #hud { flex: 0 0 auto; padding: 8px 12px 6px; background: var(--d); border-bottom: 2px solid var(--g); }
 .hudtop { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
 .who { flex: 1 1 auto; font-size: 12px; color: var(--w); white-space: nowrap; }
+/* Fixed height, not padding around a line box. The combo chip
+   holds 13px text next to the others' 10.5px, and baseline
+   alignment made its line box a pixel taller — so the HUD grew
+   the moment a streak began and the map underneath was re-fitted
+   mid-fight. A flex box of a stated height cannot do that, no
+   matter what a future chip puts inside it. */
 .chip {
-  font-size: 10.5px; padding: 2px 6px; border: 1px solid var(--g);
+  display: inline-flex; align-items: center;
+  height: 21px; padding: 0 6px;
+  font-size: 10.5px; line-height: 1;
+  border: 1px solid var(--g);
   color: var(--G); white-space: nowrap;
 }
 .chip b { color: var(--w); }
@@ -220,6 +235,10 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 #acts .pair button { flex: 1 1 0; text-align: center; padding: 9px 4px; font-size: 10.5px; }
 #acts .ghost { color: var(--g); border-color: var(--d); }
 #acts button[hidden] { display: none; }
+/* Dead rather than gone — see refresh() in ui.js. It has to keep
+   occupying its row so the map above never changes height. */
+#acts button:disabled { opacity: .38; cursor: default; }
+#acts button:disabled:active { background: var(--d); color: var(--w); border-color: var(--g); }
 
 /* ── item rows ── */
 .itemrow {

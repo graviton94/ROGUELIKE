@@ -593,15 +593,27 @@ export const RESONANCE = [
     say:'한 번 세기 시작하면 손이 먼저 안다.' },
 
   { id:'echoroom', n:'메아리의 방', spr:'wand',
-    need: (g, p) => (p?.maxmana || 0) > 0 && hasSpellEcho(p) && (g.manaPct > 0 || hasBoonId(p, 'echo')),
-    want: '메아리치는 주문과, 마나를 넓히는 것',
+    /* The affix and the 울림의 보은 are the same side of this —
+       both are "the spell echoes", and cast() reads them with one
+       `||`, so `need` has to as well. Measured with them treated
+       as two different axes it fired 0 times in 360 runs. */
+    need: (g, p) => (p?.maxmana || 0) > 0
+                 && (hasSpellEcho(p) || hasBoonId(p, 'echo'))
+                 && g.manaPct > 0,
+    want: '메아리치는 주문(또는 울림의 은총)과, 마나를 넓히는 것',
     t:'메아리가 다시 메아리친다. 한 번 외운 것이 네 곳에 닿고, 옮겨 가도 좀처럼 약해지지 않는다.',
     weak:'번져 나간 만큼 마나를 더 문다. 마르면 그냥 메아리로 돌아간다.',
     say:'벽이 먼저 외우고, 그다음에 대답한다.' },
 
   { id:'bramble', n:'가시밭', spr:'shield',
-    need: g => g.reflect > 0 && g.flatDR > 0,
-    want: '되돌려주는 것과, 깎아내는 것을 함께',
+    /* Two sources on each side, same as 피의 톱니 — a resonance
+       whose every piece has exactly one origin is unreachable in
+       practice. Written with one origin each this fired 0 times
+       in 360 runs; 피의 톱니, which can take its two off any of
+       prefix, suffix or engraving, fired in one run in twenty. */
+    need: (g, p) => (g.reflect > 0 || !!p?.relics?.includes('mirror'))
+                 && (g.flatDR > 0 || g.resistAll),
+    want: '되돌려주는 것(가시·거울 방패)과, 깎아내는 것(반석·룬)을 함께',
     t:'막아낸 만큼이 그대로 되돌아간다. 반사는 상대 방어를 무시한다.',
     weak:'맞지 않으면 아무 일도 없다. 바닥 공격과 화살은 되돌릴 것이 없다.',
     say:'두꺼운 것을 때리면 손이 먼저 상한다.' },

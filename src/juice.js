@@ -236,12 +236,18 @@ export function pump(queue, player) {
         break;
       }
 
+      /* Two sizes. Health now arrives every third level in a
+         lump, and the frame has to say which kind of level this
+         was or the stepping is invisible. */
       case 'levelup':
-        ring(e.x, e.y, 6, PALETTE.y, 800);
-        ring(e.x, e.y, 4, PALETTE.W, 600);
-        number(e.x, e.y - 0.8, 'LEVEL UP', PALETTE.y, 1.6);
-        flashScreen = Math.max(flashScreen, 0.45); flashHue = 'y';
-        buzz([30, 40, 30, 40, 90]);
+        ring(e.x, e.y, e.big ? 9 : 6, PALETTE.y, e.big ? 1000 : 800);
+        ring(e.x, e.y, e.big ? 6 : 4, PALETTE.W, 600);
+        if (e.big) ring(e.x, e.y, 3, PALETTE.o, 700);
+        number(e.x, e.y - 0.8, e.big ? '몸이 커졌다' : 'LEVEL UP',
+               e.big ? PALETTE.W : PALETTE.y, e.big ? 2.0 : 1.6);
+        flashScreen = Math.max(flashScreen, e.big ? 0.7 : 0.45); flashHue = 'y';
+        if (e.big) { shake = Math.max(shake, 0.5); freeze = 110; }
+        buzz(e.big ? [40, 40, 40, 40, 140] : [30, 40, 30, 40, 90]);
         sfx.levelup();
         break;
 

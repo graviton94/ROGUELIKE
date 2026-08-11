@@ -157,11 +157,25 @@ export function createHero(raceKey, classKey, base) {
 export function recalc(p, init) {
   const race = RACES[p.race], cls = CLASSES[p.cls];
   const conB = statBonus(p.stats.con);
-  p.maxhp = Math.max(8, Math.floor((15 + cls.hd + race.hp) + (p.lv - 1) * (cls.hd * 0.7 + 2.6) + conB * p.lv * 1.1));
+  /* Growth in steps, not a trickle. The totals at level 30 are
+     what they always were; the delivery is not. Nine health a
+     level is a number nobody notices — the same health arriving
+     as +6 on ordinary levels and +14 on every third one is a
+     thing you feel, and a thing worth levelling *for*.
+
+     Every stat the player watches is on this pattern now: health
+     every three levels, mana every two. */
+  const step3 = Math.floor(p.lv / 3);
+  p.maxhp = Math.max(8, Math.floor(
+      (15 + cls.hd + race.hp)
+    + (p.lv - 1) * (cls.hd * 0.42 + 1.5)      // the trickle, cut by 40%
+    + step3 * (cls.hd * 0.88 + 3.6)           // …and paid back in lumps
+    + conB * p.lv * 1.05));
   if (cls.realm) {
     const key = cls.realm === 'arcane' ? 'int' : 'wis';
     const b = statBonus(p.stats[key]);
-    p.maxmana = Math.max(0, Math.floor((b + 1) * p.lv * 0.85));
+    // Mana moves on the odd levels only, twice as far each time.
+    p.maxmana = Math.max(0, Math.floor((b + 1) * Math.ceil(p.lv / 2) * 1.7));
   } else p.maxmana = 0;
   const g = gearBonus(p);
   p.maxhp = Math.max(8, Math.round(p.maxhp * (1 + g.maxhpPct)) + (p.boneHp || 0) + (p.permHp || 0));
@@ -1965,8 +1979,15 @@ function gainXp(n) {
     recalc(p);
     p.hp += p.maxhp - before;
     p.mana = p.maxmana;
-    fx({ t:'levelup', x:p.x, y:p.y });
-    say(`레벨 ${p.lv}. 몸이 단단해진다.`, 'level');
+    /* A milestone level is announced as one, with the number the
+       player actually gained — the point of moving growth into
+       steps is lost if the steps are silent. */
+    const gain = p.maxhp - before;
+    const milestone = p.lv % 3 === 0;
+    fx({ t:'levelup', x:p.x, y:p.y, big: milestone });
+    say(milestone
+      ? `레벨 ${p.lv}. 뼈가 굵어졌다 — 최대 체력 +${gain}.`
+      : `레벨 ${p.lv}. 몸이 단단해진다. (체력 +${gain})`, 'level');
     const learned = spellList(p).filter(s => s.lv === p.lv);
     for (const s of learned) say(`새 주문을 익혔다 — ${s.n}`, 'level');
   }

@@ -229,6 +229,66 @@ export const SPRITES = {
     '.bb..bb.',
     'b......b',
   ],
+
+  /* ── the ember floors ─────────────────────────────────
+     Everything from ten down is drawn out of the same three
+     colours — char, ember, steel — so the deep floors read as
+     one place rather than as six unrelated monsters. */
+  // 재의 사냥개: low, long, running. Two embers where eyes go.
+  ashhound: [
+    '........',
+    'd......d',
+    'dGd..dGd',
+    '.GGGGGG.',
+    'GGoGGoGG',
+    '.GddddG.',
+    'd.d..d.d',
+    '.......d',
+  ],
+  // 화로지기: wide and plated, arms already half-drawn back.
+  warden: [
+    '.ssssss.',
+    'sGGooGGs',
+    'sGoRRoGs',
+    '.soooGs.',
+    'ssGGGGss',
+    'skGGGGks',
+    '.ss..ss.',
+    '.kk..kk.',
+  ],
+  // 잿물 먹는 것: a slumped thing, brighter where it has fed.
+  ashen: [
+    '..dddd..',
+    '.dododdd',
+    'dooRRood',
+    'doooooog',
+    '.dooooo.',
+    '.ddoodd.',
+    '..dddd..',
+    '.d.dd.d.',
+  ],
+  // 화로의 사제: robed, and holding the mark it is about to draw.
+  emberpriest: [
+    '..oooo..',
+    '.okooko.',
+    '.oooooo.',
+    '..rrrr..',
+    '.rRoorR.',
+    'rR.rr.Rr',
+    '.r.rr.r.',
+    '.rr..rr.',
+  ],
+  // 잿더미 속의 것: a heap, until the moment it is not.
+  ashheap: [
+    '........',
+    '...gg...',
+    '..gRRg..',
+    '.gdooodg',
+    'gdoRRodg',
+    'gddooddg',
+    'GgddddgG',
+    'gggggggg',
+  ],
   balemperor: [
     'r.oRRo.r',
     '.oRWWRo.',

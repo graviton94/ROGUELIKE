@@ -374,7 +374,12 @@ export const MONSTERS = [
     lore:'검게 그을린 것이 아니라 원래 그렇다. 아래쪽에서 올라온 무리다.' },
   { spr:'dog',     n:'늑대',             d:5,  rar:8,  hp:30,  atk:12, ac:6,  xp:38,  ai:'hunt',    spd:1.35, grp:[2,4],
     lore:'갱도의 소리를 듣고 위에서 내려왔다. 여기서는 무리를 이루는 편이 오래 산다.' },
-  { spr:'ogre',    n:'오우거',           d:6, rar:8,  hp:52,  atk:16, ac:10, xp:70,  ai:'hunt',    spd:0.75, door:'smash',
+  /* The lore promised a wind-up for four months and the field was
+     never set — `heavy` existed, monsterTurn implemented it, and
+     only elites ever had it. Setting it makes the codex true, and
+     the attack drops from 16 to 13 because a telegraphed blow
+     lands for two and a half times as much. */
+  { spr:'ogre',    n:'오우거',           d:6, rar:8,  hp:52,  atk:13, ac:10, xp:70,  ai:'hunt',    spd:0.75, door:'smash', heavy:true,
     lore:'문을 여는 법을 배운 적이 없어서 부순다. 한 번 팔을 당기면 그 자리를 비켜야 한다.' },
   { spr:'mummy',   n:'미라',             d:7, rar:6,  hp:48,  atk:15, ac:12, xp:75,  ai:'hunt',    spd:0.65, on:'fear',
     lore:'성소에 눕혀졌던 것. 이름은 벽에서 긁혔지만 몸은 남았다.' },
@@ -392,6 +397,34 @@ export const MONSTERS = [
     lore:'잿불 위에서 사는 것이 얼음을 뱉는다. 아래가 뜨거우니 그럴 만도 하다.' },
   { spr:'lich',    n:'리치',             d:14, rar:4,  hp:130, atk:35, ac:24, xp:480, ai:'ranged',  rng:7, spd:0.75, on:'paralyze', door:'open',
     lore:'죽는 것을 협상으로 처리한 자. 협상의 대가는 이름이었던 모양이다.' },
+
+  /* ── the ember floors ─────────────────────────────────
+     Counted by behaviour rather than by name, floors 7 to 15 held
+     eight monsters that differed along exactly two axes: speed and
+     ailment. Half of them were archers, which is most of why the
+     bottom of the game kills — there was nothing to close with and
+     nowhere the knowledge could be applied.
+
+     Every one of these opens an axis that the rules implement,
+     tellsOf already writes a habit for, and no monster past floor
+     five was using: packs, a wind-up, drain, theft, a floor
+     pattern, and a thing that simply does not move. Each one has a
+     different right answer, and the codex will say what it is
+     after three bodies. That is the whole point of a bestiary — a
+     deeper floor should ask a different question, not the same
+     question with bigger numbers. */
+  { spr:'ashhound', n:'재의 사냥개',      d:10, rar:8,  hp:62,  atk:22, ac:15, xp:140, ai:'hunt',    spd:1.45, grp:[3,5], door:'open',
+    lore:'화로 둘레를 도는 것들. 한 마리를 보았다면 이미 세 마리가 뒤에 있다.' },
+  { spr:'warden',   n:'화로지기',         d:10, rar:7,  hp:130, atk:15, ac:21, xp:240, ai:'hunt',    spd:0.6,  door:'smash', heavy:true,
+    lore:'불을 지키라는 명령만 남고 명령한 자는 없다. 팔을 당기는 데 한 박자가 걸린다.' },
+  { spr:'ashen',    n:'잿물 먹는 것',     d:12, rar:6,  hp:110, atk:27, ac:16, xp:300, ai:'hunt',    spd:0.9,  drain:0.45, on:'slow',
+    lore:'상처를 삼켜서 제 것으로 만든다. 오래 붙어 있을수록 저쪽이 낫는다.' },
+  { spr:'thief',    n:'잿불 도굴꾼',      d:12, rar:5,  hp:70,  atk:20, ac:19, xp:260, ai:'coward',  spd:1.5,  thief:true, door:'open',
+    lore:'아래에서 무엇을 파내는지는 아무도 모른다. 자루가 늘 무겁다는 것만 안다.' },
+  { spr:'emberpriest', n:'화로의 사제',   d:13, rar:5,  hp:105, atk:24, ac:18, xp:400, ai:'hunt',    spd:0.85, casts:['zone','wave'], cool:4, door:'open',
+    lore:'화로에 무엇을 바쳤는지 벽에 적혀 있었으나 그 벽도 탔다. 바닥에 먼저 그린다.' },
+  { spr:'ashheap',  n:'잿더미 속의 것',   d:15, rar:4,  hp:160, atk:40, ac:26, xp:560, ai:'still',   on:'fear',
+    lore:'재가 쌓인 자리 중 하나는 재가 아니다. 건드리지 않으면 그대로 있는다.' },
 ];
 
 /* ── telegraphed attacks ──────────────────────────────────

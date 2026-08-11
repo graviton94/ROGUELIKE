@@ -9,6 +9,38 @@
    ═══════════════════════════════════════════════════════════ */
 
 export const MAX_DEPTH = 15;
+
+/* ── 깊은 곳 ──────────────────────────────────────────────
+   Fifteen floors were fifteen numbers. They are five places now,
+   and the place is announced on arrival — one line, once, the
+   turn you step off the stairs.
+
+   The fiction is doing one job: explaining why anything down
+   here is worth the walk. Somebody built this, mined it out,
+   and then something under it woke up and took the lower half.
+   Everything the player finds is one of those three layers
+   leaking into the others — dwarf masonry with cinders in the
+   mortar, a shrine with the wrong god's name filed off.       */
+export const REGIONS = [
+  { from:1,  to:3,  n:'무너진 성채',
+    t:'사람이 지은 마지막 층들이다. 계단은 넓고 문에는 아직 경첩이 남아 있다.',
+    line:'무너진 성채 — 사람이 지은 마지막 곳이다. 여기까지는 지도가 있었다.' },
+  { from:4,  to:7,  n:'드워프 갱도',
+    t:'성채 아래를 파고 들어간 갱도. 다듬은 돌이 끝나고 파낸 흙이 시작된다.',
+    line:'드워프 갱도 — 다듬은 돌이 끝났다. 여기부터는 파낸 자국뿐이다.' },
+  { from:8,  to:10, n:'잊힌 성소',
+    t:'갱도가 뚫고 들어간 것. 누구를 모시던 곳인지는 벽에서 긁어내져 있다.',
+    line:'잊힌 성소 — 벽마다 이름이 긁혀 있다. 무엇을 모셨는지 아무도 적어두지 않았다.' },
+  { from:11, to:14, n:'잿불 아래',
+    t:'돌이 따뜻하다. 이 아래에서 무언가가 아주 오래 타고 있다.',
+    line:'잿불 아래 — 돌이 따뜻하다. 발밑에서 무언가가 아직 타고 있다.' },
+  { from:15, to:15, n:'대군주의 화로',
+    t:'타고 있는 것의 한가운데.',
+    line:'대군주의 화로 — 여기가 타고 있는 것의 한가운데다.' },
+];
+
+export const regionOf = depth =>
+  REGIONS.find(r => depth >= r.from && depth <= r.to) || REGIONS[0];
 export const STATS = ['str', 'int', 'wis', 'dex', 'con', 'chr'];
 export const STAT_NAME = { str:'힘', int:'지능', wis:'지혜', dex:'민첩', con:'체질', chr:'매력' };
 
@@ -969,9 +1001,16 @@ export const statBonus = v => Math.floor((v - 10) / 2);
 export const BANDS = {
   prime: [14, 17],   // the thing the class is
   good:  [11, 14],   // the thing it leans on
-  fair:  [9, 12],    // the thing it has
-  weak:  [6, 10],    // the thing it does without
+  fair:  [10, 13],   // the thing it has
+  weak:  [7, 11],    // the thing it does without
 };
+/* The lower two bands were a point deeper when this landed, and
+   measured runs came out three floors shorter than they had any
+   business being: the old class modifier only ever took two off
+   a dump stat, and the new penalties on a low score — the
+   encumbrance, the slow recovery, the long ailments — all bite
+   from below. A dumped ability is supposed to be a decision, not
+   a sentence. */
 
 export const CLASS_BAND = {
   warrior: { str:'prime', con:'good',  dex:'fair',  chr:'fair', int:'weak',  wis:'weak' },

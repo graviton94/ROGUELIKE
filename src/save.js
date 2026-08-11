@@ -62,6 +62,7 @@ function packLevel(L) {
     keeperAt: [...(L.keeperAt || [])],
     signAt: [...(L.signAt || [])],
     traps: [...L.traps].map(([i, t]) => [i, t.kind, t.seen ? 1 : 0]),
+    props: [...L.props].map(([i, o]) => [i, o.kind, o.hp, o.lit ? 1 : 0]),
   };
 }
 
@@ -95,6 +96,7 @@ function unpackLevel(d) {
   L.keeperAt = new Map(d.keeperAt || []);
   L.signAt = new Map(d.signAt || []);
   L.traps  = new Map((d.traps || []).map(([i, kind, seen]) => [i, { kind, seen: !!seen }]));
+  L.props  = new Map((d.props || []).map(([i, kind, hp, lit]) => [i, { kind, hp, lit: !!lit }]));
   return L;
 }
 
@@ -117,7 +119,7 @@ export function snapshot() {
     kills: G.kills || 0, eventsSeen: G.eventsSeen || 0,
     broke: G.broke || 0, forged: G.forged || 0, tideUsed: !!G.tideUsed,
     transFound: G.transFound || 0, perfects: G.perfects || 0, fused: G.fused || 0,
-    catUsed: G.catUsed || 0,
+    catUsed: G.catUsed || 0, regionAt: G.regionAt || null,
     nextMods: G.nextMods || null,
     /* The two trait counters that point at a live monster are
        deliberately dropped: serialising them would clone a whole
@@ -161,6 +163,7 @@ export function apply(data) {
   G.perfects = data.perfects || 0;
   G.fused = data.fused || 0;
   G.catUsed = data.catUsed || 0;
+  G.regionAt = data.regionAt || null;
   G.forged = data.forged || 0;
   G.pendingAltar = null;
   G.nextMods = data.nextMods || null;

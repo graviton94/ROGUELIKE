@@ -15,7 +15,7 @@ import {
   ALTAR_OFFERS, rarityOf, isCursed,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   RELICS, RELIC_SLOTS, relicSlots, relicById, BRANCHES,
-  FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH,
+  FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH, REGIONS, regionOf,
   WEAPON_TYPES, PATTERNS, NAMED,
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
@@ -24,7 +24,7 @@ import {
 import {
   Level, computeFov, lineClear, idx, rnd, roll, clamp, MW, MH,
   FLOOR, DOWN, UP, DOOR, RUBBLE, DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN,
-  WEB, WATER, CAMP, ALTAR, EVENT, ANVIL, isDoor, isShut,
+  WEB, WATER, CAMP, ALTAR, EVENT, ANVIL, PROP, propAt, isDoor, isShut,
 } from './world.js';
 import { EVENTS } from './events.js';
 import * as Meta from './meta.js';
@@ -983,6 +983,17 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     L.seen[idx(L.camp.x, L.camp.y)] = 1;
     if (depth > 0) say('멀리서 불빛이 흔들린다.', 'good');
   }
+  /* Where you are, said once, the turn you arrive — and only
+     when it changes. Fifteen floors were fifteen numbers; five
+     named places is a descent you can describe to somebody. */
+  if (depth > 0) {
+    const region = regionOf(depth);
+    if (region.n !== G.regionAt) {
+      G.regionAt = region.n;
+      say(region.line, 'level');
+      Meta.see('regions', region.n);
+    }
+  }
   if (depth > 0 && L.theme?.n) say(`${L.theme.n}이다.`, 'warn');
 
   // 심연의 눈 pays out the moment you arrive, which is the only
@@ -1407,6 +1418,7 @@ export function step(dx, dy) {
   if (t === ALTAR) { p.x = nx; p.y = ny; refreshFov(); G.screen = 'altar'; return; }
   if (t === EVENT) { p.x = nx; p.y = ny; refreshFov(); G.screen = 'event'; return; }
   if (t === ANVIL) { p.x = nx; p.y = ny; refreshFov(); G.screen = 'anvil'; return; }
+  if (t === PROP) { if (bumpProp(nx, ny)) endTurn(); return; }
   if (t === DOOR)        { openDoor(nx, ny); endTurn(); return; }
   if (t === DOOR_LOCKED) { forceDoor(nx, ny); endTurn(); return; }
   if (L.solid(nx, ny)) return;
@@ -1669,6 +1681,134 @@ function pickUp() {
     return;
   }
   say(`${nameOf(it)}을(를) 주웠다.`, 'good');
+}
+
+/* ── the furniture ────────────────────────────────────────
+   Five things that stand in rooms. Walking into one is the whole
+   interface — there is no "use" verb, because a game where you
+   have to remember a verb is a game where nobody touches the
+   scenery. Each one answers a different question:
+
+     통  — what is inside? (loot, and sometimes a face)
+     화로 — light, at the price of standing next to fire
+     기둥 — masonry you have to walk around, or break through
+     뼈무더기 — free bones, and whatever was sleeping under them
+     항아리 — the only one that is purely a gamble
+
+   A prop takes two or three blows because a single tap would make
+   them scenery you clear rather than scenery you decide about. */
+export const PROP_NAME = {
+  barrel:'낡은 통', brazier:'화로', pillar:'무너진 기둥',
+  bones:'뼈 무더기', urn:'봉인된 항아리',
+};
+
+/* Returns whether the bump cost a turn. */
+function bumpProp(x, y) {
+  const p = G.player, L = G.level, i = idx(x, y);
+  const o = propAt(L, x, y);
+  if (!o) return false;
+
+  /* A brazier is not broken, it is lit. Standing next to one is
+     worth more than the oil it saves, and it never has to be
+     hit at all. */
+  if (o.kind === 'brazier' && !o.lit) {
+    o.lit = true;
+    p.lightTurns += 260;
+    say('화로에 불을 옮겼다. 기름이 조금 아껴진다.', 'good');
+    fx({ t:'forge', x, y });
+    // Fire is bright, and bright carries. Four tiles, not the
+    // whole room — waking a floor by accident is not a trade.
+    for (const m of G.monsters)
+      if (Math.hypot(m.x - x, m.y - y) <= 4) m.awake = true;
+    return true;
+  }
+  // Bumping a fire that is already burning costs nothing. A wall
+  // that eats turns is a wall you fight.
+  if (o.kind === 'brazier') { say('이미 타고 있다.'); return false; }
+
+  // Everything else gets hit.
+  const force = 1 + Math.max(0, statB(p, 'str'));
+  o.hp -= force;
+  fx({ t:'hit', on:'monster', x, y, dmg:force, spr:'rubble' });
+  if (o.hp > 0) { say(`${PROP_NAME[o.kind]}이(가) 삐걱인다.`); return true; }
+
+  L.tiles[i] = FLOOR;
+  L.props.delete(i);
+  fx({ t:'salvage', x, y });
+  G.smashed = (G.smashed || 0) + 1;
+
+  switch (o.kind) {
+    case 'barrel': {
+      // A barrel is a chest without a lock and without a lid, so
+      // it is also the cheapest place to hide a mimic.
+      if (Math.random() < 0.10 + G.depth * 0.012) {
+        const mim = mimicFor(G.depth);
+        G.monsters.push({ ...mim, maxhp:mim.hp, x, y, awake:true, energy:0 });
+        say('통 속에서 이빨이 나왔다.', 'bad');
+        fx({ t:'reveal', x, y });
+        break;
+      }
+      say('통이 부서졌다.', 'good');
+      dropFromProp(x, y, 0.55);
+      break;
+    }
+    case 'pillar':
+      say('기둥이 무너졌다. 길이 열렸다.', 'good');
+      // Rubble is loud enough to be heard across a room.
+      for (const m of G.monsters)
+        if (Math.hypot(m.x - x, m.y - y) <= 9) m.awake = true;
+      fx({ t:'noise', x, y, r:9 });
+      break;
+    case 'bones':
+      // Something is usually under a pile of bones.
+      if (Math.random() < 0.35) {
+        const m = pickMonster(G.depth);
+        if (m) {
+          const one = { ...scaleMonster(m, G.depth), x, y, awake:true, energy:0 };
+          one.maxhp = one.hp;
+          G.monsters.push(one);
+          say(`뼈 무더기 아래에서 ${one.n}이(가) 일어났다.`, 'bad');
+          break;
+        }
+      }
+      say('뼈가 흩어졌다.', 'good');
+      dropFromProp(x, y, 0.35);
+      break;
+    case 'urn': {
+      /* The only pure gamble in the furniture. A third of them
+         are worth breaking, a fifth of them bite. */
+      const r = Math.random();
+      if (r < 0.20) {
+        const dmg = roll(2, 4 + Math.floor(G.depth * 0.8));
+        p.hp -= dmg; breakCombo(false); tookHit();
+        say(`항아리에서 검은 것이 터져 나왔다. ${dmg}의 피해.`, 'bad');
+        fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, severe: dmg >= p.maxhp * 0.18 });
+        afflict(p, 'poison', 10 + rnd(8));
+        if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'봉인된 항아리' }); }
+      } else if (r < 0.55) {
+        say('항아리는 비어 있었다.');
+      } else {
+        say('항아리에서 무언가가 굴러 나왔다.', 'level');
+        dropFromProp(x, y, 1, true);
+      }
+      break;
+    }
+  }
+  return true;
+}
+
+function dropFromProp(x, y, chance, good) {
+  if (Math.random() > chance) return;
+  const spot = itemAt(x, y) ? G.level.randomFloor(q => itemAt(q.x, q.y)) : { x, y };
+  if (!spot) return;
+  if (!good && Math.random() < 0.45) {
+    G.items.push({ kind:'gold', spr:'gold', n:'금화',
+      amount: Math.round((20 + rnd(30 + G.depth * 22)) * (G.branch?.gold || 1)),
+      x: spot.x, y: spot.y });
+    return;
+  }
+  const item = pickItem(G.depth + (good ? 2 : 0));
+  if (item) G.items.push({ ...item, x: spot.x, y: spot.y });
 }
 
 /* ── chests ───────────────────────────────────────────────
@@ -3749,6 +3889,7 @@ export function startGame(raceKey, classKey, base) {
   G.log = []; G.turn = 0; G.running = true; G.ending = null;
   G.fx = []; G.combo = 0; G.comboT = 0; G.bestCombo = 0;
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0; G.kills = 0; G.eventsSeen = 0;
+  G.regionAt = null;
   G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0; G.fused = 0; G.catUsed = 0;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;

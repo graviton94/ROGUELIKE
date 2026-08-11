@@ -27,6 +27,7 @@ const EMPTY = {
   branches: {},
   taught: {},     // lessons already given, so the second run is silent
   fusions: {},    // special relic combinations already found — the ledger of secrets
+  regions: {},    // named places of the descent that have been stood in
   runs: 0, wins: 0,
   best: { depth: 0, lv: 0, combo: 0, gold: 0, turn: 0 },
   last: null,     // the previous run's summary, for the title screen
@@ -40,7 +41,7 @@ export function read() {
     const raw = localStorage.getItem(KEY);
     cache = raw ? { ...EMPTY, ...JSON.parse(raw) } : { ...EMPTY };
     // Nested objects need their own defaults after a spread.
-    for (const k of ['relics', 'events', 'monsters', 'weapons', 'branches', 'taught', 'fusions'])
+    for (const k of ['relics', 'events', 'monsters', 'weapons', 'branches', 'taught', 'fusions', 'regions'])
       cache[k] = cache[k] || {};
     cache.best = { ...EMPTY.best, ...(cache.best || {}) };
   } catch { cache = { ...EMPTY }; }
@@ -88,7 +89,7 @@ export const isNewcomer = () => read().runs === 0;
 
 export function forget() {
   cache = { ...EMPTY };
-  for (const k of ['relics', 'events', 'monsters', 'weapons', 'branches', 'taught', 'fusions']) cache[k] = {};
+  for (const k of ['relics', 'events', 'monsters', 'weapons', 'branches', 'taught', 'fusions', 'regions']) cache[k] = {};
   cache.best = { ...EMPTY.best };
   write();
 }

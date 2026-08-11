@@ -11,6 +11,7 @@ import {
   RARITY, CURSED_TONE, rarityOf, isCursed,
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
   MONSTERS, BRANCHES, SPELLS, boonById, FUSIONS, engraveById, ENGRAVE_AT, ENGRAVE_PENALTY,
+  REGIONS, regionOf,
   UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS, FUSE_ODDS, FUSE_COST,
   xpToLevel, statBonus,
 } from './data.js';
@@ -21,7 +22,7 @@ const BRANCH_TOTAL = BRANCHES.length;
 import {
   MW, MH, idx, clamp, walkable, isDoor,
   ROCK, FLOOR, DOWN, UP, DOOR, RUBBLE, SHOP,
-  DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN, WEB, WATER, CAMP, ALTAR, EVENT, ANVIL,
+  DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN, WEB, WATER, CAMP, ALTAR, EVENT, ANVIL, PROP, propAt,
 } from './world.js';
 import * as Game from './game.js';
 import { G } from './game.js';
@@ -171,6 +172,18 @@ export function draw() {
           ctx.globalAlpha = Math.max(prevA, 0.7 + Math.sin(performance.now() / 500) * 0.12);
           ctx.drawImage(sprite('anvil'), px, py, t, t);
           ctx.globalAlpha = prevA;
+        }
+        if (tile === PROP) {
+          const o = propAt(L, x, y);
+          if (o) {
+            // A lit brazier throws its own light, so it is drawn
+            // at full brightness whatever the fog says.
+            const prevA = ctx.globalAlpha;
+            if (o.kind === 'brazier' && o.lit) ctx.globalAlpha = 1;
+            ctx.drawImage(sprite(o.kind === 'brazier' && o.lit ? 'brazierLit' : o.kind),
+                          px, py, t, t);
+            ctx.globalAlpha = prevA;
+          }
         }
         if (tile === RUBBLE)      ctx.drawImage(sprite('rubble'),     px, py, t, t);
 
@@ -398,7 +411,7 @@ let miniStep = 0;
 
 const MINI_TILE = {
   [DOWN]:  'o', [UP]: 'B',
-  [CAMP]:  'o', [ALTAR]: 'P', [EVENT]: 'B', [ANVIL]: 's',
+  [CAMP]:  'o', [ALTAR]: 'P', [EVENT]: 'B', [ANVIL]: 's', [PROP]: 'N',
   [DOOR]:  'N', [DOOR_OPEN]: 'N', [DOOR_LOCKED]: 'y', [DOOR_BROKEN]: 'N',
   [WATER]: 'b', [WEB]: 's', [RUBBLE]: 'g',
 };
@@ -772,7 +785,11 @@ export function refresh() {
   $('hud-hpbar').style.width = `${(p.hp / p.maxhp) * 100}%`;
   $('hud-ac').textContent    = Game.armourClass(p);
   $('hud-gold').textContent  = p.gold;
-  $('hud-depth').textContent = G.depth === 0 ? '마을' : `${G.depth}층`;
+  /* The chip says where, not only how deep. "9층"은 숫자고
+     "잊힌 성소 9층"은 장소다. */
+  $('hud-depth').textContent = G.depth === 0
+    ? '마을' : `${regionOf(G.depth).n} ${G.depth}층`;
+  $('hud-depth').title = G.depth ? regionOf(G.depth).t : '';
   $('hud-xp').textContent    = `${p.xp}/${xpToLevel(p.lv)}`;
 
   /* The only upkeep left, so it gets a number rather than just a
@@ -2033,6 +2050,34 @@ export function inspect(x, y) {
   } else {
     const tile = L.tiles[idx(x, y)];
     const trap = L.traps.get(idx(x, y));
+    /* Furniture answers first: it is the thing standing on the
+       tile, and the tile underneath is not what was tapped. */
+    const prop = propAt(L, x, y);
+    if (prop) {
+      title = Game.PROP_NAME[prop.kind];
+      sub = '오브젝트 — 부딪치면 상호작용';
+      rows.push(['', {
+        barrel:'부수면 안에 든 것이 나온다. 가끔 안에 든 것이 이빨을 갖고 있다.',
+        brazier: prop.lit ? '이미 타고 있다.'
+                          : '불을 옮기면 기름이 260턴어치 아껴진다. 대신 주변 일곱 칸이 전부 깨어난다.',
+        pillar:'길을 막는다. 부술 수 있지만 소리가 아홉 칸을 건넌다.',
+        bones:'셋에 하나는 아래에 무언가가 자고 있다.',
+        urn:'다섯에 하나는 터지고 독을 남긴다. 절반쯤은 값어치가 있다.',
+      }[prop.kind]]);
+      if (prop.kind !== 'brazier') rows.push(['남은 내구', `${prop.hp}`]);
+      const box0 = $('look-rows');
+      box0.innerHTML = '';
+      $('look-name').textContent = title;
+      $('look-sub').textContent = sub;
+      for (const [k, v] of rows) {
+        const row = el('div', 'endrow');
+        row.appendChild(el('span', 'endlabel', k));
+        row.appendChild(el('span', 'endval', v));
+        box0.appendChild(row);
+      }
+      $('look').hidden = false;
+      return;
+    }
     const names = { [DOWN]:'내려가는 계단', [UP]:'올라가는 계단', [CAMP]:'모닥불',
                     [ANVIL]:'모루 — 재료가 있는 만큼 두들길 수 있다',
                     [ALTAR]:'제단', [EVENT]:'? 표지', [WATER]:'물', [WEB]:'거미줄',
@@ -2084,6 +2129,9 @@ const LESSONS = [
   { id:'clock',  t:'층마다 <b>여유 턴</b>이 있습니다. 다 쓰면 몬스터가 계속 나타납니다 — 그때는 정리를 포기하고 계단으로.' },
   { id:'bank',   t:'쉬지 않고 내려갈수록 <b>판돈</b>이 불어납니다. 모닥불에서 챙길 수 있고, <b>죽으면 전부 잃습니다.</b>' },
   { id:'oil',    t:'기름이 줄면 <b>보이는 반경이 좁아집니다.</b> 횃불을 쓰거나, 좁은 시야로 싸우거나.' },
+  { id:'prop',   t:'방 안의 통 · 화로 · 기둥 · 뼈 무더기 · 항아리는 <b>부딪치면</b> 상호작용합니다.<br>' +
+                    '화로는 <b>기름을 아껴 주지만 주변을 깨웁니다.</b> 항아리는 다섯에 하나가 터집니다. ' +
+                    '<b>탭해서 살펴보면</b> 확률이 적혀 있습니다.' },
   { id:'thief',  t:'<b>금빛 도둑</b>은 보자마자 달아납니다. 걸어서는 절대 못 잡습니다 — 구르거나 주문을 쓰거나, 보내주거나.' },
   { id:'cast',   t:'주문은 <b>아래 줄의 아이콘을 눌러 바로</b> 씁니다(단축키 <b>1~5</b>).<br>' +
                     '어두운 칸은 아직 못 배웠거나, 마나가 모자라거나, <b>쏠 대상이 없다</b>는 뜻입니다.' },
@@ -2137,6 +2185,7 @@ export function checkLessons() {
   if (G.monsters.some(m => m.thief && G.level.vis[idx(m.x, m.y)])) teach('thief');
   if (Game.pressureLevel() > 0) teach('clock');
   if ((G.player.relics || []).length) teach('relic');
+  if (G.level?.props?.size) teach('prop');
 }
 
 /* ── the ? room ───────────────────────────────────────────
@@ -2420,6 +2469,7 @@ function renderEnd() {
     ['몬스터', Meta.count('monsters'), MONSTERS.length + 4, 'R'],
     ['무기 계열', Meta.count('weapons'), Object.keys(WEAPON_TYPES).length, 'o'],
     ['갈림길', Meta.count('branches'), BRANCH_TOTAL,    'y'],
+    ['다녀온 곳', Meta.count('regions'), REGIONS.length,  'o'],
     // The one row that is not a checklist: nothing in the game
     // tells you these exist. The bar is the only place they are
     // ever counted.

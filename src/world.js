@@ -12,7 +12,8 @@ export const MW = 66, MH = 40;
    sight, and shutting one behind you is a real move. */
 export const ROCK = 0, FLOOR = 1, DOWN = 2, UP = 3, DOOR = 4, RUBBLE = 5, SHOP = 6,
              DOOR_OPEN = 7, DOOR_LOCKED = 8, DOOR_BROKEN = 9,
-             WEB = 10, WATER = 11, CAMP = 12, ALTAR = 13, EVENT = 14, ANVIL = 15;
+             WEB = 10, WATER = 11, CAMP = 12, ALTAR = 13, EVENT = 14, ANVIL = 15,
+             PROP = 16;
 
 /* rooms: how many · size: room dimensions · light/water/web:
    multipliers on the usual amount · mob: monster density. */
@@ -36,6 +37,10 @@ export const walkable = (level, x, y) => {
   const t = level.tiles[idx(x, y)];
   return t === DOOR || !level.solid(x, y);
 };
+
+/* What is standing on this tile, if anything. */
+export const propAt = (level, x, y) =>
+  (level.tiles[idx(x, y)] === PROP ? level.props.get(idx(x, y)) : null) || null;
 
 export const idx = (x, y) => y * MW + x;
 export const rnd = n => Math.floor(Math.random() * n);
@@ -62,6 +67,9 @@ export class Level {
        to look exactly like the floor it is sitting in, and the
        grid is what the renderer reads. */
     this.traps  = new Map();     // tile index -> { kind, seen }
+    /* Furniture, unlike traps, *is* on the grid — it blocks and
+       it is drawn — but what each one is lives here. */
+    this.props  = new Map();     // tile index -> { kind, hp, lit }
     this.rooms  = [];
     this.entry  = { x: 0, y: 0 };
     depth === 0 ? this.buildTown() : this.buildDungeon();
@@ -70,6 +78,18 @@ export class Level {
   solid(x, y) {
     if (x < 0 || y < 0 || x >= MW || y >= MH) return true;
     const t = this.tiles[idx(x, y)];
+    /* A pillar is masonry and a brazier is an open fire: neither
+       is a tile you end a turn standing on, so both are solid and
+       pathing routes around them. The rest of the furniture is
+       walked into and dealt with, the way a shut door is.
+
+       This matters more than it looks: a lit brazier that was not
+       solid could never be walked onto and never be broken, so
+       anything routing through it looped forever. */
+    if (t === PROP) {
+      const k = this.props.get(idx(x, y))?.kind;
+      return k === 'pillar' || k === 'brazier';
+    }
     return t === ROCK || t === SHOP || isShut(t);
   }
 
@@ -191,6 +211,7 @@ export class Level {
     this.scatterHazards(start, st);
     this.placeCamp(start, st);
     this.placeAnvil(start, st);
+    this.scatterProps(start, st);
     this.placeMerchant(start, st);
     this.placeAltar(start, st);
     this.placeEvent(start, st);
@@ -299,6 +320,39 @@ export class Level {
       this.tiles[i] = CAMP;
       this.camp = { x, y };
       return;
+    }
+  }
+
+  /* ── the furniture ──────────────────────────────────────
+     Rooms were empty boxes with monsters standing in them. Props
+     are things the floor is *made of*: a barrel you can smash for
+     what is inside it, a brazier that lights the room and burns
+     what stands in it, a pillar that blocks a line of sight, a
+     bone pile that wakes something when you disturb it.
+
+     They live in `props`, keyed by tile index, and the tile is
+     PROP so movement, pathing and line of sight all consult one
+     place. What each kind does is in game.js — this only decides
+     where they are. */
+  scatterProps(start, down) {
+    if (this.depth < 1) return;
+    const kinds = ['barrel', 'brazier', 'pillar', 'bones', 'urn'];
+    const n = 4 + rnd(6);
+    for (let t = 0; t < n * 8 && this.props.size < n; t++) {
+      const r = this.rooms[rnd(this.rooms.length)];
+      if (!r) return;
+      const x = r.x + rnd(r.w), y = r.y + rnd(r.h);
+      const i = idx(x, y);
+      if (this.tiles[i] !== FLOOR || this.traps.has(i)) continue;
+      if (i === idx(start.x, start.y) || i === idx(down.x, down.y)) continue;
+      // Never wall off a room: a prop in a one-tile doorway would
+      // make a floor unsolvable for anything that cannot smash.
+      let open = 0;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]])
+        if (this.tiles[idx(x + dx, y + dy)] === FLOOR) open++;
+      if (open < 3) continue;
+      this.tiles[i] = PROP;
+      this.props.set(i, { kind: kinds[rnd(kinds.length)], hp: 3 });
     }
   }
 

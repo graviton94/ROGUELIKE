@@ -864,6 +864,20 @@ export function refresh() {
     wager.classList.toggle('hot', G.bank >= 4);
   }
 
+  /* The class counter. A trait the player cannot watch fill is
+     a trait they cannot play around, so it goes in the HUD next
+     to the things they already read every turn. */
+  const tr = $('hud-trait');
+  const st = Game.traitState();
+  tr.hidden = !st;
+  if (st) {
+    const dots = st.max
+      ? '●'.repeat(Math.min(st.at, st.max)) + '○'.repeat(Math.max(0, st.max - st.at))
+      : '';
+    $('hud-trait-n').textContent = `${st.n}${dots ? ' ' + dots : ''}${st.note ? ' ' + st.note : ''}`;
+    tr.className = 'chip trait' + (st.ready ? ' on' : '');
+  }
+
   const rel = $('hud-relics');
   const held = Game.relicList();
   rel.hidden = !held.length;
@@ -1182,13 +1196,18 @@ export function renderCreate() {
   for (const [key, c] of Object.entries(CLASSES)) {
     const b = el('button', 'pickbtn' + (pick.cls === key ? ' on' : ''));
     b.appendChild(el('span', 'pname', c.name));
-    b.appendChild(el('span', 'pmod', c.realm === 'arcane' ? '비전 마법' : c.realm === 'divine' ? '신성 마법' : '무주문'));
+    b.appendChild(el('span', 'pmod', c.trait ? c.trait.n : (c.realm ? '주문' : '무주문')));
     b.onclick = () => { pick.cls = key; renderCreate(); };
     cb.appendChild(b);
   }
 
   $('race-note').textContent = RACES[pick.race].note;
-  $('class-note').textContent = CLASSES[pick.cls].note;
+  /* The trait is most of what a class *is* now, so it goes on
+     the screen where the class is chosen rather than being found
+     out on floor three. */
+  const c = CLASSES[pick.cls];
+  $('class-note').innerHTML =
+    `${c.note}<br><b style="color:var(--o)">${c.trait.n}</b> — ${c.trait.t}`;
 
   const sb = $('stat-preview'); sb.innerHTML = '';
   for (const k of STATS) {

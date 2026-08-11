@@ -409,6 +409,16 @@ export function pump(queue, player) {
         buzz([70, 50, 110]); sfx.crit();
         break;
 
+      // 이중 시전. A second ring inside the first, so the free
+      // cast is visibly a *second* one and not a bigger one.
+      case 'twin':
+        ring(e.x, e.y, 1.4, PALETTE.B, 420);
+        ring(e.x, e.y, 2.6, PALETTE.P, 520);
+        number(e.x, e.y - 0.5, '이중', PALETTE.B, 1.3);
+        flashScreen = Math.max(flashScreen, 0.24); flashHue = 'B';
+        buzz([16, 14, 16]);
+        break;
+
       /* 초월. The rarest frame in the game, and it belongs to a
          pickup rather than a kill — the one time the floor gives
          you something instead of taking it. */

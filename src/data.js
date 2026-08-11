@@ -29,6 +29,33 @@ export const RACES = {
    hd:    hit dice bonus per level
    realm: null | 'arcane' (int) | 'divine' (wis)
    bth:   base to-hit progression per level                  */
+/* ── the six habits of hand ───────────────────────────────
+   A class used to be three stat modifiers and a spell list,
+   which meant the only thing that changed between a 전사 and a
+   팔라딘 was arithmetic. Each one now owns a rule instead — a
+   counter that fills as you play the class the way it wants to
+   be played, and pays out when it does.
+
+   `trait.n` names it, `trait.t` is the whole rule in one line,
+   and `trait.max` is what the HUD counter fills towards. The
+   counters live on the player and are read in exactly one place
+   each, so a class identity is a rule and not a special case
+   sprinkled through the combat code.                         */
+export const TRAITS = {
+  warrior: { n:'세 번째 손', max:3,
+    t:'같은 적을 연달아 맞히면 세 번째 타격은 무조건 치명타다. 빗나가면 처음부터.' },
+  mage:    { n:'이중 시전', max:4,
+    t:'주문을 넷 쓸 때마다 다음 하나는 마나를 쓰지 않고 두 번 나간다.' },
+  priest:  { n:'응답', max:0,
+    t:'체력이 절반 아래일 때 모든 회복이 60% 더 든다. 여섯 턴마다 저절로 아문다.' },
+  rogue:   { n:'그림자 걸음', max:0,
+    t:'구르기가 기력을 하나만 쓴다. 구른 바로 다음 공격은 무조건 치명타.' },
+  ranger:  { n:'표적', max:5,
+    t:'같은 적을 때릴 때마다 그 적에게 주는 피해가 9%씩 쌓인다(최대 45%). 대상을 바꾸면 사라진다.' },
+  paladin: { n:'맹세', max:8,
+    t:'맞을 때마다 방어 +1이 쌓인다(층마다 초기화, 최대 +8). 처치하면 하나 되돌려준다.' },
+};
+
 export const CLASSES = {
   warrior: { name:'전사',     mod:{ str:+3, con:+2, int:-2, wis:-2 }, hd:9, bth:5.0, realm:null,     note:'주문 없이, 오직 무기로.' },
   mage:    { name:'마법사',   mod:{ int:+3, str:-2, con:-2 },         hd:0, bth:2.0, realm:'arcane', note:'지능이 곧 힘. 맞으면 죽는다.' },
@@ -37,6 +64,7 @@ export const CLASSES = {
   ranger:  { name:'레인저',   mod:{ dex:+2, int:+1, con:+1 },         hd:4, bth:4.5, realm:'arcane', note:'칼과 주문을 반씩 나눠 든다.' },
   paladin: { name:'팔라딘',   mod:{ str:+2, wis:+1, chr:+2, dex:-2 }, hd:6, bth:4.5, realm:'divine', note:'느리지만 무너지지 않는다.' },
 };
+for (const [k, c] of Object.entries(CLASSES)) c.trait = TRAITS[k];
 
 /* ── spells ───────────────────────────────────────────────
    Unlocked by class level; cost mana.                       */

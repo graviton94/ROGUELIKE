@@ -273,7 +273,8 @@ export function gearBonus(p) {
 export const armourClass = p =>
   gearBonus(p).ac
   + statBonus(p.stats.dex) + Math.floor(p.lv / 4)
-  + (p.blessed > 0 ? 4 : 0) + (p.iron > 0 ? 10 : 0);
+  + (p.blessed > 0 ? 4 : 0) + (p.iron > 0 ? 10 : 0)
+  + (p.cls === 'paladin' ? (p.oath || 0) : 0);   // 맹세
 
 export const toHit = p => {
   const base = CLASSES[p.cls].bth * p.lv / 3 + statBonus(p.stats.dex) * 2
@@ -363,6 +364,10 @@ function bumpCombo(x, y) {
 function tookHit() {
   const p = G.player;
   if (hasRelic('grudge')) p.grudge = Math.min(15, (p.grudge || 0) + 1);
+  /* 맹세 (팔라딘). Every blow taken hardens him a little more.
+     Sits here rather than in the two damage sites so it counts
+     an arrow the same as an axe. */
+  if (p.cls === 'paladin') p.oath = Math.min(8, (p.oath || 0) + 1);
 }
 
 function breakCombo(hard) {
@@ -374,6 +379,36 @@ function breakCombo(hard) {
   G.combo = left;
   if (!G.combo) G.comboT = 0;
 }
+
+/* ── class traits ─────────────────────────────────────────
+   One counter per class, all of them living on the player and
+   all of them read in exactly one place. The HUD prints this,
+   so a player can watch the thing fill and time it. */
+export function traitState() {
+  const p = G.player;
+  if (!p) return null;
+  const spec = CLASSES[p.cls].trait;
+  if (!spec) return null;
+  switch (p.cls) {
+    case 'warrior': return { ...spec, at: p.chain3 || 0, ready: (p.chain3 || 0) >= 2 };
+    case 'mage':    return { ...spec, at: p.casts % 4, ready: (p.casts % 4) === 3 };
+    case 'ranger':  return { ...spec, at: p.markN || 0, ready: (p.markN || 0) >= 5,
+                             note: p.markN ? `+${Math.round((p.markN) * 9)}%` : '' };
+    case 'paladin': return { ...spec, at: p.oath || 0, ready: (p.oath || 0) >= 8,
+                             note: p.oath ? `방어 +${p.oath}` : '' };
+    case 'rogue':   return { ...spec, at: p.shadow ? 1 : 0, max: 1, ready: !!p.shadow };
+    case 'priest':  return { ...spec, at: 0, max: 0, ready: p.hp < p.maxhp * 0.5 };
+  }
+  return spec;
+}
+
+/* 응답: the priest heals harder the worse it is going. Every
+   restore in the game funnels through here so the trait cannot
+   be true of the potion and false of the spell. */
+export const healScale = () => {
+  const p = G.player;
+  return (p?.cls === 'priest' && p.hp < p.maxhp * 0.5) ? 1.6 : 1;
+};
 
 export const spellList = p => {
   const realm = CLASSES[p.cls].realm;
@@ -579,11 +614,11 @@ export function useItem(slotIdx) {
 
   switch (it.use) {
     case 'heal': {
-      const h = Math.round(Math.min(p.maxhp - p.hp, (20 + roll(2, 8) + p.lv * 2) * gulp));
+      const h = Math.round(Math.min(p.maxhp - p.hp, (20 + roll(2, 8) + p.lv * 2) * gulp * healScale()));
       p.hp += h; if (h) fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(h ? `상처가 아문다. 체력 +${h}.` : '이미 멀쩡하다.', 'good'); break;
     }
     case 'bigHeal': {
-      const h = Math.round(Math.min(p.maxhp - p.hp, (Math.floor(p.maxhp * 0.6) + roll(3, 10)) * gulp));
+      const h = Math.round(Math.min(p.maxhp - p.hp, (Math.floor(p.maxhp * 0.6) + roll(3, 10)) * gulp * healScale()));
       p.hp += h; fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(`깊은 상처까지 닫힌다. 체력 +${h}.`, 'good'); break;
     }
     case 'mana': {
@@ -661,14 +696,23 @@ function teleport() {
 }
 
 /* ── spells ─────────────────────────────────────────────── */
-export function cast(spellId) {
+export function cast(spellId, echo = false) {
   const p = G.player;
   const sp = spellList(p).find(s => s.id === spellId);
   if (!sp) return;
   // 침묵의 서약 trades the whole spellbook for a third more
   // damage in the hand — the sharpest build commitment here.
   if (hasRelic('vow')) { say('서약이 혀를 막는다. 주문은 나오지 않는다.', 'warn'); return; }
-  const cost = spellCost(p, sp);
+  /* 이중 시전. Every fourth spell a mage casts is free and comes
+     out twice. Checked before the mana test on purpose — the free
+     one has to be castable at zero mana, which is most of the
+     point of a class that runs dry by floor three. */
+  const twice = p.cls === 'mage' && (p.casts || 0) % 4 === 3;
+  // `echo` is the second barrel calling back in. It is part of
+  // the same free cast, so it must not be charged for — without
+  // this the counter has already advanced and the recursion pays
+  // full price, which made the whole trait cost *more* mana.
+  const cost = (twice || echo) ? 0 : spellCost(p, sp);
   if (p.mana < cost) { say('마나가 모자란다.', 'warn'); return; }
 
   const visible = G.monsters.filter(m => G.level.vis[idx(m.x, m.y)]);
@@ -682,6 +726,8 @@ export function cast(spellId) {
   if (TARGETED.includes(sp.id) && !nearest) { say('시야에 적이 없다.', 'warn'); return; }
 
   p.mana -= cost;
+  if (!echo) p.casts = (p.casts || 0) + 1;
+  if (twice) say(`${sp.name}이(가) 두 번 나간다. 마나는 들지 않았다.`, 'level');
   const pow = spellPower(p, sp.id);
   const aff = SPELL_AFFIXES.find(a => a.id === p.spellAffix?.[sp.id]);
 
@@ -719,11 +765,11 @@ export function cast(spellId) {
       say('한 걸음 옆이 아닌 곳에 서 있다.', 'good'); break;
     }
     case 'cure': {
-      const h = Math.min(p.maxhp - p.hp, Math.round((12 + roll(2, 6) + statBonus(p.stats.wis) * 3) * pow));
+      const h = Math.min(p.maxhp - p.hp, Math.round((12 + roll(2, 6) + statBonus(p.stats.wis) * 3) * pow * healScale()));
       p.hp += h; fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(`상처가 닫힌다. 체력 +${h}.`, 'good'); break;
     }
     case 'heal': {
-      const h = Math.min(p.maxhp - p.hp, Math.round((Math.floor(p.maxhp * 0.55) + roll(3, 8)) * pow));
+      const h = Math.min(p.maxhp - p.hp, Math.round((Math.floor(p.maxhp * 0.55) + roll(3, 8)) * pow * healScale()));
       p.hp += h; fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(`빛이 몸을 훑고 지나간다. 체력 +${h}.`, 'good'); break;
     }
     case 'bless': p.blessed = 25 + p.lv; say('가벼워진 기분이다.', 'good'); break;
@@ -751,7 +797,13 @@ export function cast(spellId) {
     }
     case 'map': revealMap(); say('층의 구조가 머릿속에 그려진다.', 'good'); break;
   }
-  endTurn();
+  /* The second barrel. `p.echoingSpell` stops it recursing: the
+     free cast fires twice, never four times. */
+  if (twice && !echo && G.running) {
+    fx({ t:'twin', x:p.x, y:p.y });
+    cast(spellId, true);
+  }
+  if (!echo) endTurn();
 }
 
 /* Spell enhancement is the same two dials as gear: a flat safe
@@ -858,6 +910,7 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     say(`돌씨가 자란다. 방어 +${p.seedAc}.`, 'good');
   }
   if (depth > 0) p.grudge = 0;      // 앙심 forgets between floors
+  if (depth > 0) { p.oath = 0; p.chain3 = 0; p.markN = 0; p.chainOn = null; p.markOn = null; }
 
   /* The wager climbs with every floor you take without sitting
      down. Nothing is banked in the town, and nothing survives
@@ -1601,7 +1654,23 @@ function swing(m, scale) {
   if (Math.random() > chance) {
     say(`${m.n}을(를) 빗맞혔다.`);
     fx({ t:'miss', x:m.x, y:m.y });
+    p.chain3 = 0;              // 세 번째 손: a miss resets the count
     return;
+  }
+
+  /* 세 번째 손 (전사). Three landed blows on the same body and
+     the third one goes through the armour. Same target only —
+     a warrior who dances between three enemies never gets it,
+     which is the whole instruction the trait is giving. */
+  if (p.cls === 'warrior') {
+    p.chain3 = (p.chainOn === m ? (p.chain3 || 0) : 0) + 1;
+    p.chainOn = m;
+  }
+  /* 표적 (레인저). The opposite instruction: stay on one thing
+     and it gets worse for it, 9% at a time. */
+  if (p.cls === 'ranger') {
+    p.markN = p.markOn === m ? Math.min(5, (p.markN || 0) + 1) : 0;
+    p.markOn = m;
   }
 
   const w = p.equip.weapon;
@@ -1619,7 +1688,17 @@ function swing(m, scale) {
   // makes a 은총 a 은총 and not an affix.
   if (hasBoon('wrath') && (m.elite?.length || m.boss || m.named)) dmg *= 1.35;
 
-  const crit = asleep || Math.random() < critChance(p) + (kind === 'dagger' ? 0.08 : 0);
+  if (p.cls === 'ranger' && p.markN) dmg *= 1 + p.markN * 0.09;
+
+  /* The two traits that decide a crit outright, rather than
+     nudging the roll. Both are earned by a rule the player can
+     see filling in the HUD. */
+  const forced = (p.cls === 'warrior' && (p.chain3 || 0) >= 3)
+              || (p.cls === 'rogue' && p.shadow);
+  if (forced && p.cls === 'warrior') { p.chain3 = 0; say('세 번째 손 — 급소가 열렸다.', 'level'); }
+  if (forced && p.cls === 'rogue') { p.shadow = 0; say('그림자에서 나온 칼.', 'level'); }
+  const crit = asleep || forced
+    || Math.random() < critChance(p) + (kind === 'dagger' ? 0.08 : 0);
   if (crit) dmg *= critMult(p) * (asleep ? 1.5 : 1);
   dmg = Math.max(1, Math.round(dmg * comboMult()));
 
@@ -1701,6 +1780,9 @@ export const goldGain = n => Math.max(0, Math.round(
    뼈 목걸이 is the slow one, worth taking early or not at all. */
 function onKill(m) {
   const p = G.player;
+  // 맹세 spends itself down as he wins — the wall is highest at
+  // the moment he is losing, which is when a paladin needs it.
+  if (p.cls === 'paladin' && p.oath > 0) p.oath--;
   if ((hasRelic('hunger') || hasRelic('famine')) && p.hp < p.maxhp) {
     const got = Math.min(p.maxhp - p.hp,
       hasRelic('famine') ? relicVal('famine') : relicVal('hunger'));
@@ -1982,6 +2064,9 @@ export function endTurn(skipMonsters = false) {
   const regen = Math.max(0, 1 + Math.floor(p.lv / 4)
     + (p.race === 'halfTroll' ? 1 : 0) + gearBonus(p).regen);
   if (G.turn % 8 === 0 && p.hp < p.maxhp) p.hp = Math.min(p.maxhp, p.hp + regen);
+  // 응답: the priest closes on his own, twice as often as anyone.
+  if (p.cls === 'priest' && G.turn % 6 === 0 && p.hp < p.maxhp)
+    p.hp = Math.min(p.maxhp, p.hp + Math.max(1, Math.round(regen * healScale())));
   if (G.turn % 10 === 0 && p.mana < p.maxmana) p.mana = Math.min(p.maxmana, p.mana + 1);
 
   refreshFov();
@@ -2432,15 +2517,20 @@ export const hazardAt = (x, y) => {
    The answer to a telegraph. Two tiles, one turn, and the next
    thing that swings at you this turn misses. Stamina is what
    stops it from being the answer to everything. */
+/* 그림자 걸음 (도적): a roll costs one instead of two, which is
+   the difference between rolling once a fight and rolling in
+   and out of every one. */
+export const rollCost = () => (G.player?.cls === 'rogue' ? 1 : ROLL_COST);
+
 export function canRoll() {
   const p = G.player;
-  return !!p && p.stam >= ROLL_COST && !has(p, 'paralyze') && !(p.stuck > 0);
+  return !!p && p.stam >= rollCost() && !has(p, 'paralyze') && !(p.stuck > 0);
 }
 
 export function dodgeRoll(dx, dy) {
   const p = G.player, L = G.level;
   if (!dx && !dy) return false;
-  if (!canRoll()) { say(p.stam < ROLL_COST ? '숨이 차다.' : '움직일 수 없다.', 'warn'); return false; }
+  if (!canRoll()) { say(p.stam < rollCost() ? '숨이 차다.' : '움직일 수 없다.', 'warn'); return false; }
 
   let moved = 0;
   for (let i = 0; i < ROLL_DIST; i++) {
@@ -2453,9 +2543,11 @@ export function dodgeRoll(dx, dy) {
   }
   if (!moved) { say('구를 자리가 없다.', 'warn'); return false; }
 
-  p.stam -= ROLL_COST;
+  p.stam -= rollCost();
   p.iframe = 1;
   p.stuck = 0;
+  // …and the blow that comes out of the roll always lands clean.
+  if (p.cls === 'rogue') p.shadow = 1;
   fx({ t:'roll', x:p.x, y:p.y, dx, dy, dist:moved });
   refreshFov();
   // A roll passes over ground rather than stopping on it: no

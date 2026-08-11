@@ -137,6 +137,11 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 .chip.mana { color: var(--B); border-color: #23364f; } .chip.mana b { color: var(--B); }
 .chip.depth { color: var(--o); border-color: #4a331a; }
 .chip.relics { color: var(--P); border-color: #40265c; } .chip.relics b { color: var(--P); }
+/* The class counter. Dim while it fills, lit the turn it pays. */
+.chip.trait { color: var(--G); border-color: var(--g); }
+.chip.trait b { color: var(--G); font-weight: 400; }
+.chip.trait.on { color: var(--o); border-color: var(--o); background: rgba(217, 138, 60, .14); }
+.chip.trait.on b { color: var(--o); }
 
 /* The pile on the table. It glows brighter as it grows, which
    is the entire persuasion — the number is supposed to be hard

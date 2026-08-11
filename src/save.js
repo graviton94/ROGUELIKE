@@ -119,7 +119,12 @@ export function snapshot() {
     transFound: G.transFound || 0, perfects: G.perfects || 0, fused: G.fused || 0,
     catUsed: G.catUsed || 0,
     nextMods: G.nextMods || null,
-    player: G.player,
+    /* The two trait counters that point at a live monster are
+       deliberately dropped: serialising them would clone a whole
+       monster into the player, and on load the clone would not be
+       the thing standing in front of you. They rebuild on the
+       next swing. */
+    player: { ...G.player, chainOn: null, markOn: null },
     monsters: G.monsters,
     items: G.items,
     log: G.log.slice(-40),

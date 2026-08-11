@@ -10,7 +10,7 @@ import {
   PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName, MATS, ENCHANT_COST, REROLL_COST,
   RARITY, CURSED_TONE, rarityOf, isCursed,
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
-  MONSTERS, BRANCHES, SPELLS,
+  MONSTERS, BRANCHES, SPELLS, boonById,
   UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS,
   xpToLevel, statBonus,
 } from './data.js';
@@ -260,13 +260,18 @@ export function draw() {
       const glow = RARITY[grade].glow;
       const pulse = 0.55 + Math.sin(performance.now() / 420 + it.x) * 0.25;
       ctx.save();
-      const beam = ctx.createLinearGradient(0, iy - t * 3.2, 0, iy + t);
+      // 초월 throws a pillar twice as tall and twice as wide as
+      // anything else on the floor. You should see it from the
+      // far side of the room and walk towards it.
+      const tall = grade === 4 ? 6.4 : 3.2;
+      const beam = ctx.createLinearGradient(0, iy - t * tall, 0, iy + t);
       beam.addColorStop(0, 'transparent');
       beam.addColorStop(1, glow);
-      ctx.globalAlpha = pulse * (grade >= 3 ? 0.5 : 0.34);
+      ctx.globalAlpha = pulse * (grade === 4 ? 0.72 : grade >= 3 ? 0.5 : 0.34);
       ctx.fillStyle = beam;
-      ctx.fillRect(ix + t * 0.28, iy - t * 3.2, t * 0.44, t * 4.2);
-      ctx.globalAlpha = pulse * 0.45;
+      ctx.fillRect(ix + t * (grade === 4 ? 0.14 : 0.28), iy - t * tall,
+                   t * (grade === 4 ? 0.72 : 0.44), t * (tall + 1));
+      ctx.globalAlpha = pulse * (grade === 4 ? 0.7 : 0.45);
       ctx.beginPath();
       ctx.ellipse(ix + t / 2, iy + t * 0.85, t * 0.55, t * 0.2, 0, 0, Math.PI * 2);
       ctx.fillStyle = glow;
@@ -1426,6 +1431,7 @@ function nameEl(it, extra) {
   const r = rarityOf(it);
   n.style.color = `var(--${isCursed(it) ? CURSED_TONE : RARITY[r].tone})`;
   if (r >= 2 && !isCursed(it)) n.classList.add('shine');
+  if (r === 4) n.classList.add('transcend');
   return n;
 }
 
@@ -1463,7 +1469,9 @@ function affixText(a) {
 function affixBlurb(it) {
   const parts = [affixText(affixOf(it.pre, PREFIXES)), affixText(affixOf(it.suf, SUFFIXES))]
     .filter(Boolean);
-  return parts.length ? ' · ' + parts.join(' · ') : '';
+  // The 은총 goes first: it is a rule, and the affixes are numbers.
+  if (it.boon) parts.unshift(boonById(it.boon)?.t);
+  return parts.length ? ' · ' + parts.filter(Boolean).join(' · ') : '';
 }
 
 /* ── the fire ───────────────────────────────────────────── */
@@ -2083,6 +2091,8 @@ function renderEnd() {
   line('금화 · 턴', `${s.gold}닢 · ${s.turn}턴`);
   if (s.forged) line('벼려 올린 +', `${s.forged}단계`, 'y');
   if (s.broke) line('불에 잃은 장비', `${s.broke}점`, 'R');
+  if (s.perfects) line('절단', `${s.perfects}번`, 'W');
+  if (s.trans) line('초월', `${s.trans}점 — 이 판을 기억하시오.`, 'W');
   if (s.bank >= 2) line('잃은 판돈', `${s.bank}층치`, 'R');
   if (s.waves) line('심연의 습격', `${s.waves}번`, 'R');
 

@@ -8,6 +8,7 @@ import {
   PREFIXES, SUFFIXES, SPELL_AFFIXES, ELITES, affixName,
   MATS, salvageYield, upgradeCost, ENCHANT_COST, REROLL_COST,
   upgradeOdds, upgradeRisk, UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS,
+  BOONS, boonById, transChance,
   ALTAR_OFFERS, rarityOf, isCursed,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   RELICS, RELIC_SLOTS, relicSlots, relicById, BRANCHES,
@@ -459,10 +460,10 @@ export function salvage(slotIdx) {
 
   p.mats = p.mats || { scrap: 0, dust: 0, essence: 0 };
   const parts = [];
-  const mult = G.branch?.mats || 1;
+  const mult = (G.branch?.mats || 1) * (hasBoon('hoard') ? 1.6 : 1);
   for (const k of ['scrap', 'dust', 'essence']) {
     if (!got[k]) continue;
-    got[k] *= mult;
+    got[k] = Math.round(got[k] * mult);
     p.mats[k] += got[k];
     parts.push(`${MATS[k].n} ${got[k]}`);
   }
@@ -681,7 +682,9 @@ export function cast(spellId) {
       hurtMonster(nearest, dmg, holy ? '응징의 빛' : '마력 화살');
       spellDrain(aff, dmg);
       // 메아리치는: half of it carries to a second target.
-      if (aff?.chainSpell) {
+      // 울림의 은총 does the same thing without needing the affix,
+      // so a caster who finds one has it on every spell at once.
+      if (aff?.chainSpell || hasBoon('echo')) {
         const second = visible.filter(o => o !== nearest && G.monsters.includes(o))[0];
         if (second) {
           const echo = Math.max(1, Math.round(dmg * 0.5));
@@ -769,6 +772,7 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   G.waves = 0;
   G.hazards = [];
   G.campUses = 1 + (hasRelic('ember') ? 1 : 0);
+  G.tideUsed = false;
 
   const L = G.level;
   const p = G.player;
@@ -1096,8 +1100,29 @@ export function rollAffixes(item, depth, guaranteed) {
     const a = pickAffix(SUFFIXES, tag, false);
     if (a) item.suf = a.id;
   }
+  /* 초월. Rolled here and nowhere else, so it can only ever be
+     the luck of the drop — no camp, no altar, no shop can put
+     one in your hands. */
+  if (Math.random() < transChance(depth)) {
+    item.boon = BOONS[rnd(BOONS.length)].id;
+    /* It arrives already sharpened. A 초월 평범한 단검 would
+       read as a joke rather than a find. */
+    item.plus = Math.max(item.plus || 0, 1 + rnd(3));
+    if (!item.pre) item.pre = pickAffix(PREFIXES, tag, false)?.id;
+  }
   return item;
 }
+
+/* Does the player currently benefit from a 은총? Weapons and
+   armour both count — the boon is a property of the thing, and
+   the thing is either worn or it is not. */
+export const hasBoon = id => {
+  const p = G.player;
+  if (!p) return false;
+  for (const slot of ['weapon', 'body', 'shield'])
+    if (p.equip[slot]?.boon === id) return true;
+  return false;
+};
 
 export function pickAffix(table, tag, allowCurse) {
   const pool = table.filter(a => a.tags.includes(tag) && (allowCurse || !a.curse));
@@ -1402,6 +1427,17 @@ function pickUp() {
   // 서기의 깃펜 names it in your hand, before you have to bet on it.
   if (hasRelic('quill')) identify(it.id, true);
   addItem(p, it);
+  /* 초월 does not get a line in the log — it gets the screen.
+     This is the rarest thing that can happen to a run and the
+     player should not have to read four words to notice it. */
+  if (it.boon) {
+    const b = boonById(it.boon);
+    G.transFound = (G.transFound || 0) + 1;
+    fx({ t:'transcend', x:p.x, y:p.y });
+    say(`— 초월. ${affixName(it)}.`, 'level');
+    say(b.t, 'level');
+    return;
+  }
   say(`${nameOf(it)}을(를) 주웠다.`, 'good');
 }
 
@@ -1529,10 +1565,26 @@ function swing(m, scale) {
   // 낙인: sharpened against the things that telegraph, blunted
   // against everything else.
   if (hasRelic('brand')) dmg *= (m.elite?.length || m.boss) ? 1.5 : 0.85;
+  // 진노의: the same idea without the downside, which is what
+  // makes a 은총 a 은총 and not an affix.
+  if (hasBoon('wrath') && (m.elite?.length || m.boss || m.named)) dmg *= 1.35;
 
   const crit = asleep || Math.random() < critChance(p) + (kind === 'dagger' ? 0.08 : 0);
   if (crit) dmg *= critMult(p) * (asleep ? 1.5 : 1);
   dmg = Math.max(1, Math.round(dmg * comboMult()));
+
+  /* 절단. One crit in forty becomes something else entirely: the
+     swing that people screenshot. Deliberately not a stat you can
+     build for — it rides on the crit you already earned, so the
+     build that crits often sees it often, and nobody sees it on
+     purpose. */
+  let perfect = false;
+  if (crit && !m.boss && Math.random() < PERFECT_CHANCE) {
+    perfect = true;
+    G.perfects = (G.perfects || 0) + 1;
+    dmg = Math.round(dmg * 3.2);
+    say(`— 절단. ${m.n}이(가) 두 동강 났다.`, 'level');
+  }
 
   if (asleep) say(`잠든 ${m.n}의 급소를 찔렀다.`, 'level');
 
@@ -1544,7 +1596,14 @@ function swing(m, scale) {
     fx({ t:'execute', x:m.x, y:m.y });
     hurtMonster(m, m.hp + 999, null, { crit: true, execute: true });
   } else {
-    hurtMonster(m, dmg, null, { crit, sneak: asleep, weapon: kind });
+    /* 파멸의: a crit takes a slice of the *maximum*, so the boon
+       is worth exactly as much against a troll as the troll is
+       big. It is the only damage in the game that does not care
+       what your weapon is. */
+    if (crit && hasBoon('ruin') && !m.boss)
+      dmg += Math.max(1, Math.round(m.maxhp * 0.08));
+    if (perfect) fx({ t:'perfect', x:m.x, y:m.y });
+    hurtMonster(m, dmg, null, { crit, sneak: asleep, weapon: kind, perfect });
   }
   if (!G.running) return;
 
@@ -1584,7 +1643,8 @@ function swing(m, scale) {
 /* 뱃사공의 동전 doubles it, 서기의 깃펜 shaves it. One funnel so
    the two can never be applied twice or missed once. */
 export const goldGain = n => Math.max(0, Math.round(
-  n * (hasRelic('toll') ? 2 : 1) * (hasRelic('quill') ? 0.75 : 1)));
+  n * (hasRelic('toll') ? 2 : 1) * (hasRelic('quill') ? 0.75 : 1)
+    * (hasBoon('hoard') ? 1.6 : 1)));
 
 /* Relics that pay on a kill. 굶주린 칼날 is the aggression
    engine — it out-heals a room only if you keep killing — and
@@ -2107,8 +2167,30 @@ function monsterMelee(m) {
     m.hp = Math.min(m.maxhp, m.hp + back);
   }
   if (m.on && Math.random() < 0.28) afflict(p, m.on, 9 + rnd(9));
+  corrode(m);
   reflect(m, dmg);
   if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death(m); }
+}
+
+/* 부식. The other end of the anvil: rarely, something that eats
+   metal takes a level of enhancement back off you. Only the four
+   things that should be able to do it can, and only on a landed
+   blow, and never through 불괴의.
+
+   A level, never the item — losing a +7 sword to a mould would
+   be a story about quitting, not a story about the dungeon. */
+const CORRODERS = ['회색 곰팡이', '푸른 젤리', '미라', '망령'];
+function corrode(m) {
+  const p = G.player;
+  if (!CORRODERS.includes(m.n) || Math.random() >= CORRODE_CHANCE) return;
+  const worn = ['weapon', 'body', 'shield']
+    .map(k => p.equip[k]).filter(it => it && (it.plus || 0) > 0 && it.boon !== 'aegis');
+  if (!worn.length) return;
+  const it = worn[rnd(worn.length)];
+  it.plus--;
+  recalc(p);
+  say(`${m.n}이(가) 남긴 것이 ${affixName(it)}을(를) 갉아먹었다. 한 단계 잃었다.`, 'bad');
+  fx({ t:'corrode', x:p.x, y:p.y });
 }
 
 /* 거울 방패. Deliberately placed after the damage is applied, so
@@ -2480,8 +2562,9 @@ export function upgradeOddsFor(key, careful = false) {
     odds: Math.min(1, upgradeOdds(plus) + (careful ? CAREFUL_BONUS : 0)),
     crit: careful ? 0 : UPGRADE_CRIT,
     down: risk.down,
-    // A spell cannot shatter; there is nothing to shatter.
-    breakPct: t.type === 'item' ? risk.breakPct : 0,
+    // A spell cannot shatter; there is nothing to shatter. Nor
+    // can a 불괴의 — that is what the 은총 is for.
+    breakPct: t.type === 'item' && t.item?.boon !== 'aegis' ? risk.breakPct : 0,
   };
 }
 
@@ -3102,12 +3185,30 @@ export function summarise(win, by) {
     bank: G.bank || 0,
     kills: G.kills || 0, opened: G.opened || 0,
     broke: G.broke || 0, forged: G.forged || 0,
+    trans: G.transFound || 0, perfects: G.perfects || 0,
     events: G.eventsSeen || 0, waves: G.waves || 0,
     tail: G.log.slice(-3).map(l => l.text),
   };
 }
 
+/* One in forty crits, and never on the boss — the frame is the
+   reward, and a boss fight is already carrying its own. */
+const PERFECT_CHANCE = 0.025;
+const CORRODE_CHANCE = 0.03;
+
 function death(killer) {
+  const p = G.player;
+  /* 역류의. Checked here rather than at each of the eleven places
+     that can reduce you to zero, so it cannot be missed at one of
+     them. Once per floor, and the floor has to end before it comes
+     back — otherwise it is not a rescue, it is a second health bar. */
+  if (hasBoon('tide') && !G.tideUsed) {
+    G.tideUsed = true;
+    p.hp = Math.max(1, Math.floor(p.maxhp * 0.5));
+    say('역류 — 죽음이 뒤로 밀려났다. 체력이 절반까지 돌아왔다.', 'level');
+    fx({ t:'tide', x:p.x, y:p.y });
+    return;
+  }
   G.running = false;
   G.ending = { win:false, by: killer.n, summary: summarise(false, killer.n) };
   G.screen = 'end';
@@ -3155,7 +3256,7 @@ export function startGame(raceKey, classKey, base) {
   G.log = []; G.turn = 0; G.running = true; G.ending = null;
   G.fx = []; G.combo = 0; G.comboT = 0; G.bestCombo = 0;
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0; G.kills = 0; G.eventsSeen = 0;
-  G.broke = 0; G.forged = 0;
+  G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
   G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.bank = 0;

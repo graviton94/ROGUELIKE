@@ -463,11 +463,39 @@ export const RARITY = [
   { n:'마법', tone:'B', glow:'#5b9bd5' },
   { n:'희귀', tone:'y', glow:'#e8c76a' },
   { n:'유물', tone:'P', glow:'#b57ad0' },
+  /* 초월. Colourless on purpose — every other tier gets a hue,
+     and the one above them all is simply too bright to have one. */
+  { n:'초월', tone:'W', glow:'#f2efe4' },
 ];
 export const CURSED_TONE = 'R';
 
+/* ── 초월 ─────────────────────────────────────────────────
+   The tier you cannot grind into. Rarity 0–3 is arithmetic on
+   affixes and plus; 초월 is a flag rolled once, at the moment
+   the item is created, and never afterwards. That is the whole
+   design: a player who has seen one knows it was luck, not a
+   shopping list, and remembers which run it was.
+
+   Every 초월 item carries a 은총 — a rule no ordinary affix can
+   give. The stat sheet is not the point; the rule is.        */
+export const BOONS = [
+  { id:'ruin',  n:'파멸의',  t:'치명타가 대상의 최대 체력 8%를 함께 태운다.' },
+  { id:'aegis', n:'불괴의',  t:'부서지지 않는다. 부식도 통하지 않는다.' },
+  { id:'hoard', n:'만금의',  t:'금화와 재료를 60% 더 얻는다.' },
+  { id:'echo',  n:'울림의',  t:'주문이 언제나 두 번째 대상에게 절반으로 번진다.' },
+  { id:'tide',  n:'역류의',  t:'체력이 25% 아래로 떨어지면 층마다 한 번 절반까지 되돌아온다.' },
+  { id:'wrath', n:'진노의',  t:'정예와 이름 있는 것에게 주는 피해 +35%.' },
+];
+export const boonById = id => BOONS.find(b => b.id === id);
+
+/* Per weapon or armour created. 1층 0.6%, 15층 3.0% — rare
+   enough that most runs never see one, common enough that a
+   player who plays for a week has a story. */
+export const transChance = depth => 0.006 + depth * 0.0016;
+
 export function rarityOf(item) {
   if (!item || (item.kind !== 'weapon' && item.kind !== 'armour')) return 0;
+  if (item.boon) return 4;
   const pre = PREFIXES.find(a => a.id === item.pre);
   const suf = SUFFIXES.find(a => a.id === item.suf);
   const score = (pre ? 2 : 0) + (suf ? 2 : 0) + (item.plus || 0)
@@ -483,7 +511,11 @@ export const affixName = (item) => {
   const pre = item.pre ? PREFIXES.find(a => a.id === item.pre) : null;
   const suf = item.suf ? SUFFIXES.find(a => a.id === item.suf) : null;
   const plus = item.plus ? `+${item.plus} ` : '';
-  return `${plus}${pre ? pre.n + ' ' : ''}${item.n}${suf ? ' · ' + suf.n : ''}`;
+  const boon = item.boon ? boonById(item.boon) : null;
+  // The 은총 goes in front of everything, including the prefix:
+  // it is the first thing true about the item.
+  return `${plus}${boon ? boon.n + ' ' : ''}${pre ? pre.n + ' ' : ''}${item.n}` +
+         `${suf ? ' · ' + suf.n : ''}`;
 };
 
 /* ── materials ────────────────────────────────────────────

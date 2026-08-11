@@ -480,6 +480,16 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 
 /* A rare name should catch the eye in a list of twenty. */
 .shine { text-shadow: 0 0 8px currentColor; }
+/* 초월 does not sit still. Most players will go whole runs
+   without seeing this rule fire. */
+.transcend {
+  text-shadow: 0 0 6px #fff, 0 0 14px var(--y);
+  animation: transPulse 2.2s ease-in-out infinite;
+}
+@keyframes transPulse {
+  0%, 100% { text-shadow: 0 0 5px #fff, 0 0 12px var(--y); }
+  50%      { text-shadow: 0 0 11px #fff, 0 0 24px var(--o); }
+}
 
 /* ── altar ── */
 .altopt {

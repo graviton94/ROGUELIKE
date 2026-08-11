@@ -387,6 +387,70 @@ export function pump(queue, player) {
         buzz(e.big ? [40, 30, 60] : [25, 30, 45]);
         break;
 
+      /* 절단. One crit in forty. Everything the engine has: the
+         world stops, the screen goes white, and the number is
+         twice the size of any other number the game draws. */
+      case 'perfect':
+        freeze = 190;
+        flashScreen = Math.max(flashScreen, 0.85); flashHue = 'W';
+        shake = Math.max(shake, 1.0);
+        ring(e.x, e.y, 4.2, PALETTE.W, 620);
+        ring(e.x, e.y, 2.0, PALETTE.R, 460);
+        number(e.x, e.y - 0.7, '절단', PALETTE.W, 2.6);
+        for (let i = 0; i < 54 && shards.length < MAX_SHARDS; i++) {
+          const a = Math.random() * Math.PI * 2, v = 5 + Math.random() * 7;
+          shards.push({
+            x: e.x + 0.5, y: e.y + 0.5,
+            vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1,
+            life: 760, age: 0, size: Math.random() < 0.3 ? 2 : 1,
+            color: Math.random() < 0.5 ? PALETTE.W : PALETTE.R,
+          });
+        }
+        buzz([70, 50, 110]); sfx.crit();
+        break;
+
+      /* 초월. The rarest frame in the game, and it belongs to a
+         pickup rather than a kill — the one time the floor gives
+         you something instead of taking it. */
+      case 'transcend':
+        freeze = 240;
+        flashScreen = Math.max(flashScreen, 0.9); flashHue = 'W';
+        for (const r of [1.6, 3.0, 4.6, 6.4])
+          ring(e.x, e.y, r, PALETTE.W, 900);
+        number(e.x, e.y - 0.9, '초월', PALETTE.W, 3.0);
+        for (let i = 0; i < 70 && shards.length < MAX_SHARDS; i++) {
+          const a = Math.random() * Math.PI * 2, v = 2 + Math.random() * 8;
+          shards.push({
+            x: e.x + 0.5, y: e.y + 0.5,
+            vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2,
+            life: 1200, age: 0, size: Math.random() < 0.35 ? 2 : 1,
+            color: Math.random() < 0.6 ? PALETTE.W : PALETTE.y,
+          });
+        }
+        buzz([40, 30, 40, 30, 120]); sfx.jackpot();
+        break;
+
+      /* 역류의. The death frame has already played by the time
+         this arrives, and that is the point — the screen has to
+         be taken back. */
+      case 'tide':
+        freeze = 200;
+        flashScreen = Math.max(flashScreen, 0.75); flashHue = 'B';
+        ring(e.x, e.y, 5.2, PALETTE.B, 820);
+        ring(e.x, e.y, 2.6, PALETTE.W, 620);
+        number(e.x, e.y - 0.8, '역류', PALETTE.B, 2.4);
+        shake = Math.max(shake, 0.6);
+        buzz([90, 60, 90]); sfx.jackpot();
+        break;
+
+      // Something ate a level off your gear. Small, grey, nasty.
+      case 'corrode':
+        ring(e.x, e.y, 1.6, PALETTE.e, 480);
+        number(e.x, e.y - 0.4, '부식', PALETTE.e, 1.3);
+        flashScreen = Math.max(flashScreen, 0.2); flashHue = 'e';
+        buzz([30, 20, 30]); sfx.bust();
+        break;
+
       /* The sword coming apart in your hands. The one outcome in
          the game that takes something away permanently, so it gets
          the loudest frame the fire screen can throw. */

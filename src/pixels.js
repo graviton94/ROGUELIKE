@@ -301,6 +301,36 @@ export const SPRITES = {
     'ny.y....',
     'n.......',
   ],
+  dagger: [
+    '.....sw.',
+    '....sws.',
+    '...sws..',
+    '..yyy...',
+    '.ny.y...',
+    '.n......',
+    '........',
+    '........',
+  ],
+  spear: [
+    '......sW',
+    '.....sss',
+    '....ns..',
+    '...nn...',
+    '..nn....',
+    '.nn.....',
+    'nn......',
+    'n.......',
+  ],
+  great: [
+    '.....sWs',
+    '....sWs.',
+    '...sWs..',
+    '..sWs...',
+    '.sWs....',
+    'yyyy....',
+    'ny..y...',
+    'n.......',
+  ],
   axe: [
     '....ss..',
     '...ssss.',
@@ -591,7 +621,182 @@ export const SPRITES = {
   ],
 };
 
-/* class tint applied to the 'C' channel of the hero sprite */
+/* ── the hero, in two layers ──────────────────────────────
+   One sprite for every hero meant a 하프트롤 마법사 looked
+   exactly like a 하플링 전사 in a different colour. Eight races
+   and six classes is forty-eight characters, which is far too
+   many to draw — so they are composited instead.
+
+   RACE_BODY owns the head and the silhouette: skin, ears, size,
+   how much of the 8×8 the figure fills. CLASS_KIT is painted on
+   top and owns the headgear and the torso, with '.' left where
+   the race has to show through. The face never gets covered,
+   because the face is the whole reason to have eight races.
+
+   Baked once per combination at boot: 48 tiny canvases. */
+export const RACE_BODY = {
+  human: [
+    '..wwww..',
+    '.wWWWWw.',
+    '.wkwwkw.',
+    '..wwww..',
+    '..CCCC..',
+    '.C.CC.C.',
+    '..C..C..',
+    '..n..n..',
+  ],
+  // Half-elf: a little of the point, a little of the height.
+  halfElf: [
+    '..wwww..',
+    '.wWWWWw.',
+    'wwkwwkww',
+    '..wwww..',
+    '..CCCC..',
+    '.C.CC.C.',
+    '..C..C..',
+    '..n..n..',
+  ],
+  // Elf: pale, long ears standing clear of the head.
+  elf: [
+    '..WWWW..',
+    'w.WWWW.w',
+    'wWkWWkWw',
+    '..WWWW..',
+    '..CCCC..',
+    '.C.CC.C.',
+    '..C..C..',
+    '..n..n..',
+  ],
+  // Halfling: small, low, wide-footed. Sits a row lower.
+  halfling: [
+    '........',
+    '..NNNN..',
+    '.NwkkwN.',
+    '..NNNN..',
+    '..CCCC..',
+    '.CCCCCC.',
+    '..C..C..',
+    '.nn..nn.',
+  ],
+  // Gnome: big head, small body, a shock of hair.
+  gnome: [
+    '.NNNNNN.',
+    'NNwwwwNN',
+    'NwkNNkwN',
+    '.NNwwNN.',
+    '..CCCC..',
+    '.C.CC.C.',
+    '..C..C..',
+    '..n..n..',
+  ],
+  // Dwarf: broad, and the beard is most of the face.
+  dwarf: [
+    '.NNNNNN.',
+    'NwwwwwwN',
+    'NwkwwkwN',
+    '.NNNNNN.',
+    '.NCCCCN.',
+    'CCCCCCCC',
+    '.CC..CC.',
+    '.nn..nn.',
+  ],
+  // Half-orc: green, jawed, tusks up from the lip.
+  halfOrc: [
+    '..eeee..',
+    '.eEEEEe.',
+    '.eRwwRe.',
+    '.wewwew.',
+    '.CCCCCC.',
+    'CC.CC.CC',
+    '.C.CC.C.',
+    '.nn..nn.',
+  ],
+  // Half-troll: fills the tile. Nothing else does.
+  halfTroll: [
+    '.EEEEEE.',
+    'EEwwwwEE',
+    'EEkEEkEE',
+    'wEEwwEEw',
+    'CCCCCCCC',
+    'CC.CC.CC',
+    'CC.CC.CC',
+    'nn....nn',
+  ],
+};
+
+/* Painted over the race. '.' means "leave the race showing".
+   Each kit owns row 0 (what is on the head) and rows 4–6 (what
+   is on the body), and deliberately never touches rows 1–3. */
+export const CLASS_KIT = {
+  // 전사: a browed helm and shoulder plates.
+  warrior: [
+    '.ssssss.',
+    '........',
+    '........',
+    '........',
+    's.ssss.s',
+    'ss.ss.ss',
+    '........',
+    '........',
+  ],
+  // 마법사: pointed hat, long robe, staff down the right.
+  mage: [
+    '...bb..b',
+    '..bbb..b',
+    '.......b',
+    '.......b',
+    '..bbb.nb',
+    '.bbbbb.b',
+    '.bbbbb..',
+    '..bbb...',
+  ],
+  // 사제: a hood and a pale mantle, with a mark at the throat.
+  priest: [
+    '.WWWWWW.',
+    'W......W',
+    'W......W',
+    '...yy...',
+    '.WWWWWW.',
+    'WWWWWWWW',
+    '.WWWWWW.',
+    '..WW.WW.',
+  ],
+  // 도적: a low dark hood, a wrap, and a knife at the hip.
+  rogue: [
+    '..dddd..',
+    '.d....d.',
+    '........',
+    '........',
+    '.dddddd.',
+    'dd.dd.ds',
+    '..d..d.s',
+    '........',
+  ],
+  // 레인저: a green hood, a quiver over the shoulder.
+  ranger: [
+    '..eeee..',
+    '.e....eN',
+    '.......N',
+    '.......y',
+    '.eeeee.y',
+    'ee.ee.e.',
+    '..e..e..',
+    '........',
+  ],
+  // 팔라딘: a crested helm and a gilded breastplate.
+  paladin: [
+    '...yy...',
+    '.yyyyyy.',
+    '........',
+    '........',
+    'y.yyyy.y',
+    'yyyWWyyy',
+    '.yyyyyy.',
+    '..y..y..',
+  ],
+};
+
+/* class tint applied to any 'C' the class kit leaves showing */
 export const CLASS_TINT = {
   warrior: 's', mage:   'b', priest: 'W',
   rogue:   'd', ranger: 'e', paladin:'y',
@@ -621,9 +826,31 @@ function bakeGrid(grid, tint) {
 /* One keeper per shop, so the six of them are not identical. */
 export const SHOP_TINT = ['e', 's', 'r', 'W', 'P', 'b'];
 
+/* Race under, class over. Any cell the kit leaves as '.' shows
+   the body beneath, which is why the face survives the helmet. */
+function bakeHero(race, cls) {
+  const body = RACE_BODY[race] || RACE_BODY.human;
+  const kit = CLASS_KIT[cls] || CLASS_KIT.warrior;
+  const merged = [];
+  for (let row = 0; row < CELL; row++) {
+    let line = '';
+    for (let col = 0; col < CELL; col++) {
+      const over = (kit[row] || '')[col] || '.';
+      line += over !== '.' ? over : ((body[row] || '')[col] || '.');
+    }
+    merged.push(line);
+  }
+  return bakeGrid(merged, CLASS_TINT[cls]);
+}
+
 export function bakeAll() {
+  for (const race of Object.keys(RACE_BODY))
+    for (const cls of Object.keys(CLASS_KIT))
+      baked.set(`hero:${race}:${cls}`, bakeHero(race, cls));
   for (const [name, grid] of Object.entries(SPRITES)) {
     if (name === 'hero') {
+      // Kept as the fallback for anything that asks for a class
+      // without naming a race — the ending screen, mostly.
       for (const [cls, tint] of Object.entries(CLASS_TINT))
         baked.set(`hero:${cls}`, bakeGrid(grid, tint));
     } else if (name === 'keeper') {
@@ -643,6 +870,7 @@ export const sprite = name => baked.get(name) || baked.get('rubble');
 const shardCache = new Map();
 
 export function spriteColors(name) {
+  // hero:elf:mage and hero:mage both scatter the same palette.
   const key = name.startsWith('hero') ? 'hero' : name;
   if (shardCache.has(key)) return shardCache.get(key);
   const grid = SPRITES[key];
@@ -672,28 +900,83 @@ const hash = (x, y) => {
 
 const terrainCache = new Map();
 
+/* ── the six faces of the dungeon ─────────────────────────
+   Masonry used to be one grey everywhere, so floor 2 and floor
+   12 were the same room with different monsters in it. Each
+   theme now owns a palette and a way of laying stone, and the
+   floor announces where you are before a single word of log
+   text does.
+
+   `base`/`grain`/`mortar` are the three colours the generator
+   uses; `style` decides how the courses are cut.            */
+export const TERRAIN = {
+  plain:   { base:'g', grain:'G', mortar:'d', floor:'d', dust:'g',  style:'brick' },
+  // 좁은 굴: hacked out rather than built. No courses at all.
+  warren:  { base:'n', grain:'N', mortar:'k', floor:'k', dust:'n',  style:'rough' },
+  // 큰 방: dressed stone, wide courses, pale.
+  hall:    { base:'G', grain:'w', mortar:'g', floor:'g', dust:'G',  style:'ashlar' },
+  // 빛이 없는 층: everything one step darker; the grain barely reads.
+  dark:    { base:'d', grain:'g', mortar:'k', floor:'k', dust:'d',  style:'brick' },
+  // 물에 잠긴 층: wet blue stone, streaked downward.
+  flooded: { base:'b', grain:'B', mortar:'k', floor:'d', dust:'b',  style:'streak' },
+  // 소굴: chitin and old web over the stone.
+  nest:    { base:'p', grain:'P', mortar:'k', floor:'d', dust:'p',  style:'rough' },
+};
+
+let terrainTheme = 'plain';
+/* Called by the renderer when the floor changes. Cheap: the
+   cache is keyed by theme so walking back up is instant. */
+export function setTerrainTheme(id) {
+  terrainTheme = TERRAIN[id] ? id : 'plain';
+}
+
 function bakeTerrain(kind, variant) {
-  const key = `${kind}:${variant}`;
+  const theme = terrainTheme;
+  const key = `${theme}:${kind}:${variant}`;
   if (terrainCache.has(key)) return terrainCache.get(key);
 
+  const T = TERRAIN[theme] || TERRAIN.plain;
   const c = document.createElement('canvas');
   c.width = CELL; c.height = CELL;
   const x = c.getContext('2d');
-  let rs = variant * 2654435761 % 2147483647;
+  let rs = (variant * 2654435761 + theme.length * 7919) % 2147483647;
   const rr = () => (rs = (rs * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 
   if (kind === 'wall') {
-    x.fillStyle = PALETTE.g; x.fillRect(0, 0, CELL, CELL);
-    x.fillStyle = PALETTE.G;
+    x.fillStyle = PALETTE[T.base]; x.fillRect(0, 0, CELL, CELL);
+    x.fillStyle = PALETTE[T.grain];
     for (let i = 0; i < 7; i++) x.fillRect((rr() * 8) | 0, (rr() * 8) | 0, 1, 1);
-    x.fillStyle = PALETTE.d;
-    x.fillRect(0, (variant % 2 ? 3 : 4), CELL, 1);
-    x.fillRect(variant % 2 ? 2 : 5, 0, 1, 4);
-    x.fillRect(variant % 2 ? 6 : 1, 4, 1, 4);
+    x.fillStyle = PALETTE[T.mortar];
+    if (T.style === 'brick') {
+      // Running bond: one course line, staggered head joints.
+      x.fillRect(0, (variant % 2 ? 3 : 4), CELL, 1);
+      x.fillRect(variant % 2 ? 2 : 5, 0, 1, 4);
+      x.fillRect(variant % 2 ? 6 : 1, 4, 1, 4);
+    } else if (T.style === 'ashlar') {
+      // Big dressed blocks: two courses, joints lined up.
+      x.fillRect(0, 3, CELL, 1);
+      x.fillRect(0, 7, CELL, 1);
+      x.fillRect(variant % 2 ? 3 : 6, 0, 1, 3);
+      x.fillRect(variant % 2 ? 6 : 3, 4, 1, 3);
+    } else if (T.style === 'streak') {
+      // Water has been running down this for a long time.
+      for (let i = 0; i < 3; i++) {
+        const cx = (rr() * 8) | 0;
+        x.fillRect(cx, (rr() * 4) | 0, 1, 3 + ((rr() * 4) | 0));
+      }
+    } else {
+      // rough: no courses, just broken edges and bite marks.
+      for (let i = 0; i < 6; i++) x.fillRect((rr() * 8) | 0, (rr() * 8) | 0, 1 + ((rr() * 2) | 0), 1);
+    }
   } else {
-    x.fillStyle = PALETTE.d; x.fillRect(0, 0, CELL, CELL);
-    x.fillStyle = PALETTE.g;
+    x.fillStyle = PALETTE[T.floor]; x.fillRect(0, 0, CELL, CELL);
+    x.fillStyle = PALETTE[T.dust];
     for (let i = 0; i < 4; i++) x.fillRect((rr() * 8) | 0, (rr() * 8) | 0, 1, 1);
+    // A few floors get a second scatter so the ground is not flat.
+    if (T.style === 'rough' || T.style === 'streak') {
+      x.fillStyle = PALETTE[T.grain];
+      if (rr() < 0.35) x.fillRect((rr() * 8) | 0, (rr() * 8) | 0, 1, 1);
+    }
   }
   terrainCache.set(key, c);
   return c;

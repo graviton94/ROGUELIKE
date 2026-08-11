@@ -304,29 +304,29 @@ export const WEAPON_TYPES = {
 
 /* Weapons carry dice (count × sides) and a type. Armour carries ac. */
 export const WEAPONS = [
-  { spr:'sword', n:'단검',         t:'dagger', dice:[1,5],  d:0,  cost:20,   hands:1 },
+  { spr:'dagger', n:'단검',         t:'dagger', dice:[1,5],  d:0,  cost:20,   hands:1 },
   { spr:'mace',  n:'곤봉',         t:'mace',   dice:[1,7],  d:0,  cost:24,   hands:1 },
   { spr:'sword', n:'짧은 검',      t:'sword',  dice:[1,8],  d:1,  cost:70,   hands:1 },
-  { spr:'axe',   n:'창',           t:'spear',  dice:[1,9],  d:1,  cost:85,   hands:2 },
+  { spr:'spear',   n:'창',           t:'spear',  dice:[1,9],  d:1,  cost:85,   hands:2 },
   { spr:'mace',  n:'철퇴',         t:'mace',   dice:[2,4],  d:2,  cost:90,   hands:1 },
   { spr:'axe',   n:'손도끼',       t:'axe',    dice:[1,10], d:2,  cost:130,  hands:1 },
-  { spr:'sword', n:'사냥칼',       t:'dagger', dice:[1,9],  d:2,  cost:150,  hands:1 },
+  { spr:'dagger', n:'사냥칼',       t:'dagger', dice:[1,9],  d:2,  cost:150,  hands:1 },
   { spr:'sword', n:'장검',         t:'sword',  dice:[2,6],  d:3,  cost:260,  hands:1 },
   { spr:'mace',  n:'전투 망치',    t:'mace',   dice:[3,4],  d:5,  cost:320,  hands:1 },
   { spr:'axe',   n:'전투 도끼',    t:'axe',    dice:[2,9],  d:6,  cost:520,  hands:2 },
-  { spr:'axe',   n:'장창',         t:'spear',  dice:[2,8],  d:7,  cost:700,  hands:2 },
-  { spr:'sword', n:'양손검',       t:'great',  dice:[3,7],  d:8,  cost:900,  hands:2 },
-  { spr:'sword', n:'가시 단도',    t:'dagger', dice:[2,7],  d:9,  cost:1100, hands:1 },
-  { spr:'axe',   n:'미늘창',       t:'spear',  dice:[4,6],  d:10, cost:1400, hands:2 },
-  { spr:'mace',  n:'파쇄추',       t:'great',  dice:[4,7],  d:11, cost:2200, hands:2 },
+  { spr:'spear',   n:'장창',         t:'spear',  dice:[2,8],  d:7,  cost:700,  hands:2 },
+  { spr:'great', n:'양손검',       t:'great',  dice:[3,7],  d:8,  cost:900,  hands:2 },
+  { spr:'dagger', n:'가시 단도',    t:'dagger', dice:[2,7],  d:9,  cost:1100, hands:1 },
+  { spr:'spear',   n:'미늘창',       t:'spear',  dice:[4,6],  d:10, cost:1400, hands:2 },
+  { spr:'great',  n:'파쇄추',       t:'great',  dice:[4,7],  d:11, cost:2200, hands:2 },
   { spr:'sword', n:'룬이 새겨진 검', t:'sword', dice:[4,8], d:12, cost:3000, hands:1 },
   /* Every family needs a late-game entry or the choice collapses
      back into "take the biggest die" by floor 10. */
   { spr:'mace',  n:'별철퇴',       t:'mace',   dice:[2,9],  d:8,  cost:820,  hands:1 },
   { spr:'mace',  n:'룬 철퇴',      t:'mace',   dice:[3,9],  d:12, cost:2600, hands:1 },
-  { spr:'sword', n:'서슬 단검',    t:'dagger', dice:[3,7],  d:12, cost:2400, hands:1 },
+  { spr:'dagger', n:'서슬 단검',    t:'dagger', dice:[3,7],  d:12, cost:2400, hands:1 },
   { spr:'axe',   n:'쌍날 도끼',    t:'axe',    dice:[3,8],  d:12, cost:2700, hands:2 },
-  { spr:'axe',   n:'용창',         t:'spear',  dice:[4,7],  d:13, cost:3200, hands:2 },
+  { spr:'spear',   n:'용창',         t:'spear',  dice:[4,7],  d:13, cost:3200, hands:2 },
 ];
 
 export const ARMOURS = [

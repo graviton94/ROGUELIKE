@@ -4,7 +4,7 @@
    in the DOM; only the map is pixels.
    ═══════════════════════════════════════════════════════════ */
 
-import { sprite, wallTile, floorTile, CELL_SIZE, PALETTE } from './pixels.js';
+import { sprite, wallTile, floorTile, CELL_SIZE, PALETTE, setTerrainTheme } from './pixels.js';
 import {
   RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS, statRange,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName, MATS, ENCHANT_COST, REROLL_COST,
@@ -98,6 +98,10 @@ export function snapCamera() {
 export function draw() {
   if (!G.level || !G.player) return;
   const L = G.level, p = G.player;
+  /* The masonry belongs to the theme. One call before any tile is
+     asked for; the cache is keyed by theme so walking back up a
+     floor costs nothing. */
+  setTerrainTheme(L.theme?.id || 'plain');
   const t = CELL_SIZE * scale;
   if (!camReady) snapCamera();
 
@@ -351,7 +355,7 @@ export function draw() {
   glow.addColorStop(1, 'rgba(217,138,60,0)');
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, viewW, viewH);
-  blitActor(sprite(`hero:${p.cls}`), hx - t / 2, hy - t / 2, t, po);
+  blitActor(heroSprite(p), hx - t / 2, hy - t / 2, t, po);
 
   /* The countdown goes on last. It used to be drawn with the
      tint, which put it underneath the hero sprite — and a disc
@@ -658,6 +662,12 @@ function drawIntent(kind, mx, my, t) {
   const beat = kind === 'heavy' ? 1 + Math.sin(performance.now() / 140) * 0.18 : 1;
   drawIntentInto(ctx, kind, mx + t / 2, my - t * 0.24, t, beat);
 }
+
+/* Race under, class over. Falls back to the class-only bake if
+   a race is somehow missing, so a bad save can never blank the
+   thing the player is looking at. */
+export const heroSprite = p =>
+  sprite(`hero:${p.race}:${p.cls}`) || sprite(`hero:${p.cls}`);
 
 /* One sprite, plus a squash-punch on impact and an additive
    pass that whitens it for a few frames when it takes a hit. */
@@ -1241,6 +1251,19 @@ export function renderCreate() {
     row.appendChild(el('span', 'srange', `${lo}~${hi}`));
     sb.appendChild(row);
   }
+  /* The two layers, composited, at the size they are actually
+     drawn on the map. Choosing a race should change the picture. */
+  const pv = $('hero-preview');
+  if (pv) {
+    pv.width = pv.height = CELL_SIZE * 3;
+    const c = pv.getContext('2d');
+    c.imageSmoothingEnabled = false;
+    c.clearRect(0, 0, pv.width, pv.height);
+    const img = sprite(`hero:${pick.race}:${pick.cls}`) || sprite(`hero:${pick.cls}`);
+    if (img) c.drawImage(img, 0, 0, pv.width, pv.height);
+    pv.title = `${RACES[pick.race].name} ${CLASSES[pick.cls].name}`;
+  }
+
   const note = el('p', 'note',
     `합계 ${total} — 이 조합이 나올 수 있는 범위 안에서만 굴립니다. ` +
     `다시 굴려도 띠 밖으로 나가지 않습니다.`);

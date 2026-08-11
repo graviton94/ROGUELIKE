@@ -67,6 +67,12 @@ button:focus-visible { outline: 2px solid var(--y); outline-offset: 2px; }
   border: 1px solid var(--o); color: var(--o); background: transparent;
 }
 .mini { padding: 6px 12px; font-size: 11px; }
+/* The hero being built, composited from the two layers, sitting
+   in the title bar where both pickers can be seen at once. */
+.heropv {
+  width: 48px; height: 48px; image-rendering: pixelated;
+  border: 1px solid var(--g); background: var(--k);
+}
 
 /* ── bars and scroll regions ── */
 .bar {

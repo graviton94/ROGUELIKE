@@ -439,6 +439,11 @@ export function equip(slotIdx) {
     removeItem(p, slotIdx);
     if (old) addItem(p, old);
     if (it.hands === 2 && p.equip.shield) { addItem(p, p.equip.shield); p.equip.shield = null; say('양손 무기라 방패를 내렸다.'); }
+    // The weapon-family ledger. This line used to live in the
+    // armour branch behind a `kind === 'weapon'` test, which is
+    // never true there — so 무기 계열 sat at 0/6 no matter what
+    // the player picked up.
+    if (it.t) Meta.see('weapons', it.t);
     say(`${nameOf(it)}을(를) 들었다.`, 'good');
   } else if (it.kind === 'armour') {
     const key = it.slot;
@@ -447,7 +452,6 @@ export function equip(slotIdx) {
     p.equip[key] = it;
     removeItem(p, slotIdx);
     if (old) addItem(p, old);
-    if (it.kind === 'weapon' && it.t) Meta.see('weapons', it.t);
     say(`${nameOf(it)}을(를) 착용했다.`, 'good');
   }
   endTurn();

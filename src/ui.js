@@ -21,7 +21,7 @@ const BRANCH_TOTAL = BRANCHES.length;
 import {
   MW, MH, idx, clamp, walkable, isDoor,
   ROCK, FLOOR, DOWN, UP, DOOR, RUBBLE, SHOP,
-  DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN, WEB, WATER, CAMP, ALTAR, EVENT,
+  DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN, WEB, WATER, CAMP, ALTAR, EVENT, ANVIL,
 } from './world.js';
 import * as Game from './game.js';
 import { G } from './game.js';
@@ -160,6 +160,12 @@ export function draw() {
           const prevA = ctx.globalAlpha;
           ctx.globalAlpha = Math.max(prevA, 0.62 + Math.sin(performance.now() / 340) * 0.16);
           ctx.drawImage(sprite('event'), px, py, t, t);
+          ctx.globalAlpha = prevA;
+        }
+        if (tile === ANVIL) {
+          const prevA = ctx.globalAlpha;
+          ctx.globalAlpha = Math.max(prevA, 0.7 + Math.sin(performance.now() / 500) * 0.12);
+          ctx.drawImage(sprite('anvil'), px, py, t, t);
           ctx.globalAlpha = prevA;
         }
         if (tile === RUBBLE)      ctx.drawImage(sprite('rubble'),     px, py, t, t);
@@ -388,7 +394,7 @@ let miniStep = 0;
 
 const MINI_TILE = {
   [DOWN]:  'o', [UP]: 'B',
-  [CAMP]:  'o', [ALTAR]: 'P', [EVENT]: 'B',
+  [CAMP]:  'o', [ALTAR]: 'P', [EVENT]: 'B', [ANVIL]: 's',
   [DOOR]:  'N', [DOOR_OPEN]: 'N', [DOOR_LOCKED]: 'y', [DOOR_BROKEN]: 'N',
   [WATER]: 'b', [WEB]: 's', [RUBBLE]: 'g',
 };
@@ -959,7 +965,7 @@ export function setScreen(name) {
   G.screen = name;
   if (name !== 'play') stopAuto();
   for (const s of ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help',
-                   'camp', 'slots', 'altar', 'stairs', 'relic', 'event'])
+                   'camp', 'slots', 'altar', 'stairs', 'relic', 'event', 'anvil'])
     $(`sc-${s}`).hidden = (s !== name);
   if (name === 'play') { resize(); refresh(); }
   if (name === 'inv')  renderInventory();
@@ -974,6 +980,7 @@ export function setScreen(name) {
   if (name === 'relic')  renderRelicSwap();
   if (name === 'event')  renderEvent();
   if (name === 'help')   renderLegend();
+  if (name === 'anvil')  { teach('anvil'); renderAnvil(); }
 }
 
 /* The telegraph is only a mechanic if the player can read it.
@@ -1297,10 +1304,16 @@ function renderInventory() {
     mid.appendChild(el('span', 'idesc',
       it.kind === 'weapon' ? `${grade ? `[${RARITY[grade].n}] ` : ''}${WEAPON_TYPES[it.t]?.n || ''} ${it.dice[0]}d${it.dice[1]}${it.hands === 2 ? ' · 양손' : ''}${affixBlurb(it)}`
       : it.kind === 'armour' ? `${grade ? `[${RARITY[grade].n}] ` : ''}방어 +${it.ac}${affixBlurb(it)}`
+      : it.kind === 'cat' ? `촉매 · ${it.t}`
       : Game.isKnown(it.id) ? (it.desc || '사용 가능') : '마셔 보기 전에는 알 수 없다'));
     row.appendChild(mid);
-    row.appendChild(el('span', 'iact', it.kind === 'use' ? '사용' : '장착'));
+    row.appendChild(el('span', 'iact',
+      it.kind === 'cat' ? '모루에서' : it.kind === 'use' ? '사용' : '장착'));
+    // A catalyst is not a thing you use here — it is a thing you
+    // throw into a strike at the anvil, so the row only reads.
+    if (it.kind === 'cat') row.disabled = true;
     row.onclick = () => {
+      if (it.kind === 'cat') return;
       if (it.kind === 'use' && !Game.isKnown(it.id)) {
         ask(`${Game.lookOf(it.id)}을(를) 써 볼까요?`,
             '무엇인지 알 수 없습니다. 좋을 수도, 아닐 수도.',
@@ -1489,24 +1502,14 @@ export function renderCamp() {
   const heal = Math.min(p.maxhp - p.hp, Math.ceil(p.maxhp * Game.CAMP_HEAL));
   const m = Game.mats();
   $('camp-lead').textContent =
-    `불은 한 번만 쓸 수 있다. ◍${p.gold} · ${MATS.scrap.n} ${m.scrap} · ` +
+    `불은 한 번만 쓸 수 있다. 쇠를 두들기는 일은 모루에서. ` +
+    `◍${p.gold} · ${MATS.scrap.n} ${m.scrap} · ` +
     `${MATS.dust.n} ${m.dust} · ${MATS.essence.n} ${m.essence}`;
 
   const options = [
     { id:'rest', n:'휴식', desc:
         `체력 +${heal} (최대의 ${Math.round(Game.CAMP_HEAL * 100)}%) · 마나 회복 · 모든 상태이상 해제`,
       tag: p.hp < p.maxhp * 0.5 ? '지금은 이게 답일지도' : '공짜' },
-    { id:'upgrade', n:'강화', desc:
-        '장비를 +1 하거나 주문을 연마한다. 확실하지만 값이 오른다.',
-      tag: '재료 소모' },
-    { id:'enchant', n:'인챈트', desc:
-        `무작위 속성을 건다. 다섯에 하나는 저주. (${Game.costText(ENCHANT_COST)})`,
-      tag: Game.canAfford(ENCHANT_COST) ? '도박' : '재료 부족',
-      poor: !Game.canAfford(ENCHANT_COST) },
-    { id:'reroll', n:'재련', desc:
-        `이미 붙은 속성을 다시 굴린다. 저주는 절대 붙지 않는다. (${Game.costText(REROLL_COST)})`,
-      tag: Game.canAfford(REROLL_COST) ? '저주 해제' : '재료 부족',
-      poor: !Game.canAfford(REROLL_COST) },
   ];
 
   /* Only offered when there is something to offer. A dead row
@@ -1571,38 +1574,96 @@ export function renderCamp() {
   wrap.appendChild(out);
 }
 
-/* 과감 or 신중. Sticky across fires within a run: a player who
-   has decided they are the careful sort should not have to say
-   so at every campfire. */
+/* 과감 or 신중. Sticky within a run: a player who has decided
+   they are the careful sort should not have to say so at every
+   anvil. */
 let campCareful = false;
 
+/* The fire now offers rest, the wager and fusion — nothing that
+   touches metal. So this is only ever the fusion path. */
 function renderCampTargets() {
   $('camp-choices').hidden = true;
   $('camp-targets').hidden = false;
-  $('camp-target-head').textContent =
-    campMode === 'upgrade' ? '무엇을 강화할까' : campMode === 'reroll' ? '무엇을 재련할까' : '무엇에 걸까';
+  $('camp-target-head').textContent = '무엇과 무엇을 넣을까';
+  teach('fuse');
+  renderFuse();
+}
 
-  if (campMode === 'fuse') { teach('fuse'); renderFuse(); return; }
-  $('fuse-box').hidden = true;
-  $('camp-target-list').hidden = false;
+/* ── the anvil ──────────────────────────────────────────────
+   Three actions, all paid for in materials, none of them
+   spending the place. Standing here with 4000 gold is supposed
+   to be a decision about how much of it you are willing to lose
+   before you walk away, which is a decision the fire could never
+   host because the fire only ever gave you one strike.
 
-  const sw = $('camp-style'), swNote = $('camp-style-note');
-  sw.hidden = swNote.hidden = campMode !== 'upgrade';
-  if (campMode === 'upgrade') {
-    teach('anvil');
-    for (const b of sw.children) {
-      const careful = b.dataset.style === 'careful';
-      b.className = careful === campCareful ? 'on' : '';
-      b.onclick = () => { campCareful = careful; renderCampTargets(); };
-    }
-    swNote.textContent = campCareful
-      ? `값은 ${CAREFUL_MULT}배. 성공률 +${Math.round(CAREFUL_BONUS * 100)}%p, ` +
-        '실패해도 깎이거나 부서지지 않는다.'
-      : `값은 그대로. ${Math.round(UPGRADE_CRIT * 100)}% 확률로 두 단계가 오른다 — ` +
-        '대신 실패하면 깎이고, 깊은 +에서는 부서진다.';
+   Catalysts sit above the target list rather than inside it:
+   what you throw in changes the rules of *every* row, so it has
+   to be chosen before you pick a target, not after. */
+let anvilMode = 'upgrade';
+let anvilCat = null;
+
+export function renderAnvil() {
+  const p = G.player;
+  $('anvil-depth').textContent = G.depth ? `${G.depth}층` : '마을';
+  const m = Game.mats();
+  $('anvil-lead').textContent =
+    `모루는 닳지 않는다. 재료가 남아 있는 만큼 두들길 수 있다. ` +
+    `◍${p.gold} · ${MATS.scrap.n} ${m.scrap} · ${MATS.dust.n} ${m.dust} · ` +
+    `${MATS.essence.n} ${m.essence}`;
+
+  for (const b of $('anvil-mode').children) {
+    const on = b.dataset.mode === anvilMode;
+    b.className = on ? 'on' : '';
+    b.onclick = () => { anvilMode = b.dataset.mode; anvilCat = null; renderAnvil(); };
   }
 
-  const list = $('camp-target-list');
+  const sw = $('anvil-style');
+  sw.hidden = anvilMode !== 'upgrade';
+  for (const b of sw.children) {
+    const careful = b.dataset.style === 'careful';
+    b.className = careful === campCareful ? 'on' : '';
+    b.onclick = () => { campCareful = careful; renderAnvil(); };
+  }
+
+  $('anvil-note').textContent =
+    anvilMode === 'enchant'
+      ? `무작위 속성을 건다. 다섯에 하나는 저주. ${Game.costText(ENCHANT_COST)}`
+      : anvilMode === 'reroll'
+      ? `이미 붙은 속성을 다시 굴린다. 저주는 절대 붙지 않는다. ${Game.costText(REROLL_COST)}`
+      : campCareful
+      ? `값은 ${CAREFUL_MULT}배. 성공률 +${Math.round(CAREFUL_BONUS * 100)}%p, 실패해도 깎이거나 부서지지 않는다.`
+      : `값은 그대로. ${Math.round(UPGRADE_CRIT * 100)}% 확률로 두 단계가 오른다 — 대신 실패하면 깎이고, 깊은 +에서는 부서진다.`;
+
+  renderCatalysts();
+  renderAnvilTargets();
+}
+
+function renderCatalysts() {
+  const on = anvilMode === 'upgrade' ? 'upgrade' : 'enchant';
+  const held = Game.catalystsHeld(on);
+  const box = $('anvil-cats'); box.innerHTML = '';
+  $('anvil-cat-head').hidden = !held.length;
+  box.hidden = !held.length;
+  if (!held.length) { anvilCat = null; return; }
+  if (anvilCat && !held.some(c => c.id === anvilCat)) anvilCat = null;
+
+  for (const c of held) {
+    const row = el('button', 'itemrow relicrow' + (anvilCat === c.id ? ' chosen' : ''));
+    const ic = el('canvas', 'icon'); paintIcon(ic, c.spr); row.appendChild(ic);
+    const mid = el('div', 'imid');
+    const nm = el('span', 'iname', c.n);
+    nm.style.color = 'var(--o)';
+    mid.appendChild(nm);
+    mid.appendChild(el('span', 'idesc', c.t));
+    row.appendChild(mid);
+    row.appendChild(el('span', 'iact', anvilCat === c.id ? '넣음' : `×${c.qty}`));
+    row.onclick = () => { anvilCat = anvilCat === c.id ? null : c.id; renderAnvil(); };
+    box.appendChild(row);
+  }
+}
+
+function renderAnvilTargets() {
+  const list = $('anvil-list');
   list.innerHTML = '';
   for (const t of Game.campTargets()) {
     const row = el('button', 'itemrow');
@@ -1612,6 +1673,7 @@ function renderCampTargets() {
     if (t.item) {
       const r = rarityOf(t.item);
       nm.style.color = `var(--${isCursed(t.item) ? CURSED_TONE : RARITY[r].tone})`;
+      if (r === 4) nm.classList.add('transcend');
     } else nm.classList.add('magic');
     mid.appendChild(nm);
     mid.appendChild(el('span', 'idesc',
@@ -1619,14 +1681,11 @@ function renderCampTargets() {
       : t.item.kind === 'weapon' ? `피해 ${t.item.dice[0]}d${t.item.dice[1]}${affixBlurb(t.item)}`
       : `방어 +${t.item.ac}${affixBlurb(t.item)}`));
     row.appendChild(mid);
-    // A maxed item can't take the upgrade, so don't offer it as
-    // one — a dead button would silently eat the whole fire.
-    /* Price the row, and grey it out when it cannot be paid for —
-       a dead button would silently eat the whole fire. */
+
     let blocked = false, label = '?';
-    if (campMode === 'upgrade') {
+    if (anvilMode === 'upgrade') {
       const cost = Game.upgradeCostFor(t.key, campCareful);
-      const bet = Game.upgradeOddsFor(t.key, campCareful);
+      const bet = Game.upgradeOddsFor(t.key, campCareful, anvilCat);
       blocked = t.capped || !Game.canAfford(cost);
       if (t.capped) label = `최대 +${t.cap}`;
       else {
@@ -1639,26 +1698,31 @@ function renderCampTargets() {
                    : bet.down     ? '실패 시 −1'
                    : '실패해도 손해는 값뿐';
         const line = el('span', 'idesc bet',
-          `+${t.plus} → +${t.plus + 1} · ${risk} · ${Game.costText(cost)}`);
+          `+${t.plus} → +${t.plus + (bet.crit >= 1 ? 2 : 1)} · ${risk} · ${Game.costText(cost)}`);
         if (bet.breakPct) line.classList.add('danger');
         mid.appendChild(line);
       }
-    } else if (campMode === 'reroll') {
-      blocked = t.kind === 'spell' ? false : !(t.item?.pre || t.item?.suf);
-      label = blocked ? '속성 없음' : '재련';
+    } else if (anvilMode === 'reroll') {
+      blocked = (t.kind === 'spell' ? false : !(t.item?.pre || t.item?.suf))
+             || !Game.canAfford(REROLL_COST);
+      label = blocked ? (Game.canAfford(REROLL_COST) ? '속성 없음' : '재료 부족') : '재련';
+    } else {
+      blocked = !Game.canAfford(ENCHANT_COST);
+      label = blocked ? '재료 부족' : '인챈트';
     }
     if (blocked) { row.classList.add('poor'); row.disabled = true; }
     row.appendChild(el('span', 'iact', label));
+
     if (!blocked) row.onclick = () => {
-      if (campMode !== 'upgrade') {
-        Game.campEnchant(t.key, campMode === 'reroll');
-        setScreen('play'); refresh(); return;
+      if (anvilMode !== 'upgrade') {
+        Game.anvilEnchant(t.key, anvilMode === 'reroll', anvilCat);
+        anvilCat = null; renderAnvil(); refresh(); return;
       }
       /* One confirm, and only where it is earned: a strike that
          can take the weapon with it. Everything else goes straight
          through — a Y/N on a 92% strike is just a second tap. */
-      const bet = Game.upgradeOddsFor(t.key, campCareful);
-      const go = () => { Game.campUpgrade(t.key, campCareful); setScreen('play'); refresh(); };
+      const bet = Game.upgradeOddsFor(t.key, campCareful, anvilCat);
+      const go = () => { Game.anvilStrike(t.key, campCareful, anvilCat); anvilCat = null; renderAnvil(); refresh(); };
       if (bet.breakPct)
         ask(`${t.name}에 그대로 내리칠까?`,
             `성공 ${Math.round(bet.odds * 100)}% · 실패하면 한 단계 내려가고, ` +
@@ -1668,6 +1732,8 @@ function renderCampTargets() {
     list.appendChild(row);
   }
 }
+
+$('anvil-leave').onclick = () => { anvilCat = null; setScreen('play'); refresh(); };
 
 /* ── fusion ─────────────────────────────────────────────────
    Pick two of the relics you are wearing. The odds for an
@@ -1685,10 +1751,8 @@ let fusePick = [];
 
 function renderFuse() {
   const box = $('fuse-box');
-  $('camp-target-list').hidden = true;
   box.hidden = false;
   $('camp-target-head').textContent = '무엇과 무엇을 넣을까';
-  $('camp-style').hidden = $('camp-style-note').hidden = true;
 
   const held = Game.relicList();
   fusePick = fusePick.filter(id => held.some(r => r.id === id));
@@ -1842,6 +1906,7 @@ export function inspect(x, y) {
     const tile = L.tiles[idx(x, y)];
     const trap = L.traps.get(idx(x, y));
     const names = { [DOWN]:'내려가는 계단', [UP]:'올라가는 계단', [CAMP]:'모닥불',
+                    [ANVIL]:'모루 — 재료가 있는 만큼 두들길 수 있다',
                     [ALTAR]:'제단', [EVENT]:'? 표지', [WATER]:'물', [WEB]:'거미줄',
                     [DOOR]:'닫힌 문', [DOOR_OPEN]:'열린 문', [DOOR_LOCKED]:'잠긴 문',
                     [DOOR_BROKEN]:'부서진 문', [RUBBLE]:'돌무더기' };
@@ -1884,7 +1949,8 @@ const LESSONS = [
   { id:'heavy',  t:'<b>붉은 별</b>은 다음 턴에 2.5배로 내리친다는 뜻입니다.<br>' +
                     '<b>같은 방향을 빠르게 두 번</b> 누르면 두 칸 굴러 피합니다(기력 2).' },
   { id:'ground', t:'바닥이 칠해지고 숫자가 뜨면 <b>그 칸이 곧 맞습니다.</b> 숫자는 남은 턴 수입니다. 나가거나 구르세요.' },
-  { id:'fire',   t:'모닥불은 <b>한 번만</b> 씁니다. 휴식 · 강화 · 인챈트 · 재련 중 하나 — 아니면 남겨두고 갈 수도 있습니다.' },
+  { id:'fire',   t:'모닥불은 <b>한 번만</b> 씁니다 — 휴식 · 판돈 · 유물 융합 중 하나.<br>' +
+                    '쇠를 두들기는 일(강화 · 인챈트 · 재련)은 <b>모루</b>에서 하고, 모루는 닳지 않습니다.' },
   { id:'fork',   t:'계단이 갈라지면 <b>주는 것과 가져가는 것이 전부 적혀 있습니다.</b> 평범한 계단은 항상 있습니다.' },
   { id:'relic',  t:'<b>유물</b>은 숫자가 아니라 규칙을 바꿉니다. 자리는 4칸에서 시작해 7칸까지 늘어납니다.' },
   { id:'clock',  t:'층마다 <b>여유 턴</b>이 있습니다. 다 쓰면 몬스터가 계속 나타납니다 — 그때는 정리를 포기하고 계단으로.' },
@@ -1896,9 +1962,10 @@ const LESSONS = [
   { id:'fuse',   t:'유물 <b>둘</b>을 불에 넣으면 하나가 나옵니다 — 보통은 확률표대로.<br>' +
                     '하지만 <b>서로를 알아보는 짝</b>이 여섯 있습니다. 목록은 없습니다. ' +
                     '<b>유물 설명의 마지막 문장</b>이 짝을 가리킵니다.' },
-  { id:'anvil',  t:'강화는 <b>+2부터 실패합니다.</b> 칸마다 성공률이 적혀 있습니다.<br>' +
-                    '<b>과감</b>은 값이 그대로에 가끔 두 단계, 대신 깊은 +에서는 <b>장비가 부서집니다.</b> ' +
-                    '<b>신중</b>은 값이 두 배지만 잃는 것이 값뿐입니다.' },
+  { id:'anvil',  t:'<b>모루는 닳지 않습니다.</b> 재료가 남아 있는 만큼 계속 두들길 수 있습니다 — ' +
+                    '여기서 전 재산을 태울 수도, 확실히 강해질 수도 있습니다.<br>' +
+                    '강화는 <b>+2부터 실패합니다.</b> <b>과감</b>은 가끔 두 단계, 깊은 +에서는 <b>부서집니다.</b> ' +
+                    '<b>신중</b>은 값 두 배에 잃는 것은 값뿐. <b>촉매</b>를 함께 넣으면 규칙이 바뀝니다.' },
 ];
 
 let lessonQueue = [];
@@ -2359,7 +2426,7 @@ function walkTo(tx, ty) {
    step — walking onto a fire, opening a chest with a relic in
    it. One list, so a new screen is never routed from three
    places and forgotten in a fourth. */
-const INTERRUPTS = ['shop', 'camp', 'altar', 'stairs', 'relic', 'event'];
+const INTERRUPTS = ['shop', 'camp', 'altar', 'stairs', 'relic', 'event', 'anvil'];
 
 function takeStep(dx, dy) {
   act(() => Game.step(dx, dy));

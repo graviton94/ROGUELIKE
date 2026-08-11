@@ -194,13 +194,6 @@
     <div id="camp-choices"></div>
     <div id="camp-targets" hidden>
       <h3 class="sect" id="camp-target-head">대상</h3>
-      <!-- How hard to swing. Only shown for 강화. -->
-      <div id="camp-style" class="styleswitch" hidden>
-        <button data-style="bold">과감</button>
-        <button data-style="careful">신중</button>
-      </div>
-      <p class="note" id="camp-style-note" hidden></p>
-      <div id="camp-target-list"></div>
       <!-- fusion: two relics into the fire -->
       <div id="fuse-box" hidden>
         <div id="fuse-pick"></div>
@@ -210,6 +203,34 @@
       </div>
       <button class="mini" id="camp-back">← 돌아가기</button>
     </div>
+  </div>
+</section>
+
+<!-- ══ the anvil ══
+     Not spent like the fire. You leave when your purse is empty
+     or when you decide to stop, and nothing else. -->
+<section id="sc-anvil" class="screen" hidden>
+  <header class="bar">
+    <h2>모루</h2>
+    <span class="chip depth" id="anvil-depth">1층</span>
+    <button class="mini" id="anvil-leave">떠난다</button>
+  </header>
+  <div class="scroll">
+    <p class="note" id="anvil-lead"></p>
+    <div id="anvil-mode" class="styleswitch">
+      <button data-mode="upgrade">강화</button>
+      <button data-mode="enchant">인챈트</button>
+      <button data-mode="reroll">재련</button>
+    </div>
+    <div id="anvil-style" class="styleswitch">
+      <button data-style="bold">과감</button>
+      <button data-style="careful">신중</button>
+    </div>
+    <p class="note" id="anvil-note"></p>
+    <h3 class="sect" id="anvil-cat-head">촉매</h3>
+    <div id="anvil-cats"></div>
+    <h3 class="sect">무엇을 두들길까</h3>
+    <div id="anvil-list"></div>
   </div>
 </section>
 

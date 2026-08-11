@@ -487,6 +487,18 @@ export const SPRITES = {
     '........',
     '...B....',
   ],
+  /* The anvil. A dark block on a stump with a spark coming off
+     the horn — it has to read as "hit things here" at 24px. */
+  anvil: [
+    '........',
+    '..W.....',
+    '.ssssss.',
+    'sssssss.',
+    '.ssssss.',
+    '...nn...',
+    '...nn...',
+    '..nnnn..',
+  ],
   altar: [
     '..PPPP..',
     '.PWWWWP.',

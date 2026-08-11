@@ -376,13 +376,13 @@ export const SHOPS = [
   { id:2, n:'방어구점', spr:'armor',  stock:'armour' },
   { id:3, n:'무기점',   spr:'sword',  stock:'weapon' },
   { id:4, n:'신전',     spr:'amulet', stock:['potHeal','potCure'] },
-  { id:5, n:'연금술사', spr:'potion', stock:['potHeal','potMana','potCure'] },
+  { id:5, n:'연금술사', spr:'potion', stock:['potHeal','potMana','potCure'], cats:true },
   { id:6, n:'마법상',   spr:'wand',   stock:['scrMap','scrTele','scrFlee','potMana'] },
   /* Not in town. This one walks the dungeon, which is the only
      reason the gold in your purse means anything after floor 1. */
   { id:7, n:'떠돌이 상인', spr:'amulet', wander:true,
     stock:['potHeal','potCure','potMana','scrTele','scrMap','scrFlee','torch'],
-    mats:['scrap','dust','essence'] },
+    mats:['scrap','dust','essence'], cats:true },
 ];
 
 /* ── affixes ──────────────────────────────────────────────
@@ -531,16 +531,34 @@ export const MATS = {
   essence: { n:'정수',      note:'정예가 떨구는 물건의 핵',      cost:150 },
 };
 
-/* What breaking a thing gives you. Tier comes from the item's
-   depth band, so a mithril hauberk is worth breaking and a
-   soft leather is not. */
+/* ── what a thing is worth ────────────────────────────────
+   One number, read by both the merchant and the anvil. They
+   used to disagree: the shop priced off `cost` alone while
+   salvage read a depth tier, so a +5 이중부여 검 sold for the
+   same as the plain one it started as, and broke into the same
+   pile as a soft leather from floor 1. Enhancement and affixes
+   are most of an item's value by floor 8, and now they count
+   in both places because there is only one place to count them. */
+export function worthOf(item) {
+  if (!item) return 0;
+  const affixes = (item.pre ? 1 : 0) + (item.suf ? 1 : 0);
+  return Math.round((item.cost || 10)
+    * (1 + (item.plus || 0) * 0.42)     // every + is real money
+    * (1 + affixes * 0.55)              // and so is every affix
+    * (item.boon ? 3.5 : 1));           // 초월 is not for sale cheap
+}
+
+/* Breaking it gives materials proportional to that same worth.
+   The three tiers are gates, not curves: scrap from anything,
+   dust only from things that carry magic, essence only from
+   things that were genuinely valuable. */
 export function salvageYield(item) {
-  const tier = Math.max(0, Math.floor((item.d || 0) / 4));
+  const w = worthOf(item);
   const affixes = (item.pre ? 1 : 0) + (item.suf ? 1 : 0);
   return {
-    scrap:   2 + tier * 2 + (item.plus || 0) * 3,
-    dust:    affixes * (1 + Math.floor(tier / 2)),
-    essence: tier >= 4 || (item.plus || 0) >= 4 ? 1 : 0,
+    scrap:   Math.max(1, Math.min(48, Math.round(w / 26))),
+    dust:    affixes ? affixes + Math.floor(w / 320) : 0,
+    essence: w >= 600 ? 1 + Math.floor(w / 2200) : 0,
   };
 }
 
@@ -587,6 +605,35 @@ export const CAREFUL_BONUS  = 0.18;   // 신중: added success chance
 
 export const ENCHANT_COST = { dust: 4, gold: 130 };
 export const REROLL_COST  = { essence: 1, dust: 2, gold: 220 };
+
+/* ── catalysts ────────────────────────────────────────────
+   Materials are a currency; catalysts are a decision. Each one
+   is a single-use item that changes the *rules* of one strike
+   at the anvil rather than paying for it, and each one answers
+   a question the anvil asks and nothing else does.
+
+   They are rare on the floor and expensive from a merchant, so
+   the interesting moment is the one where you are standing at
+   +6 holding exactly one 수호의 못 and deciding whether this is
+   the sword you spend it on.
+
+   `on` says which action will accept it.                    */
+export const CATALYSTS = [
+  { id:'flux',  n:'정련의 촉매', spr:'potion', cost:340,  rar:11, d:2,  on:'upgrade',
+    t:'실패해도 단계가 깎이지 않는다. 부서지는 것은 막지 못한다.' },
+  { id:'ward',  n:'수호의 못',   spr:'ring',   cost:620,  rar:7,  d:5,  on:'upgrade',
+    t:'실패해도 부서지지 않는다.' },
+  { id:'surge', n:'폭주의 불씨', spr:'torch',  cost:540,  rar:8,  d:4,  on:'upgrade',
+    t:'성공하면 반드시 두 단계 오른다. 실패 확률은 그대로.' },
+  { id:'core',  n:'심연의 핵',   spr:'amulet', cost:1500, rar:2,  d:9,  on:'upgrade',
+    t:'이 한 번은 반드시 성공한다.' },
+  { id:'seal',  n:'봉인의 밀랍', spr:'scroll', cost:520,  rar:8,  d:3,  on:'enchant',
+    t:'저주가 붙지 않는다.' },
+  { id:'prism', n:'분광석',      spr:'gold',   cost:880,  rar:4,  d:7,  on:'enchant',
+    t:'접두와 접미를 한 번에 건다.' },
+];
+export const catalystById = id => CATALYSTS.find(c => c.id === id);
+export const makeCatalyst = id => ({ kind:'cat', ...catalystById(id) });
 
 /* ── the altar ────────────────────────────────────────────
    Luck, made legible. The odds are printed on the screen before

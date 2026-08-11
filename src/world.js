@@ -12,7 +12,7 @@ export const MW = 66, MH = 40;
    sight, and shutting one behind you is a real move. */
 export const ROCK = 0, FLOOR = 1, DOWN = 2, UP = 3, DOOR = 4, RUBBLE = 5, SHOP = 6,
              DOOR_OPEN = 7, DOOR_LOCKED = 8, DOOR_BROKEN = 9,
-             WEB = 10, WATER = 11, CAMP = 12, ALTAR = 13, EVENT = 14;
+             WEB = 10, WATER = 11, CAMP = 12, ALTAR = 13, EVENT = 14, ANVIL = 15;
 
 /* rooms: how many · size: room dimensions · light/water/web:
    multipliers on the usual amount · mob: monster density. */
@@ -190,6 +190,7 @@ export class Level {
 
     this.scatterHazards(start, st);
     this.placeCamp(start, st);
+    this.placeAnvil(start, st);
     this.placeMerchant(start, st);
     this.placeAltar(start, st);
     this.placeEvent(start, st);
@@ -297,6 +298,33 @@ export class Level {
       if (this.tiles[i] !== FLOOR || this.traps.has(i)) continue;
       this.tiles[i] = CAMP;
       this.camp = { x, y };
+      return;
+    }
+  }
+
+  /* ── the anvil ──────────────────────────────────────────
+     Unlike the fire, this one is not spent. You can strike it
+     until your purse is empty, which is the entire point: the
+     fire is where a run changes shape, the anvil is where it
+     buys numbers, and the two should not be competing for the
+     same single use.
+
+     Commoner than the fire (55%) because it costs materials
+     every time — a floor with an anvil and no scrap is just a
+     floor with an anvil. */
+  placeAnvil(start, down) {
+    if (this.depth < 1 || Math.random() > 0.55) return;
+    const banned = new Set([this.roomOf[idx(start.x, start.y)]]);
+    const rooms = this.rooms.filter((r, i) => !banned.has(i));
+    const pool = rooms.length ? rooms : this.rooms;
+    for (let t = 0; t < 80; t++) {
+      const r = pool[rnd(pool.length)];
+      if (!r) return;
+      const x = r.x + rnd(r.w), y = r.y + rnd(r.h);
+      const i = idx(x, y);
+      if (this.tiles[i] !== FLOOR || this.traps.has(i)) continue;
+      this.tiles[i] = ANVIL;
+      this.anvil = { x, y };
       return;
     }
   }

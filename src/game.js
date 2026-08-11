@@ -6,7 +6,8 @@ import {
   MAX_DEPTH, MAX_LEVEL, STATS, STAT_NAME, RACES, CLASSES, SPELLS, MONSTERS, BOSS, mimicFor,
   WEAPONS, ARMOURS, CONSUMABLES, SHOPS, AILMENTS, IMMUNE, TRAPS,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, ELITES, affixName,
-  MATS, salvageYield, upgradeCost, ENCHANT_COST, REROLL_COST,
+  MATS, salvageYield, worthOf, upgradeCost, ENCHANT_COST, REROLL_COST,
+  CATALYSTS, catalystById, makeCatalyst,
   upgradeOdds, upgradeRisk, UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS,
   BOONS, boonById, transChance,
   FUSIONS, fusionOf, FUSE_ODDS, FUSE_COST,
@@ -22,7 +23,7 @@ import {
 import {
   Level, computeFov, lineClear, idx, rnd, roll, clamp, MW, MH,
   FLOOR, DOWN, UP, DOOR, RUBBLE, DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN,
-  WEB, WATER, CAMP, ALTAR, EVENT, isDoor, isShut,
+  WEB, WATER, CAMP, ALTAR, EVENT, ANVIL, isDoor, isShut,
 } from './world.js';
 import { EVENTS } from './events.js';
 import * as Meta from './meta.js';
@@ -414,7 +415,9 @@ export function spellSlots() {
 export const makeConsumable = id => ({ kind:'use', ...CONSUMABLES.find(c => c.id === id) });
 
 export function addItem(p, item, qty = 1) {
-  if (item.kind === 'use') {
+  // Catalysts stack the same way flasks do — you carry three
+  // 정련의 촉매, not three separate lines in the pack.
+  if (item.kind === 'use' || item.kind === 'cat') {
     const slot = p.pack.find(s => s.item.id === item.id);
     if (slot) { slot.qty += qty; return; }
   }
@@ -945,17 +948,24 @@ function populate(depth) {
     }
   }
 
-  const loot = Math.round((4 + rnd(5)) * (br.item || 1));
+  /* Half as many things, each worth stopping for. Eight or nine
+     drops a floor read as generous and delivered nothing — you
+     walked past most of them, and the ones you picked up were
+     indistinguishable from the ones you left. Three or four,
+     drawn from your own depth band, is the same total value
+     arriving in pieces big enough to notice. */
+  const loot = Math.max(1, Math.round((2 + rnd(3)) * (br.item || 1)));
   for (let i = 0; i < loot; i++) {
     const item = pickItem(depth);
     const spot = L.randomFloor(busy);
     if (spot && item) G.items.push({ ...item, x: spot.x, y: spot.y });
   }
-  const piles = 2 + rnd(4);
+  /* Same gold, fewer piles. A pile you cross the room for. */
+  const piles = 1 + rnd(2);
   for (let i = 0; i < piles; i++) {
     const spot = L.randomFloor(busy);
     if (spot) G.items.push({ kind:'gold', spr:'gold', n:'금화',
-      amount: Math.round((15 + rnd(40 + depth * 25)) * (br.gold || 1)), x: spot.x, y: spot.y });
+      amount: Math.round((45 + rnd(90 + depth * 60)) * (br.gold || 1)), x: spot.x, y: spot.y });
   }
 
   /* A branch that promised a relic has to deliver one on the
@@ -1083,25 +1093,46 @@ function makeElite(m, depth) {
   return m;
 }
 
+/* Gear the floor is allowed to drop. The band moves down with
+   you: floor 10 no longer scatters daggers and soft leather,
+   because a drop you would never pick up is not loot, it is
+   litter — and litter is what made the floor feel generous
+   while giving you nothing. */
+const inBand = (pool, depth) => {
+  const floor = depth - 5;
+  const band = pool.filter(x => x.d <= depth + 2 && x.d >= floor);
+  return band.length ? band : pool.filter(x => x.d <= depth + 2);
+};
+
 function pickItem(depth) {
   const r = Math.random();
-  if (r < 0.45) {
-    const pool = CONSUMABLES.filter(c => c.d <= depth + 2);
-    const total = pool.reduce((s, c) => s + c.rar, 0);
-    let n = rnd(total);
-    for (const c of pool) { if (n < c.rar) return { kind:'use', ...c }; n -= c.rar; }
-    return { kind:'use', ...pool[0] };
+  /* 3% of what a floor drops is a catalyst, and only ones the
+     depth has unlocked. Rolled first so it is never crowded out. */
+  if (r < 0.03) {
+    const pool = CATALYSTS.filter(c => c.d <= depth);
+    if (pool.length) return { kind:'cat', ...pickByRarity(pool) };
   }
-  if (r < 0.75) {
-    const pool = WEAPONS.filter(w => w.d <= depth + 3);
-    const it = { kind:'weapon', ...pool[rnd(pool.length)] };
+  if (r < 0.38) {
+    const pool = CONSUMABLES.filter(c => c.d <= depth + 2);
+    return { kind:'use', ...pickByRarity(pool) };
+  }
+  if (r < 0.71) {
+    const it = { kind:'weapon', ...pickOne(inBand(WEAPONS, depth)) };
     rollAffixes(it, depth);
     return it;
   }
-  const pool = ARMOURS.filter(a => a.d <= depth + 3);
-  const it = { kind:'armour', ...pool[rnd(pool.length)] };
+  const it = { kind:'armour', ...pickOne(inBand(ARMOURS, depth)) };
   rollAffixes(it, depth);
   return it;
+}
+
+const pickOne = pool => pool[rnd(pool.length)];
+
+function pickByRarity(pool) {
+  const total = pool.reduce((s, c) => s + (c.rar || 1), 0);
+  let n = rnd(total);
+  for (const c of pool) { if (n < (c.rar || 1)) return c; n -= (c.rar || 1); }
+  return pool[0];
 }
 
 /* Affixes on found gear. The odds climb with depth, so an early
@@ -1204,6 +1235,7 @@ export function step(dx, dy) {
   if (t === CAMP)  { p.x = nx; p.y = ny; refreshFov(); G.screen = 'camp'; return; }
   if (t === ALTAR) { p.x = nx; p.y = ny; refreshFov(); G.screen = 'altar'; return; }
   if (t === EVENT) { p.x = nx; p.y = ny; refreshFov(); G.screen = 'event'; return; }
+  if (t === ANVIL) { p.x = nx; p.y = ny; refreshFov(); G.screen = 'anvil'; return; }
   if (t === DOOR)        { openDoor(nx, ny); endTurn(); return; }
   if (t === DOOR_LOCKED) { forceDoor(nx, ny); endTurn(); return; }
   if (L.solid(nx, ny)) return;
@@ -2416,7 +2448,7 @@ export function dodgeRoll(dx, dy) {
     if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) break;
     if (L.solid(nx, ny) || monsterAt(nx, ny)) break;
     const t = L.tiles[idx(nx, ny)];
-    if (t === CAMP || t === ALTAR || t === EVENT || L.shopAt.has(idx(nx, ny))) break;
+    if (t === CAMP || t === ALTAR || t === EVENT || t === ANVIL || L.shopAt.has(idx(nx, ny))) break;
     p.x = nx; p.y = ny; moved++;
   }
   if (!moved) { say('구를 자리가 없다.', 'warn'); return false; }
@@ -2570,27 +2602,45 @@ export const upgradeCostFor = (key, careful = false) => {
 /* Everything the fire screen needs to print the bet before the
    player takes it — the same numbers the roll actually uses, so
    what is shown and what happens cannot drift apart. */
-export function upgradeOddsFor(key, careful = false) {
+export function upgradeOddsFor(key, careful = false, cat = null) {
   const t = targetOf(key);
   if (!t) return null;
   const plus = plusOf(t);
   const risk = careful ? { down: 0, breakPct: 0 } : upgradeRisk(plus);
+  const spec = cat ? catalystById(cat) : null;
+  const c = spec?.on === 'upgrade' ? spec.id : null;
   return {
     plus,
     cap: capFor(t),
     // The first strikes are certain on purpose. A 1% failure on
     // a +0 sword would teach a new player the wrong lesson about
     // a screen they have just met.
-    odds: Math.min(1, upgradeOdds(plus) + (careful ? CAREFUL_BONUS : 0)),
-    crit: careful ? 0 : UPGRADE_CRIT,
-    down: risk.down,
+    odds: c === 'core' ? 1
+        : Math.min(1, upgradeOdds(plus) + (careful ? CAREFUL_BONUS : 0)),
+    crit: c === 'surge' ? 1 : careful ? 0 : UPGRADE_CRIT,
+    down: c === 'flux' ? 0 : risk.down,
     // A spell cannot shatter; there is nothing to shatter. Nor
-    // can a 불괴의 — that is what the 은총 is for.
-    breakPct: t.type === 'item' && t.item?.boon !== 'aegis' ? risk.breakPct : 0,
+    // can a 불괴의 — that is what the 은총 is for — and a 수호의
+    // 못 buys the same protection for one strike.
+    // 정련의 촉매 deliberately does *not* stop a shatter: the two
+    // catalysts have to answer different questions or the cheap
+    // one makes the expensive one pointless.
+    breakPct: c === 'ward' ? 0
+            : t.type === 'item' && t.item?.boon !== 'aegis' ? risk.breakPct : 0,
+    cat: c,
   };
 }
 
-export function campUpgrade(key, careful = false) {
+/* ── the anvil ────────────────────────────────────────────
+   Enhancement used to live at the fire, competing with rest and
+   enchant for a single use — so a whole run got four or five
+   attempts total and the failure odds had nothing to bite on.
+   The anvil is not spent. You strike it until the purse is
+   empty, which is what makes going broke a way to play.
+
+   `cat` is an optional catalyst id, consumed on the strike and
+   only if it is a catalyst this action accepts.              */
+export function anvilStrike(key, careful = false, cat = null) {
   const p = G.player, t = targetOf(key);
   if (!t) return;
   const cost = upgradeCostFor(key, careful);
@@ -2605,13 +2655,16 @@ export function campUpgrade(key, careful = false) {
     return;
   }
 
-  const bet = upgradeOddsFor(key, careful);
+  const c = useCatalyst(cat, 'upgrade');
+  const bet = upgradeOddsFor(key, careful, c?.id);
   spend(cost);
+  if (c) say(`${c.n}을(를) 함께 넣었다.`, 'good');
 
-  if (Math.random() < bet.odds) {
-    // 과감 pays double one time in eight. That is the whole reason
-    // to take the risky strike when the safe one is affordable.
-    const step = Math.random() < bet.crit ? 2 : 1;
+  if (c?.id === 'core' || Math.random() < bet.odds) {
+    // 과감 pays double one time in eight; 폭주의 불씨 makes it
+    // certain. That is the whole reason to take the risky strike
+    // when the safe one is affordable.
+    const step = (c?.id === 'surge' || Math.random() < bet.crit) ? 2 : 1;
     if (t.type === 'item') {
       t.item.plus = Math.min(cap, (t.item.plus || 0) + step);
       recalc(p);
@@ -2627,12 +2680,11 @@ export function campUpgrade(key, careful = false) {
       say(t.type === 'item' ? `${name} — 날이 섰다.` : `${name}을(를) 연마했다.`, 'level');
       fx({ t:'forge', x:p.x, y:p.y });
     }
-    spendCamp();
     return;
   }
 
   /* The strike failed. What that costs depends on how far out on
-     the limb you already were. */
+     the limb you already were — and on what you threw in with it. */
   if (bet.breakPct && Math.random() < bet.breakPct) {
     breakItem(t.item);
     say(`${name}이(가) 쨍 하고 갈라졌다. 남은 것은 손잡이뿐이다.`, 'bad');
@@ -2646,8 +2698,30 @@ export function campUpgrade(key, careful = false) {
     say(`${name} — 불꽃이 사그라든다. 아무 일도 없었다.`, 'warn');
     fx({ t:'forge', x:p.x, y:p.y, fail:true });
   }
-  spendCamp();
 }
+
+/* Spend one, if it is there and if this action takes it. Returns
+   the catalyst so the caller can name it and read its rule. */
+function useCatalyst(id, on) {
+  if (!id) return null;
+  const p = G.player;
+  const spec = catalystById(id);
+  if (!spec || spec.on !== on) return null;
+  const i = p.pack.findIndex(s => s.item.kind === 'cat' && s.item.id === id);
+  if (i < 0) return null;
+  removeItem(p, i);
+  G.catUsed = (G.catUsed || 0) + 1;
+  return spec;
+}
+
+export const catalystsHeld = (on) => {
+  const p = G.player;
+  if (!p) return [];
+  return p.pack
+    .map((s, i) => ({ idx: i, qty: s.qty, spec: catalystById(s.item.id), kind: s.item.kind }))
+    .filter(x => x.kind === 'cat' && x.spec && (!on || x.spec.on === on))
+    .map(x => ({ ...x.spec, qty: x.qty }));
+};
 
 /* ── fusion ───────────────────────────────────────────────
    Two relics into the fire. Six pairs are written to recognise
@@ -2756,12 +2830,18 @@ function breakItem(it) {
   recalc(p);
 }
 
-export function campEnchant(key, reroll) {
+/* Enchant and reroll moved to the anvil with enhancement. The
+   fire is for the body and the relics now; the anvil is for the
+   metal, and all three metal actions cost materials rather than
+   the one use a floor grants. */
+export function anvilEnchant(key, reroll, cat = null) {
   const p = G.player, t = targetOf(key);
   if (!t) return;
   const cost = reroll ? REROLL_COST : ENCHANT_COST;
   if (!canAfford(cost)) { say(`재료가 모자란다 — ${costText(cost)}.`, 'warn'); return; }
+  const c = useCatalyst(cat, 'enchant');
   spend(cost);
+  if (c) say(`${c.n}을(를) 함께 넣었다.`, 'good');
 
   if (t.type === 'spell') {
     p.spellAffix = p.spellAffix || {};
@@ -2773,7 +2853,6 @@ export function campEnchant(key, reroll) {
       ? `${sp?.name}의 성질이 뒤바뀌었다 — ${a.n}. ${a.note}.`
       : `${sp?.name}이(가) ${a.n} 주문이 되었다. ${a.note}.`, 'level');
     fx({ t:'enchant', x:p.x, y:p.y, cursed:false });
-    spendCamp();
     return;
   }
 
@@ -2782,7 +2861,7 @@ export function campEnchant(key, reroll) {
   const tag = it.kind;
   // A reroll never inflicts a curse — it is the cure for one,
   // which is what keeps the enchant gamble survivable.
-  const cursed = !reroll && Math.random() < 0.20;
+  const cursed = !reroll && c?.id !== 'seal' && Math.random() < 0.20;
 
   let usePrefix = Math.random() < 0.5;
   if (reroll) {
@@ -2793,7 +2872,7 @@ export function campEnchant(key, reroll) {
   }
   const table = usePrefix ? PREFIXES : SUFFIXES;
   const a = pickAffixFor(table, tag, cursed);
-  if (!a) { say('불꽃이 사그라들 뿐이다.', 'warn'); spendCamp(); return; }
+  if (!a) { say('불꽃이 사그라들 뿐이다.', 'warn'); return; }
 
   const slotKey = usePrefix ? 'pre' : 'suf';
   const replaced = it[slotKey];
@@ -2807,8 +2886,18 @@ export function campEnchant(key, reroll) {
   } else {
     say(`${affixName(it)} — 새 성질이 깃들었다.`, 'level');
   }
+  /* 분광석 pays for both slots at once — the only way to land a
+     prefix and a suffix from one roll. */
+  if (c?.id === 'prism') {
+    const other = usePrefix ? SUFFIXES : PREFIXES;
+    const b = pickAffixFor(other, tag, false);
+    if (b) {
+      it[usePrefix ? 'suf' : 'pre'] = b.id;
+      recalc(p);
+      say(`분광석이 빛을 갈랐다 — ${affixName(it)}.`, 'level');
+    }
+  }
   fx({ t:'enchant', x:p.x, y:p.y, cursed });
-  spendCamp();
 }
 
 /* Cursed rolls draw from the cursed pool only, so a bad outcome
@@ -3240,12 +3329,27 @@ export function shopStock(shop) {
     for (const k of shop.mats)
       out.push({ kind:'mat', mat:k, id:`mat_${k}`, spr: k === 'essence' ? 'amulet' : k === 'dust' ? 'potion' : 'armor',
                  n: MATS[k].n, cost: MATS[k].cost, desc: MATS[k].note });
+  /* Catalysts are the only thing worth crossing a floor for a
+     merchant. He carries two, drawn from what the depth has
+     unlocked — never the whole rack, or they stop being rare. */
+  if (shop.cats) {
+    const pool = CATALYSTS.filter(c => c.d <= Math.max(1, G.deepest || G.depth));
+    const seen = new Set();
+    for (let i = 0; i < 2 && pool.length; i++) {
+      const c = pool[(shop.id * 7 + i * 3 + (G.deepest || 1)) % pool.length];
+      if (seen.has(c.id)) continue;
+      seen.add(c.id);
+      out.push({ kind:'cat', ...c, desc: c.t });
+    }
+  }
   return out;
 }
 
 export const priceOf = (item, buying) => {
   const chrB = statBonus(G.player.stats.chr);
-  const base = item.cost || 10;
+  // Same spine as salvage: a +5 sword is worth five upgrades more
+  // than the plain one, at the counter as well as at the anvil.
+  const base = worthOf(item) || item.cost || 10;
   /* markup is the running total of what ? rooms did to your
      reputation: robbing a drunk raises it, settling a ledger
      lowers it. Selling prices move the other way. */
@@ -3262,6 +3366,11 @@ export function buy(item) {
   if (item.kind === 'mat') {
     p.mats = p.mats || { scrap: 0, dust: 0, essence: 0 };
     p.mats[item.mat]++;
+    say(`${item.n}을(를) 샀다. (-${cost})`, 'good');
+    return;
+  }
+  if (item.kind === 'cat') {
+    addItem(p, makeCatalyst(item.id));
     say(`${item.n}을(를) 샀다. (-${cost})`, 'good');
     return;
   }
@@ -3302,6 +3411,7 @@ export function summarise(win, by) {
     kills: G.kills || 0, opened: G.opened || 0,
     broke: G.broke || 0, forged: G.forged || 0,
     trans: G.transFound || 0, perfects: G.perfects || 0, fused: G.fused || 0,
+    catUsed: G.catUsed || 0,
     events: G.eventsSeen || 0, waves: G.waves || 0,
     tail: G.log.slice(-3).map(l => l.text),
   };
@@ -3372,7 +3482,7 @@ export function startGame(raceKey, classKey, base) {
   G.log = []; G.turn = 0; G.running = true; G.ending = null;
   G.fx = []; G.combo = 0; G.comboT = 0; G.bestCombo = 0;
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0; G.kills = 0; G.eventsSeen = 0;
-  G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0; G.fused = 0;
+  G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0; G.fused = 0; G.catUsed = 0;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
   G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.bank = 0;

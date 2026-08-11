@@ -355,19 +355,54 @@ export function pump(queue, player) {
         ring(e.x, e.y, e.r, PALETTE.o, 720);
         break;
 
-      // Enhancement: small, certain, permanent. Sparks, not fireworks.
+      /* Enhancement, in three sizes. The strike is a bet now, so
+         the animation has to say which way it went before the log
+         line does — sparks up for a hit, sparks down and grey for
+         a miss, and a full flash for the double. */
       case 'forge':
-        ring(e.x, e.y, 2.2, PALETTE.y, 560);
-        number(e.x, e.y - 0.5, '+1', PALETTE.y, 1.5);
-        for (let i = 0; i < 18 && shards.length < MAX_SHARDS; i++)
+        if (e.fail) {
+          ring(e.x, e.y, 1.4, PALETTE.s, 420);
+          number(e.x, e.y - 0.5, '실패', PALETTE.s, 1.1);
+          for (let i = 0; i < 10 && shards.length < MAX_SHARDS; i++)
+            shards.push({
+              x: e.x + Math.random(), y: e.y + 0.5,
+              vx: (Math.random() - 0.5) * 3, vy: -1.4 - Math.random() * 1.2,
+              life: 480, age: 0, size: 1,
+              color: Math.random() < 0.5 ? PALETTE.s : PALETTE.g,
+            });
+          buzz(14); sfx.bust();
+          break;
+        }
+        ring(e.x, e.y, e.big ? 3.4 : 2.2, PALETTE.y, e.big ? 760 : 560);
+        number(e.x, e.y - 0.5, e.big ? '+2' : '+1', e.big ? PALETTE.W : PALETTE.y, e.big ? 2.1 : 1.5);
+        for (let i = 0; i < (e.big ? 40 : 18) && shards.length < MAX_SHARDS; i++)
           shards.push({
             x: e.x + Math.random(), y: e.y + 0.5,
-            vx: (Math.random() - 0.5) * 5, vy: -3.5 - Math.random() * 3,
+            vx: (Math.random() - 0.5) * (e.big ? 8 : 5), vy: -3.5 - Math.random() * (e.big ? 5 : 3),
             life: 640, age: 0, size: 1,
             color: Math.random() < 0.5 ? PALETTE.y : PALETTE.o,
           });
-        flashScreen = Math.max(flashScreen, 0.22); flashHue = 'y';
-        buzz([25, 30, 45]);
+        flashScreen = Math.max(flashScreen, e.big ? 0.5 : 0.22); flashHue = 'y';
+        if (e.big) { shake = Math.max(shake, 0.5); freeze = 90; sfx.jackpot(); }
+        buzz(e.big ? [40, 30, 60] : [25, 30, 45]);
+        break;
+
+      /* The sword coming apart in your hands. The one outcome in
+         the game that takes something away permanently, so it gets
+         the loudest frame the fire screen can throw. */
+      case 'shatter':
+        ring(e.x, e.y, 3.0, PALETTE.R, 700);
+        number(e.x, e.y - 0.6, '파괴', PALETTE.R, 2.2);
+        for (let i = 0; i < 46 && shards.length < MAX_SHARDS; i++)
+          shards.push({
+            x: e.x + Math.random(), y: e.y + 0.5,
+            vx: (Math.random() - 0.5) * 9, vy: -2 - Math.random() * 6,
+            life: 820, age: 0, size: Math.random() < 0.4 ? 2 : 1,
+            color: Math.random() < 0.5 ? PALETTE.s : PALETTE.G,
+          });
+        flashScreen = Math.max(flashScreen, 0.55); flashHue = 'R';
+        shake = Math.max(shake, 0.85); freeze = 140;
+        buzz([60, 40, 90]); sfx.bust();
         break;
 
       // The gamble resolving. Violet for a curse, gold for a gift.

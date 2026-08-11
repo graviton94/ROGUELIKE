@@ -519,6 +519,40 @@ export const upgradeCost = plus => ({
   gold:  50 + plus * 90,
 });
 
+/* ── the anvil ────────────────────────────────────────────
+   A +5 that always lands is a shopping list. The interesting
+   version of enhancement is the one every Korean MMO found by
+   accident: past a point the strike can fail, and past another
+   point it can take the sword with it. That turns "can I afford
+   it" into "do I dare", which is a much better question — and
+   it is the same question the altar already asks, moved to the
+   one screen where the player has something to lose.
+
+   Two ways to strike, printed side by side:
+     과감 — the listed odds, and one in eight lands *two* steps.
+            Past +4 a failure costs a level; past +6 it can
+            shatter the thing outright.
+     신중 — twice the price, better odds, and a failure is only
+            ever a failure. The metal never fatigues, never
+            breaks. You are buying the tail away.
+
+   MAX_PLUS climbed from 5 to 8 because the odds now do the
+   gating that the cap used to do. A +8 weapon is +16 damage and
+   should be the thing a player tells someone about. Spells stay
+   capped at 5: spell power multiplies rather than adds, and 5
+   is already ×2.1.                                           */
+const UPGRADE_ODDS = [1, 1, 0.92, 0.80, 0.66, 0.52, 0.40, 0.30, 0.22];
+export const upgradeOdds = plus => UPGRADE_ODDS[plus] ?? 0.16;
+
+export const upgradeRisk = plus =>
+  plus >= 6 ? { down: 1, breakPct: 0.30 }
+: plus >= 4 ? { down: 1, breakPct: 0 }
+:             { down: 0, breakPct: 0 };
+
+export const UPGRADE_CRIT   = 0.125;  // 과감: two steps instead of one
+export const CAREFUL_MULT   = 2;      // 신중: price
+export const CAREFUL_BONUS  = 0.18;   // 신중: added success chance
+
 export const ENCHANT_COST = { dust: 4, gold: 130 };
 export const REROLL_COST  = { essence: 1, dust: 2, gold: 220 };
 

@@ -7,6 +7,7 @@ import {
   WEAPONS, ARMOURS, CONSUMABLES, SHOPS, AILMENTS, IMMUNE, TRAPS,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, ELITES, affixName,
   MATS, salvageYield, upgradeCost, ENCHANT_COST, REROLL_COST,
+  upgradeOdds, upgradeRisk, UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS,
   ALTAR_OFFERS, rarityOf, isCursed,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   RELICS, RELIC_SLOTS, relicSlots, relicById, BRANCHES,
@@ -2374,7 +2375,11 @@ function readIntents() {
    at full health the first option is worthless and at 20% it is
    the only sane one. */
 export const CAMP_HEAL = 0.40;
-export const MAX_PLUS = 5;
+/* Gear climbs to 8 now that the odds gate it; a spell's plus is
+   a multiplier, so it stays where it was. */
+export const MAX_PLUS = 8;
+export const MAX_SPELL_PLUS = 5;
+const capFor = t => (t.type === 'spell' || t.kind === 'spell' ? MAX_SPELL_PLUS : MAX_PLUS);
 
 export function campTargets() {
   const p = G.player, out = [];
@@ -2382,7 +2387,7 @@ export function campTargets() {
     const it = p.equip[slot];
     if (it) out.push({
       key: `eq:${slot}`, label, name: affixName(it), kind: it.kind, item: it,
-      plus: it.plus || 0, capped: (it.plus || 0) >= MAX_PLUS,
+      plus: it.plus || 0, capped: (it.plus || 0) >= MAX_PLUS, cap: MAX_PLUS,
     });
   }
   for (const s of spellList(p)) {
@@ -2392,7 +2397,7 @@ export function campTargets() {
     out.push({
       key: `sp:${s.id}`, label: '주문', kind: 'spell', spell: s,
       name: `${plus ? `+${plus} ` : ''}${affN ? affN + ' ' : ''}${s.name}`,
-      plus, capped: plus >= MAX_PLUS,
+      plus, capped: plus >= MAX_SPELL_PLUS, cap: MAX_SPELL_PLUS,
     });
   }
   return out;
@@ -2445,43 +2450,111 @@ export function campRest() {
   spendCamp();
 }
 
-export const upgradeCostFor = key => {
+const plusOf = t =>
+  t.type === 'item' ? (t.item?.plus || 0) : (G.player.spellPlus?.[t.id] || 0);
+
+export const upgradeCostFor = (key, careful = false) => {
   const t = targetOf(key);
   if (!t) return null;
-  const plus = t.type === 'item' ? (t.item?.plus || 0) : (G.player.spellPlus?.[t.id] || 0);
-  return upgradeCost(plus);
+  const base = upgradeCost(plusOf(t));
+  if (!careful) return base;
+  const out = {};
+  for (const k of Object.keys(base)) out[k] = base[k] * CAREFUL_MULT;
+  return out;
 };
 
-export function campUpgrade(key) {
+/* Everything the fire screen needs to print the bet before the
+   player takes it — the same numbers the roll actually uses, so
+   what is shown and what happens cannot drift apart. */
+export function upgradeOddsFor(key, careful = false) {
+  const t = targetOf(key);
+  if (!t) return null;
+  const plus = plusOf(t);
+  const risk = careful ? { down: 0, breakPct: 0 } : upgradeRisk(plus);
+  return {
+    plus,
+    cap: capFor(t),
+    // The first strikes are certain on purpose. A 1% failure on
+    // a +0 sword would teach a new player the wrong lesson about
+    // a screen they have just met.
+    odds: Math.min(1, upgradeOdds(plus) + (careful ? CAREFUL_BONUS : 0)),
+    crit: careful ? 0 : UPGRADE_CRIT,
+    down: risk.down,
+    // A spell cannot shatter; there is nothing to shatter.
+    breakPct: t.type === 'item' ? risk.breakPct : 0,
+  };
+}
+
+export function campUpgrade(key, careful = false) {
   const p = G.player, t = targetOf(key);
   if (!t) return;
-  const cost = upgradeCostFor(key);
+  const cost = upgradeCostFor(key, careful);
   if (!canAfford(cost)) { say(`재료가 모자란다 — ${costText(cost)}.`, 'warn'); return; }
-  if (t.type === 'item') {
-    if (!t.item) return;
-    // Enhancement tops out, or twenty-five floors of fires would
-    // outscale everything the dungeon can put in front of you.
-    if ((t.item.plus || 0) >= MAX_PLUS) {
-      say(`${affixName(t.item)}은(는) 더 벼릴 수 없다.`, 'warn');
-      return;
-    }
-    spend(cost);
-    t.item.plus = (t.item.plus || 0) + 1;
-    recalc(p);
-    say(`${affixName(t.item)} — 날이 섰다.`, 'level');
-  } else {
-    p.spellPlus = p.spellPlus || {};
-    if ((p.spellPlus[t.id] || 0) >= MAX_PLUS) {
-      say('그 주문은 더 연마할 수 없다.', 'warn');
-      return;
-    }
-    spend(cost);
-    p.spellPlus[t.id] = (p.spellPlus[t.id] || 0) + 1;
-    const sp = spellList(p).find(s => s.id === t.id);
-    say(`${sp?.name || '주문'}을(를) 연마했다.`, 'level');
+  const cap = capFor(t);
+  const name = t.type === 'item'
+    ? (t.item ? affixName(t.item) : null)
+    : (spellList(p).find(s => s.id === t.id)?.name || '주문');
+  if (t.type === 'item' && !t.item) return;
+  if (plusOf(t) >= cap) {
+    say(t.type === 'item' ? `${name}은(는) 더 벼릴 수 없다.` : '그 주문은 더 연마할 수 없다.', 'warn');
+    return;
   }
-  fx({ t:'forge', x:p.x, y:p.y });
+
+  const bet = upgradeOddsFor(key, careful);
+  spend(cost);
+
+  if (Math.random() < bet.odds) {
+    // 과감 pays double one time in eight. That is the whole reason
+    // to take the risky strike when the safe one is affordable.
+    const step = Math.random() < bet.crit ? 2 : 1;
+    if (t.type === 'item') {
+      t.item.plus = Math.min(cap, (t.item.plus || 0) + step);
+      recalc(p);
+    } else {
+      p.spellPlus = p.spellPlus || {};
+      p.spellPlus[t.id] = Math.min(cap, (p.spellPlus[t.id] || 0) + step);
+    }
+    G.forged = (G.forged || 0) + step;
+    if (step === 2) {
+      say(`${name} — 쇠가 노래한다. 두 단계 올랐다.`, 'level');
+      fx({ t:'forge', x:p.x, y:p.y, big:true });
+    } else {
+      say(t.type === 'item' ? `${name} — 날이 섰다.` : `${name}을(를) 연마했다.`, 'level');
+      fx({ t:'forge', x:p.x, y:p.y });
+    }
+    spendCamp();
+    return;
+  }
+
+  /* The strike failed. What that costs depends on how far out on
+     the limb you already were. */
+  if (bet.breakPct && Math.random() < bet.breakPct) {
+    breakItem(t.item);
+    say(`${name}이(가) 쨍 하고 갈라졌다. 남은 것은 손잡이뿐이다.`, 'bad');
+    fx({ t:'shatter', x:p.x, y:p.y });
+  } else if (bet.down) {
+    if (t.type === 'item') { t.item.plus = Math.max(0, (t.item.plus || 0) - 1); recalc(p); }
+    else p.spellPlus[t.id] = Math.max(0, (p.spellPlus[t.id] || 0) - 1);
+    say(`${name} — 금이 갔다. 한 단계 물러섰다.`, 'warn');
+    fx({ t:'forge', x:p.x, y:p.y, fail:true });
+  } else {
+    say(`${name} — 불꽃이 사그라든다. 아무 일도 없었다.`, 'warn');
+    fx({ t:'forge', x:p.x, y:p.y, fail:true });
+  }
   spendCamp();
+}
+
+/* Losing the sword off your own arm. Left unequipped rather than
+   silently replaced: standing there with an empty hand is the
+   point, and the player chose this. */
+function breakItem(it) {
+  const p = G.player;
+  for (const slot of ['weapon', 'body', 'shield'])
+    if (p.equip[slot] === it) p.equip[slot] = null;
+  const i = p.pack.findIndex(s => s.item === it);
+  if (i >= 0) p.pack.splice(i, 1);
+  G.broke = (G.broke || 0) + 1;
+  recalc(p);
 }
 
 export function campEnchant(key, reroll) {
@@ -2700,7 +2773,7 @@ function eventApi() {
       if (!list.length) { say('연마할 주문이 없다.', 'warn'); return; }
       const sp = list[rnd(list.length)];
       p.spellPlus = p.spellPlus || {};
-      p.spellPlus[sp.id] = Math.min(MAX_PLUS, (p.spellPlus[sp.id] || 0) + 1);
+      p.spellPlus[sp.id] = Math.min(MAX_SPELL_PLUS, (p.spellPlus[sp.id] || 0) + 1);
       say(`${sp.name} +${p.spellPlus[sp.id]} — 문법이 손에 붙었다.`, 'level');
     },
     identifyAll: () => {
@@ -3028,6 +3101,7 @@ export function summarise(win, by) {
     branch: G.branch?.n || null,
     bank: G.bank || 0,
     kills: G.kills || 0, opened: G.opened || 0,
+    broke: G.broke || 0, forged: G.forged || 0,
     events: G.eventsSeen || 0, waves: G.waves || 0,
     tail: G.log.slice(-3).map(l => l.text),
   };
@@ -3081,6 +3155,7 @@ export function startGame(raceKey, classKey, base) {
   G.log = []; G.turn = 0; G.running = true; G.ending = null;
   G.fx = []; G.combo = 0; G.comboT = 0; G.bestCombo = 0;
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0; G.kills = 0; G.eventsSeen = 0;
+  G.broke = 0; G.forged = 0;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
   G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.bank = 0;

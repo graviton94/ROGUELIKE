@@ -11,6 +11,7 @@ import {
   RARITY, CURSED_TONE, rarityOf, isCursed,
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
   MONSTERS, BRANCHES, SPELLS,
+  UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS,
   xpToLevel, statBonus,
 } from './data.js';
 import { EVENTS } from './events.js';
@@ -1552,11 +1553,32 @@ export function renderCamp() {
   wrap.appendChild(out);
 }
 
+/* 과감 or 신중. Sticky across fires within a run: a player who
+   has decided they are the careful sort should not have to say
+   so at every campfire. */
+let campCareful = false;
+
 function renderCampTargets() {
   $('camp-choices').hidden = true;
   $('camp-targets').hidden = false;
   $('camp-target-head').textContent =
     campMode === 'upgrade' ? '무엇을 강화할까' : campMode === 'reroll' ? '무엇을 재련할까' : '무엇에 걸까';
+
+  const sw = $('camp-style'), swNote = $('camp-style-note');
+  sw.hidden = swNote.hidden = campMode !== 'upgrade';
+  if (campMode === 'upgrade') {
+    teach('anvil');
+    for (const b of sw.children) {
+      const careful = b.dataset.style === 'careful';
+      b.className = careful === campCareful ? 'on' : '';
+      b.onclick = () => { campCareful = careful; renderCampTargets(); };
+    }
+    swNote.textContent = campCareful
+      ? `값은 ${CAREFUL_MULT}배. 성공률 +${Math.round(CAREFUL_BONUS * 100)}%p, ` +
+        '실패해도 깎이거나 부서지지 않는다.'
+      : `값은 그대로. ${Math.round(UPGRADE_CRIT * 100)}% 확률로 두 단계가 오른다 — ` +
+        '대신 실패하면 깎이고, 깊은 +에서는 부서진다.';
+  }
 
   const list = $('camp-target-list');
   list.innerHTML = '';
@@ -1581,10 +1603,24 @@ function renderCampTargets() {
        a dead button would silently eat the whole fire. */
     let blocked = false, label = '?';
     if (campMode === 'upgrade') {
-      const cost = Game.upgradeCostFor(t.key);
+      const cost = Game.upgradeCostFor(t.key, campCareful);
+      const bet = Game.upgradeOddsFor(t.key, campCareful);
       blocked = t.capped || !Game.canAfford(cost);
-      label = t.capped ? `최대 +${Game.MAX_PLUS}`
-            : `+${(t.plus || 0) + 1} · ${Game.costText(cost)}`;
+      if (t.capped) label = `최대 +${t.cap}`;
+      else {
+        /* The bet, printed. Odds on the right where the price used
+           to be, and what a failure costs written into the row —
+           the altar taught this game that a gamble is only fun
+           when you can see its shape before you take it. */
+        label = `${Math.round(bet.odds * 100)}%`;
+        const risk = bet.breakPct ? `실패 시 −1 또는 ${Math.round(bet.breakPct * 100)}% 파괴`
+                   : bet.down     ? '실패 시 −1'
+                   : '실패해도 손해는 값뿐';
+        const line = el('span', 'idesc bet',
+          `+${t.plus} → +${t.plus + 1} · ${risk} · ${Game.costText(cost)}`);
+        if (bet.breakPct) line.classList.add('danger');
+        mid.appendChild(line);
+      }
     } else if (campMode === 'reroll') {
       blocked = t.kind === 'spell' ? false : !(t.item?.pre || t.item?.suf);
       label = blocked ? '속성 없음' : '재련';
@@ -1592,10 +1628,20 @@ function renderCampTargets() {
     if (blocked) { row.classList.add('poor'); row.disabled = true; }
     row.appendChild(el('span', 'iact', label));
     if (!blocked) row.onclick = () => {
-      if (campMode === 'upgrade') Game.campUpgrade(t.key);
-      else Game.campEnchant(t.key, campMode === 'reroll');
-      setScreen('play');
-      refresh();
+      if (campMode !== 'upgrade') {
+        Game.campEnchant(t.key, campMode === 'reroll');
+        setScreen('play'); refresh(); return;
+      }
+      /* One confirm, and only where it is earned: a strike that
+         can take the weapon with it. Everything else goes straight
+         through — a Y/N on a 92% strike is just a second tap. */
+      const bet = Game.upgradeOddsFor(t.key, campCareful);
+      const go = () => { Game.campUpgrade(t.key, campCareful); setScreen('play'); refresh(); };
+      if (bet.breakPct)
+        ask(`${t.name}에 그대로 내리칠까?`,
+            `성공 ${Math.round(bet.odds * 100)}% · 실패하면 한 단계 내려가고, ` +
+            `그중 ${Math.round(bet.breakPct * 100)}%는 부서진다.`, go);
+      else go();
     };
     list.appendChild(row);
   }
@@ -1731,6 +1777,9 @@ const LESSONS = [
   { id:'thief',  t:'<b>금빛 도둑</b>은 보자마자 달아납니다. 걸어서는 절대 못 잡습니다 — 구르거나 주문을 쓰거나, 보내주거나.' },
   { id:'cast',   t:'주문은 <b>아래 줄의 아이콘을 눌러 바로</b> 씁니다(단축키 <b>1~5</b>).<br>' +
                     '어두운 칸은 아직 못 배웠거나, 마나가 모자라거나, <b>쏠 대상이 없다</b>는 뜻입니다.' },
+  { id:'anvil',  t:'강화는 <b>+2부터 실패합니다.</b> 칸마다 성공률이 적혀 있습니다.<br>' +
+                    '<b>과감</b>은 값이 그대로에 가끔 두 단계, 대신 깊은 +에서는 <b>장비가 부서집니다.</b> ' +
+                    '<b>신중</b>은 값이 두 배지만 잃는 것이 값뿐입니다.' },
 ];
 
 let lessonQueue = [];
@@ -2032,6 +2081,8 @@ function renderEnd() {
   line('최고 연격', `${s.combo}`, s.combo >= 10 ? 'y' : '');
   line('처치 · 상자 · 사건', `${s.kills || 0} · ${s.opened || 0} · ${s.events || 0}`);
   line('금화 · 턴', `${s.gold}닢 · ${s.turn}턴`);
+  if (s.forged) line('벼려 올린 +', `${s.forged}단계`, 'y');
+  if (s.broke) line('불에 잃은 장비', `${s.broke}점`, 'R');
   if (s.bank >= 2) line('잃은 판돈', `${s.bank}층치`, 'R');
   if (s.waves) line('심연의 습격', `${s.waves}번`, 'R');
 

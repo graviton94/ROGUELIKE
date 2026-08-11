@@ -194,6 +194,12 @@
     <div id="camp-choices"></div>
     <div id="camp-targets" hidden>
       <h3 class="sect" id="camp-target-head">대상</h3>
+      <!-- How hard to swing. Only shown for 강화. -->
+      <div id="camp-style" class="styleswitch" hidden>
+        <button data-style="bold">과감</button>
+        <button data-style="careful">신중</button>
+      </div>
+      <p class="note" id="camp-style-note" hidden></p>
       <div id="camp-target-list"></div>
       <button class="mini" id="camp-back">← 돌아가기</button>
     </div>
@@ -476,7 +482,12 @@
     <table class="keys">
       <tr><td>찾기</td><td>층에 들어서면 "멀리서 불빛이 흔들린다"는 말과 함께 <b>지도에 미리 표시</b>됩니다. 다만 <b>모든 층에 있지는 않습니다</b>(약 60%).</td></tr>
       <tr><td>휴식</td><td>최대 체력의 30% 회복 · 마나 전부 · 모든 상태이상 해제. 안전하지만 남는 게 없습니다.</td></tr>
-      <tr><td>강화</td><td>장비 +1 또는 주문 연마. <b>쇳조각과 금화</b>가 듭니다. 값은 +1마다 오르고 <b>+5가 상한</b>입니다.</td></tr>
+      <tr><td>강화</td><td>장비 +1 또는 주문 연마. <b>쇳조각과 금화</b>가 듭니다. 값은 +1마다 오릅니다.
+        장비는 <b>+8</b>, 주문은 <b>+5</b>가 상한입니다.</td></tr>
+      <tr><td>강화 실패</td><td><b>+2부터 실패합니다.</b> 성공률은 칸마다 숫자로 적혀 있습니다.<br>
+        <b>과감</b> — 값은 그대로. 여덟에 하나는 <b>두 단계</b>가 오릅니다. 대신 <b>+4부터 실패하면 한 단계 깎이고</b>,
+        <b>+6부터는 그중 30%가 장비를 부숩니다.</b> 부서진 장비는 돌아오지 않습니다.<br>
+        <b>신중</b> — 값은 두 배, 성공률 +18%p. 실패해도 깎이지 않고 부서지지도 않습니다. 잃는 것은 값뿐입니다.</td></tr>
       <tr><td>인챈트</td><td>무작위 속성. <b>마력 가루 4 + 130금.</b> 다섯에 하나는 저주고, 이미 붙은 성질을 밀어냅니다.</td></tr>
       <tr><td>재련</td><td>붙어 있는 속성을 다시 굴립니다. <b>정수 1 + 가루 2 + 220금.</b> <b>저주는 절대 붙지 않고, 저주가 있으면 그것부터 지웁니다.</b></td></tr>
       <tr><td>물러나기</td><td>아무것도 고르지 않고 <b>불을 남겨둔 채 나갈 수 있습니다</b>. 나중에 쓸모가 생기면 돌아오세요.</td></tr>

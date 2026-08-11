@@ -411,6 +411,20 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .campopt:active .campname, .campopt:active .camptag, .campopt:active .campdesc { color: var(--k); }
 #camp-back { margin-top: 12px; }
 
+/* How hard to swing at the anvil. Two states, one lit — the
+   choice is meant to be read at a glance and then forgotten,
+   because it sticks across fires. */
+.styleswitch { display: flex; gap: 6px; margin-bottom: 8px; }
+.styleswitch button {
+  flex: 1 1 0; padding: 8px 6px; font-size: 12px;
+  border: 1px solid var(--g); background: var(--d); color: var(--G);
+}
+.styleswitch button.on { border-color: var(--o); background: #241d16; color: var(--o); }
+#camp-style-note { margin: 0 0 10px; }
+/* The price of a miss, written where the price of a hit is. */
+.idesc.bet { color: var(--G); }
+.idesc.bet.danger { color: var(--R); }
+
 /* ── save slots ── */
 .slotrow {
   display: flex; align-items: center; gap: 10px; width: 100%;

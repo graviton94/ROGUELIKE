@@ -115,6 +115,7 @@ export function snapshot() {
     deepest: G.deepest || 0, campPromise: G.campPromise || 0,
     hazards: G.hazards || [], bank: G.bank || 0,
     kills: G.kills || 0, eventsSeen: G.eventsSeen || 0,
+    broke: G.broke || 0, forged: G.forged || 0,
     nextMods: G.nextMods || null,
     player: G.player,
     monsters: G.monsters,
@@ -147,6 +148,8 @@ export function apply(data) {
   G.bank = data.bank || 0;
   G.kills = data.kills || 0;
   G.eventsSeen = data.eventsSeen || 0;
+  G.broke = data.broke || 0;
+  G.forged = data.forged || 0;
   G.pendingAltar = null;
   G.nextMods = data.nextMods || null;
   G.pendingBranch = null;

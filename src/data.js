@@ -553,17 +553,88 @@ export const BOSS = {
    supplied it, so a lifesteal prefix, a lifesteal suffix and a
    lifesteal engraving all count the same. One funnel, no drift.
 
-   Only one is built. The other seven are designed against
-   whatever this one does to the numbers — writing eight before
-   measuring one is how a system ends up needing all eight
-   rebalanced. */
+   피의 톱니 was built alone and measured alone first — writing
+   eight before measuring one is how a system ends up needing all
+   eight rebalanced. The other seven are cut to the scale that
+   measurement produced: about twice a comparable build in the
+   situation the resonance is *for*, and nothing at all outside
+   it.
+
+   Eight, and every one of them has something it cannot do. That
+   is the part that makes a build a build rather than an upgrade:
+   피의 톱니 is measurably *worse* than a plain damage suffix
+   against a boss, because a chain needs a second body. A
+   resonance that is good at everything is just a bigger number
+   wearing a name.
+
+   Spread across the pools on purpose — weapon, armour, relic,
+   spell, class — so no single kind of luck opens all of them and
+   every way of playing has one it can reach. */
 export const RESONANCE = [
   { id:'sawtooth', n:'피의 톱니', spr:'sword',
     need: g => g.lifesteal > 0 && g.chain > 0,
     want: '흡혈과 연쇄를 한 손에',
     t:'연쇄가 더는 확률이 아니다. 닿는 몸이 있는 한 계속 옮겨 붙고, 옮겨 갈 때마다 피를 가져온다.',
+    weak:'혼자 있는 것에게는 아무것도 하지 않는다 — 연쇄는 두 번째 몸이 있어야 한다.',
     say:'날에 묻은 피가 다음 날을 부른다.' },
+
+  { id:'powder', n:'화약고', spr:'axe',
+    need: g => g.burst > 0 && g.pierce > 0,
+    want: '작열과 관통을 한 자루에',
+    t:'죽인 일격의 무게가 시체에 실린다. 터진 시체가 다음 시체를 터뜨리고, 네 번까지 이어진다.',
+    weak:'무언가를 죽여야 시작된다. 지고 있을 때는 한 번도 켜지지 않는다.',
+    say:'첫 번째가 두 번째를 열고, 두 번째가 방을 연다.' },
+
+  { id:'tally', n:'처형인의 셈', spr:'dagger',
+    need: g => g.execute >= 0.30,
+    want: '처형 문턱을 30% 위로',
+    t:'처형할 때마다 이 층의 문턱이 1%p 오른다. 빨리 죽일수록 더 빨리 죽는다.',
+    weak:'층을 내려가면 셈이 처음으로 돌아간다. 대군주에게는 처형이 통하지 않는다.',
+    say:'한 번 세기 시작하면 손이 먼저 안다.' },
+
+  { id:'echoroom', n:'메아리의 방', spr:'wand',
+    need: (g, p) => (p?.maxmana || 0) > 0 && hasSpellEcho(p) && (g.manaPct > 0 || hasBoonId(p, 'echo')),
+    want: '메아리치는 주문과, 마나를 넓히는 것',
+    t:'메아리가 다시 메아리친다. 한 번 외운 것이 네 곳에 닿고, 옮겨 가도 좀처럼 약해지지 않는다.',
+    weak:'번져 나간 만큼 마나를 더 문다. 마르면 그냥 메아리로 돌아간다.',
+    say:'벽이 먼저 외우고, 그다음에 대답한다.' },
+
+  { id:'bramble', n:'가시밭', spr:'shield',
+    need: g => g.reflect > 0 && g.flatDR > 0,
+    want: '되돌려주는 것과, 깎아내는 것을 함께',
+    t:'막아낸 만큼이 그대로 되돌아간다. 반사는 상대 방어를 무시한다.',
+    weak:'맞지 않으면 아무 일도 없다. 바닥 공격과 화살은 되돌릴 것이 없다.',
+    say:'두꺼운 것을 때리면 손이 먼저 상한다.' },
+
+  { id:'pack', n:'굶주린 무리', spr:'amulet',
+    need: (g, p) => g.lifesteal > 0 && !!p?.relics?.includes('hunger'),
+    want: '굶주린 칼날과 흡혈을 함께',
+    t:'처치 회복이 연격 배수만큼 곱해진다. 끊지 않는 한 계속 불어난다.',
+    weak:'한 대만 맞아도 연격이 절반으로 꺾인다. 서서 맞는 빌드로는 켤 수 없다.',
+    say:'멈추지 않는 동안에만 배가 부르다.' },
+
+  { id:'shadowstep', n:'그림자 걸음', spr:'dagger',
+    need: (g, p) => !g.noStealth && g.stealth >= 0.20 && (g.crit > 0 || p?.cls === 'rogue'),
+    want: '은신을 두르고 치명타를 얹어',
+    t:'잠든 것을 잡아도 층이 깨지 않는다. 방 하나를 한 마리씩 지울 수 있다.',
+    weak:'사슬 갑주와 얕은 물이 은신을 지운다. 한 번 깨어난 방에서는 소용없다.',
+    say:'조용한 쪽이 먼저 끝낸다.' },
+
+  { id:'dawnoath', n:'여명의 맹세', spr:'armor',
+    need: g => g.dawn > 0 && g.regen > 0,
+    want: '여명의 각인과, 스스로 아무는 것',
+    t:'층에 들어설 때의 회복이 최대치까지 간다. 숨 고르기에 천장이 사라진다.',
+    weak:'때리는 것은 하나도 늘지 않는다. 오래 버틸 뿐 이기지는 못한다.',
+    say:'아침은 매번 온다. 그것만으로도 대부분은 충분하다.' },
 ];
+
+/* Read off the finished build rather than off the item that
+   supplied it, same rule as `need` — a boon and a spell affix are
+   different pockets and both should count. */
+const hasBoonId = (p, id) =>
+  ['weapon', 'body', 'shield'].some(k => p?.equip?.[k]?.boon === id);
+const hasSpellEcho = p =>
+  !!p?.spellAffix && Object.values(p.spellAffix).includes('echo');
 export const resonanceById = id => RESONANCE.find(r => r.id === id);
 
 /* The first swing chains at whatever the build rolls — usually
@@ -596,6 +667,32 @@ export const CHAIN_MAX = 6;
    thing at the bottom, which is the right shape for it. */
 export const CHAIN_KEEP = 0.60;
 export const CHAIN_KEEP_RESO = 0.85;
+
+/* 화약고: how many times a detonation may set off the next one.
+   Without a cap a packed room clears itself in one kill, which is
+   not a payoff, it is the end of the fight before it starts. */
+export const POWDER_MAX = 4;
+/* And how many may go off in total from one action. A detonation
+   catches up to eight bodies and each of those detonates, so the
+   depth cap alone allows thousands — this is the number that
+   keeps a room-clear a room-clear instead of a stall. */
+export const POWDER_BUDGET = 24;
+/* 가시밭: what the thorn gains on top of the reflect it already
+   had, once it is priced on the blow that was stopped. */
+export const BRAMBLE_BITE = 0.25;
+
+/* 메아리의 방: how many bodies the echo may walk, and what the
+   extra hop costs. The toll is the weakness made mechanical —
+   without it the resonance is free width, and free width on a
+   class that already runs out of mana is not a build, it is a
+   patch. */
+export const ECHO_ROOM_HOPS = 3;
+export const ECHO_ROOM_TOLL = 0.5;
+/* An echo normally hands on half, so a second bounce would be
+   worth a quarter and the resonance would be a rounding error —
+   the same trap 피의 톱니 fell into. In the room the echo barely
+   fades. */
+export const ECHO_ROOM_KEEP = 0.85;
 
 /* ── the tells ────────────────────────────────────────────
    What you learn about a thing by killing enough of them.

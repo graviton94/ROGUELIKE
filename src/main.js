@@ -20,6 +20,11 @@ $('btn-new').onclick    = () => UI.openSlots('new');
 $('btn-load').onclick   = () => UI.openSlots('load');
 $('slots-back').onclick = () => UI.setScreen('title');
 $('btn-again').onclick  = () => location.reload();
+/* A finished run still has a reader. The ledger, the codex and the
+   shackle ladder all live on the title, and until now the only
+   door out of the ending was a page reload. */
+$('btn-totitle').onclick  = () => { G.running = false; UI.setScreen('title'); };
+$('btn-endcodex').onclick = () => { G.running = false; UI.setScreen('codex'); };
 
 UI.setScreen('title');
 

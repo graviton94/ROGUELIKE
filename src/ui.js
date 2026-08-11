@@ -1071,6 +1071,8 @@ export function setScreen(name) {
   /* Paper floats over the map rather than inside a screen, so it
      has to be put away by hand when the map goes. */
   if (name !== 'play') { $('scroll').hidden = true; closeLore(); }
+  // Leaving the run entirely throws the unread pages away with it.
+  if (name === 'end' || name === 'title' || name === 'codex') dropLore();
   /* The six that interrupt a floor come up as sheets over the map
      instead of replacing it. Losing the map loses "what is left on
      this floor and where I am standing" — which is precisely the
@@ -1429,7 +1431,14 @@ function paintReso() {
     const col = el('div', 'codextext');
     col.appendChild(el('span', 'iname', ever || now?.lit ? r.n : '???'));
     col.appendChild(el('span', 'idesc', r.want));
-    if (ever || now?.lit) col.appendChild(el('span', 'codextells', r.t));
+    if (ever || now?.lit) {
+      col.appendChild(el('span', 'codextells', r.t));
+      /* And what it cannot do. A resonance that reads as pure gain
+         is a number; one that names its own blind spot is a build,
+         and the player needs to see the blind spot to plan around
+         it — that is the whole difference. */
+      if (r.weak) col.appendChild(el('span', 'codexweak', `약점 — ${r.weak}`));
+    }
     if (now?.lit) col.appendChild(el('span', 'idesc lit', '이 판에서 켜져 있다'));
     row.appendChild(col);
     box.appendChild(row);
@@ -1639,6 +1648,17 @@ function closeLore() {
   clearTimeout(loreAt); loreAt = 0;
   box.classList.add('out');
   setTimeout(() => { box.hidden = true; box.classList.remove('out'); if (loreQueue.length) showLore(); }, 260);
+}
+
+/* Leaving the map drops whatever pages were still waiting. The
+   queue exists so two discoveries on one turn are read one after
+   the other, not so a page nobody got to floats over the death
+   screen a run later — which is exactly what it was doing. */
+function dropLore() {
+  loreQueue.length = 0;
+  clearTimeout(loreAt); loreAt = 0;
+  const box = $('lorecard');
+  box.hidden = true; box.classList.remove('out');
 }
 
 /* The whole record. A floor is a chapter, a turn is a paragraph,
@@ -3440,7 +3460,14 @@ export function bindInput() {
       else if (k === 'n' || k === 'escape') { e.preventDefault(); closeAsk(false); }
       return;
     }
-    if (G.screen === 'end') { if (e.key === 'Enter') location.reload(); return; }
+    /* Enter goes back down, Escape goes back to the title — the
+       same two doors the buttons offer, so the keyboard is not a
+       narrower way to leave an ending than the thumb is. */
+    if (G.screen === 'end') {
+      if (e.key === 'Enter') location.reload();
+      else if (e.key === 'Escape') { G.running = false; setScreen('title'); }
+      return;
+    }
     // decisions, not menus — but the map key still works everywhere
     if (e.key === 'Tab') { e.preventDefault(); cycleMini(); return; }
     if (G.screen === 'camp' || G.screen === 'altar') return;

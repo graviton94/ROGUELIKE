@@ -19,7 +19,8 @@ import {
   MEMORIES, memoryEarned, SHACKLES, shacklesAt, SHACKLE_STAT, tellsNeeded,
   WEAPON_TYPES, PATTERNS, NAMED,
   RESONANCE, resonanceById, CHAIN_ECHO, CHAIN_DECAY, CHAIN_MAX,
-  CHAIN_KEEP, CHAIN_KEEP_RESO,
+  CHAIN_KEEP, CHAIN_KEEP_RESO, POWDER_MAX, POWDER_BUDGET, BRAMBLE_BITE,
+  ECHO_ROOM_HOPS, ECHO_ROOM_TOLL, ECHO_ROOM_KEEP,
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
@@ -533,7 +534,7 @@ export function checkResonance(p) {
   p.reso = p.reso || {};
   const g = gearBonus(p);
   for (const r of RESONANCE) {
-    if (p.reso[r.id] || !r.need(g)) continue;
+    if (p.reso[r.id] || !r.need(g, p)) continue;
     p.reso[r.id] = true;
     G.resoFound = (G.resoFound || 0) + 1;
     Meta.see('reso', r.id);
@@ -551,7 +552,7 @@ export function resonanceState(id) {
   const r = resonanceById(id);
   if (!r) return null;
   const p = G.player;
-  return { id, lit: !!p?.reso?.[id], can: p ? r.need(gearBonus(p)) : false };
+  return { id, lit: !!p?.reso?.[id], can: p ? r.need(gearBonus(p), p) : false };
 }
 
 function breakCombo(hard) {
@@ -931,12 +932,27 @@ export function cast(spellId, echo = false) {
       // 울림의 은총 does the same thing without needing the affix,
       // so a caster who finds one has it on every spell at once.
       if (aff?.chainSpell || hasBoon('echo')) {
-        const second = visible.filter(o => o !== nearest && G.monsters.includes(o))[0];
-        if (second) {
-          const echo = Math.max(1, Math.round(dmg * 0.5));
-          fx({ t:'beam', fx:nearest.x, fy:nearest.y, tx:second.x, ty:second.y, color: holy ? 'y' : 'P' });
-          hurtMonster(second, echo, '메아리', { weapon: 'spell' });
-          spellDrain(aff, echo);
+        /* 메아리의 방: the echo echoes. Same halving each hop, one
+           more body — and the room charges mana for the extra one,
+           which is the whole trade. A caster who widens this way
+           runs dry a floor sooner, and when the pool is empty the
+           spell is back to touching two. */
+        const room = hasResonance('echoroom');
+        const hit = new Set([nearest]);
+        let carry = dmg, from = nearest;
+        for (let hop = 0; hop < (room ? ECHO_ROOM_HOPS : 1); hop++) {
+          const next = visible.find(o => !hit.has(o) && G.monsters.includes(o));
+          if (!next) break;
+          if (hop > 0) {
+            const toll = Math.max(1, Math.ceil(spellCost(p, sp) * ECHO_ROOM_TOLL));
+            if (p.mana < toll) break;
+            p.mana -= toll;
+          }
+          carry = Math.max(1, Math.round(carry * (room ? ECHO_ROOM_KEEP : 0.5)));
+          fx({ t:'beam', fx:from.x, fy:from.y, tx:next.x, ty:next.y, color: holy ? 'y' : 'P' });
+          hurtMonster(next, carry, '메아리', { weapon: 'spell' });
+          spellDrain(aff, carry);
+          hit.add(next); from = next;
         }
       }
       break;
@@ -1120,12 +1136,18 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   if (depth > 0) {
     const dawn = gearBonus(p).dawn;
     if (dawn && p.hp < p.maxhp) {
-      const got = Math.min(p.maxhp - p.hp, Math.round(p.maxhp * dawn));
+      /* 여명의 맹세: not a slice of the sheet — the whole sheet.
+         A build that adds nothing to what you hit for has to be
+         paid somewhere, and this is where. */
+      const got = hasResonance('dawnoath') ? p.maxhp - p.hp
+                : Math.min(p.maxhp - p.hp, Math.round(p.maxhp * dawn));
       p.hp += got;
       say(`여명 — 층이 열리며 상처가 아문다. 체력 +${got}.`, 'good');
       fx({ t:'heal', x:p.x, y:p.y, amt:got });
     }
   }
+  G.tally = 0;                      // 처형인의 셈 starts over each floor
+  G.hushUntil = -1;
   if (depth > 0) p.grudge = 0;      // 앙심 forgets between floors
   if (depth > 0) { p.oath = 0; p.chain3 = 0; p.markN = 0; p.chainOn = null; p.markOn = null; }
 
@@ -2097,13 +2119,24 @@ function swing(m, scale) {
     say(`— 절단. ${m.n}이(가) 두 동강 났다.`, 'level');
   }
 
-  if (asleep) say(`잠든 ${m.n}의 급소를 찔렀다.`, 'level');
+  if (asleep) {
+    say(`잠든 ${m.n}의 급소를 찔렀다.`, 'level');
+    if (hasResonance('shadowstep')) G.hushUntil = G.turn + 1;
+  }
 
   /* 처형: below the threshold nothing survives, so a suffix that
      looks small on paper decides whether a wounded troll gets one
      more turn to hit back. */
-  if (g.execute > 0 && !m.boss && m.hp <= m.maxhp * g.execute) {
+  const cut = g.execute + (hasResonance('tally') ? (G.tally || 0) * 0.01 : 0);
+  if (cut > 0 && !m.boss && m.hp <= m.maxhp * cut) {
     say(`${m.n}을(를) 처형했다.`, 'level');
+    /* Each one makes the next easier, for this floor only. The
+       reset on descending is the whole balance: it snowballs
+       inside a room and never carries. */
+    if (hasResonance('tally')) {
+      G.tally = (G.tally || 0) + 1;
+      if (G.tally % 5 === 0) say(`셈이 ${G.tally}에 이르렀다 — 문턱 +${G.tally}%p.`, 'level');
+    }
     fx({ t:'execute', x:m.x, y:m.y });
     hurtMonster(m, m.hp + 999, null, { crit: true, execute: true });
   } else {
@@ -2158,8 +2191,13 @@ function onKill(m) {
   // the moment he is losing, which is when a paladin needs it.
   if (p.cls === 'paladin' && p.oath > 0) p.oath--;
   if ((hasRelic('hunger') || hasRelic('famine')) && p.hp < p.maxhp) {
-    const got = Math.min(p.maxhp - p.hp,
-      hasRelic('famine') ? relicVal('famine') : relicVal('hunger'));
+    const base = hasRelic('famine') ? relicVal('famine') : relicVal('hunger');
+    /* 굶주린 무리 multiplies the bite by the streak. Three in a
+       row is three times the meal, ten is ten — and one blow
+       taken halves the streak, so it is a build that has to keep
+       moving and cannot stand and trade. */
+    const mult = hasResonance('pack') ? Math.max(1, G.combo || 1) : 1;
+    const got = Math.min(p.maxhp - p.hp, base * mult);
     p.hp += got;
     fx({ t:'drain', x:p.x, y:p.y, amt:got });
   }
@@ -2327,12 +2365,36 @@ export function hurtMonster(m, dmg, source, opt = {}) {
     /* 작열: the corpse goes off. Chained kills chain detonations,
        which is the whole point of stacking it with 연쇄. */
     const g = gearBonus(G.player);
-    if (g.burst > 0 && !opt.noBurst) {
-      const blast = Math.max(2, Math.round((m.maxhp || 10) * g.burst * 0.5));
+    /* 화약고 takes the guard off: a corpse that goes off can set
+       off the next one. The depth cap is the only thing between
+       this and a room clearing itself, and it is the reason the
+       resonance needs a kill to start — losing never lights it. */
+    /* The depth cap alone is not enough: a detonation catches up
+       to eight bodies and each of those detonates in turn, so four
+       deep is eight-to-the-fourth in the worst case. The budget is
+       counted per player action rather than per chain, so one
+       swing can set off at most POWDER_BUDGET explosions no matter
+       how they branch. */
+    const room = hasResonance('powder');
+    if (room && (opt.blast || 0) === 0) G.powderSpent = 0;
+    if (g.burst > 0 && (room ? ((opt.blast || 0) < POWDER_MAX
+                                && (G.powderSpent || 0) < POWDER_BUDGET)
+                             : !opt.noBurst)) {
+      /* Normally a corpse goes off for a share of what it was, so
+         a room of weak things makes weak bangs and 작열 does
+         nothing for a build that has outgrown the floor. 화약고
+         loads the killing blow into the corpse instead: the
+         explosion is worth whatever your swing was worth, which
+         is what makes the second one able to kill and the third
+         one able to happen at all. */
+      const charge = room ? Math.max(m.maxhp || 10, dmg) : (m.maxhp || 10);
+      const blast = Math.max(2, Math.round(charge * g.burst * (room ? 0.7 : 0.5)));
       const caught = adjacentMonsters(m);
       if (caught.length) {
-        fx({ t:'burst', x:m.x, y:m.y, r:1.9, color:'o' });
-        for (const o of caught) hurtMonster(o, blast, '폭발', { noBurst: true });
+        fx({ t:'burst', x:m.x, y:m.y, r: room ? 2.4 : 1.9, color:'o' });
+        if (room) G.powderSpent = (G.powderSpent || 0) + 1;
+        for (const o of caught)
+          hurtMonster(o, blast, '폭발', room ? { blast: (opt.blast || 0) + 1 } : { noBurst: true });
       }
     }
     fx({ t:'kill', x:m.x, y:m.y, spr:m.spr, dmg, crit:!!opt.crit, over, boss:!!m.boss, combo:G.combo });
@@ -2551,7 +2613,10 @@ export function endTurn(skipMonsters = false) {
      is real and costs a flask, a fire, or a prayer — which is
      what those are for. */
   const rested = G.turn - (p.hurtAt ?? -99) >= BREATH;
-  const roof = Math.round(p.maxhp * breathRoof(p));
+  /* 여명의 맹세 takes the ceiling off. It is the whole payout of a
+     build that adds nothing at all to what you hit for. */
+  const roof = hasResonance('dawnoath') ? p.maxhp
+             : Math.round(p.maxhp * breathRoof(p));
   if (rested && G.turn % beat === 0 && p.hp < roof)
     p.hp = Math.min(roof, p.hp + regen);
   // 응답: the priest closes on his own, twice as often as anyone,
@@ -2702,6 +2767,11 @@ function monsterTurn(m) {
     // 전쟁 북 is loud: it hears you two tiles sooner.
     const reach = dist - (hasRelic('march') ? 3 : hasRelic('drum') ? 2 : 0);
     const notice = clamp((1 - quiet) * (0.62 - reach * 0.055), 0.02, 0.9);
+    /* 그림자 걸음: a throat opened quietly does not announce
+       itself. Nothing notices you on the turn you take a sleeping
+       thing, so a room can be emptied one at a time — which is
+       the only way that build ever wins a fight it did not pick. */
+    if (G.hushUntil >= G.turn) return;
     if (Math.random() >= notice) return;
     m.awake = true;
     if (Meta.see('monsters', m.n) && m.lore) lore('처음 보는 것', m.n, m.lore, m.spr);
@@ -2854,8 +2924,20 @@ function reflect(m, dmg) {
   if (!G.monsters.includes(m)) return;
   // 거울 방패 and 가시의 각인 stack — one funnel so they can never
   // be applied twice or missed once.
-  const rate = (hasRelic('mirror') ? relicVal('mirror') : 0) + gearBonus(G.player).reflect;
+  const g = gearBonus(G.player);
+  const rate = (hasRelic('mirror') ? relicVal('mirror') : 0) + g.reflect;
   if (rate <= 0) return;
+  /* 가시밭 prices the thorn on what the armour *stopped* rather
+     than on what got through, so the tankier the build the harder
+     it bites back — and it goes past the thing's own armour,
+     because a hand on a spike does not care how thick the glove
+     is. Nothing at all happens if nobody is hitting you. */
+  if (hasResonance('bramble')) {
+    const stopped = g.flatDR + Math.round(armourClass(G.player) * 0.5);
+    hurtMonster(m, Math.max(1, Math.round((dmg + stopped) * (rate + BRAMBLE_BITE))),
+                hasRelic('mirror') ? '거울 방패' : '가시', { pierce: true });
+    return;
+  }
   hurtMonster(m, Math.max(1, Math.round(dmg * rate)),
               hasRelic('mirror') ? '거울 방패' : '가시');
 }
@@ -4265,6 +4347,7 @@ export function startGame(raceKey, classKey, base) {
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
   G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.bank = 0;
+  G.tally = 0; G.hushUntil = -1; G.resoFound = 0;
   G.pendingAltar = null;
   shuffleAppearances(G.player);
 

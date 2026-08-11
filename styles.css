@@ -43,6 +43,19 @@ html, body {
 .screen.center { align-items: center; justify-content: center; padding: 28px; }
 .col { max-width: 380px; text-align: center; }
 
+/* The ending's summary runs to 575px on its own, so on a 667px
+   phone anything below it was simply off the screen — which is
+   how the way back to the title came to not exist. The summary
+   scrolls inside itself now and the two ways out stay put. */
+#sc-end .col {
+  display: flex; flex-direction: column; align-items: center;
+  max-height: 100%; width: 100%;
+}
+#sc-end .col > * { flex: 0 0 auto; width: 100%; }
+#sc-end #end-body { flex: 0 1 auto; min-height: 0; overflow-y: auto; margin-bottom: 18px; }
+#sc-end #btn-again { width: min(300px, 82vw); }
+#sc-end .titlerow { justify-content: center; margin-top: 8px; width: auto; }
+
 /* ── title ── */
 .logo {
   font-family: var(--mono); font-size: 12px; line-height: 1.25;
@@ -647,6 +660,13 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 /* The first line of a codex entry is the page that arrived on the
    parchment, so it is set as prose rather than as a habit. */
 .codextells::first-line { color: var(--w); }
+/* What a resonance cannot do, in the colour the game uses for the
+   things that will kill you. Set apart from the tells on purpose:
+   the payout and the price should not read as one paragraph. */
+.codexweak {
+  font-size: 11px; line-height: 1.6; color: var(--r);
+  border-left: 1px solid var(--r); padding-left: 7px; margin-top: 2px;
+}
 /* 파수꾼의 기억 speaks on the stairs screen, in the same colour
    the codex uses for a habit — so the two read as one voice. */
 .tellline { display: block; margin-top: 6px; color: var(--y); font-size: 11px; line-height: 1.7; }

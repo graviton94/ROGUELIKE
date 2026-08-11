@@ -121,6 +121,7 @@ export function snapshot() {
     transFound: G.transFound || 0, perfects: G.perfects || 0, fused: G.fused || 0,
     catUsed: G.catUsed || 0, regionAt: G.regionAt || null,
     engraved: G.engraved || 0, memories: [...(G.memories || [])], abyss: G.abyss || 0,
+    tally: G.tally || 0, hushUntil: G.hushUntil ?? -1,
     relicShelf: G.relicShelf ?? null,
     nextMods: G.nextMods || null,
     /* The two trait counters that point at a live monster are
@@ -169,6 +170,8 @@ export function apply(data) {
   G.engraved = data.engraved || 0;
   G.memories = data.memories || [];
   G.abyss = data.abyss || 0;
+  G.tally = data.tally || 0;
+  G.hushUntil = data.hushUntil ?? -1;
   /* Derived, never stored: a save from before the ladder existed
      still resolves to the right set of rules, and the rung's
      contents can be changed without invalidating anyone's run. */

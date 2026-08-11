@@ -8,7 +8,7 @@
    works; being online always wins.
    ═══════════════════════════════════════════════════════════ */
 
-const VERSION = 'v28';
+const VERSION = 'v29';
 const CACHE = `deepdelve-${VERSION}`;
 
 const ASSETS = [

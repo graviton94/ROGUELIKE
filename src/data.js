@@ -669,7 +669,7 @@ export const RESONANCE = [
 
   { id:'dawnoath', n:'여명의 맹세', spr:'armor',
     need: g => g.dawn > 0 && g.regen > 0,
-    want: '여명의 각인과, 스스로 아무는 것',
+    want: '층에 들어설 때 회복하는 것(여명의 각인 · 아침)과, 스스로 아무는 것',
     t:'층에 들어설 때의 회복이 최대치까지 간다. 숨 고르기에 천장이 사라진다.',
     weak:'때리는 것은 하나도 늘지 않는다. 오래 버틸 뿐 이기지는 못한다.',
     say:'아침은 매번 온다. 그것만으로도 대부분은 충분하다.' },
@@ -1129,6 +1129,13 @@ export const SUFFIXES = [
   { id:'shadow',  n:'그림자',   tags:['armour'], stealth:0.16 },
   { id:'vigour',  n:'활력',     tags:['armour'], maxhpPct:0.12 },
   { id:'mind',    n:'정신',     tags:['armour'], manaPct:0.25 },
+  /* Every source of `dawn` was the one armour engraving, and an
+     armour engraving needs +3 on the plate — measured, 6.7% of
+     runs ever cut one at all, and then it is a one-in-six pick.
+     여명의 맹세 sat on 0.8% and fired zero times in 360 games.
+     Putting it in the ordinary suffix pool gives that side a
+     second origin, the same fix 가시밭 and 메아리의 방 needed. */
+  { id:'morning', n:'아침',     tags:['armour'], dawn:0.10 },
 
   { id:'weight',  n:'짐',       tags:['weapon','armour'], hit:-6, curse:true },
   { id:'decay',   n:'부패',     tags:['armour'], regen:-1, curse:true },

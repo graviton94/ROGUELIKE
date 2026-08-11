@@ -2182,6 +2182,7 @@ const AFFIX_WORDS = {
   lightR: v => `시야 +${v}`,
   maxhpPct: v => `최대 체력 +${Math.round(v * 100)}%`,
   manaPct: v => `최대 마나 +${Math.round(v * 100)}%`,
+  dawn: v => `층에 들어설 때 체력 +${Math.round(v * 100)}%`,
   on: v => `타격 시 ${AILMENTS[v]?.n || v}`,
   resist: () => '상태이상 면역',
 };

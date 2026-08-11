@@ -12,7 +12,7 @@ import {
   RARITY, CURSED_TONE, rarityOf, isCursed,
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
   MONSTERS, BRANCHES, SPELLS, boonById, FUSIONS, engraveById, ENGRAVE_AT, ENGRAVE_PENALTY, NAMED,
-  BOSS, tellsOf, tellsNeeded, CONSUMABLES,
+  BOSS, tellsOf, tellsNeeded, CONSUMABLES, RESONANCE,
   REGIONS, regionOf, MEMORIES, memoryEarned, SHACKLES, MAX_SHACKLE, josa,
   UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS, FUSE_ODDS, FUSE_COST,
   xpToLevel, statBonus,
@@ -952,6 +952,14 @@ export function refresh() {
     tr.className = 'chip trait' + (st.ready ? ' on' : '');
   }
 
+  /* A resonance is a turning point, so it stays on screen for the
+     rest of the run — the player should be able to see, at any
+     moment, that this is one of *those* runs. */
+  const rs = $('hud-reso');
+  const lit = RESONANCE.filter(r => Game.resonanceState(r.id)?.lit);
+  rs.hidden = !lit.length;
+  if (lit.length) $('hud-reso-n').textContent = lit.map(r => r.n).join(' · ');
+
   const rel = $('hud-relics');
   const held = Game.relicList();
   rel.hidden = !held.length;
@@ -1403,6 +1411,31 @@ export function refreshTitle() {
   paintLedger();
 }
 
+/* Which combinations exist, which are lit, and which this run is
+   already carrying. The last column is the point: a lottery whose
+   tickets you cannot see is a surprise, not a hunt. */
+function paintReso() {
+  const box = $('reso-list');
+  if (!box) return;
+  box.innerHTML = '';
+  for (const r of RESONANCE) {
+    const ever = Meta.seen('reso', r.id);
+    const now = Game.resonanceState(r.id);
+    const row = el('div', 'codexrow' + (ever || now?.lit ? '' : ' unknown'));
+    const ic = el('canvas', 'icon');
+    paintIcon(ic, ever || now?.lit ? r.spr : 'rubble');
+    if (!ever && !now?.lit) ic.style.filter = 'brightness(0.28) grayscale(1)';
+    row.appendChild(ic);
+    const col = el('div', 'codextext');
+    col.appendChild(el('span', 'iname', ever || now?.lit ? r.n : '???'));
+    col.appendChild(el('span', 'idesc', r.want));
+    if (ever || now?.lit) col.appendChild(el('span', 'codextells', r.t));
+    if (now?.lit) col.appendChild(el('span', 'idesc lit', '이 판에서 켜져 있다'));
+    row.appendChild(col);
+    box.appendChild(row);
+  }
+}
+
 /* The two lists that used to live on the title. Rebuilt whenever
    the ledger screen opens, and once on boot so the title's status
    line has its numbers. */
@@ -1694,7 +1727,7 @@ function renderCodex() {
   for (const b of $('ledger-tabs').children) b.classList.toggle('on', b.dataset.led === ledgerTab);
   for (const sec of document.querySelectorAll('#sc-codex [data-led]'))
     if (sec.dataset.led && sec.tagName === 'DIV') sec.hidden = sec.dataset.led !== ledgerTab;
-  if (ledgerTab !== 'codex') { paintLedger(); return; }
+  if (ledgerTab !== 'codex') { paintLedger(); paintReso(); return; }
   const tot = codexTotals();
   const need = tellsNeeded(Meta.read());
   $('codex-lead').textContent =
@@ -3078,6 +3111,8 @@ function renderEnd() {
   if (s.broke) line('불에 잃은 장비', `${s.broke}점`, 'R');
   if (s.perfects) line('절단', `${s.perfects}번`, 'W');
   if (s.fused) line('찾아낸 조합', `${s.fused}가지`, 'W');
+  if (s.reso?.length)
+    line('공명', s.reso.map(id => RESONANCE.find(r => r.id === id)?.n).filter(Boolean).join(' · '), 'W');
   if (s.abyss)
     line('심연', `${s.abyss}단계 — ${SHACKLES.slice(1, s.abyss + 1).map(x => x.k).join(' · ')}`, 'R');
   if (s.trans) line('초월', `${s.trans}점 — 이 판을 기억하시오.`, 'W');

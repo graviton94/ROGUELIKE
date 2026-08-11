@@ -18,6 +18,8 @@ import {
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH, REGIONS, regionOf,
   MEMORIES, memoryEarned, SHACKLES, shacklesAt, SHACKLE_STAT, tellsNeeded,
   WEAPON_TYPES, PATTERNS, NAMED,
+  RESONANCE, resonanceById, CHAIN_ECHO, CHAIN_DECAY, CHAIN_MAX,
+  CHAIN_KEEP, CHAIN_KEEP_RESO,
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
@@ -225,6 +227,9 @@ export function recalc(p, init) {
   p.hp = Math.min(p.hp, p.maxhp);
   p.mana = Math.min(p.mana, p.maxmana);
   p.stam = Math.min(p.stam ?? p.maxStam, p.maxStam);
+  /* Twenty-four call sites end up here — every equip, forge,
+     engrave, relic and altar. One hook rather than twenty-four. */
+  checkResonance(p);
 }
 
 /* ── effective ability scores ─────────────────────────────
@@ -517,6 +522,37 @@ export const BREATH = 10;
    breathe while something is hitting you — so that stays at ten
    turns and the ceiling gives a little back instead. */
 export const breathRoof = p => clamp(0.56 + statB(p, 'con') * 0.055, 0.46, 0.82);
+
+/* Lit once, and it stays lit: a resonance is a turning point, not
+   a buff with an uptime. Checked after recalc because that is the
+   one place gearBonus is known to be current — swapping a weapon,
+   forging a plus, taking a relic and cutting an engraving all end
+   up here. */
+export function checkResonance(p) {
+  if (!p) return;
+  p.reso = p.reso || {};
+  const g = gearBonus(p);
+  for (const r of RESONANCE) {
+    if (p.reso[r.id] || !r.need(g)) continue;
+    p.reso[r.id] = true;
+    G.resoFound = (G.resoFound || 0) + 1;
+    Meta.see('reso', r.id);
+    say(`공명 — ${r.n}. ${r.say}`, 'level');
+    lore('공명', r.n, `${r.t}\n${r.say}`, r.spr);
+    fx({ t:'transcend', x:p.x, y:p.y, word:'공명' });
+  }
+}
+export const hasResonance = id => !!G.player?.reso?.[id];
+
+/* How many of a resonance's pieces are in hand, for the screen
+   that shows what is missing. A lottery nobody can see the
+   tickets of is not a hunt, it is a surprise. */
+export function resonanceState(id) {
+  const r = resonanceById(id);
+  if (!r) return null;
+  const p = G.player;
+  return { id, lit: !!p?.reso?.[id], can: p ? r.need(gearBonus(p)) : false };
+}
 
 function breakCombo(hard) {
   if (!G.combo) return;
@@ -1387,7 +1423,17 @@ export function rollAffixes(item, depth, guaranteed) {
      that a drop carries anything at all — never enough to carry a
      build, always enough that dumping it is a decision. */
   const luck = G.player ? statB(G.player, 'chr') * 0.02 : 0;
-  const odds = clamp(0.05 + depth * 0.02 + luck, 0.02, 0.62);
+  /* Measured: the median run reached its end holding *one* affix
+     across all three slots. Every combinatorial system this game
+     has — synergies, engravings, resonance — needs two specific
+     things in hand at once, and at one affix a run that is a
+     lottery ticket is a run that never gets a ticket. The first
+     resonance lit in 1 run out of 76.
+
+     So the pieces circulate more. Raw power is not what goes up
+     — worthOf already prices an affix into what a thing sells and
+     salvages for, so the economy takes its own correction. */
+  const odds = clamp(0.11 + depth * 0.033 + luck, 0.04, 0.70);
   if (guaranteed || Math.random() < odds) {
     const a = pickAffix(PREFIXES, tag, false);
     if (a) item.pre = a.id;
@@ -2079,16 +2125,7 @@ function swing(m, scale) {
   /* 연쇄: the swing carries into one more body. This is the line
      that turns 작열 into a chain of detonations and 흡혈 into a
      way to out-heal a whole room. */
-  if (g.chain > 0 && Math.random() < g.chain) {
-    const near = adjacentMonsters(p).filter(o => o !== m);
-    if (near.length) {
-      const o = near[rnd(near.length)];
-      const spill = Math.max(1, Math.round(dmg * 0.6));
-      fx({ t:'arc', fx:m.x, fy:m.y, tx:o.x, ty:o.y });
-      hurtMonster(o, spill, '연쇄', {});
-      drainLife(spill);
-    }
-  }
+  chainOut(m, dmg, 0);
 
   /* 메아리의 종. Deliberately placed last, after 연쇄 and 흡혈,
      so the second swing runs the whole chain again — a long
@@ -2177,6 +2214,38 @@ function adjacentMonsters(from) {
     if (m && !m.disguise) out.push(m);
   }
   return out;
+}
+
+/* 연쇄: the swing carries into one more body — and with 피의
+   톱니 lit, that body's blow carries into the next. This one
+   recursion is the whole experiment: everything else in the build
+   adds into a sum and is spent once, so nothing in the game
+   compounds. A branch does.
+
+   The lifesteal was already riding along; what is new is that the
+   branch can branch. */
+function chainOut(m, dmg, depth) {
+  const p = G.player, g = gearBonus(p);
+  /* The first swing chains at whatever the build rolls. A rebound
+     is priced by the resonance instead — pricing it off the base
+     produced 0.07 extra hits per swing, which is not a cascade. */
+  const saw = hasResonance('sawtooth');
+  /* Lit, the first link is certain rather than a 0.30 roll —
+     otherwise a cascade worth four hits is only ever worth 1.2,
+     and the whole thing measures as a good weapon instead of as a
+     run coming apart. */
+  const odds = depth === 0 ? (saw && g.chain > 0 ? 1 : g.chain)
+                           : CHAIN_ECHO * Math.pow(CHAIN_DECAY, depth - 1);
+  if (!(odds > 0) || Math.random() >= odds) return;
+  const near = adjacentMonsters(depth ? m : p).filter(o => o !== m);
+  if (!near.length) return;
+  const o = near[rnd(near.length)];
+  const spill = Math.max(1, Math.round(dmg * (saw ? CHAIN_KEEP_RESO : CHAIN_KEEP)));
+  fx({ t:'arc', fx:m.x, fy:m.y, tx:o.x, ty:o.y });
+  hurtMonster(o, spill, '연쇄', {});
+  drainLife(spill);
+  if (saw && depth < CHAIN_MAX && G.monsters.includes(o))
+    chainOut(o, spill, depth + 1);
 }
 
 function drainLife(dmg) {
@@ -4080,6 +4149,7 @@ export function summarise(win, by) {
     trans: G.transFound || 0, perfects: G.perfects || 0, fused: G.fused || 0,
     catUsed: G.catUsed || 0, engraved: G.engraved || 0,
     abyss: G.abyss || 0, memories: [...(G.memories || [])],
+    reso: Object.keys(G.player?.reso || {}),
     events: G.eventsSeen || 0, waves: G.waves || 0,
     tail: G.log.slice(-3).map(l => l.text),
   };

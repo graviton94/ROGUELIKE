@@ -802,3 +802,8 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .titlerow .mini { padding: 8px 14px; }
 .titleacts .fine { margin: 4px 0 0; text-align: center; line-height: 1.7; }
 #title-stat { color: var(--G); }
+/* A resonance is a turning point, not a stat — so it is the one
+   chip that reads as an event and stays for the rest of the run. */
+.chip.reso { color: var(--W); border-color: var(--y); background: #2a2415; }
+.chip.reso b { color: var(--y); }
+.codextext .idesc.lit { color: var(--y); }

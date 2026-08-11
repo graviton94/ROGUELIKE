@@ -525,6 +525,78 @@ export const BOSS = {
   ],
 };
 
+/* ── 공명 ─────────────────────────────────────────────────
+   Measured across eighty-one runs: the strongest build put out
+   2.56× the median's damage. In a game that wants a run to
+   occasionally come apart in your favour, that is not a lottery,
+   that is a run that went well.
+
+   Two reasons, both in the code rather than in the numbers.
+   Everything adds — gearBonus sums every source into one `b.*`
+   and spends it once, and addition does not run away by
+   construction. And the median run holds *one* affix and *zero*
+   engravings, so the combinatorial layer this game already has
+   almost never engages at all.
+
+   A resonance is the answer to the first: a named combination
+   that, when its pieces are all in hand, changes a *rule* rather
+   than a number. The design rules it has to obey, or it becomes
+   a checklist instead of a lottery:
+
+     multiply or feed back — "+40% damage" is not a resonance
+     pieces from different pockets — you can steer two, never all
+     partial progress is visible — that turns a lottery into a hunt
+     loud when it lands — it is a turning point, not a stat
+     rare enough to be an event: aim for one run in six or seven
+
+   `need` reads the finished gearBonus rather than the item that
+   supplied it, so a lifesteal prefix, a lifesteal suffix and a
+   lifesteal engraving all count the same. One funnel, no drift.
+
+   Only one is built. The other seven are designed against
+   whatever this one does to the numbers — writing eight before
+   measuring one is how a system ends up needing all eight
+   rebalanced. */
+export const RESONANCE = [
+  { id:'sawtooth', n:'피의 톱니', spr:'sword',
+    need: g => g.lifesteal > 0 && g.chain > 0,
+    want: '흡혈과 연쇄를 한 손에',
+    t:'연쇄가 더는 확률이 아니다. 닿는 몸이 있는 한 계속 옮겨 붙고, 옮겨 갈 때마다 피를 가져온다.',
+    say:'날에 묻은 피가 다음 날을 부른다.' },
+];
+export const resonanceById = id => RESONANCE.find(r => r.id === id);
+
+/* The first swing chains at whatever the build rolls — usually
+   0.30. Measured, feeding that number back into itself produced
+   0.07 extra hits per swing, which is not a cascade, it is a
+   rounding error. A rebound cannot be priced off the thing that
+   started it.
+
+   So the resonance sets its own rate: the first rebound is nearly
+   certain, each one after is a little less, and six deep is the
+   ceiling. In a packed room that is about three and a half extra
+   bodies hit per chain that starts — and every one of them
+   carries the lifesteal. Finite, and loud. */
+/* And the first link stops being a die roll. Everything downstream
+   was gated on a 0.30 chance, so a cascade worth four hits was
+   only worth 1.2 — the measured gain was ×1.5, which is a good
+   weapon, not a run coming apart. A resonance changes a rule; the
+   rule here is that the chain is no longer a chance. */
+export const CHAIN_ECHO = 0.85;
+export const CHAIN_DECAY = 0.86;
+export const CHAIN_MAX = 6;
+/* And the blow has to survive the trip. A chain normally hands on
+   six tenths of what it carried, so by the third hop it is worth a
+   fifth of the swing and a cascade of six is still barely one
+   extra hit. 피의 톱니 keeps most of it instead — that is the
+   difference between a chain and a room emptying.
+
+   Note what this does *not* help with: a boss stands alone. The
+   resonance makes crowds into food and does nothing at all to the
+   thing at the bottom, which is the right shape for it. */
+export const CHAIN_KEEP = 0.60;
+export const CHAIN_KEEP_RESO = 0.85;
+
 /* ── the tells ────────────────────────────────────────────
    What you learn about a thing by killing enough of them.
 
@@ -1073,7 +1145,7 @@ export const upgradeCost = plus => ({
    the item stops being a bigger version of itself and becomes a
    different item, and it is exactly where the anvil is most
    likely to take it off you.                                 */
-export const ENGRAVE_AT = [4, 7];
+export const ENGRAVE_AT = [3, 5, 7];
 export const ENGRAVE_PENALTY = 0.18;   // success chance lost on a milestone strike
 
 export const ENGRAVINGS = [

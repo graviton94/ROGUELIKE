@@ -34,7 +34,7 @@
       <button class="mini" id="btn-help">조작법</button>
       <button class="mini" id="btn-sound">소리 켜짐</button>
     </div>
-    <p class="fine"><span id="title-stat"></span><br>도트도 소리도 전부 코드로. 이미지·음원 파일 없음 · <span id="build">v26</span></p>
+    <p class="fine"><span id="title-stat"></span><br>도트도 소리도 전부 코드로. 이미지·음원 파일 없음 · <span id="build">v27</span></p>
   </div>
 </section>
 
@@ -73,6 +73,7 @@
   <div class="codextabs" id="ledger-tabs">
     <button class="codextab on" data-led="codex">도감</button>
     <button class="codextab" data-led="mem">기억</button>
+    <button class="codextab" data-led="reso">공명</button>
     <button class="codextab" data-led="abyss">심연</button>
   </div>
   <div class="scroll">
@@ -85,6 +86,11 @@
       <p class="note">죽으면 판은 사라지지만 기억은 남는다. 어느 것도 능력치가 아니다 —
         전부 이미 벌어 놓은 것을 다음 판에 넘겨주는 것뿐이다.</p>
       <div id="memories" class="memories"></div>
+    </div>
+    <div data-led="reso" hidden>
+      <p class="note">손에 든 것들이 서로를 알아보면 판이 다른 것이 된다.
+        숫자가 아니라 규칙이 바뀌고, 한 번 켜지면 꺼지지 않는다.</p>
+      <div id="reso-list"></div>
     </div>
     <div data-led="abyss" hidden>
       <div id="abyss-pick" class="abysspick" hidden>
@@ -141,6 +147,7 @@
       <span class="chip clock" id="hud-clock" hidden><b id="hud-clock-n"></b></span>
       <span class="chip wager" id="hud-bank" hidden>판돈 <b id="hud-bank-n"></b></span>
       <span class="chip trait" id="hud-trait" hidden><b id="hud-trait-n"></b></span>
+      <span class="chip reso" id="hud-reso" hidden><b id="hud-reso-n"></b></span>
     </div>
     <div class="gauge">
       <span class="glabel">HP</span>
@@ -556,6 +563,24 @@
       <tr><td>다섯 가지</td><td><b>재로 그린 원</b>(55% 유물) · <b>끊어진 계단</b>(60% 다음 층 전리품 두 배) ·
         <b>도박꾼의 뼈</b>(50% 금화 두 배 / 14% 다섯 배와 유물) · <b>배고픈 문</b>(40% 깊은 장비 둘) ·
         <b>재 속의 약속</b>(35% 최대 체력 영구 +22와 무기 +2).</td></tr>
+    </table>
+
+    <h3 class="sect">공명 — 손에 든 것들이 서로를 알아볼 때</h3>
+    <p class="note">이 게임의 모든 보너스는 <b>더해집니다.</b> 피해 +28%와 방어 +5와 흡혈 12%가 한 자루에 모여도
+      합계가 조금 클 뿐, 어디에서도 <b>불어나지 않습니다.</b> 실제로 81판을 재보니
+      가장 센 빌드가 중앙값의 <b>2.56배</b>였습니다 — 그건 로또가 아니라 잘 풀린 판입니다.<br>
+      <b>공명</b>은 그 답입니다. 특정한 것들이 한꺼번에 손에 있으면 <b>숫자가 아니라 규칙이 바뀝니다.</b>
+      한 번 켜지면 판이 끝날 때까지 꺼지지 않고, HUD에 남고, 판 요약에 적힙니다.</p>
+    <table class="keys">
+      <tr><td>피의 톱니</td><td><b>흡혈</b>과 <b>연쇄</b>를 한 손에 들면 켜집니다. 접두 · 접미 · 각인 어디서 와도 상관없습니다.<br>
+        <b>연쇄가 더는 확률이 아닙니다.</b> 닿는 몸이 있는 한 계속 옮겨 붙고(최대 6번), 옮길 때마다 피를 가져옵니다.<br>
+        무리 한가운데서 한 번 휘두르면 <b>피해 2.8배 · 회복 네 배.</b> 대신 <b>혼자 있는 것에게는 아무것도 하지 않습니다</b> —
+        연쇄는 두 번째 몸이 있어야 하니까요. 군중을 먹이로 바꾸는 무기지, 보스를 녹이는 무기가 아닙니다.</td></tr>
+      <tr><td>어디서 보나</td><td><b>기록 · 공명</b>에 무엇이 있고 무엇이 필요한지 적혀 있습니다.
+        볼 수 없는 로또는 추격이 아니라 그냥 놀라움이니까요.</td></tr>
+      <tr><td>앞으로</td><td>지금은 하나뿐입니다. 되먹임 하나가 밸런스를 어디까지 흔드는지 재고,
+        나머지를 그 눈금에 맞춰 짭니다 — 여덟 개를 먼저 쓰고 나중에 여덟 개를 다시 맞추는 것이
+        시스템이 망가지는 흔한 방식이라서요.</td></tr>
     </table>
 
     <h3 class="sect">숨 고르기 — 상처는 남습니다</h3>

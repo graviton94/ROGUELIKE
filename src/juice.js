@@ -457,7 +457,10 @@ export function pump(queue, player) {
         flashScreen = Math.max(flashScreen, 0.9); flashHue = 'W';
         for (const r of [1.6, 3.0, 4.6, 6.4])
           ring(e.x, e.y, r, PALETTE.W, 900);
-        number(e.x, e.y - 0.9, '초월', PALETTE.W, 3.0);
+        /* The same fireworks serve 초월 and 공명 — both are the
+           moment a run stops being ordinary — so the word comes
+           from the event rather than from here. */
+        number(e.x, e.y - 0.9, e.word || '초월', PALETTE.W, 3.0);
         for (let i = 0; i < 70 && shards.length < MAX_SHARDS; i++) {
           const a = Math.random() * Math.PI * 2, v = 2 + Math.random() * 8;
           shards.push({

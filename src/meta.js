@@ -45,6 +45,7 @@ const EMPTY = {
      buys the tells. Knowing that an ogre winds up for a turn is
      knowledge you paid for in ogres. */
   bodies: {},
+  reso: {},        // named combinations ever lit
   /* Cumulative across every run, for the memories that ask for a
      total rather than a first sighting. */
   totals: { forged: 0, opened: 0, engraved: 0, kills: 0, depth: 0 },
@@ -63,7 +64,7 @@ export function read() {
     const raw = localStorage.getItem(KEY);
     cache = raw ? { ...EMPTY, ...JSON.parse(raw) } : { ...EMPTY };
     // Nested objects need their own defaults after a spread.
-    for (const k of ['relics', 'events', 'monsters', 'weapons', 'branches', 'taught', 'fusions', 'regions', 'items', 'bodies'])
+    for (const k of ['relics', 'events', 'monsters', 'weapons', 'branches', 'taught', 'fusions', 'regions', 'items', 'bodies', 'reso'])
       cache[k] = cache[k] || {};
     cache.best = { ...EMPTY.best, ...(cache.best || {}) };
     cache.totals = { ...EMPTY.totals, ...(cache.totals || {}) };
@@ -164,7 +165,7 @@ export const isNewcomer = () => read().runs === 0;
 
 export function forget() {
   cache = { ...EMPTY };
-  for (const k of ['relics', 'events', 'monsters', 'weapons', 'branches', 'taught', 'fusions', 'regions', 'items', 'bodies']) cache[k] = {};
+  for (const k of ['relics', 'events', 'monsters', 'weapons', 'branches', 'taught', 'fusions', 'regions', 'items', 'bodies', 'reso']) cache[k] = {};
   cache.best = { ...EMPTY.best };
   cache.totals = { ...EMPTY.totals };
   cache.abyss = 0;

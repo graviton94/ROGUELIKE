@@ -171,6 +171,78 @@ export const REGIONS = [
 
 export const regionOf = depth =>
   REGIONS.find(r => depth >= r.from && depth <= r.to) || REGIONS[0];
+/* ── 조사 ─────────────────────────────────────────────────
+   Two hundred and twenty lines of prose, every one of them
+   written `이(가)` and `을(를)`, because the name in front of the
+   particle is a variable and Korean picks its particle by whether
+   that name ends in a consonant.
+
+   The bracket notation is the game admitting, on every single
+   line, that it is a template. For something meant to read like
+   an old book that is the most damaging thing in the build — and
+   it was also producing sentences that are simply wrong, like
+   「둘를 더 게워냈다」.
+
+   Hangul syllables are laid out so the final consonant falls out
+   of arithmetic: (code − 0xAC00) % 28, zero meaning none. So the
+   whole problem is one modulo and a table, applied once in say()
+   rather than at two hundred call sites.
+
+   The marker stays `X(Y)` on purpose. Resolving bare particles
+   would mean guessing whether a 이 is a particle or the first
+   syllable of a word, and guessing wrong in prose is worse than
+   the bracket ever was. */
+const JOSA = {
+  '이(가)': ['이', '가'], '가(이)': ['이', '가'],
+  '을(를)': ['을', '를'], '를(을)': ['을', '를'],
+  '은(는)': ['은', '는'], '는(은)': ['은', '는'],
+  '과(와)': ['과', '와'], '와(과)': ['과', '와'],
+  '아(야)': ['아', '야'], '야(아)': ['아', '야'],
+  '이다(다)': ['이다', '다'],
+};
+
+/* 받침 of the last syllable: 0 none, 8 ㄹ. ㄹ matters because
+   「칼로」 takes 로 while 「검으로」 takes 으로 — the one particle
+   that splits three ways rather than two. */
+/* Read aloud, because that is what the particle listens to.
+   영 ㅇ · 일 ㄹ · 이 — · 삼 ㅁ · 사 — · 오 — · 육 ㄱ · 칠 ㄹ ·
+   팔 ㄹ · 구 —, and a trailing zero with anything in front of it
+   is 십 (ㅂ) rather than 영: 「10을」 is 십을. */
+const DIGIT_JONG = [21, 8, 0, 16, 0, 0, 1, 8, 8, 0];
+export function jong(word) {
+  const s = String(word ?? '').trim();
+  for (let i = s.length - 1; i >= 0; i--) {
+    const c = s.charCodeAt(i);
+    if (c >= 0xac00 && c <= 0xd7a3) return (c - 0xac00) % 28;
+    if (c >= 0x30 && c <= 0x39) {
+      const d = c - 0x30;
+      if (d === 0 && i > 0 && s.charCodeAt(i - 1) >= 0x30 && s.charCodeAt(i - 1) <= 0x39) return 17;
+      return DIGIT_JONG[d];
+    }
+    if (/[a-zA-Z]/.test(s[i])) return 'lmnr'.includes(s[i].toLowerCase()) ? 8 : 0;
+  }
+  return 0;                       // punctuation only, or empty: treat as open
+}
+export const hasJong = word => jong(word) !== 0;
+
+/* Applied to a finished sentence, so an interpolated name and a
+   literal one are handled identically. */
+export function josa(text) {
+  let out = String(text);
+  for (const [mark, [withJ, without]] of Object.entries(JOSA)) {
+    let at;
+    while ((at = out.indexOf(mark)) !== -1)
+      out = out.slice(0, at) + (hasJong(out.slice(0, at)) ? withJ : without)
+          + out.slice(at + mark.length);
+  }
+  /* (으)로 and (이)나 split on ㄹ as well as on bare vowels. */
+  out = out.replace(/\(으\)로/g, (_, i, s) => {
+    const j = jong(s.slice(0, i));
+    return (j === 0 || j === 8) ? '로' : '으로';
+  });
+  return out;
+}
+
 export const STATS = ['str', 'int', 'wis', 'dex', 'con', 'chr'];
 export const STAT_NAME = { str:'힘', int:'지능', wis:'지혜', dex:'민첩', con:'체질', chr:'매력' };
 
@@ -569,6 +641,101 @@ export const WEAPON_TYPES = {
   mace:   { n:'둔기류', t:'30%로 비틀거리게 만든다 — 그 적은 다음 턴을 잃는다.' },
   great:  { n:'대검류', t:'피해 +45%, 명중 −12%. 치명타는 인접한 전부를 벤다.' },
 };
+
+/* ── 문장 ─────────────────────────────────────────────────
+   Every blow in this game used to read `${적}에게 ${n}의 피해.`
+   A two hundred turn run is two hundred identical sentences, and
+   a game whose log is meant to be *read* cannot afford that. The
+   log is the only place the fiction actually happens turn to
+   turn — the sprites are eight pixels square.
+
+   Two axes and no more, because a table nobody can hold in their
+   head drifts. The weapon decides the *verb* — a mace does not
+   cut and a dagger does not crush — and how much of the target's
+   health went decides *how hard the verb swings*. Both are read
+   off the same numbers the rules already computed, so the prose
+   can never claim something the arithmetic did not do.
+
+   Bands: 스침 under an eighth, 보통 under a third, 깊음 under two
+   thirds, 치명 above. Deliberately relative to the target: eleven
+   damage is a scratch on a troll and the end of a rat, and the
+   sentence should know which. */
+export const STRIKES = {
+  dagger: [['{n}의 옆구리를 얕게 그었다', '{n}의 살갗을 스쳤다', '{n}의 손등을 그었다'],
+           ['{n}의 옆구리에 날을 밀어 넣었다', '{n}을(를) 짧게 두 번 찔렀다', '{n}의 허벅지를 갈랐다'],
+           ['{n}의 갈비 사이로 깊게 찔러 넣었다', '{n}의 목덜미를 그었다', '{n}의 겨드랑이 아래를 찔렀다'],
+           ['{n}의 급소를 정확히 꿰었다', '날이 {n}의 등으로 빠져나왔다', '{n}이(가) 소리도 내지 못했다']],
+  sword:  [['{n}을(를) 얕게 베었다', '{n}의 팔을 스치고 지나갔다', '{n}의 손목을 베었다'],
+           ['{n}의 어깨를 베어 내렸다', '{n}의 옆구리를 갈랐다', '{n}의 허벅지를 베었다'],
+           ['{n}의 가슴을 크게 열었다', '{n}을(를) 어깨에서 허리까지 갈랐다', '{n}의 목을 스쳐 지나갔다'],
+           ['{n}을(를) 한 번에 베어 넘겼다', '칼이 {n}을(를) 가로질렀다', '{n}이(가) 베인 자리를 붙잡지도 못했다']],
+  axe:    [['{n}의 팔뚝을 찍었다', '도끼날이 {n}을(를) 얕게 물었다', '{n}의 정강이를 찍었다'],
+           ['{n}의 어깨죽지를 찍어 내렸다', '{n}의 어깨를 비스듬히 찍었다', '{n}의 등을 찍었다'],
+           ['{n}의 쇄골을 부수며 박혔다', '{n}을(를) 어깨에서 쪼갰다', '도끼가 {n}의 뼈에 걸렸다'],
+           ['{n}을(를) 세로로 쪼갰다', '도끼가 {n}을(를) 통째로 열었다', '{n}이(가) 도끼째로 끌려왔다']],
+  spear:  [['{n}을(를) 창끝으로 찔렀다', '창이 {n}의 팔을 스쳤다', '{n}을(를) 창끝으로 밀어냈다'],
+           ['{n}의 배를 꿰뚫었다', '{n}을(를) 창대째 밀어붙였다', '{n}의 어깨를 꿰었다'],
+           ['{n}을(를) 깊게 꿰뚫었다', '창이 {n}을(를) 관통했다', '{n}이(가) 창을 붙잡고 매달렸다'],
+           ['{n}을(를) 꿰어 바닥에 박았다', '창이 {n}의 등으로 나왔다', '{n}이(가) 창끝에서 멈췄다']],
+  mace:   [['{n}을(를) 후려쳤다', '{n}의 어깨를 때렸다', '{n}의 팔을 쳐냈다'],
+           ['{n}의 뼈를 울렸다', '{n}의 갑옷을 우그러뜨렸다', '{n}을(를) 반걸음 밀어냈다'],
+           ['{n}의 갈비를 부러뜨렸다', '{n}의 투구를 찌그러뜨렸다', '{n}이(가) 숨을 놓쳤다'],
+           ['{n}의 머리를 짓이겼다', '{n}을(를) 한 번에 눕혔다', '{n}의 몸이 잘못된 방향으로 접혔다']],
+  great:  [['{n}을(를) 무겁게 밀어 베었다', '칼등이 {n}을(를) 훑었다', '{n}의 발치를 훑었다'],
+           ['{n}을(를) 크게 내리쳤다', '{n}의 몸통을 가로로 베었다', '{n}을(를) 통째로 밀어냈다'],
+           ['{n}을(를) 어깨부터 내리찍었다', '{n}을(를) 두 걸음 뒤로 날렸다', '{n}의 발이 땅에서 떨어졌다'],
+           ['{n}을(를) 두 동강 냈다', '{n}이(가) 반으로 접혔다', '{n}이(가) 있던 자리만 남았다']],
+  spell:  [['{n}을(를) 그을렸다', '{n}의 겉을 태웠다'],
+           ['{n}을(를) 태웠다', '{n}의 몸에서 김이 올랐다'],
+           ['{n}을(를) 안쪽까지 태웠다', '{n}이(가) 비명을 삼켰다'],
+           ['{n}을(를) 재로 만들 뻔했다', '{n}의 안쪽이 먼저 무너졌다']],
+  arrow:  [['화살이 {n}을(를) 스쳤다', '{n}의 어깨에 화살이 박혔다'],
+           ['화살이 {n}의 옆구리에 박혔다', '{n}이(가) 화살을 맞고 휘청였다'],
+           ['화살이 {n}의 가슴 깊이 박혔다', '{n}을(를) 화살이 꿰뚫었다'],
+           ['화살이 {n}의 목을 꿰었다', '{n}이(가) 화살을 문 채 주저앉았다']],
+  hand:   [['{n}을(를) 밀쳤다', '{n}의 턱을 스쳤다'],
+           ['{n}을(를) 후려쳤다', '{n}의 배를 쳤다'],
+           ['{n}을(를) 세게 내리쳤다', '{n}을(를) 바닥에 찍었다'],
+           ['{n}을(를) 주먹으로 눕혔다', '{n}이(가) 그대로 넘어갔다']],
+};
+
+/* What the thing in front of you does back. Same bands, read
+   against *your* health — the sentence should know the difference
+   between a scratch and the hit that decides the run. */
+export const TAKEN = [
+  ['{n}이(가) 스치고 지나갔다', '{n}에게 얕게 긁혔다', '{n}에게 어깨를 스쳤다'],
+  ['{n}이(가) 당신을 때렸다', '{n}이(가) 방어를 밀어냈다', '{n}에게 옆구리를 내주었다'],
+  ['{n}이(가) 당신을 깊게 때렸다', '{n}이(가) 갑옷을 뚫고 들어왔다', '{n}에게 크게 맞았다'],
+  ['{n}이(가) 당신을 무너뜨릴 뻔했다', '{n}에게 맞고 무릎이 꺾였다', '{n}에게 시야가 하얗게 날아갔다'],
+];
+
+export const MISS_BY = ['{n}이(가) 허공을 갈랐다', '{n}이(가) 헛디뎠다',
+                        '{n}의 공격이 빗나갔다', '몸을 틀어 {n}을(를) 피했다'];
+export const MISS_AT = ['{n}을(를) 빗맞혔다', '날이 허공을 갈랐다',
+                        '{n}이(가) 몸을 틀어 피했다', '손이 미끄러졌다'];
+export const FELLED  = ['{n}이(가) 쓰러졌다', '{n}이(가) 무너졌다',
+                        '{n}이(가) 더는 일어나지 않는다', '{n}이(가) 조용해졌다'];
+
+export const band = (dmg, maxhp) => {
+  const f = dmg / Math.max(1, maxhp);
+  return f < 0.125 ? 0 : f < 0.33 ? 1 : f < 0.66 ? 2 : 3;
+};
+
+/* One reader, so a family with no table falls back rather than
+   throwing, and the two variants alternate on a counter the
+   caller owns instead of on a die — the same blow twice in a row
+   reading identically is what we are fixing. */
+export function strikeLine(family, name, dmg, maxhp, tick = 0) {
+  const rows = STRIKES[family] || STRIKES.hand;
+  const pair = rows[band(dmg, maxhp)];
+  return pair[tick % pair.length].replace(/\{n\}/g, name);
+}
+export function takenLine(name, dmg, maxhp, tick = 0) {
+  const pair = TAKEN[band(dmg, maxhp)];
+  return pair[tick % pair.length].replace(/\{n\}/g, name);
+}
+export const pickLine = (list, name, tick = 0) =>
+  list[tick % list.length].replace(/\{n\}/g, name);
 
 /* Weapons carry dice (count × sides) and a type. Armour carries ac. */
 export const WEAPONS = [

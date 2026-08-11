@@ -12,7 +12,7 @@ import {
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
   MONSTERS, BRANCHES, SPELLS, boonById, FUSIONS, engraveById, ENGRAVE_AT, ENGRAVE_PENALTY, NAMED,
   BOSS, tellsOf, tellsNeeded, CONSUMABLES,
-  REGIONS, regionOf, MEMORIES, memoryEarned, SHACKLES, MAX_SHACKLE,
+  REGIONS, regionOf, MEMORIES, memoryEarned, SHACKLES, MAX_SHACKLE, josa,
   UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS, FUSE_ODDS, FUSE_COST,
   xpToLevel, statBonus,
 } from './data.js';
@@ -1092,7 +1092,9 @@ function renderLegend() {
 let askResolve = null;
 
 export function ask(text, sub, onYes) {
-  $('ask-text').textContent = text;
+  // Same resolver the log uses, so a confirmation reads like the
+  // rest of the game rather than like a form.
+  $('ask-text').textContent = josa(text);
   $('ask-sub').textContent = sub || '';
   $('ask').hidden = false;
   askResolve = onYes;

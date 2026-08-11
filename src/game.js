@@ -20,7 +20,8 @@ import {
   WEAPON_TYPES, PATTERNS, NAMED,
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
-  xpToLevel, statBonus, BANDS, CLASS_BAND, statRange,
+  xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
+  strikeLine, takenLine, pickLine, MISS_BY, MISS_AT, FELLED,
 } from './data.js';
 import {
   Level, computeFov, lineClear, idx, rnd, roll, clamp, MW, MH,
@@ -95,8 +96,19 @@ export function swapRelic(dropIdx) {
   recalc(p);
 }
 
+/* One funnel, so a particle can never be wrong on one line and
+   right on the next. Every sentence in the game passes through
+   here, which is why the resolver lives here rather than at the
+   call sites. */
+/* Which variant of a line to reach for. Purely cosmetic, so it
+   lives outside the save — but it has to move on every sentence
+   rather than on every turn, or two blows in the same turn come
+   out word for word identical, which is the thing being fixed. */
+let proseTick = 0;
+export const nextLine = () => ++proseTick;
+
 export function say(text, tone = '') {
-  G.log.push({ text, tone });
+  G.log.push({ text: josa(text), tone });
   if (G.log.length > 120) G.log.shift();
 }
 
@@ -849,7 +861,7 @@ export function cast(spellId, echo = false) {
         : roll(2 + Math.floor(p.lv / 3), 5) + statB(p, 'int') * 2;
       const dmg = Math.max(1, Math.round(raw * pow));
       fx({ t:'beam', fx:p.x, fy:p.y, tx:nearest.x, ty:nearest.y, color: holy ? 'y' : 'P' });
-      hurtMonster(nearest, dmg, holy ? '응징의 빛' : '마력 화살');
+      hurtMonster(nearest, dmg, holy ? '응징의 빛' : '마력 화살', { weapon: 'spell' });
       spellDrain(aff, dmg);
       // 메아리치는: half of it carries to a second target.
       // 울림의 은총 does the same thing without needing the affix,
@@ -859,7 +871,7 @@ export function cast(spellId, echo = false) {
         if (second) {
           const echo = Math.max(1, Math.round(dmg * 0.5));
           fx({ t:'beam', fx:nearest.x, fy:nearest.y, tx:second.x, ty:second.y, color: holy ? 'y' : 'P' });
-          hurtMonster(second, echo, '메아리');
+          hurtMonster(second, echo, '메아리', { weapon: 'spell' });
           spellDrain(aff, echo);
         }
       }
@@ -899,7 +911,7 @@ export function cast(spellId, echo = false) {
       for (const m of [...visible])
         if (Math.hypot(m.x - p.x, m.y - p.y) <= 5) {
           const d = Math.max(1, Math.round((roll(3, 8) + p.lv) * pow));
-          hurtMonster(m, d, '서리'); spellDrain(aff, d); n++;
+          hurtMonster(m, d, '서리', { weapon: 'spell' }); spellDrain(aff, d); n++;
         }
       say(n ? '주변 공기가 얼어붙는다.' : '얼릴 것이 없다.', n ? 'good' : ''); break;
     }
@@ -1943,7 +1955,7 @@ function swing(m, scale) {
   const aim = kind === 'great' ? 0.88 : 1;
   const chance = asleep ? 1 : clamp(0.44 + (toHit(p) * aim - armour) / 55, 0.18, 0.95);
   if (Math.random() > chance) {
-    say(`${m.n}을(를) 빗맞혔다.`);
+    say(pickLine(MISS_AT, m.n, nextLine()));
     fx({ t:'miss', x:m.x, y:m.y });
     p.chain3 = 0;              // 세 번째 손: a miss resets the count
     return;
@@ -2232,7 +2244,7 @@ export function hurtMonster(m, dmg, source, opt = {}) {
        you have killed five of tells you how it fights. */
     if (Meta.slew(m.n) === tellsNeeded(Meta.read()))
       say(`${m.n}의 버릇이 눈에 익었다 — 도감에 적힌다.`, 'level');
-    say(`${m.n}이(가) 쓰러졌다. (+${m.xp} 경험치)`, 'good');
+    say(`${pickLine(FELLED, m.n, nextLine())}. (+${m.xp} 경험치)`, 'good');
     if (m.thief) {
       const who = G.player;
       const purse = thiefPurse(G.depth);
@@ -2259,7 +2271,14 @@ export function hurtMonster(m, dmg, source, opt = {}) {
          weapon: opt.weapon, spr:m.spr });
     if (!opt.quiet) {
       const tag = opt.sneak ? ' 기습!' : opt.crit ? ' 치명타!' : '';
-      say(`${via}${m.n}에게 ${dmg}의 피해.${tag}`, opt.crit ? 'level' : 'hit');
+      /* The verb comes from the weapon and the swing from how much
+         of the thing went. `via` is the odd case — a chain, a
+         thorn, a burst — and it names itself, so it keeps the
+         plain sentence rather than borrowing a sword's. */
+      const line = opt.weapon
+        ? `${via}${strikeLine(opt.weapon, m.n, dmg, m.maxhp || m.hp + dmg, nextLine())} (${dmg})`
+        : `${via}${m.n}에게 ${dmg}의 피해.`;
+      say(line + tag, opt.crit ? 'level' : 'hit');
     }
   }
 }
@@ -2500,7 +2519,7 @@ function spawnWave() {
     born++;
   }
   if (born) {
-    say(`심연이 ${born === 1 ? '하나' : '둘'}를 더 게워냈다. (${G.waves}번째)`, 'hit');
+    say(`심연이 ${born === 1 ? '하나' : '둘'}을(를) 더 게워냈다. (${G.waves}번째)`, 'hit');
     fx({ t:'noise', x:p.x, y:p.y });
   }
 }
@@ -2670,7 +2689,8 @@ function monsterMelee(m) {
   }
   const chance = clamp(0.24 + (m.atk * 1.45 - ac * 1.75) / 62, 0.06, 0.90);
   if (Math.random() > chance) {
-    say(`${m.n}의 ${heavy ? '내리친 일격이' : '공격이'} 빗나갔다.`);
+    say(heavy ? `${m.n}의 내리친 일격이 바닥을 때렸다.`
+              : pickLine(MISS_BY, m.n, nextLine()));
     fx({ t:'miss', x:p.x, y:p.y });
     return;
   }
@@ -2681,7 +2701,7 @@ function monsterMelee(m) {
   breakCombo(false); tookHit();
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        severe: dmg >= p.maxhp * 0.18 });
-  say(`${m.n}이(가) ${heavy ? '내리쳐 ' : ''}${dmg}의 피해를 입혔다.`, 'hit');
+  say(`${heavy ? '당겼던 것이 떨어졌다. ' : ''}${takenLine(m.n, dmg, p.maxhp, nextLine())} (${dmg})`, 'hit');
   if (m.drain) {                       // 흡혈하는: it heals off you
     const back = Math.max(1, Math.round(dmg * m.drain));
     m.hp = Math.min(m.maxhp, m.hp + back);
@@ -2732,7 +2752,7 @@ function monsterShoot(m) {
   if (p.iframe > 0) { say('구르며 흘려보냈다.', 'good'); fx({ t:'miss', x:p.x, y:p.y }); return; }
   const chance = clamp(0.20 + (m.atk * 1.25 - ac * 1.6) / 62, 0.05, 0.80);
   if (Math.random() > chance) {
-    say(`${m.n}의 원거리 공격이 빗나갔다.`);
+    say(`${m.n}이(가) 쏘았지만 빗나갔다.`);
     fx({ t:'miss', x:p.x, y:p.y });
     return;
   }
@@ -2742,7 +2762,7 @@ function monsterShoot(m) {
   breakCombo(false); tookHit();
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        severe: dmg >= p.maxhp * 0.18 });
-  say(`${m.n}이(가) 멀리서 ${dmg}의 피해를 입혔다.`, 'hit');
+  say(`멀리서 날아왔다. ${takenLine(m.n, dmg, p.maxhp, nextLine())} (${dmg})`, 'hit');
   if (m.on && Math.random() < 0.22) afflict(p, m.on, 8 + rnd(8));
   reflect(m, dmg);
   if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death(m); }

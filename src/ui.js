@@ -11,7 +11,8 @@ import {
   RARITY, CURSED_TONE, rarityOf, isCursed,
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
   MONSTERS, BRANCHES, SPELLS, boonById, FUSIONS, engraveById, ENGRAVE_AT, ENGRAVE_PENALTY, NAMED,
-  REGIONS, regionOf, MEMORIES, memoryEarned, ABYSS,
+  BOSS, tellsOf, tellsNeeded, CONSUMABLES,
+  REGIONS, regionOf, MEMORIES, memoryEarned, SHACKLES, MAX_SHACKLE,
   UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS, FUSE_ODDS, FUSE_COST,
   xpToLevel, statBonus,
 } from './data.js';
@@ -1010,7 +1011,7 @@ export function setScreen(name) {
   G.screen = name;
   if (name !== 'play') stopAuto();
   for (const s of ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help',
-                   'camp', 'slots', 'altar', 'stairs', 'relic', 'event', 'anvil'])
+                   'camp', 'slots', 'altar', 'stairs', 'relic', 'event', 'anvil', 'codex'])
     $(`sc-${s}`).hidden = (s !== name);
   if (name === 'play') { resize(); refresh(); }
   if (name === 'inv')  renderInventory();
@@ -1026,6 +1027,7 @@ export function setScreen(name) {
   if (name === 'event')  renderEvent();
   if (name === 'help')   renderLegend();
   if (name === 'anvil')  { teach('anvil'); renderAnvil(); }
+  if (name === 'codex')  renderCodex();
 }
 
 /* The telegraph is only a mechanic if the player can read it.
@@ -1232,20 +1234,142 @@ export function refreshTitle() {
     }
   }
 
-  /* 심연 only exists once the thing at the bottom is dead. */
+  /* 심연 only exists once the thing at the bottom is dead, and
+     then it is a ladder: rung n+1 opens when rung n is finished.
+     Locked rungs stay on the screen, greyed — the point of a
+     ladder is being able to see the top of it. */
   const pick = $('abyss-pick');
   const unlocked = memoryEarned(meta, 'ember');
   pick.hidden = !unlocked;
   if (unlocked) {
     const row = pick.querySelector('.abyssrow');
     row.innerHTML = '';
-    const at = Meta.abyss();
-    ABYSS.forEach(a => {
-      const b = el('button', a.n === at ? 'on' : '', String(a.n));
-      b.onclick = () => { Meta.setAbyss(a.n); refreshTitle(); };
+    const at = Meta.abyss(), open = Meta.cleared() + 1;
+    SHACKLES.forEach(a => {
+      const locked = a.n > open;
+      const b = el('button', (a.n === at ? 'on' : '') + (locked ? ' locked' : ''), String(a.n));
+      b.disabled = locked;
+      if (!locked) b.onclick = () => { Meta.setAbyss(a.n); refreshTitle(); };
       row.appendChild(b);
     });
-    $('abyss-note').textContent = ABYSS[at].t;
+    /* Every shackle currently worn, not just the newest one — a
+       rung wears all the rungs below it, and a player who cannot
+       see that is guessing about the run they are starting. */
+    const worn = SHACKLES.slice(1, at + 1);
+    const note = $('abyss-note');
+    note.innerHTML = worn.length
+      ? worn.map(x => `<b>${x.k}</b> — ${x.t}`).join('<br>') +
+        `<br><span class="dim">전리품 ×${SHACKLES[at].gold.toFixed(2)}` +
+        (at < MAX_SHACKLE
+          ? ` · ${at}단계를 이기면 ${at + 1}단계 「${SHACKLES[at + 1].k}」가 열린다`
+          : ' · 마지막 단계') + '</span>'
+      : SHACKLES[0].t + (open >= 1 ? ` <span class="dim">1단계 「${SHACKLES[1].k}」가 열려 있다</span>` : '');
+  }
+}
+
+/* ── the codex ────────────────────────────────────────────
+   Everything the dead runs met, and — under each monster — how
+   many of them you have put down.
+
+   The body count is the point. A codex that only lists what you
+   have seen is a museum, and museums do not make anybody press
+   새 게임. This one is a contract: five bodies and the thing
+   tells you how it fights, forever, in every run after. The
+   deep floors are where a player dies not knowing what is in
+   front of them, so the fix for the deep floors is not a bigger
+   number — it is arriving there having already read the page.
+
+   Undiscovered rows are drawn as a blank plate with the depth
+   printed on it, so the page reads as a map of what is left
+   rather than as an empty list. */
+const CODEX_TABS = [
+  { k:'monsters', n:'몬스터' },
+  { k:'relics',   n:'유물' },
+  { k:'items',    n:'소모품' },
+  { k:'events',   n:'사건' },
+  { k:'regions',  n:'장소' },
+];
+let codexTab = 'monsters';
+
+/* One place that knows what a complete codex looks like, so the
+   header, the memories and the shackle gate can never disagree
+   about what "전부" means. */
+export function codexTotals() {
+  const roster = [...MONSTERS, ...NAMED, BOSS];
+  return {
+    monsters: { of: roster.length, at: roster.filter(m => Meta.seen('monsters', m.n)).length },
+    relics:   { of: RELICS.length, at: RELICS.filter(r => Meta.seen('relics', r.id)).length },
+    items:    { of: CONSUMABLES.length, at: CONSUMABLES.filter(c => Meta.seen('items', c.id)).length },
+    events:   { of: EVENTS.length, at: EVENTS.filter(e => Meta.seen('events', e.id)).length },
+    regions:  { of: REGIONS.length, at: REGIONS.filter(r => Meta.seen('regions', r.n)).length },
+  };
+}
+export const codexFilled = () => {
+  const t = codexTotals();
+  return Object.values(t).reduce((s, v) => s + v.at, 0);
+};
+export const codexOf = () => {
+  const t = codexTotals();
+  return Object.values(t).reduce((s, v) => s + v.of, 0);
+};
+
+function renderCodex() {
+  const tot = codexTotals();
+  const need = tellsNeeded(Meta.read());
+  $('codex-lead').textContent =
+    `본 것 ${codexFilled()} / ${codexOf()}. ` +
+    `몬스터는 ${need}마리를 잡으면 버릇을 내놓는다 — 그 앎은 다음 판에도 남는다.`;
+
+  const tabs = $('codex-tabs');
+  tabs.innerHTML = '';
+  for (const t of CODEX_TABS) {
+    const b = el('button', 'codextab' + (codexTab === t.k ? ' on' : ''),
+      `${t.n} ${tot[t.k].at}/${tot[t.k].of}`);
+    b.onclick = () => { codexTab = t.k; renderCodex(); };
+    tabs.appendChild(b);
+  }
+
+  const list = $('codex-list');
+  list.innerHTML = '';
+  const row = (spr, name, sub, body, known) => {
+    const r = el('div', 'codexrow' + (known ? '' : ' unknown'));
+    const ic = el('canvas', 'icon');
+    paintIcon(ic, known ? spr : 'rubble');
+    if (!known) ic.style.filter = 'brightness(0.28) grayscale(1)';
+    r.appendChild(ic);
+    const col = el('div', 'codextext');
+    col.appendChild(el('span', 'iname', known ? name : '???'));
+    if (sub) col.appendChild(el('span', 'idesc', sub));
+    if (body) col.appendChild(el('span', 'codextells', body));
+    r.appendChild(col);
+    list.appendChild(r);
+  };
+
+  if (codexTab === 'monsters') {
+    for (const m of [...MONSTERS, ...NAMED, BOSS]) {
+      const known = Meta.seen('monsters', m.n);
+      const n = Meta.bodies(m.n);
+      const where = m.boss ? '15층' : m.at ? `${m.at}층` : `${m.d}층부터`;
+      const sub = known
+        ? `${where} · 체력 ${m.hp} · 공격 ${m.atk} · 방어 ${m.ac} · 처치 ${n}`
+        : where;
+      row(m.spr, m.n, sub,
+        known && n >= need ? tellsOf(m).join('\n')
+        : known ? `버릇까지 ${need - n}마리` : '', known);
+    }
+  } else if (codexTab === 'relics') {
+    for (const r of RELICS)
+      row(r.spr, r.n, Meta.seen('relics', r.id) ? r.t : '', '', Meta.seen('relics', r.id));
+  } else if (codexTab === 'items') {
+    for (const c of CONSUMABLES)
+      row(c.spr, c.n, Meta.seen('items', c.id) ? (c.desc || '') : '', '', Meta.seen('items', c.id));
+  } else if (codexTab === 'events') {
+    for (const e of EVENTS)
+      row('event', e.n, Meta.seen('events', e.id) ? e.t : '', '', Meta.seen('events', e.id));
+  } else {
+    for (const r of REGIONS)
+      row('stairsDown', r.n, Meta.seen('regions', r.n) ? r.t : `${r.from}~${r.to}층`,
+          '', Meta.seen('regions', r.n));
   }
 }
 
@@ -2065,6 +2189,13 @@ export function inspect(x, y) {
         ((m.phase || 0) < m.phases.length
           ? ` — 체력 ${Math.round(m.phases[m.phase || 0].at * 100)}%에서 달라진다` : ' — 마지막')]);
     if (m.named && !m.provoked) rows.push(['자리', '이 자리를 지킨다. 건드리지 않으면 따라오지 않는다']);
+    /* What enough bodies taught you. The numbers above are what
+       the thing *is*; this is what to do about it — and it only
+       appears once you have paid for it. */
+    const body = Meta.bodies(m.n), need = tellsNeeded(Meta.read());
+    // Labelled once. Four rows all saying 버릇 reads like a bug.
+    if (body >= need) tellsOf(m).forEach((t, i) => rows.push([i ? '' : '버릇', t]));
+    else rows.push(['버릇', `${need}마리를 잡으면 버릇이 보인다 (${body}/${need})`]);
     if (m.intent) {
       const name = INTENT_NAMES.find(([k]) => k === m.intent);
       if (name) rows.push(['다음 턴', name[1]]);
@@ -2311,8 +2442,15 @@ export function renderStairs() {
      ground and will not follow you across the floor, so walking
      past is a real option — which only means something if the
      player also knows what walking past costs them. */
-  if (named) bits.push(`<b class="danger">${named.warn}.</b> ` +
-    '자기 자리를 지킨다 — 건드리지 않으면 따라오지 않는다. 쓰러뜨리면 유물 하나를 남긴다.');
+  if (named) {
+    bits.push(`<b class="danger">${named.warn}.</b> ` +
+      '자기 자리를 지킨다 — 건드리지 않으면 따라오지 않는다. 쓰러뜨리면 유물 하나를 남긴다.');
+    /* 파수꾼의 기억: three of them killed, and the fourth run
+       gets the briefing. Knowledge earned in bodies, handed back
+       on the one screen where it changes a decision. */
+    if (Game.hasMemory('warden'))
+      bits.push('<span class="tellline">' + tellsOf(named).join('<br>') + '</span>');
+  }
   warn.hidden = !bits.length;
   warn.innerHTML = bits.join('<br>');
 
@@ -2500,7 +2638,13 @@ function renderEnd() {
   const s = e.summary || Game.summarise(!!e.win, e.by);
 
   // Ledger it once, however many times this screen re-renders.
-  if (recorded !== s) { recorded = s; Meta.finish(s); }
+  if (recorded !== s) {
+    recorded = s;
+    Meta.finish(s);
+    /* A rung is only cleared by finishing it. Winning at 3 opens
+       4 and nothing further — the ladder is climbed, not chosen. */
+    if (s.win) Meta.clearedAt(s.abyss || 0);
+  }
   const m = Meta.read();
 
   $('end-title').textContent = e.win ? '대군주가 무너졌다' : '당신은 죽었다';
@@ -2533,7 +2677,8 @@ function renderEnd() {
   if (s.broke) line('불에 잃은 장비', `${s.broke}점`, 'R');
   if (s.perfects) line('절단', `${s.perfects}번`, 'W');
   if (s.fused) line('찾아낸 조합', `${s.fused}가지`, 'W');
-  if (s.abyss) line('심연', `${s.abyss}단계`, 'R');
+  if (s.abyss)
+    line('심연', `${s.abyss}단계 — ${SHACKLES.slice(1, s.abyss + 1).map(x => x.k).join(' · ')}`, 'R');
   if (s.trans) line('초월', `${s.trans}점 — 이 판을 기억하시오.`, 'W');
   if (s.bank >= 2) line('잃은 판돈', `${s.bank}층치`, 'R');
   if (s.waves) line('심연의 습격', `${s.waves}번`, 'R');
@@ -2825,7 +2970,11 @@ export function bindInput() {
   $('btn-up').onclick     = () => { stopAuto(); act(Game.ascend); };
   $('btn-door').onclick   = () => { stopAuto(); act(Game.closeDoor); };
   $('btn-help').onclick   = () => { stopAuto(); setScreen('help'); };
+  $('btn-codex').onclick  = () => setScreen('codex');
   for (const b of document.querySelectorAll('[data-back]')) b.onclick = () => setScreen('play');
+  /* The codex is opened from the title, so 닫기 has to go back
+     there rather than into a game that is not running. */
+  document.querySelector('#sc-codex [data-back]').onclick = () => setScreen('title');
 
   window.addEventListener('keydown', e => {
     // The modal owns the keyboard while it is up.

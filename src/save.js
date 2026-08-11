@@ -13,7 +13,7 @@
 
 import { G, say, refreshFov } from './game.js';
 import { Level, THEMES, MW, MH, idx } from './world.js';
-import { BRANCHES } from './data.js';
+import { BRANCHES, shacklesAt } from './data.js';
 
 const PREFIX = 'deepdelve.slot.';
 export const SLOTS = 3;
@@ -169,6 +169,10 @@ export function apply(data) {
   G.engraved = data.engraved || 0;
   G.memories = data.memories || [];
   G.abyss = data.abyss || 0;
+  /* Derived, never stored: a save from before the ladder existed
+     still resolves to the right set of rules, and the rung's
+     contents can be changed without invalidating anyone's run. */
+  G.shackles = shacklesAt(G.abyss);
   G.relicShelf = data.relicShelf ?? null;
   G.forged = data.forged || 0;
   G.pendingAltar = null;

@@ -586,3 +586,35 @@ table.keys td:first-child { width: 40%; color: var(--G); }
   margin: 4px 0 0; text-align: center;
   font-size: 20px; letter-spacing: .12em; min-height: 26px;
 }
+
+/* Codex. The tabs carry their own progress, so the page states
+   what is left before anything is scrolled. */
+.codextabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
+.codextab {
+  padding: 7px 10px; font-size: 11px; letter-spacing: .04em;
+  border: 1px solid var(--g); background: var(--d); color: var(--G);
+}
+.codextab.on { border-color: var(--o); color: var(--o); }
+.codexrow {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 9px 4px; border-bottom: 1px solid var(--d);
+}
+.codexrow.unknown .iname { color: var(--g); }
+.codexrow.unknown .idesc { color: var(--g); }
+.codextext { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+/* Tells are the payout, so they read like the payout: whitespace
+   preserved, one line per habit, in the colour the game uses for
+   things it is telling you rather than showing you. */
+.codextells {
+  white-space: pre-line; font-size: 11px; line-height: 1.6; color: var(--y);
+}
+/* 파수꾼의 기억 speaks on the stairs screen, in the same colour
+   the codex uses for a habit — so the two read as one voice. */
+.tellline { display: block; margin-top: 6px; color: var(--y); font-size: 11px; line-height: 1.7; }
+/* A rung you have not earned stays visible and unpressable —
+   seeing the top of the ladder is most of why anyone climbs. */
+.abyssrow button.locked { opacity: .32; border-color: var(--d); cursor: default; }
+.abyssrow button.locked:active { background: var(--d); color: var(--w); border-color: var(--d); }
+#abyss-note { text-align: left; }
+#abyss-note b { color: var(--R); }
+#abyss-note .dim { color: var(--g); font-size: 10.5px; }

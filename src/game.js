@@ -16,7 +16,7 @@ import {
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   RELICS, RELIC_SLOTS, relicSlots, relicById, BRANCHES,
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH, REGIONS, regionOf,
-  MEMORIES, memoryEarned, ABYSS,
+  MEMORIES, memoryEarned, SHACKLES, shacklesAt, SHACKLE_STAT, tellsNeeded,
   WEAPON_TYPES, PATTERNS, NAMED,
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
@@ -191,6 +191,9 @@ export function recalc(p, init) {
   } else p.maxmana = 0;
   const g = gearBonus(p);
   p.maxhp = Math.max(8, Math.round(p.maxhp * (1 + g.maxhpPct)) + (p.boneHp || 0) + (p.permHp || 0));
+  // 재의 무게, applied last so it takes a slice of the finished
+  // number rather than of the base one.
+  if (hasShackle('ash')) p.maxhp = Math.max(8, Math.round(p.maxhp * 0.85));
   p.maxmana = Math.max(0, Math.round(p.maxmana * (1 + g.manaPct)) + g.manaFlat);
   p.maxStam = staminaMax(p);
   if (init) return;
@@ -965,6 +968,13 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
       if (mods[k] != null) G.branch[k] = (G.branch[k] ?? 1) * mods[k];
   }
 
+  /* 화부의 기억: 잿불 아래 always holds one. Floors 11 to 14 are
+     where measured runs now end, and they end with no health and
+     nowhere to spend a turn getting it back. This does not hand
+     any back — it puts a fire on the floor and leaves the walk
+     to the player. */
+  if (depth >= 11 && depth <= 14 && hasMemory('hearth') && !L.camp) L.forceCamp();
+
   /* A fire promised three floors ago has to actually be here. */
   if (depth > 0 && G.campPromise > 0 && !L.camp) {
     G.campPromise--;
@@ -974,6 +984,11 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   if (depth > 0) populate(depth);
   if (depth > 0 && L.event) L.eventId = rollEvent();
   if (mods?.mapped && depth > 0) L.seen.fill(1);
+  /* 길잡이의 기억: the shape of the floor, from floor 11 down.
+     Not what is on it — the walls only. Dying because you walked
+     into the wrong corridor at one health is a different failure
+     from dying to the thing at the end of the right one. */
+  if (depth >= 11 && hasMemory('pathfinder')) L.seen.fill(1);
   refreshFov();
 
   /* A fire burns whether or not you are looking at it. Mark it
@@ -1119,7 +1134,8 @@ function populate(depth) {
       const spot = k === 0 ? lead
         : L.openSpot({ x: lead.x - 2, y: lead.y - 2, w: 5, h: 5 }, busy);
       if (!spot) continue;
-      const one = { ...m, x: spot.x, y: spot.y, awake: false, energy: 0 };
+      const one = { ...m, x: spot.x, y: spot.y,
+                    awake: hasShackle('awake') && Math.random() < 0.5, energy: 0 };
       if (Math.random() < eliteChance(depth) * (br.elite ?? 1)) makeElite(one, depth);
       one.maxhp = one.hp;
       G.monsters.push(one);
@@ -1241,10 +1257,13 @@ function scaleMonster(m, depth) {
   /* 심연 rides on top of the depth curve, on the two numbers that
      decide a fight rather than on how many things are in the room.
      More monsters is more turns; harder monsters is a harder game. */
-  const ab = ABYSS[G.abyss || 0] || ABYSS[0];
+  /* 무거운 것들 is the only shackle that touches these two, and
+     it touches them once. Everything else on the ladder changes a
+     rule rather than a number. */
+  const heavy = hasShackle('weight') ? SHACKLE_STAT : 1;
   return { ...m,
-    hp:  Math.round(m.hp  * (1 + over * 0.10) * deep * ab.hp),
-    atk: Math.round(m.atk * (1 + over * 0.06) * (1 + depth * 0.02) * ab.atk),
+    hp:  Math.round(m.hp  * (1 + over * 0.10) * deep * heavy),
+    atk: Math.round(m.atk * (1 + over * 0.06) * (1 + depth * 0.02) * heavy),
     ac:  Math.round(m.ac  * (1 + depth * 0.025)),
     xp:  Math.round(m.xp  * (1 + over * 0.10)) };
 }
@@ -2048,7 +2067,7 @@ function swing(m, scale) {
 /* 뱃사공의 동전 doubles it, 서기의 깃펜 shaves it. One funnel so
    the two can never be applied twice or missed once. */
 export const goldGain = n => Math.max(0, Math.round(
-  n * (ABYSS[G.abyss || 0] || ABYSS[0]).gold
+  n * (SHACKLES[G.abyss || 0] || SHACKLES[0]).gold
     * (hasRelic('toll') || hasRelic('ledger') ? 2 : 1) * (hasRelic('quill') ? 0.75 : 1)
     * (hasBoon('hoard') ? 1.6 : 1)));
 
@@ -2208,6 +2227,11 @@ export function hurtMonster(m, dmg, source, opt = {}) {
     }
     fx({ t:'kill', x:m.x, y:m.y, spr:m.spr, dmg, crit:!!opt.crit, over, boss:!!m.boss, combo:G.combo });
     G.kills = (G.kills || 0) + 1;
+    /* One more body in the ledger. The count is what buys the
+       tells — a monster you have met is in the codex, a monster
+       you have killed five of tells you how it fights. */
+    if (Meta.slew(m.n) === tellsNeeded(Meta.read()))
+      say(`${m.n}의 버릇이 눈에 익었다 — 도감에 적힌다.`, 'level');
     say(`${m.n}이(가) 쓰러졌다. (+${m.xp} 경험치)`, 'good');
     if (m.thief) {
       const who = G.player;
@@ -2360,9 +2384,15 @@ export function endTurn(skipMonsters = false) {
        neither ever ran out — two numbers to babysit that decided
        nothing. Light survives because it is *spatial*: it changes
        how far you can see, which changes what you can fight. */
+    /* Integer only. A fractional drain reads fine in a total and
+       then quietly breaks every `lightTurns === 300` milestone and
+       the torch chip, which counts whole turns. 굶주린 불 spends
+       its extra thirty percent as three whole turns in every ten
+       rather than as 0.3 of a turn each time. */
     if (!hasRelic('lamp'))
       p.lightTurns -= (G.branch?.drain || 1)
-        * (hasRelic('famine') ? 3 : hasRelic('hunger') ? 2 : 1);
+        * (hasRelic('famine') ? 3 : hasRelic('hunger') ? 2 : 1)
+        + (hasShackle('hunger') && G.turn % 10 < 3 ? 1 : 0);
     if (p.lightTurns === 300) say('기름이 절반쯤 남았다.', 'warn');
     if (p.lightTurns === 80)  say('불빛이 손바닥만큼 줄었다.', 'warn');
     if (p.lightTurns === 0)   say('불이 꺼졌다. 두 칸 앞이 벽인지 아닌지도 모른다.', 'hit');
@@ -2558,7 +2588,10 @@ function monsterTurn(m) {
      is dragged off it, and once you have hit it the leash is
      gone: pick the fight and it is a fight. Floor 6 was ending
      eighteen percent of runs before this. */
-  if (m.named && !m.provoked) {
+  /* 긴 그림자 takes the leash off. Same dungeon, read completely
+     differently: the stairs screen stops being an offer and goes
+     back to being a warning. */
+  if (m.named && !m.provoked && !hasShackle('shadow')) {
     m.home ??= { x: m.x, y: m.y };
     const away = Math.hypot(m.x - m.home.x, m.y - m.home.y);
     const far  = Math.hypot(p.x - m.home.x, p.y - m.home.y);
@@ -3019,7 +3052,8 @@ export function campRest() {
   // Sitting down ends the run of unrested floors, pile or not.
   if (G.bank >= 2) say(`판돈 ${G.bank}층치가 불에 탔다.`, 'warn');
   G.bank = 0;
-  const heal = Math.min(p.maxhp - p.hp, Math.ceil(p.maxhp * CAMP_HEAL));
+  const heal = Math.min(p.maxhp - p.hp,
+    Math.ceil(p.maxhp * CAMP_HEAL * (hasShackle('dryspring') ? 0.5 : 1)));
   p.hp += heal;
   p.mana = p.maxmana;
   const cured = ailList(p);
@@ -3037,10 +3071,15 @@ const plusOf = t =>
 export const upgradeCostFor = (key, careful = false) => {
   const t = targetOf(key);
   if (!t) return null;
-  const base = upgradeCost(plusOf(t));
+  // 식은 모루 raises the bill as well as lowering the odds, so the
+  // shackle bites the gold sink rather than only the dice.
+  const dear = hasShackle('coldanvil') ? 1.4 : 1;
+  const raw = upgradeCost(plusOf(t));
+  const base = {};
+  for (const k of Object.keys(raw)) base[k] = Math.ceil(raw[k] * dear);
   if (!careful) return base;
   const out = {};
-  for (const k of Object.keys(base)) out[k] = base[k] * CAREFUL_MULT;
+  for (const k of Object.keys(base)) out[k] = Math.ceil(base[k] * CAREFUL_MULT);
   return out;
 };
 
@@ -3068,6 +3107,7 @@ export function upgradeOddsFor(key, careful = false, cat = null) {
         : Math.max(0.05, Math.min(1, upgradeOdds(plus)
             + (careful ? CAREFUL_BONUS : 0)
             + (hasMemory('graver') ? 0.06 : 0)
+            - (hasShackle('coldanvil') ? 0.08 : 0)
             - (t.type === 'item' && isMilestone(plus) ? ENGRAVE_PENALTY : 0))),
     crit: c === 'surge' ? 1 : careful ? 0 : UPGRADE_CRIT,
     down: c === 'flux' ? 0 : risk.down,
@@ -3853,6 +3893,10 @@ export function shopStock(shop) {
   if (shop.stock === 'armour')
     return ARMOURS.filter(a => a.d <= 12).map(a => ({ kind:'armour', ...a }));
   const out = shop.stock.map(id => makeConsumable(id));
+  /* 닫힌 장부 halves the shelf. Deterministic on the shop id and
+     the day's stock rather than random, so re-entering the door
+     cannot reroll what is for sale. */
+  if (hasShackle('ledger') && out.length > 1) out.length = Math.ceil(out.length / 2);
   /* The wandering merchant also deals in materials, which is what
      turns a purse of gold into a +1 you actually wanted. */
   if (shop.mats)
@@ -3897,7 +3941,7 @@ export const priceOf = (item, buying) => {
   /* markup is the running total of what ? rooms did to your
      reputation: robbing a drunk raises it, settling a ledger
      lowers it. Selling prices move the other way. */
-  const mk = 1 + (G.player.markup || 0);
+  const mk = (1 + (G.player.markup || 0)) * (hasShackle('ledger') ? 1.5 : 1);
   return buying
     ? Math.max(1, Math.round(base * (1.25 - chrB * 0.03) * mk))
     : Math.max(1, Math.round(base * (0.42 + chrB * 0.02) / mk));
@@ -4034,13 +4078,19 @@ export function identify(id, quiet) {
 }
 
 export function startGame(raceKey, classKey, base) {
+  /* The ladder is read *before* the hero is built. 재의 무게 takes
+     a slice of maximum health inside recalc, and recalc runs the
+     moment createHero is called — set the shackles after that and
+     the last rung of the ladder silently does nothing. */
+  G.abyss = Meta.abyss();
+  G.shackles = shacklesAt(G.abyss);
   G.player = createHero(raceKey, classKey, base);
   G.log = []; G.turn = 0; G.running = true; G.ending = null;
   G.fx = []; G.combo = 0; G.comboT = 0; G.bestCombo = 0;
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0; G.kills = 0; G.eventsSeen = 0;
   G.regionAt = null;
   G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0; G.fused = 0; G.catUsed = 0;
-  G.engraved = 0; G.memories = []; G.abyss = 0; G.relicShelf = null;
+  G.engraved = 0; G.memories = []; G.relicShelf = null;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
   G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.bank = 0;
@@ -4054,7 +4104,6 @@ export function startGame(raceKey, classKey, base) {
      untouched; the starting line is not. */
   const meta = Meta.read();
   G.memories = MEMORIES.filter(x => memoryEarned(meta, x.id)).map(x => x.id);
-  G.abyss = Meta.abyss();
 
   if (G.memories.includes('alchemy')) {
     // Everything ever named stays named. A player who has learned
@@ -4074,10 +4123,15 @@ export function startGame(raceKey, classKey, base) {
   say('마을. 여섯 개의 문이 열려 있고, 광장 한가운데에 계단이 있다.', 'warn');
   if (G.memories.length)
     say(`기억이 남아 있다 — ${G.memories.map(id => MEMORIES.find(x => x.id === id).n).join(' · ')}.`, 'good');
-  if (G.abyss) say(`심연 ${G.abyss} — 아래의 것들이 그만큼 더 단단하다.`, 'warn');
+  if (G.abyss)
+    say(`심연 ${G.abyss} — ${SHACKLES.slice(1, G.abyss + 1).map(x => x.k).join(' · ')}.`, 'warn');
   G.screen = 'play';
 }
 
 /* Does this run carry that memory? One reader so a memory can
    never be half-applied. */
 export const hasMemory = id => (G.memories || []).includes(id);
+
+/* Is this rule on this run? One reader, same shape as hasMemory,
+   so a shackle can never be half-applied either. */
+export const hasShackle = id => (G.shackles || []).includes(id);

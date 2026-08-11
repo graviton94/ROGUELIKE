@@ -40,10 +40,16 @@ const EMPTY = {
   fusions: {},    // special relic combinations already found — the ledger of secrets
   regions: {},    // named places of the descent that have been stood in
   items: {},      // consumables ever identified — the alchemist's memory
+  /* name -> how many of that thing you have put down, ever. A
+     sighting gets a monster into the codex; a body count is what
+     buys the tells. Knowing that an ogre winds up for a turn is
+     knowledge you paid for in ogres. */
+  bodies: {},
   /* Cumulative across every run, for the memories that ask for a
      total rather than a first sighting. */
   totals: { forged: 0, opened: 0, engraved: 0, kills: 0, depth: 0 },
-  abyss: 0,       // chosen difficulty above the base game, 0..5
+  abyss: 0,       // the rung of the shackle ladder being played, 0..8
+  cleared: null,  // highest rung ever won; null = never asked, -1 = never won
   runs: 0, wins: 0,
   best: { depth: 0, lv: 0, combo: 0, gold: 0, turn: 0 },
   last: null,     // the previous run's summary, for the title screen
@@ -57,7 +63,7 @@ export function read() {
     const raw = localStorage.getItem(KEY);
     cache = raw ? { ...EMPTY, ...JSON.parse(raw) } : { ...EMPTY };
     // Nested objects need their own defaults after a spread.
-    for (const k of ['relics', 'events', 'monsters', 'weapons', 'branches', 'taught', 'fusions', 'regions', 'items'])
+    for (const k of ['relics', 'events', 'monsters', 'weapons', 'branches', 'taught', 'fusions', 'regions', 'items', 'bodies'])
       cache[k] = cache[k] || {};
     cache.best = { ...EMPTY.best, ...(cache.best || {}) };
     cache.totals = { ...EMPTY.totals, ...(cache.totals || {}) };
@@ -85,6 +91,19 @@ export function see(kind, id) {
 export const seen = (kind, id) => !!read()[kind]?.[id];
 export const count = kind => Object.keys(read()[kind] || {}).length;
 
+/* One body, recorded. Also counts as a sighting — you cannot kill
+   something you never met, and a thing killed from across a room
+   by a spell would otherwise stay off the codex. */
+export function slew(name) {
+  if (!name) return 0;
+  const m = read();
+  m.monsters[name] = true;
+  m.bodies[name] = (m.bodies[name] || 0) + 1;
+  write();
+  return m.bodies[name];
+}
+export const bodies = name => read().bodies?.[name] || 0;
+
 /* Recorded at the end of a run, win or lose. */
 export function finish(summary) {
   const m = read();
@@ -110,14 +129,33 @@ export function finish(summary) {
   return m;
 }
 
-/* The chosen difficulty above the base game. Only ever set by the
-   player, and only after the boss has been beaten once. */
-export const abyss = () => read().abyss || 0;
+/* The rung of the ladder this player is standing on, and the
+   highest one they have actually finished. `abyss` is the old
+   free-choice dial; a saved 3 becomes rung 3 and rung 3 counts as
+   beaten, which is the fairest reading — that player had already
+   chosen to play at 3 and the old dial let them. */
+export const abyss = () => {
+  const m = read();
+  return Math.max(0, Math.min(8, m.abyss | 0));
+};
 export function setAbyss(n) {
   const m = read();
-  m.abyss = Math.max(0, Math.min(5, n | 0));
+  m.abyss = Math.max(0, Math.min(8, Math.min(n | 0, cleared() + 1)));
   write();
   return m.abyss;
+}
+
+/* The highest rung ever won. Rung n+1 is selectable and nothing
+   above it — the ladder is climbed, not chosen. */
+export function cleared() {
+  const m = read();
+  if (m.cleared == null) m.cleared = m.wins > 0 ? Math.max(0, m.abyss | 0) : -1;
+  return m.cleared;
+}
+export function clearedAt(n) {
+  const m = read();
+  if (n > cleared()) { m.cleared = n; write(); }
+  return m.cleared;
 }
 
 /* Has this player ever finished a run? Used to decide whether
@@ -126,9 +164,10 @@ export const isNewcomer = () => read().runs === 0;
 
 export function forget() {
   cache = { ...EMPTY };
-  for (const k of ['relics', 'events', 'monsters', 'weapons', 'branches', 'taught', 'fusions', 'regions', 'items']) cache[k] = {};
+  for (const k of ['relics', 'events', 'monsters', 'weapons', 'branches', 'taught', 'fusions', 'regions', 'items', 'bodies']) cache[k] = {};
   cache.best = { ...EMPTY.best };
   cache.totals = { ...EMPTY.totals };
   cache.abyss = 0;
+  cache.cleared = null;
   write();
 }

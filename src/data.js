@@ -46,7 +46,41 @@ export const MEMORIES = [
     t:'심연을 연다 — 원하는 만큼 어려운 판을 고를 수 있다.',
     goal:'잿불의 대군주 처치', of:1,
     at: m => m.wins || 0 },
+  /* The first six all open the *front* of the descent: named
+     flasks, a starting plus, a bigger purse. Measured runs then
+     stopped dying on floor five and started dying on eleven,
+     twelve, thirteen — and nothing in the ledger reached that
+     far. These four do.
+
+     Same rule as the others: no memory is a stat. Every one is
+     knowledge you paid for or an option you unlocked by walking
+     somewhere. A player who has never seen 잿불 아래 gets none
+     of them, which is what makes them worth the trip. */
+  { id:'scribe',  n:'서기의 기억',
+    t:'도감이 몬스터의 버릇을 세 마리만에 내놓는다. 이미 적힌 것은 그대로 남는다.',
+    goal:'도감 40종 등재', of:40,
+    at: m => ['monsters', 'relics', 'items', 'events', 'regions']
+      .reduce((s, k) => s + Object.keys(m[k] || {}).length, 0) },
+  { id:'warden',  n:'파수꾼의 기억',
+    t:'계단 화면이 아래에서 기다리는 것의 버릇을 미리 적어 준다.',
+    goal:'이름 있는 것 3종 처치', of:3,
+    at: m => NAMED.filter(x => (m.bodies || {})[x.n]).length },
+  { id:'pathfinder', n:'길잡이의 기억',
+    t:'11층부터는 도착하는 순간 그 층의 지도를 안다. 무엇이 있는지는 여전히 모른다.',
+    goal:'다섯 장소 전부 밟기', of:5,
+    at: m => Object.keys(m.regions || {}).length },
+  { id:'hearth',  n:'화부의 기억',
+    t:'잿불 아래에는 모닥불이 반드시 하나 있다. 걸어가는 것은 당신 몫이다.',
+    goal:'누적 도달 150층', of:150,
+    at: m => m.totals?.depth || 0 },
 ];
+
+/* How many bodies buy the tells, for this run. The scribe does
+   not hand over knowledge — it makes the same knowledge cheaper
+   to earn, which keeps the codex a thing you fill rather than a
+   thing you are given. */
+export const TELL_SCRIBE = 3;
+export const tellsNeeded = m => memoryEarned(m, 'scribe') ? TELL_SCRIBE : TELL_AT;
 
 export const memoryEarned = (m, id) => {
   const spec = MEMORIES.find(x => x.id === id);
@@ -62,14 +96,49 @@ export const memoryEarned = (m, id) => {
    Deliberately multiplicative on the two numbers that decide a
    fight — health and attack — rather than on monster count. More
    monsters is more turns; harder monsters is a harder game.   */
-export const ABYSS = [
-  { n:0, t:'기준.',                                 hp:1.00, atk:1.00, gold:1.00 },
-  { n:1, t:'적의 체력과 공격 +12%. 전리품 +20%.',   hp:1.12, atk:1.12, gold:1.20 },
-  { n:2, t:'적의 체력과 공격 +26%. 전리품 +45%.',   hp:1.26, atk:1.26, gold:1.45 },
-  { n:3, t:'적의 체력과 공격 +42%. 전리품 +75%.',   hp:1.42, atk:1.42, gold:1.75 },
-  { n:4, t:'적의 체력과 공격 +60%. 전리품 ×2.1.',   hp:1.60, atk:1.60, gold:2.10 },
-  { n:5, t:'적의 체력과 공격 +80%. 전리품 ×2.5.',   hp:1.80, atk:1.80, gold:2.50 },
+/* It used to be a free dial: pick 0 to 5, everything gets that
+   many percent bigger. Two problems with a dial. A number that
+   only scales health and attack does not change a single decision
+   — you play the same run against larger numbers, which is
+   harder without being different. And a dial you can set to five
+   on your first winning run is not a ladder; there is nothing to
+   climb.
+
+   So it is a ladder now, and each rung is a *rule* rather than a
+   percentage. You unlock rung N by winning at rung N−1, and a
+   rung never replaces the ones below it — 족쇄 seven is wearing
+   all seven. Only two of the eight are stat changes, on purpose:
+   the other six change what you do, not how long it takes.
+
+   The seventh is the one this ladder exists for. 이름 있는 것 was
+   just given a leash, and the whole floor-6 decision rests on
+   that leash being real. 긴 그림자 takes it away — the same
+   dungeon, read completely differently, without one number
+   moving. That is what a shackle should be. */
+export const SHACKLES = [
+  { n:0, t:'족쇄 없이 내려간다.', gold:1.00 },
+  { n:1, id:'hunger',    k:'굶주린 불',     t:'등불이 30% 빨리 탄다. 어둠이 더 빨리 온다.',        gold:1.15 },
+  { n:2, id:'dryspring', k:'마른 샘',       t:'모닥불 휴식이 절반만 아문다.',                      gold:1.32 },
+  { n:3, id:'awake',     k:'깨어 있는 것들', t:'층에 들어설 때 절반이 이미 눈을 뜨고 있다.',        gold:1.52 },
+  { n:4, id:'coldanvil', k:'식은 모루',     t:'강화 성공률 −8%p. 모루와 모닥불 값이 40% 오른다.',  gold:1.75 },
+  { n:5, id:'weight',    k:'무거운 것들',   t:'적의 체력과 공격 +22%.',                            gold:2.05 },
+  { n:6, id:'ledger',    k:'닫힌 장부',     t:'상점 재고가 절반이고 값이 1.5배다.',                gold:2.40 },
+  { n:7, id:'shadow',    k:'긴 그림자',     t:'이름 있는 것이 자기 자리를 지키지 않는다. 층 끝까지 따라온다.', gold:2.80 },
+  { n:8, id:'ash',       k:'재의 무게',     t:'최대 체력 −15%.',                                   gold:3.30 },
 ];
+
+export const MAX_SHACKLE = SHACKLES.length - 1;
+
+/* Which rules are on at a given rung. Every shackle from 1 to n,
+   because a ladder that swaps rungs instead of stacking them is
+   a difficulty menu, not a ladder. */
+export const shacklesAt = n =>
+  SHACKLES.slice(1, Math.max(0, Math.min(MAX_SHACKLE, n | 0)) + 1).map(s => s.id);
+
+/* 무거운 것들 is the only rung that touches the two numbers the
+   old dial moved, so the multiplier lives here rather than in a
+   per-rung table. */
+export const SHACKLE_STAT = 1.22;
 
 /* ── 깊은 곳 ──────────────────────────────────────────────
    Fifteen floors were fifteen numbers. They are five places now,
@@ -361,6 +430,50 @@ export const BOSS = {
       set:{ cool:1, ac:22, heavy:false }, add:{ atk:10 }, ring:'wave' },
   ],
 };
+
+/* ── the tells ────────────────────────────────────────────
+   What you learn about a thing by killing enough of them.
+
+   Every line here is *derived from the fields the rules
+   actually read*, never written by hand next to a monster. A
+   hand-written weakness line is a lie waiting to happen — change
+   a speed and the codex keeps promising you can walk away from
+   it. This function and monsterTurn read the same numbers.
+
+   The knowledge is real: none of it changes a die roll, all of
+   it changes what you do on the turn you see the thing. That is
+   the whole shape of this game's meta progression — run five
+   does not hit harder than run one, it knows more. */
+export const TELL_AT = 5;               // bodies before the tells open
+
+export function tellsOf(m) {
+  const out = [];
+  const spd = m.spd || 1;
+  // Inclusive of the values the table actually uses: 0.9 is the
+  // ogre and 1.3 is the wolf, and both were falling through.
+  if (spd <= 0.9) out.push('당신보다 느리다 — 걸어서 떨어뜨릴 수 있다.');
+  if (spd >= 1.2) out.push('당신보다 빠르다 — 등을 보이면 따라붙는다.');
+  if (m.ai === 'still')   out.push('제자리에서 움직이지 않는다 — 그냥 지나가도 된다.');
+  if (m.ai === 'erratic') out.push('제멋대로 움직인다 — 유인이 통하지 않는다.');
+  if (m.ai === 'ranged')  out.push(`${m.rng || 5}칸에서 쏘고, 붙으면 물러난다 — 시야를 끊거나 단숨에 붙어라.`);
+  if (m.ai === 'coward')  out.push('피를 흘리면 달아난다 — 몰아넣지 않으면 놓친다.');
+  if (m.door === 'smash') out.push('문을 부순다 — 문으로는 막을 수 없다.');
+  else if (m.door === 'open') out.push('문을 연다 — 닫아도 한 턴을 벌 뿐이다.');
+  else out.push('문을 열지 못한다 — 문 닫기가 확실히 통한다.');
+  if (m.grp)     out.push(`${m.grp[0]}~${m.grp[1]}마리가 함께 나온다 — 좁은 곳으로 끌어들여라.`);
+  if (m.heavy)   out.push('때리기 전에 한 턴 팔을 당긴다 — 그 턴에 물러서면 헛손질이다.');
+  if (m.regen)   out.push(`턴마다 ${m.regen}씩 아문다 — 오래 끌면 진다.`);
+  if (m.drain)   out.push('입힌 피해만큼 자기가 회복한다.');
+  if (m.web)     out.push('거미줄에 걸리지 않는다.');
+  if (m.thief)   out.push('훔치고 달아난다 — 잡으려면 구르기나 주문이 필요하다.');
+  if (m.on && AILMENTS[m.on])
+    out.push(`맞으면 ${AILMENTS[m.on].n} — ${AILMENTS[m.on].note}.`);
+  if (m.casts?.length)
+    out.push(`바닥에 ${m.casts.map(k => PATTERNS[k]?.n).filter(Boolean).join(' · ')}을(를) 그린다 — 표시된 칸에서 나가라.`);
+  if (m.phases?.length)
+    out.push(`체력 ${m.phases.map(p => Math.round(p.at * 100) + '%').join('와 ')}에서 다른 것이 된다.`);
+  return out;
+}
 
 /* ── the wager ────────────────────────────────────────────
    Two systems for the part of the brain that plays slot

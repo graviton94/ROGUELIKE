@@ -606,14 +606,16 @@ export const RESONANCE = [
     say:'벽이 먼저 외우고, 그다음에 대답한다.' },
 
   { id:'bramble', n:'가시밭', spr:'shield',
-    /* Two sources on each side, same as 피의 톱니 — a resonance
-       whose every piece has exactly one origin is unreachable in
-       practice. Written with one origin each this fired 0 times
-       in 360 runs; 피의 톱니, which can take its two off any of
-       prefix, suffix or engraving, fired in one run in twenty. */
+    /* A resonance whose every piece has exactly one origin is
+       unreachable in practice: written as thorn-engraving AND
+       bedrock-engraving this fired 0 times in 360 runs. Opening
+       *both* sides then overshot to 8.3% — 룬이 새겨진 and the
+       거울 방패 are each common on their own. One side open is
+       the right amount: the mirror shield can stand in for the
+       thorn, but the 반석 engraving is still the price. */
     need: (g, p) => (g.reflect > 0 || !!p?.relics?.includes('mirror'))
-                 && (g.flatDR > 0 || g.resistAll),
-    want: '되돌려주는 것(가시·거울 방패)과, 깎아내는 것(반석·룬)을 함께',
+                 && g.flatDR > 0,
+    want: '되돌려주는 것(가시의 각인 · 거울 방패)과, 반석의 각인을 함께',
     t:'막아낸 만큼이 그대로 되돌아간다. 반사는 상대 방어를 무시한다.',
     weak:'맞지 않으면 아무 일도 없다. 바닥 공격과 화살은 되돌릴 것이 없다.',
     say:'두꺼운 것을 때리면 손이 먼저 상한다.' },

@@ -394,8 +394,35 @@ export function draw() {
     ctx.fillText(String(h.left), mx2, my2);
   }
 
+  /* What a step costs, before it is taken. Eight small marks, one
+     per neighbouring tile, each saying how many awake things could
+     reach you there. Drawn under the effects so a telegraph always
+     wins the pixel. */
+  if (G.running && G.depth > 0 && showThreat) {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const [dx, dy] of DIRS8) {
+      const tx = p.x + dx, ty = p.y + dy;
+      if (tx < 0 || ty < 0 || tx >= MW || ty >= MH) continue;
+      if (!L.seen[idx(tx, ty)] || L.solid(tx, ty)) continue;
+      const n = Game.threatAt(tx, ty);
+      if (!n) continue;
+      const px = (tx - cx) * t, py = (ty - cy) * t;
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = n >= 3 ? PALETTE.r : n === 2 ? PALETTE.n : PALETTE.g;
+      ctx.fillRect(px + t * 0.06, py + t * 0.06, t * 0.88, t * 0.88);
+      ctx.globalAlpha = 1;
+      ctx.font = `700 ${Math.floor(t * 0.4)}px ui-monospace, monospace`;
+      ctx.fillStyle = n >= 3 ? PALETTE.R : PALETTE.G;
+      ctx.fillText(String(n), px + t * 0.82, py + t * 0.2);
+    }
+    ctx.globalAlpha = 1;
+  }
+
   Juice.drawEffects(ctx, cx, cy, t);
-  Juice.drawScreenFlash(ctx, viewW, viewH);
+  /* 0 above a quarter health, rising to 1 at death's door. One
+     number so the pulse and its speed can never disagree. */
+  const low = p.maxhp ? Math.max(0, 1 - p.hp / (p.maxhp * 0.25)) : 0;
+  Juice.drawScreenFlash(ctx, viewW, viewH, G.running ? low : 0);
   drawMini();
 }
 
@@ -763,6 +790,8 @@ function frame(ts) {
     if (e.t === 'lore') pushLore(e);
     else if (e.t === 'hit' && e.on === 'player') noteHit(e);
   }
+  // The ear stands where the hero stands.
+  Audio.listenAt(G.player.x, G.player.y);
   Juice.pump(G.fx, G.player);
   Juice.update(dt, [G.player, ...G.monsters]);
 
@@ -1031,9 +1060,17 @@ export function setScreen(name) {
   /* Paper floats over the map rather than inside a screen, so it
      has to be put away by hand when the map goes. */
   if (name !== 'play') { $('scroll').hidden = true; closeLore(); }
+  /* The six that interrupt a floor come up as sheets over the map
+     instead of replacing it. Losing the map loses "what is left on
+     this floor and where I am standing" — which is precisely the
+     information the fire is asking you to decide with. */
+  const sheeted = SHEETS.includes(name);
   for (const s of ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help',
-                   'camp', 'slots', 'altar', 'stairs', 'relic', 'event', 'anvil', 'codex'])
-    $(`sc-${s}`).hidden = (s !== name);
+                   'camp', 'slots', 'altar', 'stairs', 'relic', 'event', 'anvil', 'codex']) {
+    const box = $(`sc-${s}`);
+    box.hidden = (s !== name) && !(s === 'play' && sheeted);
+    box.classList.toggle('assheet', s === name && sheeted);
+  }
   if (name === 'play') { resize(); refresh(); }
   if (name === 'inv')  renderInventory();
   if (name === 'shop') renderShop();
@@ -1113,6 +1150,7 @@ function renderLegend() {
 let askResolve = null;
 
 export function ask(text, sub, onYes) {
+  dressAll();
   // Same resolver the log uses, so a confirmation reads like the
   // rest of the game rather than like a form.
   $('ask-text').textContent = josa(text);
@@ -1361,14 +1399,38 @@ function paperURL() { return paper ||= Pix.parchmentURL(); }
 function dressSheet(box) {
   if (box.dataset.dressed) return;
   box.dataset.dressed = '1';
-  box.querySelector('.sheet').style.backgroundImage = `url(${paperURL()})`;
+  let sheet = box.querySelector('.sheet');
+  if (!sheet) {
+    /* Wrap what is already inside, so the paper sits behind the
+       content and the torn edges sit outside it. */
+    sheet = el('div', 'sheet');
+    while (box.firstChild) sheet.appendChild(box.firstChild);
+    box.appendChild(sheet);
+  }
+  sheet.style.backgroundImage = `url(${paperURL()})`;
   const w = 320;
   for (const [sel, flip] of [['.deck.top', false], ['.deck.bot', true]]) {
-    const cv = box.querySelector(sel);
+    let cv = box.querySelector(sel);
+    /* Boxes that were written before the paper existed get their
+       torn edges attached here rather than in the markup, so the
+       whole game is one surface without four copies of the same
+       two canvases in index.html. */
+    if (!cv) {
+      cv = el('canvas', 'deck ' + (flip ? 'bot' : 'top'));
+      if (flip) box.appendChild(cv); else box.insertBefore(cv, box.firstChild);
+    }
     const src = Pix.deckle(w, flip);
     cv.width = w; cv.height = src.height;
     cv.getContext('2d').drawImage(src, 0, 0);
   }
+}
+
+/* Every question, lesson and look-at card in the game is paper
+   now. A blue-bordered dialog next to a torn leaf reads as two
+   different games sharing a screen. */
+function dressAll() {
+  for (const id of ['ask', 'lesson', 'look'])
+    dressSheet($(id).querySelector('.askbox'));
 }
 
 /* Cards queue rather than stack: two firsts in one turn would
@@ -1663,8 +1725,21 @@ $('btn-begin').onclick  = () => {
 };
 
 /* inventory */
+/* Which half of the bag screen is showing. Kept across opens —
+   a player who was comparing weapons is still comparing weapons
+   after they walked two tiles. */
+let invTab = 'worn';
+
+/* On by default, and switchable: a player who has learned to read
+   the room by eye should be able to turn it off. */
+let showThreat = true;
+const DIRS8 = [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]];
+
 function renderInventory() {
   const p = G.player;
+  for (const b of $('inv-tabs').children) b.classList.toggle('on', b.dataset.tab === invTab);
+  for (const sec of document.querySelectorAll('#sc-inv [data-inv]'))
+    sec.hidden = sec.dataset.inv !== invTab;
   const eq = $('equip-list'); eq.innerHTML = '';
   const slots = [['weapon', '무기'], ['body', '갑옷'], ['shield', '방패']];
   for (const [key, label] of slots) {
@@ -2441,6 +2516,7 @@ export function inspect(x, y) {
         row.appendChild(el('span', 'endval', v));
         box0.appendChild(row);
       }
+      dressAll();
       $('look').hidden = false;
       return;
     }
@@ -2464,6 +2540,7 @@ export function inspect(x, y) {
     row.appendChild(el('span', 'endval', v));
     box.appendChild(row);
   }
+  dressAll();
   $('look').hidden = false;
 }
 
@@ -2527,6 +2604,7 @@ function showLesson() {
   const l = lessonQueue.shift();
   if (!l) { teaching = false; return; }
   teaching = true;
+  dressAll();
   $('lesson-text').innerHTML = l.t;
   $('lesson').hidden = false;
 }
@@ -3021,6 +3099,9 @@ function walkTo(tx, ty) {
    it. One list, so a new screen is never routed from three
    places and forgotten in a fourth. */
 const INTERRUPTS = ['shop', 'camp', 'altar', 'stairs', 'relic', 'event', 'anvil'];
+/* Everything that happens *on a floor*. The shop is in town where
+   there is no map worth keeping, so it stays a whole screen. */
+const SHEETS = ['camp', 'altar', 'stairs', 'relic', 'event', 'anvil'];
 
 function takeStep(dx, dy) {
   act(() => Game.step(dx, dy));
@@ -3156,6 +3237,8 @@ export function bindInput() {
   $('btn-door').onclick   = () => { stopAuto(); act(Game.closeDoor); };
   $('btn-help').onclick   = () => { stopAuto(); setScreen('help'); };
   $('btn-codex').onclick  = () => setScreen('codex');
+  for (const b of $('inv-tabs').children)
+    b.onclick = () => { invTab = b.dataset.tab; renderInventory(); };
   /* The strip is the lid of the record. Tapping it opens the
      whole thing — the two-line window was never meant to be the
      only way to read what happened. */

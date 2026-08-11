@@ -38,7 +38,7 @@
       <div class="abyssrow"></div>
       <p class="note" id="abyss-note"></p>
     </div>
-    <p class="fine">도트도 소리도 전부 코드로 만듭니다. 이미지·음원 파일 없음.<br><span id="build">v24</span></p>
+    <p class="fine">도트도 소리도 전부 코드로 만듭니다. 이미지·음원 파일 없음.<br><span id="build">v25</span></p>
   </div>
 </section>
 
@@ -204,18 +204,30 @@
     <button class="mini" id="btn-help">조작법</button>
     <button class="mini" data-back>닫기</button>
   </header>
+  <!-- Two tabs, not one column. Five sections stacked came to
+       1383px of scrolling in a 791px window, and the two things a
+       player switches between — what is on me, what is in the bag
+       — were the two furthest apart. -->
+  <div class="codextabs" id="inv-tabs">
+    <button class="codextab on" data-tab="worn">몸</button>
+    <button class="codextab" data-tab="bag">배낭</button>
+  </div>
   <div class="scroll">
-    <h3 class="sect">착용 중</h3>
-    <div id="equip-list"></div>
-    <h3 class="sect">유물 <span id="relic-count" style="margin-left:auto;color:var(--P)"></span></h3>
-    <div id="relic-held"></div>
-    <h3 class="sect">전투</h3>
-    <div id="combat-stats"></div>
-    <h3 class="sect">재료</h3>
-    <div id="mat-list"></div>
-    <h3 class="sect">배낭</h3>
-    <p class="note" id="pack-hint">무기와 갑옷은 <b>분해</b>해서 강화 재료로 쓸 수 있습니다. 상인에게 파는 것과 둘 중 하나입니다.</p>
-    <div id="pack-list"></div>
+    <div data-inv="worn">
+      <h3 class="sect">착용 중</h3>
+      <div id="equip-list"></div>
+      <h3 class="sect">유물 <span id="relic-count" style="margin-left:auto;color:var(--P)"></span></h3>
+      <div id="relic-held"></div>
+      <h3 class="sect">전투</h3>
+      <div id="combat-stats"></div>
+    </div>
+    <div data-inv="bag" hidden>
+      <h3 class="sect">재료</h3>
+      <div id="mat-list"></div>
+      <h3 class="sect">배낭</h3>
+      <p class="note" id="pack-hint">무기와 갑옷은 <b>분해</b>해서 강화 재료로 쓸 수 있습니다. 상인에게 파는 것과 둘 중 하나입니다.</p>
+      <div id="pack-list"></div>
+    </div>
   </div>
 </section>
 
@@ -530,6 +542,26 @@
         <b>도박꾼의 뼈</b>(50% 금화 두 배 / 14% 다섯 배와 유물) · <b>배고픈 문</b>(40% 깊은 장비 둘) ·
         <b>재 속의 약속</b>(35% 최대 체력 영구 +22와 무기 +2).</td></tr>
     </table>
+
+    <h3 class="sect">숨 고르기 — 상처는 남습니다</h3>
+    <table class="keys">
+      <tr><td>언제</td><td><b>10턴 동안 맞지 않아야</b> 몸이 상처를 닫기 시작합니다. 싸우는 중에는 아무것도 아물지 않습니다.</td></tr>
+      <tr><td>어디까지</td><td><b>최대 체력의 절반 남짓</b>까지만. 그 위로는 걸어서 갈 수 없습니다 —
+        물약 · 모닥불 · 치유 주문이 그 자리에 있는 이유입니다.<br>
+        <b>체질</b>이 그 선을 올리고, 아무는 주기도 당깁니다. 체질을 버린 몸은 나쁜 싸움을 오래 안고 다닙니다.</td></tr>
+      <tr><td>사제만</td><td><b>응답</b>은 남들이 멈추는 선을 넘어갑니다. 두 배로 자주 아물고, 끝까지 아뭅니다. 그게 이 직업입니다.</td></tr>
+      <tr><td>왜</td><td>예전에는 100턴을 걸으면 최대 체력의 <b>40~50%</b>가 돌아왔습니다. 한 층이 100~200턴이니
+        <b>층 하나 치우면 공짜 완치</b>였고, 그래서 소모전이라는 것이 게임에서 사라져 있었습니다.
+        숫자를 줄이는 대신 <b>성격</b>을 바꿨습니다 — 이건 약이 아니라 숨을 고르는 것입니다.</td></tr>
+    </table>
+
+    <h3 class="sect">위험 미리보기</h3>
+    <p class="note">발밑 여덟 칸에 <b>깨어 있는 것 몇이 그 칸에 손을 댈 수 있는지</b>가 숫자로 뜹니다.
+      근접은 인접, 궁수는 사거리와 <b>트인 시야</b>까지 계산합니다 — 몬스터가 실제로 쓰는 것과 같은 두 가지 판정이라,
+      바닥의 표시가 규칙이 하지 않을 일을 약속하지 않습니다.<br>
+      자비가 아니라 <b>정보</b>입니다. 피할 수 있었던 죽음은 대부분 "저 칸에 몇이 닿는지 몰랐다"이고,
+      답은 늘 화면에 있었습니다 — 스프라이트 여덟 개와 사거리 수치와 눈으로 따라가야 하는 벽에 흩어진 채로.
+      그 산수는 재미있는 결정이 아닙니다. <b>그걸 알고 무엇을 하느냐</b>가 결정입니다.</p>
 
     <h3 class="sect">양피지 — 읽는 자리</h3>
     <table class="keys">

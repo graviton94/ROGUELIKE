@@ -496,12 +496,27 @@ function bumpCombo(x, y) {
    for being hit can never disagree with what "being hit" means. */
 function tookHit() {
   const p = G.player;
+  /* You cannot catch your breath while something is hitting you.
+     Stamped here rather than at the two damage sites so an arrow
+     counts the same as an axe. */
+  p.hurtAt = G.turn;
   if (hasRelic('grudge')) p.grudge = Math.min(15, (p.grudge || 0) + 1);
   /* 맹세 (팔라딘). Every blow taken hardens him a little more.
      Sits here rather than in the two damage sites so it counts
      an arrow the same as an axe. */
   if (p.cls === 'paladin') p.oath = Math.min(8, (p.oath || 0) + 1);
 }
+
+/* How long after a blow before the body starts closing again,
+   and how far it will go on its own. 체질 buys both — a dumped
+   constitution now means bad fights stay with you. */
+export const BREATH = 10;
+/* Measured at 0.50: floors five and six went from 13% of runs to
+   24%, and the share reaching floor 11 fell six points. The
+   lockout is the interesting half of this change — you cannot
+   breathe while something is hitting you — so that stays at ten
+   turns and the ceiling gives a little back instead. */
+export const breathRoof = p => clamp(0.56 + statB(p, 'con') * 0.055, 0.46, 0.82);
 
 function breakCombo(hard) {
   if (!G.combo) return;
@@ -2453,9 +2468,26 @@ export function endTurn(skipMonsters = false) {
      holds. 8 turns at 10 con, 5 at 18, 12 at 5 — a dumped
      constitution is felt between fights as well as inside one. */
   const beat = clamp(8 - statB(p, 'con'), 4, 14);
-  if (G.turn % beat === 0 && p.hp < p.maxhp) p.hp = Math.min(p.maxhp, p.hp + regen);
-  // 응답: the priest closes on his own, twice as often as anyone.
-  if (p.cls === 'priest' && G.turn % 6 === 0 && p.hp < p.maxhp)
+  /* Measured: a hundred turns of walking handed back forty to
+     fifty percent of maximum health, at every level. A floor is
+     one to two hundred turns, so clearing one was a free full
+     heal and attrition stopped being a resource — the clock was
+     the only pressure left in the game.
+
+     The answer is not a smaller number. Making it smaller brings
+     back the floor-four death spiral this was added to fix. What
+     changes is its *character*: it is catching your breath, not
+     medicine. So it does nothing while something is hitting you,
+     and it closes a wound only so far. Past that line the wound
+     is real and costs a flask, a fire, or a prayer — which is
+     what those are for. */
+  const rested = G.turn - (p.hurtAt ?? -99) >= BREATH;
+  const roof = Math.round(p.maxhp * breathRoof(p));
+  if (rested && G.turn % beat === 0 && p.hp < roof)
+    p.hp = Math.min(roof, p.hp + regen);
+  // 응답: the priest closes on his own, twice as often as anyone,
+  // and past the line everyone else stops at. That is the class.
+  if (p.cls === 'priest' && rested && G.turn % 6 === 0 && p.hp < p.maxhp)
     p.hp = Math.min(p.maxhp, p.hp + Math.max(1, Math.round(regen * healScale())));
   if (G.turn % 10 === 0 && p.mana < p.maxmana) p.mana = Math.min(p.maxmana, p.mana + 1);
 
@@ -3526,7 +3558,13 @@ function eventApi() {
     },
     hurt: (n, from) => {
       p.hp -= n; breakCombo(false); tookHit();
-      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg:n, low: p.hp <= p.maxhp * 0.25 && p.hp + dmg > p.maxhp * 0.25, severe: n >= p.maxhp * 0.18 });
+      /* `dmg` was a name from the site this was copied out of and
+         has never existed here. It threw the moment a ? room dealt
+         damage that pushed you across the quarter-health line —
+         which is exactly when the low-health flash was wanted. */
+      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg:n, who: from || '사건', spr:'event',
+           low: p.hp <= p.maxhp * 0.25 && p.hp + n > p.maxhp * 0.25,
+           severe: n >= p.maxhp * 0.18 });
       say(`${n}의 피해.`, 'hit');
       if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n: from || '사건' }); }
     },
@@ -4049,6 +4087,33 @@ export function summarise(win, by) {
 
 /* How far a named thing will follow you from where it stands. */
 const NAMED_LEASH = 9;
+
+/* How many awake things could put a hand on that tile if you
+   stood there. Melee counts adjacency, archers count their range
+   through clear line — the same two tests the monsters themselves
+   run, so the mark on the floor cannot promise something the
+   rules will not do.
+
+   This is information, not mercy. Nearly every avoidable death in
+   a roguelike is "I did not know how many were in reach of that
+   square", and the answer was always on screen — spread across
+   eight sprites, a range stat and a wall you had to trace by eye.
+   Doing that arithmetic is not the interesting decision; acting
+   on it is. */
+export function threatAt(x, y) {
+  const L = G.level;
+  if (!L || L.solid(x, y)) return 0;
+  let n = 0;
+  for (const m of G.monsters) {
+    if (!m.awake || m.disguise || m.fleeing) continue;
+    if (m.named && !m.provoked && !hasShackle('shadow')) continue;   // it stays home
+    const d = Math.hypot(m.x - x, m.y - y);
+    if (m.ai === 'ranged' && m.rng) {
+      if (d <= m.rng && lineClear(L, m.x, m.y, x, y)) n++;
+    } else if (d <= 1.5 + (m.spd || 1) - 1) n++;
+  }
+  return n;
+}
 
 /* One in forty crits, and never on the boss — the frame is the
    reward, and a boss fight is already carrying its own. */

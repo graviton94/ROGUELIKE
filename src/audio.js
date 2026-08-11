@@ -25,6 +25,62 @@ let master = null;
 let muted = false;
 let noiseBuf = null;
 
+/* ── where the sound is ───────────────────────────────────
+   Everything used to arrive at the same volume from the middle
+   of your head, which threw away the one thing sound is better
+   at than a screen: telling you about somewhere you are not
+   looking. A troll smashing a door two rooms west is information,
+   and it was arriving as a noise with no address.
+
+   So each sound may carry a place. juice.js already knows where
+   every event happened; here that becomes a pan and a falloff.
+   Deliberately gentle — this is a game played one-handed on a
+   phone speaker, and hard panning on a phone speaker is just
+   quieter. Anything without a place stays centred, which is
+   correct for the interface sounds. */
+let earX = 0, earY = 0;
+export function listenAt(x, y) { earX = x; earY = y; }
+
+/* Set once per effect by juice.js, so the whole vocabulary below
+   stays a list of `sfx.hit()` with no coordinates threaded
+   through forty signatures. Persists until the next event sets
+   it, which is right: every sound one event makes comes from the
+   same place. */
+let pendingAt = null;
+export function from(x, y) {
+  pendingAt = (x == null || y == null) ? null : { x, y };
+}
+
+/* Nulled when there is no place, so the graph stays two nodes
+   shorter for every sound that does not need one. */
+function place(at) {
+  at = at || pendingAt;
+  if (!at || !ctx) return null;
+  const dx = at.x - earX, dy = at.y - earY;
+  const d = Math.hypot(dx, dy);
+  const g = ctx.createGain();
+  /* Half volume at eight tiles, a fifth at fifteen: audible far
+     enough to be a warning, quiet enough not to be a nuisance. */
+  g.gain.value = 1 / (1 + d * 0.13);
+  let node = g;
+  if (ctx.createStereoPanner) {
+    const pan = ctx.createStereoPanner();
+    pan.pan.value = Math.max(-0.75, Math.min(0.75, dx / 9));
+    g.connect(pan); node = pan;
+  }
+  node.connect(master);
+  /* Far things lose their edge before they lose their volume,
+     which is what actually makes distance readable. */
+  if (d > 5) {
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = Math.max(700, 9000 - d * 480);
+    lp.connect(g);
+    return lp;
+  }
+  return g;
+}
+
 const KEY = 'deepdelve.mute';
 
 export function init() {
@@ -65,7 +121,7 @@ export const isMuted = () => muted;
    is a filtered burst. Almost every sound below is one or two
    of these stacked with different envelopes. */
 function tone(freq, dur, {
-  type = 'square', gain = 0.2, slide = 0, delay = 0, detune = 0,
+  type = 'square', gain = 0.2, slide = 0, delay = 0, detune = 0, at = null,
 } = {}) {
   if (!ctx || muted) return;
   const t0 = ctx.currentTime + delay;
@@ -78,11 +134,11 @@ function tone(freq, dur, {
   // A hard 0 is illegal for exponential ramps, so decay to near-silence.
   g.gain.setValueAtTime(gain, t0);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  o.connect(g); g.connect(master);
+  o.connect(g); g.connect(place(at) || master);
   o.start(t0); o.stop(t0 + dur + 0.02);
 }
 
-function noise(dur, { gain = 0.2, delay = 0, hp = 0, lp = 8000, q = 1 } = {}) {
+function noise(dur, { gain = 0.2, delay = 0, hp = 0, lp = 8000, q = 1, at = null } = {}) {
   if (!ctx || muted) return;
   const t0 = ctx.currentTime + delay;
   const src = ctx.createBufferSource();
@@ -98,7 +154,7 @@ function noise(dur, { gain = 0.2, delay = 0, hp = 0, lp = 8000, q = 1 } = {}) {
   }
   const lpf = ctx.createBiquadFilter();
   lpf.type = 'lowpass'; lpf.frequency.value = lp;
-  node.connect(lpf); lpf.connect(g); g.connect(master);
+  node.connect(lpf); lpf.connect(g); g.connect(place(at) || master);
   src.start(t0); src.stop(t0 + dur + 0.02);
 }
 

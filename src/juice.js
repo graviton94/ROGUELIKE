@@ -8,7 +8,7 @@
 
 import { PALETTE, spriteColors } from './pixels.js';
 import { MW as MAP_W } from './world.js';
-import { sfx } from './audio.js';
+import { sfx, from as earFrom } from './audio.js';
 
 /* ── stores ─────────────────────────────────────────────── */
 const shards = [];     // pixel chunks knocked off a sprite
@@ -94,6 +94,11 @@ const buzz = ms => { try { navigator.vibrate?.(ms); } catch { /* not supported *
 /* ── event intake ───────────────────────────────────────── */
 export function pump(queue, player) {
   for (const e of queue) {
+    /* Where this happened, handed to the ear once per event. A
+       door smashed two rooms west should arrive from the west and
+       arrive quieter — that is the one thing sound does better
+       than a screen, and it was being thrown away. */
+    earFrom(e.x, e.y);
     switch (e.t) {
       case 'lunge': {
         const s = at(player);
@@ -748,7 +753,25 @@ export function drawEffects(ctx, camX, camY, t) {
   ctx.globalAlpha = 1;
 }
 
-export function drawScreenFlash(ctx, w, h) {
+export function drawScreenFlash(ctx, w, h, hurt = 0) {
+  /* Being *at* low health, not being hit. The old vignette
+     flashed on damage and decayed in half a second, so walking
+     around at fifteen percent looked exactly like walking around
+     at full — and the number is in the corner, where nobody is
+     looking during a fight.
+
+     A slow breath, not a strobe: this has to be readable at a
+     glance and survivable for a hundred turns. */
+  if (hurt > 0) {
+    const beat = 0.5 + 0.5 * Math.sin(performance.now() / (420 - hurt * 140));
+    const a = (0.16 + hurt * 0.30) * (0.62 + beat * 0.38);
+    const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.20,
+                                       w / 2, h / 2, Math.max(w, h) * 0.66);
+    g.addColorStop(0, 'rgba(143,47,40,0)');
+    g.addColorStop(1, `rgba(143,47,40,${a.toFixed(3)})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  }
   /* The edges first: damage reads as the screen closing in,
      which leaves the board visible in the middle where the
      player has to keep making decisions. */

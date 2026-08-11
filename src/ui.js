@@ -10,7 +10,7 @@ import {
   PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName, MATS, ENCHANT_COST, REROLL_COST,
   RARITY, CURSED_TONE, rarityOf, isCursed,
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
-  MONSTERS, BRANCHES, SPELLS, boonById, FUSIONS,
+  MONSTERS, BRANCHES, SPELLS, boonById, FUSIONS, engraveById, ENGRAVE_AT, ENGRAVE_PENALTY,
   UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS, FUSE_ODDS, FUSE_COST,
   xpToLevel, statBonus,
 } from './data.js';
@@ -1325,6 +1325,8 @@ function renderInventory() {
       : it.kind === 'armour' ? `${grade ? `[${RARITY[grade].n}] ` : ''}방어 +${it.ac}${affixBlurb(it)}`
       : it.kind === 'cat' ? `촉매 · ${it.t}`
       : Game.isKnown(it.id) ? (it.desc || '사용 가능') : '마셔 보기 전에는 알 수 없다'));
+    const pt = plusText(it);
+    if (pt) mid.appendChild(el('span', 'idesc plus', pt));
     row.appendChild(mid);
     row.appendChild(el('span', 'iact',
       it.kind === 'cat' ? '모루에서' : it.kind === 'use' ? '사용' : '장착'));
@@ -1501,9 +1503,35 @@ function affixText(a) {
 function affixBlurb(it) {
   const parts = [affixText(affixOf(it.pre, PREFIXES)), affixText(affixOf(it.suf, SUFFIXES))]
     .filter(Boolean);
-  // The 은총 goes first: it is a rule, and the affixes are numbers.
+  // Rules first, numbers after: the 은총 and the engravings change
+  // what the item does, the affixes only change how much.
+  for (const id of [...(it.engrave || [])].reverse())
+    parts.unshift(engraveById(id)?.t);
   if (it.boon) parts.unshift(boonById(it.boon)?.t);
   return parts.length ? ' · ' + parts.filter(Boolean).join(' · ') : '';
+}
+
+/* What the + on this item is actually worth, in the same numbers
+   the combat code uses. "+6" told the player nothing; "+6 — 피해
+   +12, 명중 +9" tells them what the next strike at the anvil is
+   買ing, and what a failure would cost them.
+
+   Also names the next milestone, because the whole reason to
+   push past +3 is the engraving waiting at +4. */
+function plusText(it) {
+  if (!it || (it.kind !== 'weapon' && it.kind !== 'armour')) return '';
+  const plus = it.plus || 0;
+  const bits = [];
+  if (plus) {
+    bits.push(it.kind === 'weapon'
+      ? `+${plus} — 피해 +${plus * 2} · 명중 +${(plus * 1.5).toFixed(1).replace(/\.0$/, '')}`
+      : `+${plus} — 방어 +${plus * 2}`);
+  }
+  const next = ENGRAVE_AT.find(n => n > plus);
+  const have = (it.engrave || []).length;
+  if (next) bits.push(`+${next}에서 각인 ${have + 1}번째`);
+  else if (have) bits.push('각인 자리를 다 썼다');
+  return bits.join(' · ');
 }
 
 /* ── the fire ───────────────────────────────────────────── */
@@ -1699,6 +1727,7 @@ function renderAnvilTargets() {
       t.kind === 'spell' ? '주문'
       : t.item.kind === 'weapon' ? `피해 ${t.item.dice[0]}d${t.item.dice[1]}${affixBlurb(t.item)}`
       : `방어 +${t.item.ac}${affixBlurb(t.item)}`));
+    if (t.item) { const pt = plusText(t.item); if (pt) mid.appendChild(el('span', 'idesc plus', pt)); }
     row.appendChild(mid);
 
     let blocked = false, label = '?';
@@ -1720,6 +1749,15 @@ function renderAnvilTargets() {
           `+${t.plus} → +${t.plus + (bet.crit >= 1 ? 2 : 1)} · ${risk} · ${Game.costText(cost)}`);
         if (bet.breakPct) line.classList.add('danger');
         mid.appendChild(line);
+        /* The milestone gets its own line and its own colour. It
+           is the only strike where success changes what the item
+           *is*, and the odds are visibly worse for exactly that. */
+        if (bet.milestone) {
+          const mk = el('span', 'idesc mark',
+            `이 한 방에 각인이 새겨진다 — 그래서 성공률이 ` +
+            `${Math.round(ENGRAVE_PENALTY * 100)}%p 낮다.`);
+          mid.appendChild(mk);
+        }
       }
     } else if (anvilMode === 'reroll') {
       blocked = (t.kind === 'spell' ? false : !(t.item?.pre || t.item?.suf))

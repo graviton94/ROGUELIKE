@@ -7,6 +7,7 @@ import {
   WEAPONS, ARMOURS, CONSUMABLES, SHOPS, AILMENTS, IMMUNE, TRAPS,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, ELITES, affixName,
   MATS, salvageYield, worthOf, upgradeCost, ENCHANT_COST, REROLL_COST,
+  ENGRAVINGS, engraveById, engraveSlots, isMilestone, ENGRAVE_PENALTY,
   CATALYSTS, catalystById, makeCatalyst,
   upgradeOdds, upgradeRisk, UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS,
   BOONS, boonById, transChance,
@@ -196,6 +197,8 @@ const EMPTY_BONUS = {
   lifesteal:0, chain:0, burst:0, execute:0, pierce:0,
   regen:0, lightR:0, maxhpPct:0, manaPct:0, manaFlat:0,
   on:null, resistAll:false, noStealth:false,
+  // engraving-only rules — see ENGRAVINGS in data.js
+  firstStrike:0, vsElite:0, flatDR:0, reflect:0, dawn:0, ailShrug:0, anchor:false,
 };
 
 export function gearBonus(p) {
@@ -216,6 +219,9 @@ export function gearBonus(p) {
     for (const a of [
       it.pre && PREFIXES.find(x => x.id === it.pre),
       it.suf && SUFFIXES.find(x => x.id === it.suf),
+      // Engravings ride the same funnel, so a rule declared once
+      // in data.js is true everywhere without a second code path.
+      ...(it.engrave || []).map(engraveById),
     ]) {
       if (!a) continue;
       b.dmg       += a.dmg || 0;
@@ -234,6 +240,13 @@ export function gearBonus(p) {
       b.lightR    += a.lightR || 0;
       b.maxhpPct  += a.maxhpPct || 0;
       b.manaPct   += a.manaPct || 0;
+      b.firstStrike += a.firstStrike || 0;
+      b.vsElite   += a.vsElite || 0;
+      b.flatDR    += a.flatDR || 0;
+      b.reflect   += a.reflect || 0;
+      b.dawn      += a.dawn || 0;
+      b.ailShrug  += a.ailShrug || 0;
+      if (a.anchor) b.anchor = true;
       if (a.on) b.on = a.on;
       if (a.resist === 'all') b.resistAll = true;
     }
@@ -307,6 +320,14 @@ export const immuneTo = (p, kind) =>
 
 export function afflict(p, kind, turns) {
   if (!kind || !AILMENTS[kind]) return;
+  const g = gearBonus(p);
+  // 닻의 각인 refuses the two that take the turn away from you.
+  if (g.anchor && (kind === 'paralyze' || kind === 'slow')) {
+    say(`${AILMENTS[kind].n}이(가) 미끄러진다.`, 'good');
+    fx({ t:'resist', x:p.x, y:p.y });
+    return;
+  }
+  if (g.ailShrug) turns = Math.max(1, Math.round(turns * (1 - g.ailShrug)));
   if (immuneTo(p, kind)) {
     say(`${AILMENTS[kind].n}이(가) 통하지 않는다.`, 'good');
     fx({ t:'resist', x:p.x, y:p.y });
@@ -922,6 +943,16 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     p.seedAc = (p.seedAc || 0) + 1;
     recalc(p);
     say(`돌씨가 자란다. 방어 +${p.seedAc}.`, 'good');
+  }
+  /* 여명의 각인: the floor opens and the wounds close a little. */
+  if (depth > 0) {
+    const dawn = gearBonus(p).dawn;
+    if (dawn && p.hp < p.maxhp) {
+      const got = Math.min(p.maxhp - p.hp, Math.round(p.maxhp * dawn));
+      p.hp += got;
+      say(`여명 — 층이 열리며 상처가 아문다. 체력 +${got}.`, 'good');
+      fx({ t:'heal', x:p.x, y:p.y, amt:got });
+    }
   }
   if (depth > 0) p.grudge = 0;      // 앙심 forgets between floors
   if (depth > 0) { p.oath = 0; p.chain3 = 0; p.markN = 0; p.chainOn = null; p.markOn = null; }
@@ -1701,6 +1732,10 @@ function swing(m, scale) {
   // 진노의: the same idea without the downside, which is what
   // makes a 은총 a 은총 and not an affix.
   if (hasBoon('wrath') && (m.elite?.length || m.boss || m.named)) dmg *= 1.35;
+  // 결전의 각인: the same idea, cut into the blade rather than worn.
+  if (g.vsElite && (m.elite?.length || m.boss || m.named)) dmg *= 1 + g.vsElite;
+  // 사냥의 각인: only the blow that opens the wound.
+  if (g.firstStrike && m.hp >= m.maxhp) dmg *= 1 + g.firstStrike;
 
   if (p.cls === 'ranger' && p.markN) dmg *= 1 + p.markN * 0.09;
 
@@ -2316,8 +2351,8 @@ function monsterMelee(m) {
   }
   const dmg = Math.max(1, Math.round(
     (roll(2, Math.max(3, Math.floor(m.atk * 0.72))) - Math.floor(ac / 5))
-    * (heavy ? 2.5 : 1) * (1 + (p.perm?.takeMore || 0))));
-  p.hp -= dmg;
+    * (heavy ? 2.5 : 1) * (1 + (p.perm?.takeMore || 0))) - gearBonus(p).flatDR);
+  p.hp -= Math.max(1, dmg);
   breakCombo(false); tookHit();
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        severe: dmg >= p.maxhp * 0.18 });
@@ -2356,9 +2391,13 @@ function corrode(m) {
 /* 거울 방패. Deliberately placed after the damage is applied, so
    a reflected killing blow still trades — you both go down. */
 function reflect(m, dmg) {
-  if (!hasRelic('mirror') || !G.monsters.includes(m)) return;
-  const back = Math.max(1, Math.round(dmg * relicVal('mirror')));
-  hurtMonster(m, back, '거울 방패');
+  if (!G.monsters.includes(m)) return;
+  // 거울 방패 and 가시의 각인 stack — one funnel so they can never
+  // be applied twice or missed once.
+  const rate = (hasRelic('mirror') ? relicVal('mirror') : 0) + gearBonus(G.player).reflect;
+  if (rate <= 0) return;
+  hurtMonster(m, Math.max(1, Math.round(dmg * rate)),
+              hasRelic('mirror') ? '거울 방패' : '가시');
 }
 
 function monsterShoot(m) {
@@ -2372,7 +2411,8 @@ function monsterShoot(m) {
     fx({ t:'miss', x:p.x, y:p.y });
     return;
   }
-  const dmg = Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.6))) - Math.floor(ac / 6));
+  const dmg = Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.6)))
+    - Math.floor(ac / 6) - gearBonus(p).flatDR);
   p.hp -= dmg;
   breakCombo(false); tookHit();
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
@@ -2728,8 +2768,14 @@ export function upgradeOddsFor(key, careful = false, cat = null) {
     // The first strikes are certain on purpose. A 1% failure on
     // a +0 sword would teach a new player the wrong lesson about
     // a screen they have just met.
+    /* A milestone strike is doing two jobs — the number and the
+       engraving — so it is markedly harder than its neighbours.
+       This is the risk the reward is attached to. */
+    milestone: t.type === 'item' && isMilestone(plus),
     odds: c === 'core' ? 1
-        : Math.min(1, upgradeOdds(plus) + (careful ? CAREFUL_BONUS : 0)),
+        : Math.max(0.05, Math.min(1, upgradeOdds(plus)
+            + (careful ? CAREFUL_BONUS : 0)
+            - (t.type === 'item' && isMilestone(plus) ? ENGRAVE_PENALTY : 0))),
     crit: c === 'surge' ? 1 : careful ? 0 : UPGRADE_CRIT,
     down: c === 'flux' ? 0 : risk.down,
     // A spell cannot shatter; there is nothing to shatter. Nor
@@ -2786,6 +2832,8 @@ export function anvilStrike(key, careful = false, cat = null) {
       p.spellPlus[t.id] = Math.min(cap, (p.spellPlus[t.id] || 0) + step);
     }
     G.forged = (G.forged || 0) + step;
+    // Every milestone crossed by this strike cuts its engraving.
+    if (t.type === 'item') engraveUpTo(t.item);
     if (step === 2) {
       say(`${name} — 쇠가 노래한다. 두 단계 올랐다.`, 'level');
       fx({ t:'forge', x:p.x, y:p.y, big:true });
@@ -2810,6 +2858,26 @@ export function anvilStrike(key, careful = false, cat = null) {
   } else {
     say(`${name} — 불꽃이 사그라든다. 아무 일도 없었다.`, 'warn');
     fx({ t:'forge', x:p.x, y:p.y, fail:true });
+  }
+}
+
+/* Cut whatever engravings the item's plus has now earned. Driven
+   off the plus rather than off the strike, so an item that jumped
+   two steps at once gets both, and an item that was knocked back
+   down and climbed again does not get a second copy. */
+function engraveUpTo(it) {
+  if (!it) return;
+  const want = engraveSlots(it.plus);
+  it.engrave = it.engrave || [];
+  while (it.engrave.length < want) {
+    const held = new Set(it.engrave);
+    const pool = ENGRAVINGS.filter(e =>
+      e.tags.includes(it.kind === 'weapon' ? 'weapon' : 'armour') && !held.has(e.id));
+    if (!pool.length) break;
+    const e = pool[rnd(pool.length)];
+    it.engrave.push(e.id);
+    say(`쇠에 무늬가 돋았다 — ${e.n} ${it.n}. ${e.t}`, 'level');
+    fx({ t:'engrave', x:G.player.x, y:G.player.y });
   }
 }
 

@@ -415,6 +415,25 @@ export function pump(queue, player) {
         buzz([70, 50, 110]); sfx.crit();
         break;
 
+      /* An engraving being cut. Violet like the relic tier,
+         because a rule arriving is a different event from a
+         number arriving. */
+      case 'engrave':
+        freeze = 130;
+        for (const r of [1.6, 3.2, 4.8]) ring(e.x, e.y, r, PALETTE.P, 780);
+        number(e.x, e.y - 0.7, '각인', PALETTE.P, 2.2);
+        for (let i = 0; i < 34 && shards.length < MAX_SHARDS; i++) {
+          const a = Math.random() * Math.PI * 2, v = 3 + Math.random() * 5;
+          shards.push({ x: e.x + 0.5, y: e.y + 0.5,
+            vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1.5,
+            life: 820, age: 0, size: Math.random() < 0.3 ? 2 : 1,
+            color: Math.random() < 0.5 ? PALETTE.P : PALETTE.W });
+        }
+        flashScreen = Math.max(flashScreen, 0.6); flashHue = 'P';
+        shake = Math.max(shake, 0.6);
+        buzz([50, 40, 80]); sfx.jackpot();
+        break;
+
       // 이중 시전. A second ring inside the first, so the free
       // cast is visibly a *second* one and not a bigger one.
       case 'twin':

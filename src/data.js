@@ -527,6 +527,7 @@ export function rarityOf(item) {
   const pre = PREFIXES.find(a => a.id === item.pre);
   const suf = SUFFIXES.find(a => a.id === item.suf);
   const score = (pre ? 2 : 0) + (suf ? 2 : 0) + (item.plus || 0)
+              + (item.engrave || []).length * 2
               + (item.d >= 13 ? 1 : 0);
   return score >= 6 ? 3 : score >= 4 ? 2 : score >= 1 ? 1 : 0;
 }
@@ -540,10 +541,13 @@ export const affixName = (item) => {
   const suf = item.suf ? SUFFIXES.find(a => a.id === item.suf) : null;
   const plus = item.plus ? `+${item.plus} ` : '';
   const boon = item.boon ? boonById(item.boon) : null;
+  // Engravings read before the prefix and after the 은총: they are
+  // cut into the thing, where a prefix is only true of it.
+  const marks = (item.engrave || []).map(id => engraveById(id)?.n).filter(Boolean).join(' ');
   // The 은총 goes in front of everything, including the prefix:
   // it is the first thing true about the item.
-  return `${plus}${boon ? boon.n + ' ' : ''}${pre ? pre.n + ' ' : ''}${item.n}` +
-         `${suf ? ' · ' + suf.n : ''}`;
+  return `${plus}${boon ? boon.n + ' ' : ''}${marks ? marks + ' ' : ''}` +
+         `${pre ? pre.n + ' ' : ''}${item.n}${suf ? ' · ' + suf.n : ''}`;
 };
 
 /* ── materials ────────────────────────────────────────────
@@ -570,9 +574,11 @@ export const MATS = {
 export function worthOf(item) {
   if (!item) return 0;
   const affixes = (item.pre ? 1 : 0) + (item.suf ? 1 : 0);
+  const marks = (item.engrave || []).length;
   return Math.round((item.cost || 10)
     * (1 + (item.plus || 0) * 0.42)     // every + is real money
     * (1 + affixes * 0.55)              // and so is every affix
+    * (1 + marks * 0.85)                // an engraving is worth more than either
     * (item.boon ? 3.5 : 1));           // 초월 is not for sale cheap
 }
 
@@ -582,7 +588,8 @@ export function worthOf(item) {
    things that were genuinely valuable. */
 export function salvageYield(item) {
   const w = worthOf(item);
-  const affixes = (item.pre ? 1 : 0) + (item.suf ? 1 : 0);
+  const affixes = (item.pre ? 1 : 0) + (item.suf ? 1 : 0)
+                + (item.engrave || []).length;
   return {
     scrap:   Math.max(1, Math.min(48, Math.round(w / 26))),
     dust:    affixes ? affixes + Math.floor(w / 320) : 0,
@@ -596,6 +603,47 @@ export const upgradeCost = plus => ({
   scrap: 3 + plus * 3,
   gold:  50 + plus * 90,
 });
+
+/* ── engravings ───────────────────────────────────────────
+   Prefixes and suffixes are numbers; an engraving is a rule,
+   and the only way to get one is to survive a specific strike
+   at the anvil. Reaching +4 cuts the first, reaching +7 cuts
+   the second — and those two strikes are markedly harder than
+   the ones around them, because they are doing more than adding
+   a number.
+
+   That is the whole shape of the system: the milestone is where
+   the item stops being a bigger version of itself and becomes a
+   different item, and it is exactly where the anvil is most
+   likely to take it off you.                                 */
+export const ENGRAVE_AT = [4, 7];
+export const ENGRAVE_PENALTY = 0.18;   // success chance lost on a milestone strike
+
+export const ENGRAVINGS = [
+  // weapons
+  { id:'pierce', n:'관통의',  tags:['weapon'], t:'적 방어를 25% 무시한다.',  pierce:0.25 },
+  { id:'reap',   n:'수확의',  tags:['weapon'], t:'체력 12% 아래의 적을 즉사시킨다.', execute:0.12 },
+  { id:'storm',  n:'폭풍의',  tags:['weapon'], t:'30% 확률로 인접한 다른 적까지 벤다.', chain:0.30 },
+  { id:'hunt',   n:'사냥의',  tags:['weapon'], t:'상처 없는 적에게 첫 타 피해 +55%.', firstStrike:0.55 },
+  { id:'duel',   n:'결전의',  tags:['weapon'], t:'정예·이름 있는 것·보스에게 피해 +30%.', vsElite:0.30 },
+  { id:'thirst', n:'갈증의',  tags:['weapon'], t:'준 피해의 12%를 체력으로 가져온다.', lifesteal:0.12 },
+  // armour and shields
+  { id:'bedrock',n:'반석의',  tags:['armour'], t:'받는 모든 피해가 3 줄어든다.',     flatDR:3 },
+  { id:'thorn',  n:'가시의',  tags:['armour'], t:'받은 피해의 20%를 때린 쪽에 돌려준다.', reflect:0.20 },
+  { id:'dawn',   n:'여명의',  tags:['armour'], t:'층에 들어설 때 최대 체력의 15%를 회복한다.', dawn:0.15 },
+  { id:'mend',   n:'재생의',  tags:['armour'], t:'회복 주기마다 2씩 더 아문다.',     regen:2 },
+  { id:'shrug',  n:'인내의',  tags:['armour'], t:'상태이상이 절반만 걸린다.',        ailShrug:0.5 },
+  { id:'anchor', n:'닻의',    tags:['armour'], t:'거미줄과 마비에 걸리지 않는다.',    anchor:true },
+];
+
+export const engraveById = id => ENGRAVINGS.find(e => e.id === id);
+
+/* How many engraving slots a given plus has opened. */
+export const engraveSlots = plus =>
+  ENGRAVE_AT.filter(n => (plus || 0) >= n).length;
+
+/* Is the strike that takes `plus` to `plus+1` a milestone one? */
+export const isMilestone = plus => ENGRAVE_AT.includes((plus || 0) + 1);
 
 /* ── the anvil ────────────────────────────────────────────
    A +5 that always lands is a shopping list. The interesting

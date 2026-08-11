@@ -441,6 +441,9 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .styleswitch button.on { border-color: var(--o); background: #241d16; color: var(--o); }
 #camp-style-note { margin: 0 0 10px; }
 /* The price of a miss, written where the price of a hit is. */
+.idesc.plus { color: var(--y); }
+/* The strike that changes what the thing is. */
+.idesc.mark { color: var(--P); }
 .idesc.bet { color: var(--G); }
 .idesc.bet.danger { color: var(--R); }
 

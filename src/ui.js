@@ -10,8 +10,8 @@ import {
   PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName, MATS, ENCHANT_COST, REROLL_COST,
   RARITY, CURSED_TONE, rarityOf, isCursed,
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
-  MONSTERS, BRANCHES, SPELLS, boonById,
-  UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS,
+  MONSTERS, BRANCHES, SPELLS, boonById, FUSIONS,
+  UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS, FUSE_ODDS, FUSE_COST,
   xpToLevel, statBonus,
 } from './data.js';
 import { EVENTS } from './events.js';
@@ -1509,6 +1509,16 @@ export function renderCamp() {
       poor: !Game.canAfford(REROLL_COST) },
   ];
 
+  /* Only offered when there is something to offer. A dead row
+     that says "you need two relics" is a row that is dead for
+     most of most runs. */
+  if (Game.canFuse()) options.push({
+    id:'fuse', n:'융합', desc:
+      `유물 둘을 불에 넣는다. 대부분은 도박이지만, 서로를 알아보는 짝이 있다. (${Game.costText(FUSE_COST)})`,
+    tag: Game.canAfford(FUSE_COST) ? '유물 둘 소모' : '재료 부족',
+    poor: !Game.canAfford(FUSE_COST),
+  });
+
   for (const o of options) {
     const row = el('button', 'campopt' + (o.poor ? ' poor' : ''));
     if (o.poor) row.disabled = true;
@@ -1571,6 +1581,10 @@ function renderCampTargets() {
   $('camp-targets').hidden = false;
   $('camp-target-head').textContent =
     campMode === 'upgrade' ? '무엇을 강화할까' : campMode === 'reroll' ? '무엇을 재련할까' : '무엇에 걸까';
+
+  if (campMode === 'fuse') { teach('fuse'); renderFuse(); return; }
+  $('fuse-box').hidden = true;
+  $('camp-target-list').hidden = false;
 
   const sw = $('camp-style'), swNote = $('camp-style-note');
   sw.hidden = swNote.hidden = campMode !== 'upgrade';
@@ -1655,7 +1669,101 @@ function renderCampTargets() {
   }
 }
 
-$('camp-back').onclick = () => { campMode = null; renderCamp(); };
+/* ── fusion ─────────────────────────────────────────────────
+   Pick two of the relics you are wearing. The odds for an
+   ordinary pair go on the screen as a bar, the same way the
+   altar's do — but the six pairs that matter are never named
+   here. All the screen will say about them is that the two
+   things recognise each other, and it only says that once you
+   have already put them side by side.
+
+   Everything you need to find those six is written on the
+   relics themselves. 피의 계약 says "무모함과 섞이면 무엇이 되는지
+   아무도 모른다"; 무모함의 인장 says "피로 쓴 계약과 함께라면 더
+   멀리 간다". Twelve descriptions, six pairs, no list. */
+let fusePick = [];
+
+function renderFuse() {
+  const box = $('fuse-box');
+  $('camp-target-list').hidden = true;
+  box.hidden = false;
+  $('camp-target-head').textContent = '무엇과 무엇을 넣을까';
+  $('camp-style').hidden = $('camp-style-note').hidden = true;
+
+  const held = Game.relicList();
+  fusePick = fusePick.filter(id => held.some(r => r.id === id));
+
+  const pick = $('fuse-pick'); pick.innerHTML = '';
+  for (const r of held) {
+    const on = fusePick.includes(r.id);
+    const row = el('button', 'itemrow relicrow' + (on ? ' chosen' : ''));
+    const ic = el('canvas', 'icon'); paintIcon(ic, r.spr); row.appendChild(ic);
+    const mid = el('div', 'imid');
+    const nm = el('span', 'iname', r.n);
+    nm.style.color = `var(--${r.fused ? 'W' : 'P'})`;
+    if (r.fused) nm.classList.add('transcend');
+    mid.appendChild(nm);
+    mid.appendChild(el('span', 'idesc', r.t));
+    row.appendChild(mid);
+    row.appendChild(el('span', 'iact', on ? '넣음' : ''));
+    row.onclick = () => {
+      if (on) fusePick = fusePick.filter(x => x !== r.id);
+      else if (fusePick.length < 2) fusePick.push(r.id);
+      else fusePick = [fusePick[1], r.id];   // oldest falls out
+      renderFuse();
+    };
+    pick.appendChild(row);
+  }
+
+  const odds = $('fuse-odds'); odds.innerHTML = '';
+  for (const o of FUSE_ODDS) {
+    const row = el('div', 'oddrow');
+    row.appendChild(el('span', 'oddname', o.n));
+    const bar = el('div', 'oddbar');
+    const fill = el('i');
+    fill.style.width = `${o.w}%`;
+    fill.style.background = `var(--${o.tone})`;
+    bar.appendChild(fill);
+    row.appendChild(bar);
+    row.appendChild(el('span', 'oddpct', `${o.w}%`));
+    odds.appendChild(row);
+  }
+
+  const [a, b] = fusePick;
+  const bet = Game.fusePreview(a, b);
+  const go = $('fuse-go');
+  const poor = !Game.canAfford(FUSE_COST);
+  go.disabled = fusePick.length !== 2 || poor;
+
+  if (fusePick.length !== 2) {
+    $('fuse-note').textContent = `둘을 고르시오. ${Game.costText(FUSE_COST)}가 듭니다. 넣은 둘은 돌아오지 않습니다.`;
+    odds.style.opacity = '.45';
+  } else if (bet?.special) {
+    /* The payoff for reading. Named only once you have already
+       found it; before that the screen just tells you that you
+       have found *something*. */
+    odds.style.opacity = '.2';
+    $('fuse-note').innerHTML = bet.known
+      ? `<b>${relicById(bet.out).n}</b> — 이미 찾아낸 조합입니다. 확률표는 무시됩니다.`
+      : '<b>이 둘은 서로를 알아봅니다.</b> 확률표는 무시됩니다. 무엇이 나올지는 넣어 봐야 압니다.';
+  } else {
+    odds.style.opacity = '1';
+    $('fuse-note').textContent = poor
+      ? `재료가 모자랍니다 — ${Game.costText(FUSE_COST)}.`
+      : `${relicById(a).n} + ${relicById(b).n} — 위 확률로 굴립니다.`;
+  }
+
+  go.onclick = () => {
+    if (fusePick.length !== 2) return;
+    const [x, y] = fusePick;
+    fusePick = [];
+    Game.fuseRelics(x, y);
+    setScreen('play');
+    refresh();
+  };
+}
+
+$('camp-back').onclick = () => { campMode = null; fusePick = []; renderCamp(); };
 
 /* ── the altar ──────────────────────────────────────────────
    The odds go on the screen as a bar, not as prose. Seeing that
@@ -1785,6 +1893,9 @@ const LESSONS = [
   { id:'thief',  t:'<b>금빛 도둑</b>은 보자마자 달아납니다. 걸어서는 절대 못 잡습니다 — 구르거나 주문을 쓰거나, 보내주거나.' },
   { id:'cast',   t:'주문은 <b>아래 줄의 아이콘을 눌러 바로</b> 씁니다(단축키 <b>1~5</b>).<br>' +
                     '어두운 칸은 아직 못 배웠거나, 마나가 모자라거나, <b>쏠 대상이 없다</b>는 뜻입니다.' },
+  { id:'fuse',   t:'유물 <b>둘</b>을 불에 넣으면 하나가 나옵니다 — 보통은 확률표대로.<br>' +
+                    '하지만 <b>서로를 알아보는 짝</b>이 여섯 있습니다. 목록은 없습니다. ' +
+                    '<b>유물 설명의 마지막 문장</b>이 짝을 가리킵니다.' },
   { id:'anvil',  t:'강화는 <b>+2부터 실패합니다.</b> 칸마다 성공률이 적혀 있습니다.<br>' +
                     '<b>과감</b>은 값이 그대로에 가끔 두 단계, 대신 깊은 +에서는 <b>장비가 부서집니다.</b> ' +
                     '<b>신중</b>은 값이 두 배지만 잃는 것이 값뿐입니다.' },
@@ -2092,6 +2203,7 @@ function renderEnd() {
   if (s.forged) line('벼려 올린 +', `${s.forged}단계`, 'y');
   if (s.broke) line('불에 잃은 장비', `${s.broke}점`, 'R');
   if (s.perfects) line('절단', `${s.perfects}번`, 'W');
+  if (s.fused) line('찾아낸 조합', `${s.fused}가지`, 'W');
   if (s.trans) line('초월', `${s.trans}점 — 이 판을 기억하시오.`, 'W');
   if (s.bank >= 2) line('잃은 판돈', `${s.bank}층치`, 'R');
   if (s.waves) line('심연의 습격', `${s.waves}번`, 'R');
@@ -2113,6 +2225,10 @@ function renderEnd() {
     ['몬스터', Meta.count('monsters'), MONSTERS.length + 4, 'R'],
     ['무기 계열', Meta.count('weapons'), Object.keys(WEAPON_TYPES).length, 'o'],
     ['갈림길', Meta.count('branches'), BRANCH_TOTAL,    'y'],
+    // The one row that is not a checklist: nothing in the game
+    // tells you these exist. The bar is the only place they are
+    // ever counted.
+    ['조합',   Meta.count('fusions'),  FUSIONS.length,  'W'],
   ];
   for (const [label, have, all, tone] of bars) {
     const row = el('div', 'endrow');

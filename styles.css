@@ -411,6 +411,20 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .campopt:active .campname, .campopt:active .camptag, .campopt:active .campdesc { color: var(--k); }
 #camp-back { margin-top: 12px; }
 
+/* Fusion. The chosen two glow; the odds bar reads the same way
+   the altar's does, because it is the same kind of bet. */
+.relicrow.chosen { border-color: var(--o); background: #241d16; }
+.relicrow.chosen .iact { color: var(--o); }
+#fuse-odds { margin: 14px 0 4px; transition: opacity .18s; }
+.oddrow { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.oddname { flex: 0 0 56px; font-size: 11px; color: var(--G); }
+.oddbar { flex: 1 1 auto; height: 8px; background: var(--k); border: 1px solid var(--g); }
+.oddbar i { display: block; height: 100%; }
+.oddpct { flex: 0 0 34px; text-align: right; font-size: 10.5px; color: var(--w); }
+#fuse-note { margin: 6px 0 14px; }
+#fuse-note b { color: var(--o); }
+#fuse-go { width: 100%; }
+
 /* How hard to swing at the anvil. Two states, one lit — the
    choice is meant to be read at a glance and then forgotten,
    because it sticks across fires. */

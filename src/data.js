@@ -628,15 +628,15 @@ export const RELIC_SLOTS = RELIC_SLOTS_BASE + RELIC_SLOT_DEPTHS.length;   // 7, 
 
 export const RELICS = [
   { id:'pact',    n:'피의 계약',     spr:'amulet', k:'pact',    v:0.25,
-    t:'최대 체력 −25%. 치명타 확률 +20%p.' },
+    t:'최대 체력 −25%. 치명타 확률 +20%p. 무모함과 섞이면 무엇이 되는지 아무도 모른다.' },
   { id:'echo',    n:'메아리의 종',   spr:'amulet', k:'echo',    v:6,
-    t:'연격 6 이상이면 공격이 한 번 더 들어간다.' },
+    t:'연격 6 이상이면 공격이 한 번 더 들어간다. 북이 있어야 진군이 된다.' },
   { id:'hunger',  n:'굶주린 칼날',   spr:'sword',  k:'hunger',  v:3,
-    t:'처치할 때마다 체력 +3. 기름을 두 배로 태운다.' },
+    t:'처치할 때마다 체력 +3. 기름을 두 배로 태운다. 위장이 크면 더 굶주린다.' },
   { id:'mirror',  n:'거울 방패',     spr:'shield', k:'mirror',  v:0.35,
     t:'받은 피해의 35%를 때린 쪽에 돌려준다.' },
   { id:'eye',     n:'심연의 눈',     spr:'scroll', k:'eye',     v:3,
-    t:'층에 들어설 때 지도가 전부 보인다. 최대 마나 −3.' },
+    t:'층에 들어설 때 지도가 전부 보인다. 최대 마나 −3. 부러진 바늘이 가리키는 쪽을 본다.' },
   { id:'glove',   n:'도굴꾼의 장갑', spr:'ring',   k:'glove',   v:2,
     t:'상자와 바닥의 전리품이 두 배. 함정을 영영 못 본다.' },
   { id:'ember',   n:'불씨 항아리',   spr:'potion', k:'ember',   v:1,
@@ -644,7 +644,7 @@ export const RELICS = [
   { id:'scale',   n:'저울추',        spr:'ring',   k:'scale',   v:0.6,
     t:'체력이 30% 아래일 때 주는 피해 +60%.' },
   { id:'twin',    n:'쌍둥이 룬',     spr:'wand',   k:'twin',    v:2,
-    t:'주문 비용 −2. 주문 피해 −20%.' },
+    t:'주문 비용 −2. 주문 피해 −20%. 서약과 만나면 서로를 지운다.' },
   { id:'thief',   n:'시간 도둑',     spr:'ring',   k:'thief',   v:0.35,
     t:'층을 내려갈 때 체력을 전부 회복한다. 층의 여유 시간 −35%.' },
   { id:'bone',    n:'뼈 목걸이',     spr:'amulet', k:'bone',    v:1,
@@ -652,13 +652,13 @@ export const RELICS = [
   { id:'chain',   n:'사슬 갑주',     spr:'armor',  k:'chain',   v:4,
     t:'방어 +4. 은신이 사라진다 — 기습은 없다.' },
   { id:'compass', n:'부러진 나침반', spr:'ring',   k:'compass', v:1,
-    t:'함정 피해를 입지 않는다. 대신 함정이 보이지 않는다.' },
+    t:'함정 피해를 입지 않는다. 대신 함정이 보이지 않는다. 심연의 눈이 대신 봐 준다면 이야기가 다르다.' },
   { id:'gut',     n:'폭식의 위장',   spr:'potion', k:'gut',     v:2,
-    t:'물약 효과가 두 배. 배낭에 물약을 세 종류까지만 넣는다.' },
+    t:'물약 효과가 두 배. 배낭에 물약을 세 종류까지만 넣는다. 굶주린 날붙이와 짝이 맞는다.' },
   { id:'reckless',n:'무모함의 인장', spr:'sword',  k:'reckless',v:0.8,
-    t:'명중 −15%. 치명타 배율 ×1.8.' },
+    t:'명중 −15%. 치명타 배율 ×1.8. 피로 쓴 계약과 함께라면 더 멀리 간다.' },
   { id:'vow',     n:'침묵의 서약',   spr:'scroll', k:'vow',     v:0.3,
-    t:'주문을 쓸 수 없다. 근접 피해 +30%.' },
+    t:'주문을 쓸 수 없다. 근접 피해 +30%. 쌍둥이 룬 앞에서만 말을 더듬는다.' },
 
   /* Second batch. With a hand that grows to seven, the pool has
      to be deep enough that two runs never hold the same five. */
@@ -669,11 +669,11 @@ export const RELICS = [
   { id:'knot',    n:'매듭 밧줄',     spr:'ring',   k:'knot',    v:0.5,
     t:'거미줄과 구덩이가 통하지 않는다. 은신 −50%.' },
   { id:'toll',    n:'뱃사공의 동전', spr:'gold',   k:'toll',    v:0.5,
-    t:'금화를 두 배로 얻는다. 층을 내려갈 때 가진 금화의 10%를 잃는다.' },
+    t:'금화를 두 배로 얻는다. 층을 내려갈 때 가진 금화의 10%를 잃는다. 깃펜이 장부를 적어 준다면.' },
   { id:'brand',   n:'낙인',          spr:'sword',  k:'brand',   v:0.5,
     t:'정예에게 주는 피해 +50%. 일반 몬스터에게 −15%.' },
   { id:'quill',   n:'서기의 깃펜',   spr:'scroll', k:'quill',   v:0.25,
-    t:'미확인 물건을 주우면 바로 판별된다. 금화 획득 −25%.' },
+    t:'미확인 물건을 주우면 바로 판별된다. 금화 획득 −25%. 뱃사공의 동전을 세기 좋은 펜이다.' },
   { id:'grudge',  n:'앙심',          spr:'amulet', k:'grudge',  v:0.04,
     t:'맞을 때마다 피해 +4% 누적(층마다 초기화, 최대 +60%).' },
   { id:'seed',    n:'돌씨',          spr:'armor',  k:'seed',    v:1,
@@ -681,10 +681,63 @@ export const RELICS = [
   { id:'wick',    n:'짧은 심지',     spr:'potion', k:'wick',    v:6,
     t:'물약을 마실 때 인접한 적이 타 들어간다. 회복량 −30%.' },
   { id:'drum',    n:'전쟁 북',       spr:'amulet', k:'drum',    v:2,
-    t:'맞아도 연격을 4분의 1만 잃는다. 몬스터가 두 칸 더 멀리서 깨어난다.' },
+    t:'맞아도 연격을 4분의 1만 잃는다. 몬스터가 두 칸 더 멀리서 깨어난다. 종과 함께 울리면 행군이 된다.' },
+
+  /* ── 초월 유물 ──────────────────────────────────────────
+     These never drop and never appear in a shop. The only way
+     to hold one is to burn a campfire fusing the two relics
+     that name each other in their own descriptions — read the
+     twelve above again and the six pairs are all there.
+
+     Every one of them takes the two halves' downsides and makes
+     them worse, then pays for it. That is the deal: a fused
+     relic is not a better relic, it is a more extreme one.   */
+  { id:'martyr',  n:'순교자의 맹세', spr:'amulet', k:'martyr',  v:0.40, fused:true,
+    t:'최대 체력 −40%. 치명타 확률 +25%p, 배율 ×2.2. 명중 −10%.' },
+  { id:'famine',  n:'끝없는 허기',   spr:'sword',  k:'famine',  v:8,    fused:true,
+    t:'처치할 때마다 체력 +8. 물약 효과 두 배. 기름을 세 배로 태운다.' },
+  { id:'paradox', n:'모순의 룬',     spr:'wand',   k:'paradox', v:0.45, fused:true,
+    t:'주문이 공짜가 된다. 주문 피해 −45%. 근접 피해 +20%.' },
+  { id:'oracle',  n:'눈먼 예언자',   spr:'scroll', k:'oracle',  v:6,    fused:true,
+    t:'층에 들어설 때 지도가 전부 보인다. 함정 피해를 입지 않는다. 최대 마나 −6, 불빛이 2칸 좁다.' },
+  { id:'ledger',  n:'회계사의 저울', spr:'gold',   k:'ledger',  v:0.20, fused:true,
+    t:'금화를 두 배로 얻고 미확인 물건은 즉시 판별된다. 층을 내려갈 때 금화의 20%를 잃는다.' },
+  { id:'march',   n:'울리는 진군',   spr:'amulet', k:'march',   v:4,    fused:true,
+    t:'연격 4 이상이면 공격이 한 번 더. 맞아도 연격이 깎이지 않는다. 몬스터가 세 칸 더 멀리서 깨어난다.' },
 ];
 
 export const relicById = id => RELICS.find(r => r.id === id);
+
+/* ── fusion ───────────────────────────────────────────────
+   Two relics into the fire. Most pairs roll on a table; six
+   pairs do not roll at all, because those two things were
+   written to point at each other. Nothing in the game says
+   which six — the descriptions do, and that is the point.
+
+   Order does not matter; `fusionOf` checks both ways.        */
+export const FUSIONS = [
+  { a:'pact',   b:'reckless', out:'martyr'  },
+  { a:'hunger', b:'gut',      out:'famine'  },
+  { a:'twin',   b:'vow',      out:'paradox' },
+  { a:'eye',    b:'compass',  out:'oracle'  },
+  { a:'toll',   b:'quill',    out:'ledger'  },
+  { a:'drum',   b:'echo',     out:'march'   },
+];
+
+export const fusionOf = (x, y) =>
+  FUSIONS.find(f => (f.a === x && f.b === y) || (f.a === y && f.b === x)) || null;
+
+/* What an ordinary pair rolls for. Printed as a bar on the
+   screen before the player commits, same as the altar. */
+export const FUSE_ODDS = [
+  { id:'new',   n:'새 유물', w:52, tone:'P',
+    t:'가지고 있지 않은 유물 하나가 나온다.' },
+  { id:'tune',  n:'정련',   w:34, tone:'y',
+    t:'둘 중 하나가 강해져 돌아온다. 자리는 하나만 쓴다.' },
+  { id:'slag',  n:'잿더미', w:14, tone:'g',
+    t:'둘 다 녹아버리고 재료만 남는다.' },
+];
+export const FUSE_COST = { dust: 3, gold: 180 };
 
 /* ── the descent ──────────────────────────────────────────
    Slay the Spire's map, folded into one screen. Two ways down,

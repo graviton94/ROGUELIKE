@@ -28,7 +28,7 @@
     </p>
     <button class="big" id="btn-new">새 게임</button>
     <button class="big" id="btn-load" hidden>이어하기</button>
-    <p class="fine">도트도 소리도 전부 코드로 만듭니다. 이미지·음원 파일 없음.<br><span id="build">v17</span></p>
+    <p class="fine">도트도 소리도 전부 코드로 만듭니다. 이미지·음원 파일 없음.<br><span id="build">v18</span></p>
   </div>
 </section>
 
@@ -201,6 +201,13 @@
       </div>
       <p class="note" id="camp-style-note" hidden></p>
       <div id="camp-target-list"></div>
+      <!-- fusion: two relics into the fire -->
+      <div id="fuse-box" hidden>
+        <div id="fuse-pick"></div>
+        <div id="fuse-odds"></div>
+        <p class="note" id="fuse-note"></p>
+        <button class="big" id="fuse-go" disabled>불에 넣는다</button>
+      </div>
       <button class="mini" id="camp-back">← 돌아가기</button>
     </div>
   </div>
@@ -507,8 +514,14 @@
         <b>신중</b> — 값은 두 배, 성공률 +18%p. 실패해도 깎이지 않고 부서지지도 않습니다. 잃는 것은 값뿐입니다.</td></tr>
       <tr><td>인챈트</td><td>무작위 속성. <b>마력 가루 4 + 130금.</b> 다섯에 하나는 저주고, 이미 붙은 성질을 밀어냅니다.</td></tr>
       <tr><td>재련</td><td>붙어 있는 속성을 다시 굴립니다. <b>정수 1 + 가루 2 + 220금.</b> <b>저주는 절대 붙지 않고, 저주가 있으면 그것부터 지웁니다.</b></td></tr>
+      <tr><td>융합</td><td>유물 <b>둘</b>을 불에 넣습니다. <b>가루 3 + 180금</b>, 그리고 넣은 둘은 돌아오지 않습니다.
+        대부분의 짝은 확률표를 굴립니다 — <b>새 유물 52% · 정련 34% · 잿더미 14%</b>. 확률은 화면에 막대로 그려집니다.<br>
+        다만 <b>서로를 알아보는 짝</b>이 여섯 있습니다. 그 둘을 나란히 고르면 확률표가 무시되고,
+        <b>떨어지지도 팔지도 않는 초월 유물</b>이 나옵니다. 어떤 짝인지는 어디에도 적혀 있지 않습니다 —
+        <b>유물 설명의 마지막 문장이 서로를 가리킵니다.</b> 스물여섯 개를 다시 읽어 보세요.<br>
+        찾아낸 조합은 끝 화면의 <b>발견 · 조합</b> 칸에 남습니다.</td></tr>
       <tr><td>물러나기</td><td>아무것도 고르지 않고 <b>불을 남겨둔 채 나갈 수 있습니다</b>. 나중에 쓸모가 생기면 돌아오세요.</td></tr>
-      <tr><td></td><td>넷 중 <b>하나만</b> 고를 수 있고, 고르면 불은 꺼집니다. 체력이 가득할 때 휴식은 낭비고, 20%일 때 강화는 자살입니다.</td></tr>
+      <tr><td></td><td><b>하나만</b> 고를 수 있고, 고르면 불은 꺼집니다. 체력이 가득할 때 휴식은 낭비고, 20%일 때 강화는 자살입니다.</td></tr>
     </table>
 
     <h3 class="sect">접두 · 접미 속성</h3>

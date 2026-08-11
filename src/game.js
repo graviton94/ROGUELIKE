@@ -9,6 +9,7 @@ import {
   MATS, salvageYield, upgradeCost, ENCHANT_COST, REROLL_COST,
   upgradeOdds, upgradeRisk, UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS,
   BOONS, boonById, transChance,
+  FUSIONS, fusionOf, FUSE_ODDS, FUSE_COST,
   ALTAR_OFFERS, rarityOf, isCursed,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   RELICS, RELIC_SLOTS, relicSlots, relicById, BRANCHES,
@@ -256,6 +257,13 @@ export function gearBonus(p) {
       case 'knot':     b.stealth -= 0.5; break;
       case 'seed':     b.maxhpPct -= 0.15; b.ac += p.seedAc || 0; break;
       case 'grudge':   b.dmgPct += Math.min(0.60, (p.grudge || 0) * 0.04); break;
+
+      /* Fused. Each one is its two halves with the downside
+         deepened and the upside paid out — a fused relic is not
+         a better relic, it is a more extreme one. */
+      case 'martyr':   b.maxhpPct -= 0.40; b.crit += 0.25; b.critMult += 1.2; b.hitPct *= 0.90; break;
+      case 'paradox':  b.dmgPct += 0.20; break;
+      case 'oracle':   b.manaFlat -= 6; b.lightR -= 2; break;
     }
   }
   return b;
@@ -359,6 +367,7 @@ function tookHit() {
 function breakCombo(hard) {
   if (!G.combo) return;
   // 전쟁 북: a hit costs a quarter of the chain rather than half.
+  if (hasRelic('march') && !hard) return;
   const left = hard ? 0 : (hasRelic('drum') ? Math.round(G.combo * 0.75) : G.combo >> 1);
   if (left < G.combo) fx({ t:'comboDrop', from: G.combo, to: left });
   G.combo = left;
@@ -551,7 +560,7 @@ export function useItem(slotIdx) {
   // that makes the potions you were already hoarding matter.
   // 짧은 심지 turns the same act into an attack and takes the
   // healing back — a flask becomes a tactic, not a top-up.
-  const gulp = (hasRelic('gut') ? 2 : 1) * (hasRelic('wick') ? 0.7 : 1);
+  const gulp = (hasRelic('gut') || hasRelic('famine') ? 2 : 1) * (hasRelic('wick') ? 0.7 : 1);
   if (hasRelic('wick') && it.spr === 'potion') {
     const burn = relicVal('wick') + G.depth;
     const near = adjacentMonsters(p);
@@ -743,10 +752,11 @@ export function cast(spellId) {
 export const spellPower = (p, id) =>
   (1 + (p.spellPlus?.[id] || 0) * 0.22
      + (SPELL_AFFIXES.find(a => a.id === p.spellAffix?.[id])?.powPct || 0))
-  * (hasRelic('twin') ? 0.8 : 1);
+  * (hasRelic('paradox') ? 0.55 : hasRelic('twin') ? 0.8 : 1);
 
 export const spellCost = (p, sp) => {
   const a = SPELL_AFFIXES.find(x => x.id === p.spellAffix?.[sp.id]);
+  if (hasRelic('paradox')) return 0;
   return Math.max(1, sp.cost - (a?.costCut || 0) + (a?.costUp || 0)
                      - (hasRelic('twin') ? relicVal('twin') : 0));
 };
@@ -814,7 +824,10 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
 
   // 심연의 눈 pays out the moment you arrive, which is the only
   // moment a whole map is worth anything.
-  if (depth > 0 && hasRelic('eye')) { L.seen.fill(1); say('심연의 눈이 층 전체를 훑는다.', 'good'); }
+  if (depth > 0 && (hasRelic('eye') || hasRelic('oracle'))) {
+    L.seen.fill(1);
+    say(hasRelic('oracle') ? '눈먼 예언자가 층 전체를 읊는다.' : '심연의 눈이 층 전체를 훑는다.', 'good');
+  }
   /* 나방의 표식 shows the three places worth walking to instead of
      the whole map — cheaper than 심연의 눈 and, for a player who
      only cares about the fire and the stone, better. */
@@ -825,10 +838,11 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     if (n) say(`나방이 ${n}곳으로 날아갔다.`, 'good');
   }
   // 뱃사공의 동전 takes its cut on the way down.
-  if (depth > 0 && hasRelic('toll') && p.gold > 0) {
-    const fee = Math.ceil(p.gold * 0.10);
+  if (depth > 0 && (hasRelic('toll') || hasRelic('ledger')) && p.gold > 0) {
+    const rate = hasRelic('ledger') ? 0.20 : 0.10;
+    const fee = Math.ceil(p.gold * rate);
     p.gold -= fee;
-    say(`뱃사공이 ${fee}닢을 챙겼다.`, 'warn');
+    say(hasRelic('ledger') ? `장부가 ${fee}닢을 지웠다.` : `뱃사공이 ${fee}닢을 챙겼다.`, 'warn');
   }
   // 돌씨 hardens a little every floor, for the whole run.
   if (depth > 0 && hasRelic('seed')) {
@@ -1317,7 +1331,7 @@ function springTrap(x, y, trap) {
   G.trapsSprung++;
   // 부러진 나침반: you walk into every one of them and none of
   // them matter. Blind and immune is a build, not a handicap.
-  if (hasRelic('compass')) {
+  if (hasRelic('compass') || hasRelic('oracle')) {
     say('나침반 바늘이 홱 돌더니, 발밑의 무언가가 죽는다.', 'good');
     fx({ t:'resist', x, y });
     return false;
@@ -1399,7 +1413,7 @@ function scanForTraps() {
     const near = Math.max(Math.abs(dx), Math.abs(dy));
     // 도굴꾼의 장갑 and 부러진 나침반 both blind you to traps —
     // one for greed, one because it no longer matters.
-    if (hasRelic('glove') || hasRelic('compass')) continue;
+    if (hasRelic('glove') || hasRelic('compass') || hasRelic('oracle')) continue;
     if (Math.random() < skill / near) {
       trap.seen = true;
       say(`${TRAPS[trap.kind].n}을(를) 발견했다.`, 'good');
@@ -1425,7 +1439,7 @@ function pickUp() {
   if (it.kind === 'gold') { const g = goldGain(it.amount); p.gold += g; say(`금화 ${g}닢.`, 'good'); return; }
   if (it.kind === 'key')  { p.keys++; say(`녹슨 열쇠를 주웠다. (${p.keys})`, 'good'); return; }
   // 서기의 깃펜 names it in your hand, before you have to bet on it.
-  if (hasRelic('quill')) identify(it.id, true);
+  if (hasRelic('quill') || hasRelic('ledger')) identify(it.id, true);
   addItem(p, it);
   /* 초월 does not get a line in the log — it gets the screen.
      This is the rarest thing that can happen to a run and the
@@ -1630,7 +1644,7 @@ function swing(m, scale) {
      streak with the right two suffixes turns one tap into a
      room-clearing cascade. That is the absurd combination this
      relic exists to make possible. */
-  if (hasRelic('echo') && G.combo >= relicVal('echo')
+  if ((hasRelic('echo') || hasRelic('march')) && G.combo >= (hasRelic('march') ? relicVal('march') : relicVal('echo'))
       && G.monsters.includes(m) && !p.echoing) {
     p.echoing = true;
     fx({ t:'arc', fx:p.x, fy:p.y, tx:m.x, ty:m.y });
@@ -1643,7 +1657,7 @@ function swing(m, scale) {
 /* 뱃사공의 동전 doubles it, 서기의 깃펜 shaves it. One funnel so
    the two can never be applied twice or missed once. */
 export const goldGain = n => Math.max(0, Math.round(
-  n * (hasRelic('toll') ? 2 : 1) * (hasRelic('quill') ? 0.75 : 1)
+  n * (hasRelic('toll') || hasRelic('ledger') ? 2 : 1) * (hasRelic('quill') ? 0.75 : 1)
     * (hasBoon('hoard') ? 1.6 : 1)));
 
 /* Relics that pay on a kill. 굶주린 칼날 is the aggression
@@ -1651,8 +1665,9 @@ export const goldGain = n => Math.max(0, Math.round(
    뼈 목걸이 is the slow one, worth taking early or not at all. */
 function onKill(m) {
   const p = G.player;
-  if (hasRelic('hunger') && p.hp < p.maxhp) {
-    const got = Math.min(p.maxhp - p.hp, relicVal('hunger'));
+  if ((hasRelic('hunger') || hasRelic('famine')) && p.hp < p.maxhp) {
+    const got = Math.min(p.maxhp - p.hp,
+      hasRelic('famine') ? relicVal('famine') : relicVal('hunger'));
     p.hp += got;
     fx({ t:'drain', x:p.x, y:p.y, amt:got });
   }
@@ -1795,7 +1810,9 @@ export function hurtMonster(m, dmg, source, opt = {}) {
    choice, it is filler. */
 export function unownedRelic() {
   const held = new Set(G.player?.relics || []);
-  const pool = RELICS.filter(r => !held.has(r.id));
+  // Fused relics are never on a floor and never in a shop. The
+  // fire is the only door.
+  const pool = RELICS.filter(r => !held.has(r.id) && !r.fused);
   return pool.length ? pool[rnd(pool.length)].id : null;
 }
 
@@ -1903,7 +1920,8 @@ export function endTurn(skipMonsters = false) {
        nothing. Light survives because it is *spatial*: it changes
        how far you can see, which changes what you can fight. */
     if (!hasRelic('lamp'))
-      p.lightTurns -= (G.branch?.drain || 1) * (hasRelic('hunger') ? 2 : 1);
+      p.lightTurns -= (G.branch?.drain || 1)
+        * (hasRelic('famine') ? 3 : hasRelic('hunger') ? 2 : 1);
     if (p.lightTurns === 300) say('기름이 절반쯤 남았다.', 'warn');
     if (p.lightTurns === 80)  say('불빛이 손바닥만큼 줄었다.', 'warn');
     if (p.lightTurns === 0)   say('불이 꺼졌다. 두 칸 앞이 벽인지 아닌지도 모른다.', 'hit');
@@ -2070,7 +2088,7 @@ function monsterTurn(m) {
       const wading = L.tiles[idx(p.x, p.y)] === WATER;
     const quiet = wading ? stealth(p) * 0.25 : stealth(p);
     // 전쟁 북 is loud: it hears you two tiles sooner.
-    const reach = dist - (hasRelic('drum') ? 2 : 0);
+    const reach = dist - (hasRelic('march') ? 3 : hasRelic('drum') ? 2 : 0);
     const notice = clamp((1 - quiet) * (0.62 - reach * 0.055), 0.02, 0.9);
     if (Math.random() >= notice) return;
     m.awake = true;
@@ -2625,6 +2643,100 @@ export function campUpgrade(key, careful = false) {
     fx({ t:'forge', x:p.x, y:p.y, fail:true });
   }
   spendCamp();
+}
+
+/* ── fusion ───────────────────────────────────────────────
+   Two relics into the fire. Six pairs are written to recognise
+   each other and always produce the same 초월 relic; every other
+   pair rolls on a printed table. The screen never names the six
+   — the twelve relic descriptions do, and a player who reads
+   them is being rewarded for reading them.
+
+   `canFuse` is the whole gate: two relics held, the fire unspent,
+   and the price on the table. */
+export const canFuse = () => (G.player?.relics || []).length >= 2;
+
+/* Do these two know each other? Reported without naming the
+   result, so an undiscovered pair still has to be committed to.
+   Once found, the ledger remembers and the screen says so. */
+export function fusePreview(a, b) {
+  if (!a || !b || a === b) return null;
+  const f = fusionOf(a, b);
+  if (!f) return { special: false };
+  return { special: true, out: f.out, known: Meta.seen('fusions', f.out) };
+}
+
+export function fuseRelics(a, b) {
+  const p = G.player;
+  if (!p || a === b) return;
+  const ia = p.relics.indexOf(a), ib = p.relics.indexOf(b);
+  if (ia < 0 || ib < 0) return;
+  if (!canAfford(FUSE_COST)) { say(`재료가 모자란다 — ${costText(FUSE_COST)}.`, 'warn'); return; }
+  spend(FUSE_COST);
+
+  const f = fusionOf(a, b);
+  const drop = () => {
+    // Remove both, high index first so the low one does not shift.
+    for (const i of [ia, ib].sort((x, y) => y - x)) p.relics.splice(i, 1);
+  };
+
+  if (f) {
+    drop();
+    p.relics.push(f.out);
+    const r = relicById(f.out);
+    const first = Meta.see('fusions', f.out);
+    Meta.see('relics', f.out);
+    G.fused = (G.fused || 0) + 1;
+    say(`${relicById(a).n}과(와) ${relicById(b).n}이(가) 서로를 알아본다.`, 'level');
+    say(`— ${r.n}. ${r.t}${first ? ' (처음 찾아낸 조합)' : ''}`, 'level');
+    fx({ t:'transcend', x:p.x, y:p.y });
+    recalc(p);
+    spendCamp();
+    return;
+  }
+
+  const roll = pickWeighted(FUSE_ODDS);
+  if (roll.id === 'new') {
+    /* Rolled *before* the two are removed, so the fire can never
+       hand back one of the things you just fed it. */
+    const id = unownedRelic();
+    drop();
+    if (id) {
+      p.relics.push(id);
+      Meta.see('relics', id);
+      const r = relicById(id);
+      say(`쇳물에서 ${r.n}이(가) 떠올랐다.`, 'level');
+      say(r.t, 'level');
+      fx({ t:'altar', x:p.x, y:p.y, good:true });
+    } else say('더 나올 유물이 없다. 둘 다 녹아 없어졌다.', 'warn');
+  } else if (roll.id === 'tune') {
+    const keep = Math.random() < 0.5 ? a : b;
+    drop();
+    p.relics.push(keep);
+    p.tuned = p.tuned || {};
+    const r = relicById(keep);
+    // Half again of whatever the relic's number means, to two
+    // decimals — the same funnel handles 체력 +3 and 흡혈 0.35.
+    const gain = Math.round(r.v * 50) / 100;
+    p.tuned[keep] = (p.tuned[keep] || 0) + gain;
+    say(`${r.n}이(가) 다른 하나를 삼키고 정련되었다. (${r.v} → ${r.v + p.tuned[keep]})`, 'level');
+    fx({ t:'forge', x:p.x, y:p.y, big:true });
+  } else {
+    drop();
+    p.mats = p.mats || { scrap: 0, dust: 0, essence: 0 };
+    p.mats.essence += 2; p.mats.dust += 5;
+    say('둘 다 녹아내렸다. 남은 것은 정수 2와 마력 가루 5뿐이다.', 'warn');
+    fx({ t:'forge', x:p.x, y:p.y, fail:true });
+  }
+  recalc(p);
+  spendCamp();
+}
+
+function pickWeighted(table) {
+  const total = table.reduce((s, o) => s + o.w, 0);
+  let n = Math.random() * total;
+  for (const o of table) { if (n < o.w) return o; n -= o.w; }
+  return table[table.length - 1];
 }
 
 /* Losing the sword off your own arm. Left unequipped rather than
@@ -3185,7 +3297,7 @@ export function summarise(win, by) {
     bank: G.bank || 0,
     kills: G.kills || 0, opened: G.opened || 0,
     broke: G.broke || 0, forged: G.forged || 0,
-    trans: G.transFound || 0, perfects: G.perfects || 0,
+    trans: G.transFound || 0, perfects: G.perfects || 0, fused: G.fused || 0,
     events: G.eventsSeen || 0, waves: G.waves || 0,
     tail: G.log.slice(-3).map(l => l.text),
   };
@@ -3256,7 +3368,7 @@ export function startGame(raceKey, classKey, base) {
   G.log = []; G.turn = 0; G.running = true; G.ending = null;
   G.fx = []; G.combo = 0; G.comboT = 0; G.bestCombo = 0;
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0; G.kills = 0; G.eventsSeen = 0;
-  G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0;
+  G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0; G.fused = 0;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
   G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.bank = 0;

@@ -29,7 +29,15 @@
     </p>
     <button class="big" id="btn-new">새 게임</button>
     <button class="big" id="btn-load" hidden>이어하기</button>
-    <p class="fine">도트도 소리도 전부 코드로 만듭니다. 이미지·음원 파일 없음.<br><span id="build">v20</span></p>
+    <!-- What the dead runs left behind, and the dial that only
+         opens once the boss is down. -->
+    <div id="memories" class="memories" hidden></div>
+    <div id="abyss-pick" class="abysspick" hidden>
+      <span class="abysslabel">심연</span>
+      <div class="abyssrow"></div>
+      <p class="note" id="abyss-note"></p>
+    </div>
+    <p class="fine">도트도 소리도 전부 코드로 만듭니다. 이미지·음원 파일 없음.<br><span id="build">v21</span></p>
   </div>
 </section>
 
@@ -253,6 +261,7 @@
   <div class="scroll">
     <p class="note">계단이 갈라진다. 어느 쪽이든 내려가는 길이지만, 같은 층은 아니다.<br>
       한 번 고르면 돌아올 수 없다.</p>
+    <p class="note stairswarn" id="stairs-warn" hidden></p>
     <div id="stairs-list"></div>
   </div>
 </section>
@@ -457,6 +466,23 @@
       <tr><td>영구 보상</td><td>불빛 반경 · 은신 · 방어 · 피해 · 흡혈 · 연쇄 · 최대 마나 · 연격 배수는
         <b>장비에 붙지 않는 영구 수치</b>입니다. 장비를 바꿔도 사라지지 않습니다.</td></tr>
       <tr><td>평판</td><td>취한 광부를 털면 상점 가격이 오르고, 상인의 장부를 갚으면 내려갑니다. 남은 판 내내 유지됩니다.</td></tr>
+    </table>
+
+    <h3 class="sect">기억과 심연</h3>
+    <p class="note">죽으면 판은 사라지지만 <b>기억</b>은 남습니다. 어느 것도 능력치를 주지 않습니다 —
+      전부 <b>이미 벌어 놓은 것</b>을 다음 판에 넘겨주는 것뿐입니다. 제목 화면에 진행도가 뜹니다.</p>
+    <table class="keys">
+      <tr><td>연금술사의 기억</td><td>소모품 8종을 판별하면, 그 뒤로 <b>물약과 두루마리가 처음부터 판별</b>되어 있습니다.
+        한 번 알아낸 것을 매 판 다시 알아낼 이유는 없습니다.</td></tr>
+      <tr><td>행상인의 기억</td><td>유물 8종을 발견하면 <b>마을 잡화점이 발견한 유물 하나를 팝니다</b>(1400닢).
+        판이 첫 유물을 <b>고를</b> 수 있는 유일한 길입니다.</td></tr>
+      <tr><td>장인의 기억</td><td>누적 30단계를 강화하면 <b>시작 장비가 +2</b>로 시작합니다.</td></tr>
+      <tr><td>도굴꾼의 기억</td><td>누적 상자 50개를 열면 <b>시작 금화 +300.</b></td></tr>
+      <tr><td>세공사의 기억</td><td>각인 5개를 새기면 <b>모루 성공률 +6%p</b> — 각인이 붙는 한 방에도 적용됩니다.</td></tr>
+      <tr><td>잿불의 기억</td><td>대군주를 잡으면 <b>심연</b>이 열립니다.</td></tr>
+      <tr><td><b>심연</b></td><td>0~5단계. 올릴수록 <b>적의 체력과 공격</b>이 최대 +80%까지 오르고
+        <b>전리품이 최대 2.5배</b>가 됩니다. 몬스터 수가 아니라 몬스터가 세지는 쪽입니다 —
+        더 많은 적은 더 긴 턴이지만, 더 센 적은 더 어려운 게임이므로.</td></tr>
     </table>
 
     <h3 class="sect">방 안의 것들</h3>

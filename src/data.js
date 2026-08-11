@@ -10,6 +10,67 @@
 
 export const MAX_DEPTH = 15;
 
+/* ── 기억 ─────────────────────────────────────────────────
+   What a dead run leaves behind. Six of them, and not one is a
+   stat: every memory hands over an option or a piece of
+   knowledge the player already earned, so the difficulty curve
+   measured over the last three sessions stays exactly where it
+   is. The change is that run five starts knowing what run one
+   had to find out.
+
+   `need(m)` reads the ledger in meta.js. `at(m)` and `of(m)` are
+   for the progress line on the title screen — "34/50 상자" is a
+   reason to open the next one.                                */
+export const MEMORIES = [
+  { id:'alchemy', n:'연금술사의 기억',
+    t:'물약과 두루마리가 처음부터 판별되어 있다. 한 번 알아낸 것을 매 판 다시 알아낼 이유는 없다.',
+    goal:'소모품 8종 판별', of:8,
+    at: m => Object.keys(m.items || {}).length },
+  { id:'pedlar',  n:'행상인의 기억',
+    t:'마을 잡화점이 당신이 발견한 유물 하나를 판다. 비싸다.',
+    goal:'유물 8종 발견', of:8,
+    at: m => Object.keys(m.relics || {}).length },
+  { id:'smith',   n:'장인의 기억',
+    t:'시작 무기와 갑옷이 +2로 시작한다.',
+    goal:'누적 강화 30단계', of:30,
+    at: m => m.totals?.forged || 0 },
+  { id:'digger',  n:'도굴꾼의 기억',
+    t:'시작 금화 +300.',
+    goal:'누적 상자 50개', of:50,
+    at: m => m.totals?.opened || 0 },
+  { id:'graver',  n:'세공사의 기억',
+    t:'모루의 강화 성공률이 6%p 오른다. 각인이 붙는 한 방에도 적용된다.',
+    goal:'각인 5개 새김', of:5,
+    at: m => m.totals?.engraved || 0 },
+  { id:'ember',   n:'잿불의 기억',
+    t:'심연을 연다 — 원하는 만큼 어려운 판을 고를 수 있다.',
+    goal:'잿불의 대군주 처치', of:1,
+    at: m => m.wins || 0 },
+];
+
+export const memoryEarned = (m, id) => {
+  const spec = MEMORIES.find(x => x.id === id);
+  return !!spec && spec.at(m) >= spec.of;
+};
+
+/* ── 심연 ─────────────────────────────────────────────────
+   The other direction. Beating the boss unlocks a dial: every
+   step makes the whole descent harder and pays a bigger ledger,
+   which is the only reason to walk back into a dungeon you have
+   already finished.
+
+   Deliberately multiplicative on the two numbers that decide a
+   fight — health and attack — rather than on monster count. More
+   monsters is more turns; harder monsters is a harder game.   */
+export const ABYSS = [
+  { n:0, t:'기준.',                                 hp:1.00, atk:1.00, gold:1.00 },
+  { n:1, t:'적의 체력과 공격 +12%. 전리품 +20%.',   hp:1.12, atk:1.12, gold:1.20 },
+  { n:2, t:'적의 체력과 공격 +26%. 전리품 +45%.',   hp:1.26, atk:1.26, gold:1.45 },
+  { n:3, t:'적의 체력과 공격 +42%. 전리품 +75%.',   hp:1.42, atk:1.42, gold:1.75 },
+  { n:4, t:'적의 체력과 공격 +60%. 전리품 ×2.1.',   hp:1.60, atk:1.60, gold:2.10 },
+  { n:5, t:'적의 체력과 공격 +80%. 전리품 ×2.5.',   hp:1.80, atk:1.80, gold:2.50 },
+];
+
 /* ── 깊은 곳 ──────────────────────────────────────────────
    Fifteen floors were fifteen numbers. They are five places now,
    and the place is announced on arrival — one line, once, the
@@ -222,14 +283,26 @@ export const PATTERNS = {
    That lab result is generous by construction — full health, a
    pocket of potions, an empty room and no clock. Arriving on
    floor 15 in that shape is the actual test. */
+/* Sized against the hero who actually stands on that floor, not
+   against the floor number. Both of these used to be losses on
+   paper: 뼈를 씹는 자 took 10.8 turns to kill and killed you in
+   8.5, and 재 속의 사제 was 11.9 against 10.7. Nearly four runs
+   in ten ended on floor 5, which is not a difficulty curve, it is
+   a door with no handle.
+
+   It moved to 6 as well. Floor 5 already had 검은 오크 and 늑대
+   arriving together; putting the first named fight on the same
+   step made three staircases out of one. */
 export const NAMED = [
-  { at:5,  spr:'ogre',  n:'뼈를 씹는 자', hp:150, atk:13, ac:14, xp:700,
+  { at:6,  spr:'ogre',  n:'뼈를 씹는 자', hp:185, atk:14, ac:14, xp:700,
     ai:'hunt', spd:0.9, door:'smash', regen:2, heavy:true, named:true,
     casts:['quake', 'zone'], cool:5,
+    warn:'뼈를 씹는 자가 아래에서 기다린다',
     intro:'무언가 커다란 것이 이 층에서 기다리고 있다.' },
-  { at:10, spr:'wraith', n:'재 속의 사제', hp:300, atk:26, ac:22, xp:1800,
+  { at:10, spr:'wraith', n:'재 속의 사제', hp:250, atk:20, ac:22, xp:1800,
     ai:'hunt', spd:1.1, on:'fear', door:'open', regen:3, heavy:true, named:true,
     casts:['cross', 'wave'], cool:4,
+    warn:'재 속의 사제가 아래에서 기다린다',
     intro:'차가운 것이 이 층의 공기를 마시고 있다.' },
 ];
 

@@ -54,6 +54,24 @@ html, body {
 .blurb b { color: var(--w); }
 .fine { color: var(--g); font-size: 10.5px; margin: 18px 0 0; }
 
+/* ── what survives you ── */
+.memories { margin: 22px 0 0; text-align: left; }
+.memrow { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; font-size: 10.5px; }
+.memrow .memn { flex: 0 0 auto; color: var(--g); }
+.memrow.on .memn { color: var(--y); }
+.memrow .memt { flex: 1 1 auto; color: var(--g); font-size: 9.5px; text-align: right; }
+.memrow.on .memt { color: var(--G); }
+.membar { height: 3px; background: var(--d); border: 0; flex: 1 1 auto; }
+.membar i { display: block; height: 100%; background: var(--g); }
+.memrow.on .membar i { background: var(--y); }
+
+.abysspick { margin: 18px 0 0; }
+.abysslabel { font-size: 10.5px; color: var(--G); letter-spacing: .2em; }
+.abyssrow { display: flex; gap: 4px; justify-content: center; margin: 6px 0 0; }
+.abyssrow button { width: 34px; padding: 7px 0; font-size: 12px; }
+.abyssrow button.on { border-color: var(--R); color: var(--R); background: #241618; }
+#abyss-note { text-align: center; margin-top: 6px; }
+
 button {
   font-family: var(--mono); cursor: pointer;
   background: var(--d); color: var(--w);
@@ -449,6 +467,9 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 }
 .styleswitch button.on { border-color: var(--o); background: #241d16; color: var(--o); }
 #camp-style-note { margin: 0 0 10px; }
+.stairswarn { border-left: 2px solid var(--o); padding: 8px 10px; background: var(--d); }
+.stairswarn b { color: var(--o); }
+.stairswarn b.danger { color: var(--R); }
 /* The price of a miss, written where the price of a hit is. */
 .idesc.plus { color: var(--y); }
 /* The strike that changes what the thing is. */

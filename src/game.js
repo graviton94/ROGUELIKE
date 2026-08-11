@@ -16,6 +16,7 @@ import {
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   RELICS, RELIC_SLOTS, relicSlots, relicById, BRANCHES,
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH, REGIONS, regionOf,
+  MEMORIES, memoryEarned, ABYSS,
   WEAPON_TYPES, PATTERNS, NAMED,
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
@@ -1237,9 +1238,13 @@ function scaleMonster(m, depth) {
      cliff around floor 11 where a single monster trades evenly
      with the hero and there are eighteen of them. */
   const deep = 1 + depth * 0.055;
+  /* 심연 rides on top of the depth curve, on the two numbers that
+     decide a fight rather than on how many things are in the room.
+     More monsters is more turns; harder monsters is a harder game. */
+  const ab = ABYSS[G.abyss || 0] || ABYSS[0];
   return { ...m,
-    hp:  Math.round(m.hp  * (1 + over * 0.10) * deep),
-    atk: Math.round(m.atk * (1 + over * 0.06) * (1 + depth * 0.02)),
+    hp:  Math.round(m.hp  * (1 + over * 0.10) * deep * ab.hp),
+    atk: Math.round(m.atk * (1 + over * 0.06) * (1 + depth * 0.02) * ab.atk),
     ac:  Math.round(m.ac  * (1 + depth * 0.025)),
     xp:  Math.round(m.xp  * (1 + over * 0.10)) };
 }
@@ -2043,7 +2048,8 @@ function swing(m, scale) {
 /* 뱃사공의 동전 doubles it, 서기의 깃펜 shaves it. One funnel so
    the two can never be applied twice or missed once. */
 export const goldGain = n => Math.max(0, Math.round(
-  n * (hasRelic('toll') || hasRelic('ledger') ? 2 : 1) * (hasRelic('quill') ? 0.75 : 1)
+  n * (ABYSS[G.abyss || 0] || ABYSS[0]).gold
+    * (hasRelic('toll') || hasRelic('ledger') ? 2 : 1) * (hasRelic('quill') ? 0.75 : 1)
     * (hasBoon('hoard') ? 1.6 : 1)));
 
 /* Relics that pay on a kill. 굶주린 칼날 is the aggression
@@ -3001,6 +3007,7 @@ export function upgradeOddsFor(key, careful = false, cat = null) {
     odds: c === 'core' ? 1
         : Math.max(0.05, Math.min(1, upgradeOdds(plus)
             + (careful ? CAREFUL_BONUS : 0)
+            + (hasMemory('graver') ? 0.06 : 0)
             - (t.type === 'item' && isMilestone(plus) ? ENGRAVE_PENALTY : 0))),
     crit: c === 'surge' ? 1 : careful ? 0 : UPGRADE_CRIT,
     down: c === 'flux' ? 0 : risk.down,
@@ -3102,6 +3109,7 @@ function engraveUpTo(it) {
     if (!pool.length) break;
     const e = pool[rnd(pool.length)];
     it.engrave.push(e.id);
+    G.engraved = (G.engraved || 0) + 1;
     say(`쇠에 무늬가 돋았다 — ${e.n} ${it.n}. ${e.t}`, 'level');
     fx({ t:'engrave', x:G.player.x, y:G.player.y });
   }
@@ -3736,6 +3744,20 @@ export function shopStock(shop) {
     for (const k of shop.mats)
       out.push({ kind:'mat', mat:k, id:`mat_${k}`, spr: k === 'essence' ? 'amulet' : k === 'dust' ? 'potion' : 'armor',
                  n: MATS[k].n, cost: MATS[k].cost, desc: MATS[k].note });
+  /* 행상인의 기억: the general store carries one relic you have
+     already found, at a price that hurts. It is the only way a
+     run can *choose* its first relic instead of being handed one,
+     and it is bought with knowledge from previous runs. */
+  if (shop.id === 1 && hasMemory('pedlar')) {
+    const seen = Object.keys(Meta.read().relics || {})
+      .map(relicById).filter(r => r && !r.fused && !hasRelic(r.id));
+    if (seen.length) {
+      // Stable within a run: the same relic is on the shelf every
+      // time you walk back in, so "come back with more gold" works.
+      const r = seen[(G.relicShelf ??= rnd(seen.length)) % seen.length];
+      out.push({ kind:'relic', id:r.id, spr:r.spr, n:r.n, cost:1400, desc:r.t });
+    }
+  }
   /* Catalysts are the only thing worth crossing a floor for a
      merchant. He carries two, drawn from what the depth has
      unlocked — never the whole rack, or they stop being rare. */
@@ -3781,6 +3803,11 @@ export function buy(item) {
     say(`${item.n}을(를) 샀다. (-${cost})`, 'good');
     return;
   }
+  if (item.kind === 'relic') {
+    takeRelic(item.id);
+    G.relicShelf = null;                 // the shelf restocks
+    return;
+  }
   /* A merchant names what he sells. Buying it teaches you the
      appearance for the rest of the run — otherwise the shop was
      a way to launder identification without spending anything. */
@@ -3818,7 +3845,8 @@ export function summarise(win, by) {
     kills: G.kills || 0, opened: G.opened || 0,
     broke: G.broke || 0, forged: G.forged || 0,
     trans: G.transFound || 0, perfects: G.perfects || 0, fused: G.fused || 0,
-    catUsed: G.catUsed || 0,
+    catUsed: G.catUsed || 0, engraved: G.engraved || 0,
+    abyss: G.abyss || 0, memories: [...(G.memories || [])],
     events: G.eventsSeen || 0, waves: G.waves || 0,
     tail: G.log.slice(-3).map(l => l.text),
   };
@@ -3879,6 +3907,9 @@ export const nameOf = it =>
 export function identify(id, quiet) {
   if (!id || G.known[id]) return false;
   G.known[id] = true;
+  // The ledger remembers every flask ever named, which is what
+  // 연금술사의 기억 is counting.
+  Meta.see('items', id);
   const c = CONSUMABLES.find(x => x.id === id);
   if (c && !quiet) say(`${lookOf(id)}은(는) ${c.n}이었다.`, 'level');
   return true;
@@ -3891,12 +3922,44 @@ export function startGame(raceKey, classKey, base) {
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0; G.kills = 0; G.eventsSeen = 0;
   G.regionAt = null;
   G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0; G.fused = 0; G.catUsed = 0;
+  G.engraved = 0; G.memories = []; G.abyss = 0; G.relicShelf = null;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
   G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.bank = 0;
   G.pendingAltar = null;
   shuffleAppearances(G.player);
+
+  /* ── what the last run left behind ──────────────────────
+     Six memories, and none of them is a stat. Each hands over
+     something the player already earned: the flask they named,
+     the gold they dug out, the plus they ground. The curve is
+     untouched; the starting line is not. */
+  const meta = Meta.read();
+  G.memories = MEMORIES.filter(x => memoryEarned(meta, x.id)).map(x => x.id);
+  G.abyss = Meta.abyss();
+
+  if (G.memories.includes('alchemy')) {
+    // Everything ever named stays named. A player who has learned
+    // what the red flask is should not have to learn it again.
+    for (const id of Object.keys(meta.items || {})) G.known[id] = true;
+  }
+  if (G.memories.includes('smith')) {
+    for (const slot of ['weapon', 'body', 'shield']) {
+      const it = G.player.equip[slot];
+      if (it) it.plus = Math.max(it.plus || 0, 2);
+    }
+    recalc(G.player);
+  }
+  if (G.memories.includes('digger')) G.player.gold += 300;
+
   enterDepth(0);
   say('마을. 여섯 개의 문이 열려 있고, 광장 한가운데에 계단이 있다.', 'warn');
+  if (G.memories.length)
+    say(`기억이 남아 있다 — ${G.memories.map(id => MEMORIES.find(x => x.id === id).n).join(' · ')}.`, 'good');
+  if (G.abyss) say(`심연 ${G.abyss} — 아래의 것들이 그만큼 더 단단하다.`, 'warn');
   G.screen = 'play';
 }
+
+/* Does this run carry that memory? One reader so a memory can
+   never be half-applied. */
+export const hasMemory = id => (G.memories || []).includes(id);

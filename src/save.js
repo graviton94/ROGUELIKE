@@ -120,6 +120,8 @@ export function snapshot() {
     broke: G.broke || 0, forged: G.forged || 0, tideUsed: !!G.tideUsed,
     transFound: G.transFound || 0, perfects: G.perfects || 0, fused: G.fused || 0,
     catUsed: G.catUsed || 0, regionAt: G.regionAt || null,
+    engraved: G.engraved || 0, memories: [...(G.memories || [])], abyss: G.abyss || 0,
+    relicShelf: G.relicShelf ?? null,
     nextMods: G.nextMods || null,
     /* The two trait counters that point at a live monster are
        deliberately dropped: serialising them would clone a whole
@@ -164,6 +166,10 @@ export function apply(data) {
   G.fused = data.fused || 0;
   G.catUsed = data.catUsed || 0;
   G.regionAt = data.regionAt || null;
+  G.engraved = data.engraved || 0;
+  G.memories = data.memories || [];
+  G.abyss = data.abyss || 0;
+  G.relicShelf = data.relicShelf ?? null;
   G.forged = data.forged || 0;
   G.pendingAltar = null;
   G.nextMods = data.nextMods || null;

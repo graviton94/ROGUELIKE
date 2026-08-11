@@ -10,8 +10,8 @@ import {
   PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName, MATS, ENCHANT_COST, REROLL_COST,
   RARITY, CURSED_TONE, rarityOf, isCursed,
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
-  MONSTERS, BRANCHES, SPELLS, boonById, FUSIONS, engraveById, ENGRAVE_AT, ENGRAVE_PENALTY,
-  REGIONS, regionOf,
+  MONSTERS, BRANCHES, SPELLS, boonById, FUSIONS, engraveById, ENGRAVE_AT, ENGRAVE_PENALTY, NAMED,
+  REGIONS, regionOf, MEMORIES, memoryEarned, ABYSS,
   UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS, FUSE_ODDS, FUSE_COST,
   xpToLevel, statBonus,
 } from './data.js';
@@ -1205,6 +1205,48 @@ export function openSlots(mode) {
 export function refreshTitle() {
   const btn = $('btn-load');
   if (btn) btn.hidden = !(Save.available() && Save.anySaved());
+
+  /* The ledger, on the screen where 새 게임 is pressed. Six rows,
+     each with what it wants and how far along you are — "34/50
+     상자" is a reason to open the next one. A memory that is
+     earned but invisible is a memory that does not make anybody
+     press the button again. */
+  const meta = Meta.read();
+  const box = $('memories');
+  box.innerHTML = '';
+  const any = MEMORIES.some(x => x.at(meta) > 0);
+  box.hidden = !any;
+  if (any) {
+    for (const m of MEMORIES) {
+      const at = Math.min(m.at(meta), m.of), done = at >= m.of;
+      const row = el('div', 'memrow' + (done ? ' on' : ''));
+      row.appendChild(el('span', 'memn', m.n));
+      const bar = el('div', 'membar');
+      const fill = el('i');
+      fill.style.width = `${(at / m.of) * 100}%`;
+      bar.appendChild(fill);
+      row.appendChild(bar);
+      row.appendChild(el('span', 'memt', done ? m.t : `${m.goal} ${at}/${m.of}`));
+      row.title = m.t;
+      box.appendChild(row);
+    }
+  }
+
+  /* 심연 only exists once the thing at the bottom is dead. */
+  const pick = $('abyss-pick');
+  const unlocked = memoryEarned(meta, 'ember');
+  pick.hidden = !unlocked;
+  if (unlocked) {
+    const row = pick.querySelector('.abyssrow');
+    row.innerHTML = '';
+    const at = Meta.abyss();
+    ABYSS.forEach(a => {
+      const b = el('button', a.n === at ? 'on' : '', String(a.n));
+      b.onclick = () => { Meta.setAbyss(a.n); refreshTitle(); };
+      row.appendChild(b);
+    });
+    $('abyss-note').textContent = ABYSS[at].t;
+  }
 }
 
 /* character creation */
@@ -2229,7 +2271,24 @@ export function renderEvent() {
 export function renderStairs() {
   const list = $('stairs-list');
   list.innerHTML = '';
-  $('stairs-depth').textContent = `${G.depth + 1}층`;
+  const next = G.depth + 1;
+  $('stairs-depth').textContent = `${regionOf(next).n} ${next}층`;
+
+  /* What is waiting, said before the choice rather than after it.
+     A named fight the player walks into blind is a wall; the same
+     fight announced a screen earlier is a decision — go down at
+     full health, or spend the fire first and arrive ready.
+
+     Also names the place when the next floor crosses into one, so
+     the descent reads as going somewhere. */
+  const warn = $('stairs-warn');
+  const named = NAMED.find(n => n.at === next);
+  const crossing = regionOf(next).n !== regionOf(G.depth).n ? regionOf(next) : null;
+  const bits = [];
+  if (crossing) bits.push(`<b>${crossing.n}</b>이 시작된다. ${crossing.t}`);
+  if (named) bits.push(`<b class="danger">${named.warn}.</b> 계단 방에는 없다 — 피해서 내려갈 수 있다.`);
+  warn.hidden = !bits.length;
+  warn.innerHTML = bits.join('<br>');
 
   for (const b of G.pendingBranch || []) {
     const row = el('button', 'campopt branch');
@@ -2448,6 +2507,7 @@ function renderEnd() {
   if (s.broke) line('불에 잃은 장비', `${s.broke}점`, 'R');
   if (s.perfects) line('절단', `${s.perfects}번`, 'W');
   if (s.fused) line('찾아낸 조합', `${s.fused}가지`, 'W');
+  if (s.abyss) line('심연', `${s.abyss}단계`, 'R');
   if (s.trans) line('초월', `${s.trans}점 — 이 판을 기억하시오.`, 'W');
   if (s.bank >= 2) line('잃은 판돈', `${s.bank}층치`, 'R');
   if (s.waves) line('심연의 습격', `${s.waves}번`, 'R');

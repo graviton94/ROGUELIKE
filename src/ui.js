@@ -756,10 +756,13 @@ function frame(ts) {
   if (G.screen !== 'play') return;
   checkLessons();
 
-  /* Pages are pulled out of the queue before juice sees it: the
-     card is DOM, not a canvas effect, and it outlives the frame
-     that produced it. */
-  for (const e of G.fx) if (e.t === 'lore') pushLore(e);
+  /* Pages and the tally are pulled out of the queue before juice
+     sees it: both are DOM, not canvas effects, and both outlive
+     the frame that produced them. */
+  for (const e of G.fx) {
+    if (e.t === 'lore') pushLore(e);
+    else if (e.t === 'hit' && e.on === 'player') noteHit(e);
+  }
   Juice.pump(G.fx, G.player);
   Juice.update(dt, [G.player, ...G.monsters]);
 
@@ -872,7 +875,9 @@ export function refresh() {
 
   const logBox = $('log');
   logBox.innerHTML = '';
-  for (const line of G.log.slice(-4)) logBox.appendChild(el('p', line.tone, line.text));
+  /* Six now that the strip has the height for them. Anything
+     older is not lost — it is on the parchment, one tap away. */
+  for (const line of G.log.slice(-6)) logBox.appendChild(el('p', line.tone, line.text));
 
   $('btn-cast').hidden = !Game.spellSlots().length;
   renderQuick();
@@ -945,14 +950,22 @@ function renderQuick() {
     if (!s) {
       cv.width = cv.height = 1;
       label.textContent = Game.QUICK_LABELS[i];
+      const gone = b.querySelector('.qty');
+      if (gone) gone.hidden = true;
       b.onclick = null;
       return;
     }
     paintIcon(cv, s.item.spr);
-    label.innerHTML = '';
-    label.appendChild(document.createTextNode(s.label + ' '));
-    const n = el('b', '', `×${s.qty}`);
-    label.appendChild(n);
+    /* The count was inside the flow and the button is 49px wide on
+       a small phone, so `×15` was pushed clean off the end — the
+       one number on that button a player actually needs. It is a
+       badge in the corner now, out of the flow entirely, and the
+       label may be clipped instead. */
+    label.textContent = s.label;
+    let n = b.querySelector('.qty');
+    if (!n) { n = el('b', 'qty'); b.appendChild(n); }
+    n.textContent = s.qty > 1 ? String(s.qty) : '';
+    n.hidden = s.qty <= 1;
     b.onclick = () => { stopAuto(); act(() => Game.useItem(s.idx)); };
   });
 }
@@ -1275,6 +1288,56 @@ export function refreshTitle() {
           : ' · 마지막 단계') + '</span>'
       : SHACKLES[0].t + (open >= 1 ? ` <span class="dim">1단계 「${SHACKLES[1].k}」가 열려 있다</span>` : '');
   }
+}
+
+/* ── 이번 턴 ──────────────────────────────────────────────
+   The log used to carry two jobs at once: the prose, and "what
+   just took forty health off me". The second one starved the
+   first — it is the reason a summary line ever looked tempting.
+   It is a picture now, on the map's bottom edge, and the prose
+   was free to get longer the moment it stopped competing.
+
+   Keyed by source so three wolves biting you read as one row with
+   the total rather than as three rows you have to add up. */
+let tallyTurn = -1, tallyAt = 0;
+const tallyRows = new Map();
+
+function noteHit(e) {
+  const who = e.who || '?';
+  if (G.turn !== tallyTurn) { tallyTurn = G.turn; tallyRows.clear(); }
+  const row = tallyRows.get(who) || { spr: e.spr || 'trap', dmg: 0, n: 0 };
+  row.dmg += e.dmg || 0; row.n++;
+  tallyRows.set(who, row);
+  drawTally();
+}
+
+function drawTally() {
+  const box = $('tally');
+  box.innerHTML = '';
+  let total = 0;
+  for (const [who, r] of tallyRows) {
+    total += r.dmg;
+    const one = el('div', 'tallyone');
+    one.title = who;
+    const cv = el('canvas');
+    cv.width = CELL_SIZE * 2; cv.height = CELL_SIZE * 2;
+    const c = cv.getContext('2d');
+    c.imageSmoothingEnabled = false;
+    c.drawImage(sprite(r.spr), 0, 0, cv.width, cv.height);
+    one.appendChild(cv);
+    one.appendChild(el('b', '', `−${r.dmg}${r.n > 1 ? `  ×${r.n}` : ''}`));
+    box.appendChild(one);
+  }
+  /* The one number that decides whether to drink, when more than
+     one thing is on you. */
+  if (tallyRows.size > 1) box.appendChild(el('div', 'tallytotal', `이번 턴 −${total}`));
+  box.hidden = false;
+  box.classList.remove('fade');
+  clearTimeout(tallyAt);
+  tallyAt = setTimeout(() => {
+    box.classList.add('fade');
+    setTimeout(() => { box.hidden = true; tallyRows.clear(); }, 320);
+  }, 2600);
 }
 
 /* ── 양피지 ───────────────────────────────────────────────

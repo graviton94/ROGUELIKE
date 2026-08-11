@@ -2569,7 +2569,7 @@ function tickAilments(p) {
   if (has(p, 'poison') && G.turn % 3 === 0) {
     const dmg = 1 + Math.floor(G.depth / 8);
     p.hp -= dmg;
-    fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, poison:true });
+    fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, poison:true, who:'중독', spr:'potion' });
     if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'독' }); }
   }
 }
@@ -2714,7 +2714,7 @@ function monsterMelee(m) {
   p.hp -= Math.max(1, dmg);
   breakCombo(false); tookHit();
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
-       severe: dmg >= p.maxhp * 0.18 });
+       who:m.n, spr:m.spr, severe: dmg >= p.maxhp * 0.18 });
   say(`${heavy ? '당겼던 것이 떨어졌다. ' : ''}${takenLine(m.n, dmg, p.maxhp, nextLine())} (${dmg})`, 'hit');
   if (m.drain) {                       // 흡혈하는: it heals off you
     const back = Math.max(1, Math.round(dmg * m.drain));
@@ -2775,7 +2775,7 @@ function monsterShoot(m) {
   p.hp -= dmg;
   breakCombo(false); tookHit();
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
-       severe: dmg >= p.maxhp * 0.18 });
+       who:m.n, spr:m.spr, arrow:true, severe: dmg >= p.maxhp * 0.18 });
   say(`멀리서 날아왔다. ${takenLine(m.n, dmg, p.maxhp, nextLine())} (${dmg})`, 'hit');
   if (m.on && Math.random() < 0.22) afflict(p, m.on, 8 + rnd(8));
   reflect(m, dmg);
@@ -2916,7 +2916,8 @@ function resolveHazard(h) {
       const dmg = Math.max(1, Math.round((h.dmg - ac * 0.25) * (1 + (p.perm?.takeMore || 0))));
       p.hp -= dmg;
       breakCombo(false); tookHit();
-      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, low: p.hp <= p.maxhp * 0.25 && p.hp + dmg > p.maxhp * 0.25, severe:true });
+      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, who:PATTERNS[h.key].n, spr:'trap',
+           low: p.hp <= p.maxhp * 0.25 && p.hp + dmg > p.maxhp * 0.25, severe:true });
       say(`${h.owner}의 ${PATTERNS[h.key].n}에 ${dmg}의 피해.`, 'hit');
       if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n: h.owner }); return; }
     }

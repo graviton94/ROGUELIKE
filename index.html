@@ -38,7 +38,7 @@
       <div class="abyssrow"></div>
       <p class="note" id="abyss-note"></p>
     </div>
-    <p class="fine">도트도 소리도 전부 코드로 만듭니다. 이미지·음원 파일 없음.<br><span id="build">v23</span></p>
+    <p class="fine">도트도 소리도 전부 코드로 만듭니다. 이미지·음원 파일 없음.<br><span id="build">v24</span></p>
   </div>
 </section>
 
@@ -155,6 +155,12 @@
   <div id="stage">
     <canvas id="map"></canvas>
     <canvas id="mini" title="탭하면 크기가 바뀝니다"></canvas>
+    <!-- What just took health off you, as faces and numbers. The
+         log is prose and prose is for reading; this is for
+         glancing at mid-fight, which is a different job and was
+         never going to fit in the same channel. Inside the map so
+         it costs no layout height. -->
+    <div id="tally" hidden></div>
   </div>
 
   <div id="log" aria-live="polite"></div>
@@ -532,6 +538,9 @@
       <tr><td>처음인 것</td><td>어떤 종을 <b>처음 보거나</b>, 유물을 처음 들거나, 각인이 돋거나,
         새 지역에 들어서면 <b>양피지 한 장</b>이 내려옵니다. 막지 않고, 스스로 물러가고, 눌러서 먼저 덮을 수도 있습니다.<br>
         같은 내용이 <b>도감에 그대로 철해지므로</b> 나중에 다시 읽을 수 있습니다.</td></tr>
+      <tr><td>이번 턴</td><td>체력이 깎이면 지도 아래 가장자리에 <b>무엇이 얼마나</b> 깎았는지가 그림으로 뜹니다.
+        같은 상대는 한 줄로 합쳐지고(늑대 −25 ×2), 둘 이상이면 <b>이번 턴 합계</b>가 붙습니다.
+        글이 아니라 그림인 이유는 <b>싸우는 중에 흘끗 보는 정보</b>이기 때문입니다 — 읽는 것과는 다른 일이라 로그에 넣으면 안 됩니다.</td></tr>
       <tr><td>왜 요약하지 않는가</td><td>한 턴에 일어난 일을 한 줄로 줄이면 읽을 것이 사라집니다.
         이 게임에서 층과 층 사이의 이야기는 <b>전부 로그에서 일어납니다</b> — 스프라이트는 여덟 픽셀이니까요.
         그래서 줄이는 대신 <b>읽는 자리를 따로 냈습니다.</b></td></tr>

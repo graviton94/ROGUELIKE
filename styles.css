@@ -608,6 +608,9 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .codextells {
   white-space: pre-line; font-size: 11px; line-height: 1.6; color: var(--y);
 }
+/* The first line of a codex entry is the page that arrived on the
+   parchment, so it is set as prose rather than as a habit. */
+.codextells::first-line { color: var(--w); }
 /* 파수꾼의 기억 speaks on the stairs screen, in the same colour
    the codex uses for a habit — so the two read as one voice. */
 .tellline { display: block; margin-top: 6px; color: var(--y); font-size: 11px; line-height: 1.7; }
@@ -618,3 +621,64 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 #abyss-note { text-align: left; }
 #abyss-note b { color: var(--R); }
 #abyss-note .dim { color: var(--g); font-size: 10.5px; }
+
+/* ── 양피지 ──────────────────────────────────────────────
+   The one surface meant to be read rather than watched. Paper is
+   generated in pixels.js and set as a background here, so the
+   sheet and the dungeon come out of the same 16 colours.
+
+   Neither of these is a screen: both float over the map, so the
+   run is never interrupted by something you are only reading. */
+:root { --ink:#3b2d18; --inkDim:#6d5a3a; }
+
+#lorecard, #scroll { position: fixed; z-index: 40; filter: drop-shadow(0 4px 0 rgba(0,0,0,.55)); }
+#lorecard .sheet, #scroll .sheet {
+  background-repeat: repeat; image-rendering: pixelated;
+  box-shadow: inset 0 0 34px rgba(120,92,50,.42), inset 0 0 100px rgba(150,120,70,.22);
+  color: var(--ink);
+}
+#lorecard .deck, #scroll .deck { display: block; width: 100%; height: 8px; image-rendering: pixelated; }
+
+/* The card. Slides down from under the HUD, leaves on its own. */
+#lorecard { left: 5%; right: 5%; top: 0; animation: dropin .32s ease-out; }
+/* Tones inside a paragraph, so one turn can be two colours. */
+.scrollturn .hit  { color: #7a2b20; }
+.scrollturn .good { color: #2f5c34; }
+.scrollturn .level{ color: #8a5a12; }
+.scrollturn .warn { color: #6a4a12; }
+#lorecard.out { animation: dropout .28s ease-in forwards; }
+@keyframes dropin  { from { transform: translateY(-110%); } to { transform: none; } }
+@keyframes dropout { from { transform: none; } to { transform: translateY(-115%); } }
+#lorecard .sheet { padding: 12px 14px 14px; }
+.lorehead { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; }
+.loreicon { width: 30px; height: 30px; image-rendering: pixelated; }
+.lorekind { display: block; font-size: 9.5px; letter-spacing: .22em; color: var(--inkDim); }
+.lorename { display: block; font-size: 14px; color: var(--ink); letter-spacing: .04em; }
+.loretext { margin: 0; font-size: 12px; line-height: 1.85; color: var(--ink); }
+
+/* The scroll. Everything said this run, as paragraphs. */
+#scroll { inset: 22px 12px; display: flex; flex-direction: column; }
+#scroll .sheet { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; padding: 0 0 4px; }
+.scrollbar {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-bottom: 1px solid rgba(90,70,40,.35);
+}
+.scrollbar b { flex: 1 1 auto; font-size: 12px; letter-spacing: .2em; color: var(--ink); }
+.scrollbar .mini { background: transparent; border-color: rgba(90,70,40,.5); color: var(--ink); }
+.scrollbar .mini:active { background: var(--ink); color: #d8cba6; }
+.scrolltext { flex: 1 1 auto; overflow-y: auto; padding: 10px 14px 16px; -webkit-overflow-scrolling: touch; }
+/* A floor is a chapter and a turn is a paragraph. Nothing is
+   dropped — the grouping is typographic, not lossy. */
+.scrollfloor {
+  margin: 16px 0 8px; font-size: 10px; letter-spacing: .24em; color: var(--inkDim);
+  border-bottom: 1px solid rgba(90,70,40,.3); padding-bottom: 4px;
+}
+.scrollfloor:first-child { margin-top: 0; }
+.scrollturn { margin: 0 0 9px; font-size: 12px; line-height: 1.9; color: var(--ink); }
+.scrollturn.hit  { color: #7a2b20; }
+.scrollturn.good { color: #2f5c34; }
+.scrollturn.level{ color: #8a5a12; }
+.scrollturn.warn { color: #6a4a12; }
+/* Tapping the strip opens the record, so the strip has to look
+   like it can be tapped. */
+#log { cursor: pointer; }

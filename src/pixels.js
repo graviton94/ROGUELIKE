@@ -1045,3 +1045,72 @@ function bakeTerrain(kind, variant) {
 export const wallTile  = (x, y) => bakeTerrain('wall',  1 + ((hash(x, y) * 6) | 0));
 export const floorTile = (x, y) => bakeTerrain('floor', 1 + ((hash(x, y) * 6) | 0));
 export const CELL_SIZE = CELL;
+
+/* ── 양피지 ───────────────────────────────────────────────
+   The one surface in the game that is meant to be *read* rather
+   than watched, so it gets a page rather than a panel.
+
+   No image files here either: the fibre is a hash over the same
+   deterministic noise the terrain uses, so two runs draw the same
+   sheet and it tiles without a seam. Kept deliberately low in
+   contrast — this is paper for text to sit on, and a texture you
+   notice while reading is a texture that failed. */
+const PARCH = 96;
+let parchCache = null;
+
+export function parchmentTile() {
+  if (parchCache) return parchCache;
+  const cv = document.createElement('canvas');
+  cv.width = PARCH; cv.height = PARCH;
+  const c = cv.getContext('2d');
+  c.fillStyle = '#d8cba6';                            // the leaf itself
+  c.fillRect(0, 0, PARCH, PARCH);
+  /* Fibre: short horizontal strokes at two weights, wrapped so
+     the tile meets itself on every edge. */
+  for (let i = 0; i < 900; i++) {
+    const h = hash(i * 7 + 1, i * 13 + 5);
+    const x = (h * PARCH) | 0, y = ((hash(i * 3, i * 11) * PARCH) | 0);
+    const len = 1 + ((hash(i, i) * 4) | 0);
+    const dark = hash(i * 5, i * 2) < 0.45;
+    c.fillStyle = dark ? 'rgba(120,96,58,0.16)' : 'rgba(255,246,214,0.22)';
+    for (let k = 0; k < len; k++) c.fillRect((x + k) % PARCH, y, 1, 1);
+  }
+  /* A few age spots, sparse enough to read as paper and not as
+     dirt on the screen. */
+  for (let i = 0; i < 26; i++) {
+    const x = (hash(i * 17, 3) * PARCH) | 0, y = (hash(5, i * 19) * PARCH) | 0;
+    const r = 1 + ((hash(i, i * 2) * 3) | 0);
+    c.fillStyle = 'rgba(146,112,64,0.10)';
+    c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
+  }
+  parchCache = cv;
+  return cv;
+}
+
+export const parchmentURL = () => parchmentTile().toDataURL();
+
+/* The torn top and bottom of a sheet, drawn once at a given width
+   and used as a mask-free decoration strip. Height is fixed; the
+   caller stretches horizontally, which is invisible at this
+   contrast. */
+export function deckle(w, flip = false) {
+  const H = 8;
+  const cv = document.createElement('canvas');
+  cv.width = w; cv.height = H;
+  const c = cv.getContext('2d');
+  /* Filled with the sheet itself rather than a flat colour, or
+     the torn strip reads as a separate pale ribbon sitting above
+     the page instead of as the page's own edge. */
+  c.fillStyle = c.createPattern(parchmentTile(), 'repeat');
+  /* Two frequencies added together: the low one gives the long
+     wave a hand-torn edge has, the high one gives the fibre. One
+     frequency alone looks combed. */
+  for (let x = 0; x < w; x++) {
+    const low = hash((x / 11) | 0, flip ? 9 : 4);
+    const hi  = hash(x, flip ? 3 : 7);
+    const cut = Math.max(0, Math.min(H - 1, Math.round(low * 4 + hi * 2)));
+    if (flip) c.fillRect(x, 0, 1, H - cut);
+    else c.fillRect(x, cut, 1, H - cut);
+  }
+  return cv;
+}

@@ -66,8 +66,10 @@ export function takeRelic(id) {
   p.relics = p.relics || [];
   if (p.relics.length >= slotCount()) { G.pendingRelic = id; G.screen = 'relic'; return false; }
   p.relics.push(id);
+  const r = relicById(id);
   const first = Meta.see('relics', id);
-  say(`${relicById(id).n} — ${relicById(id).t}${first ? ' (처음 본 유물)' : ''}`, 'level');
+  say(`${r.n} — ${r.t}${first ? ' (처음 본 유물)' : ''}`, 'level');
+  if (first) lore('처음 든 유물', r.n, r.t, r.spr);
   fx({ t:'altar', x:p.x, y:p.y, good:true });
   recalc(p);
   return true;
@@ -108,8 +110,19 @@ let proseTick = 0;
 export const nextLine = () => ++proseTick;
 
 export function say(text, tone = '') {
-  G.log.push({ text: josa(text), tone });
-  if (G.log.length > 120) G.log.shift();
+  /* Stamped with when and where, so the scroll can set the record
+     as paragraphs under floor headings instead of as one endless
+     column. The strip ignores both. */
+  G.log.push({ text: josa(text), tone, turn: G.turn || 0, depth: G.depth || 0 });
+  if (G.log.length > 220) G.log.shift();
+}
+
+/* A page worth reading, handed to the presentation layer the same
+   way every other effect is. The rules never decide what it looks
+   like — they decide that this is the first time. */
+function lore(kind, name, text, spr) {
+  if (!text) return;
+  fx({ t:'lore', kind, name, text, spr });
 }
 
 /* ── effect queue ─────────────────────────────────────────
@@ -1019,7 +1032,7 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     if (region.n !== G.regionAt) {
       G.regionAt = region.n;
       say(region.line, 'level');
-      Meta.see('regions', region.n);
+      if (Meta.see('regions', region.n)) lore('처음 밟는 곳', region.n, region.t, 'stairsDown');
     }
   }
   if (depth > 0 && L.theme?.n) say(`${L.theme.n}이다.`, 'warn');
@@ -1117,6 +1130,7 @@ function populate(depth) {
     if (spot) {
       G.monsters.push({ ...named, maxhp: named.hp, x: spot.x, y: spot.y, awake: false, energy: 0 });
       say(named.intro, 'hit');
+      lore('이름 있는 것', named.n, named.intro, named.spr);
     }
   }
 
@@ -2589,7 +2603,7 @@ function monsterTurn(m) {
     const notice = clamp((1 - quiet) * (0.62 - reach * 0.055), 0.02, 0.9);
     if (Math.random() >= notice) return;
     m.awake = true;
-    Meta.see('monsters', m.n);
+    if (Meta.see('monsters', m.n) && m.lore) lore('처음 보는 것', m.n, m.lore, m.spr);
     if (m.disguise) return;              // a mimic that has noticed you keeps very still
     fx({ t:'wake', x:m.x, y:m.y });
   }
@@ -3231,6 +3245,7 @@ function engraveUpTo(it) {
     it.engrave.push(e.id);
     G.engraved = (G.engraved || 0) + 1;
     say(`쇠에 무늬가 돋았다 — ${e.n} ${it.n}. ${e.t}`, 'level');
+    lore('쇠에 돋은 무늬', `${e.n} ${it.n}`, e.t, it.spr);
     fx({ t:'engrave', x:G.player.x, y:G.player.y });
   }
 }

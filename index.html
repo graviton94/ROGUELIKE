@@ -42,6 +42,32 @@
   </div>
 </section>
 
+<!-- ══ the sheet ══
+     Two surfaces on the same paper. The card is what arrives —
+     the first of a thing, one or two sentences, non-blocking. The
+     scroll is what accumulates: the whole record, set as
+     paragraphs under floor headings, for reading rather than
+     glancing. Neither is a screen; both sit over the map so the
+     run never stops. -->
+<div id="lorecard" hidden>
+  <canvas class="deck top"></canvas>
+  <div class="sheet">
+    <div class="lorehead"><canvas class="loreicon"></canvas>
+      <div><span class="lorekind"></span><span class="lorename"></span></div></div>
+    <p class="loretext"></p>
+  </div>
+  <canvas class="deck bot"></canvas>
+</div>
+
+<div id="scroll" hidden>
+  <canvas class="deck top"></canvas>
+  <div class="sheet">
+    <header class="scrollbar"><b>기록</b><button class="mini" id="scroll-close">덮는다</button></header>
+    <div class="scrolltext" id="scroll-text"></div>
+  </div>
+  <canvas class="deck bot"></canvas>
+</div>
+
 <!-- ══ codex ══
      Everything the dead runs met. Not a museum: the body count
      under each monster is what buys its tells, so the page is
@@ -497,6 +523,18 @@
       <tr><td>다섯 가지</td><td><b>재로 그린 원</b>(55% 유물) · <b>끊어진 계단</b>(60% 다음 층 전리품 두 배) ·
         <b>도박꾼의 뼈</b>(50% 금화 두 배 / 14% 다섯 배와 유물) · <b>배고픈 문</b>(40% 깊은 장비 둘) ·
         <b>재 속의 약속</b>(35% 최대 체력 영구 +22와 무기 +2).</td></tr>
+    </table>
+
+    <h3 class="sect">양피지 — 읽는 자리</h3>
+    <table class="keys">
+      <tr><td>기록</td><td>화면 아래 <b>로그 줄을 누르면</b> 이 판에 있었던 일이 전부 펼쳐집니다.
+        층이 소제목이 되고 <b>한 턴이 한 문단</b>이 됩니다. 두 줄짜리 창에 흘려보낸 것은 하나도 없습니다.</td></tr>
+      <tr><td>처음인 것</td><td>어떤 종을 <b>처음 보거나</b>, 유물을 처음 들거나, 각인이 돋거나,
+        새 지역에 들어서면 <b>양피지 한 장</b>이 내려옵니다. 막지 않고, 스스로 물러가고, 눌러서 먼저 덮을 수도 있습니다.<br>
+        같은 내용이 <b>도감에 그대로 철해지므로</b> 나중에 다시 읽을 수 있습니다.</td></tr>
+      <tr><td>왜 요약하지 않는가</td><td>한 턴에 일어난 일을 한 줄로 줄이면 읽을 것이 사라집니다.
+        이 게임에서 층과 층 사이의 이야기는 <b>전부 로그에서 일어납니다</b> — 스프라이트는 여덟 픽셀이니까요.
+        그래서 줄이는 대신 <b>읽는 자리를 따로 냈습니다.</b></td></tr>
     </table>
 
     <h3 class="sect">도감 — 잡아 본 것만 아는 것</h3>

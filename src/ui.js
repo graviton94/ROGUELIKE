@@ -5,6 +5,7 @@
    ═══════════════════════════════════════════════════════════ */
 
 import { sprite, wallTile, floorTile, CELL_SIZE, PALETTE, setTerrainTheme } from './pixels.js';
+import * as Pix from './pixels.js';
 import {
   RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS, statRange,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName, MATS, ENCHANT_COST, REROLL_COST,
@@ -755,6 +756,10 @@ function frame(ts) {
   if (G.screen !== 'play') return;
   checkLessons();
 
+  /* Pages are pulled out of the queue before juice sees it: the
+     card is DOM, not a canvas effect, and it outlives the frame
+     that produced it. */
+  for (const e of G.fx) if (e.t === 'lore') pushLore(e);
   Juice.pump(G.fx, G.player);
   Juice.update(dt, [G.player, ...G.monsters]);
 
@@ -1010,6 +1015,9 @@ function renderSpellRow() {
 export function setScreen(name) {
   G.screen = name;
   if (name !== 'play') stopAuto();
+  /* Paper floats over the map rather than inside a screen, so it
+     has to be put away by hand when the map goes. */
+  if (name !== 'play') { $('scroll').hidden = true; closeLore(); }
   for (const s of ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help',
                    'camp', 'slots', 'altar', 'stairs', 'relic', 'event', 'anvil', 'codex'])
     $(`sc-${s}`).hidden = (s !== name);
@@ -1269,6 +1277,114 @@ export function refreshTitle() {
   }
 }
 
+/* ── 양피지 ───────────────────────────────────────────────
+   The compromise. Compressing the log into a summary line was the
+   wrong lever — the log is where the fiction lives turn to turn,
+   and a game that wants to be read cannot pay for legibility in
+   prose. So nothing is compressed. Instead the two jobs the log
+   was doing get separated: the tactical readout goes elsewhere,
+   and the writing gets *more* room and more occasions.
+
+   The card is what arrives — the first of a thing, a sentence or
+   two, over the map, gone on its own. The scroll is what
+   accumulates — everything said this run, set as paragraphs under
+   floor headings, for reading rather than glancing.
+
+   Both are paper generated in pixels.js, so this surface is made
+   of the same sixteen colours as the dungeon. */
+let paper = null;
+function paperURL() { return paper ||= Pix.parchmentURL(); }
+
+function dressSheet(box) {
+  if (box.dataset.dressed) return;
+  box.dataset.dressed = '1';
+  box.querySelector('.sheet').style.backgroundImage = `url(${paperURL()})`;
+  const w = 320;
+  for (const [sel, flip] of [['.deck.top', false], ['.deck.bot', true]]) {
+    const cv = box.querySelector(sel);
+    const src = Pix.deckle(w, flip);
+    cv.width = w; cv.height = src.height;
+    cv.getContext('2d').drawImage(src, 0, 0);
+  }
+}
+
+/* Cards queue rather than stack: two firsts in one turn would
+   otherwise draw on top of each other, and the second is the one
+   the player never gets to read. */
+const loreQueue = [];
+let loreAt = 0;
+
+export function pushLore(ev) {
+  loreQueue.push(ev);
+  if (!loreAt) showLore();
+}
+
+function showLore() {
+  const box = $('lorecard');
+  const ev = loreQueue.shift();
+  if (!ev) { box.hidden = true; loreAt = 0; return; }
+  dressSheet(box);
+  box.classList.remove('out');
+  box.hidden = false;
+  /* Under the HUD, always. A page you are reading must never be
+     covering the health bar — that is the difference between a
+     flourish and an obstruction. */
+  box.style.top = `${Math.round($('hud').getBoundingClientRect().bottom) + 6}px`;
+  box.querySelector('.lorekind').textContent = ev.kind;
+  box.querySelector('.lorename').textContent = ev.name;
+  box.querySelector('.loretext').textContent = ev.text;
+  const ic = box.querySelector('.loreicon');
+  ic.width = CELL_SIZE * 3; ic.height = CELL_SIZE * 3;
+  const c = ic.getContext('2d');
+  c.imageSmoothingEnabled = false;
+  c.clearRect(0, 0, ic.width, ic.height);
+  c.drawImage(sprite(ev.spr || 'scroll'), 0, 0, ic.width, ic.height);
+  clearTimeout(loreAt);
+  /* Long enough to read two sentences at a glance, and tappable
+     away before that — it must never be in the way of a fight. */
+  loreAt = setTimeout(closeLore, 5200);
+  box.onclick = closeLore;
+}
+
+function closeLore() {
+  const box = $('lorecard');
+  if (box.hidden) return;
+  clearTimeout(loreAt); loreAt = 0;
+  box.classList.add('out');
+  setTimeout(() => { box.hidden = true; box.classList.remove('out'); if (loreQueue.length) showLore(); }, 260);
+}
+
+/* The whole record. A floor is a chapter, a turn is a paragraph,
+   and not one line is dropped — the grouping is typographic. */
+function renderScroll() {
+  const box = $('scroll');
+  dressSheet(box);
+  const out = $('scroll-text');
+  out.innerHTML = '';
+  let atDepth = null, atTurn = null, para = null;
+  for (const line of G.log) {
+    if (line.depth !== atDepth) {
+      atDepth = line.depth; atTurn = null;
+      out.appendChild(el('div', 'scrollfloor',
+        atDepth === 0 ? '마을' : `${regionOf(atDepth).n} · ${atDepth}층`));
+    }
+    if (line.turn !== atTurn || !para) {
+      atTurn = line.turn;
+      para = el('p', 'scrollturn');
+      out.appendChild(para);
+    }
+    /* Colour per sentence, not per paragraph. A turn where you
+       were hit and then killed the thing is two colours, and
+       painting the whole block red loses the second half. */
+    if (para.textContent) para.appendChild(document.createTextNode(' '));
+    para.appendChild(el('span', line.tone || '', line.text));
+  }
+  if (!G.log.length) out.appendChild(el('p', 'scrollturn', '아직 아무 일도 없었다.'));
+  box.hidden = false;
+  out.scrollTop = out.scrollHeight;
+  closeLore();                     // one sheet at a time
+}
+
 /* ── the codex ────────────────────────────────────────────
    Everything the dead runs met, and — under each monster — how
    many of them you have put down.
@@ -1355,9 +1471,13 @@ function renderCodex() {
       const sub = known
         ? `${where} · 체력 ${m.hp} · 공격 ${m.atk} · 방어 ${m.ac} · 처치 ${n}`
         : where;
-      row(m.spr, m.n, sub,
-        known && n >= need ? tellsOf(m).join('\n')
-        : known ? `버릇까지 ${need - n}마리` : '', known);
+      /* The card that arrived the first time is filed here, so a
+         page you read once over the map can be read again. */
+      const body = [
+        known && m.lore ? m.lore : '',
+        known && n >= need ? tellsOf(m).join('\n') : known ? `버릇까지 ${need - n}마리` : '',
+      ].filter(Boolean).join('\n');
+      row(m.spr, m.n, sub, body, known);
     }
   } else if (codexTab === 'relics') {
     for (const r of RELICS)
@@ -2973,6 +3093,11 @@ export function bindInput() {
   $('btn-door').onclick   = () => { stopAuto(); act(Game.closeDoor); };
   $('btn-help').onclick   = () => { stopAuto(); setScreen('help'); };
   $('btn-codex').onclick  = () => setScreen('codex');
+  /* The strip is the lid of the record. Tapping it opens the
+     whole thing — the two-line window was never meant to be the
+     only way to read what happened. */
+  $('log').onclick = () => { stopAuto(); renderScroll(); };
+  $('scroll-close').onclick = () => { $('scroll').hidden = true; };
   for (const b of document.querySelectorAll('[data-back]')) b.onclick = () => setScreen('play');
   /* The codex is opened from the title, so 닫기 has to go back
      there rather than into a game that is not running. */

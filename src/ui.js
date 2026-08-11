@@ -6,7 +6,7 @@
 
 import { sprite, wallTile, floorTile, CELL_SIZE, PALETTE } from './pixels.js';
 import {
-  RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS,
+  RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS, statRange,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName, MATS, ENCHANT_COST, REROLL_COST,
   RARITY, CURSED_TONE, rarityOf, isCursed,
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
@@ -817,6 +817,10 @@ export function refresh() {
   /* Ailments come first: they are the thing most likely to kill
      you in the next ten turns. */
   const flags = Game.ailList(p).map(k => AILMENTS[k].n);
+  // Wearing something you cannot carry is a big invisible penalty
+  // otherwise — it belongs next to poison and darkness.
+  const strain = Game.strainOf(p);
+  if (strain) flags.push(`부담 −${strain.short * 3} 명중`);
   if (p.stuck > 0) flags.push('거미줄');
   if (G.depth > 0 && p.lightTurns <= 0) flags.push('암흑');
   else if (G.depth > 0 && p.lightTurns < 80) flags.push('불빛 희미');
@@ -1180,7 +1184,7 @@ export function refreshTitle() {
 let pick = { race: 'human', cls: 'warrior', base: null };
 
 export function renderCreate() {
-  pick.base = pick.base || Game.rollStats();
+  pick.base = pick.base || Game.rollStats(pick.cls);
 
   const rb = $('race-list'); rb.innerHTML = '';
   for (const [key, r] of Object.entries(RACES)) {
@@ -1197,7 +1201,9 @@ export function renderCreate() {
     const b = el('button', 'pickbtn' + (pick.cls === key ? ' on' : ''));
     b.appendChild(el('span', 'pname', c.name));
     b.appendChild(el('span', 'pmod', c.trait ? c.trait.n : (c.realm ? '주문' : '무주문')));
-    b.onclick = () => { pick.cls = key; renderCreate(); };
+    // A class changes the bands, so the roll has to be redrawn
+    // — showing a warrior's numbers under 마법사 would be a lie.
+    b.onclick = () => { pick.cls = key; pick.base = Game.rollStats(key); renderCreate(); };
     cb.appendChild(b);
   }
 
@@ -1209,22 +1215,53 @@ export function renderCreate() {
   $('class-note').innerHTML =
     `${c.note}<br><b style="color:var(--o)">${c.trait.n}</b> — ${c.trait.t}`;
 
+  /* The bar now shows the *band* as well as the roll: a pale
+     stripe for what this race and class can ever come out as,
+     and the solid fill for what the dice actually said. Rerolling
+     moves the fill a few points inside the stripe and never
+     outside it, which is the entire point of the change. */
   const sb = $('stat-preview'); sb.innerHTML = '';
+  let total = 0;
   for (const k of STATS) {
-    const v = clamp(pick.base[k] + (RACES[pick.race].mod[k] || 0) + (CLASSES[pick.cls].mod[k] || 0), 3, 20);
+    const v = clamp(pick.base[k] + (RACES[pick.race].mod[k] || 0), 3, 20);
+    total += v;
+    const [lo, hi] = statRange(pick.race, pick.cls, k);
     const row = el('div', 'statrow');
     row.appendChild(el('span', 'sname', STAT_NAME[k]));
     row.appendChild(el('span', 'sval', String(v)));
     const bar = el('div', 'sbar');
+    const band = el('u');
+    band.style.left = `${(lo / 20) * 100}%`;
+    band.style.width = `${((hi - lo) / 20) * 100}%`;
+    bar.appendChild(band);
     const fill = el('i');
     fill.style.width = `${(v / 20) * 100}%`;
     bar.appendChild(fill);
     row.appendChild(bar);
+    row.appendChild(el('span', 'srange', `${lo}~${hi}`));
     sb.appendChild(row);
   }
+  const note = el('p', 'note',
+    `합계 ${total} — 이 조합이 나올 수 있는 범위 안에서만 굴립니다. ` +
+    `다시 굴려도 띠 밖으로 나가지 않습니다.`);
+  sb.appendChild(note);
+  $('stat-detail').innerHTML = STAT_JOBS.map(([k, t]) =>
+    `<b>${STAT_NAME[k]}</b> ${t}`).join('<br>');
 }
 
-$('btn-reroll').onclick = () => { pick.base = Game.rollStats(); renderCreate(); };
+/* What each ability actually does, printed where the ability is
+   chosen. Six lines; every one of them is a rule that exists in
+   game.js, not flavour. */
+const STAT_JOBS = [
+  ['str', '근접 피해와 명중. 양손 무기·중갑은 힘을 요구하고, 모자라면 명중이 크게 깎입니다.'],
+  ['int', '비전 주문의 위력. 주운 물건을 그 자리에서 읽어낼 확률.'],
+  ['wis', '신성 주문과 치유. 함정을 알아채고, 걸린 상태이상이 짧아집니다 — 낮으면 길어집니다.'],
+  ['dex', '방어 · 명중 · 치명타 · 은신 · 기력. 가장 많은 일을 합니다.'],
+  ['con', '최대 체력, 그리고 회복 주기 — 높으면 다섯 턴마다, 낮으면 열두 턴마다 아뭅니다.'],
+  ['chr', '물건값, 그리고 바닥에 떨어지는 것에 속성이 붙을 확률.'],
+];
+
+$('btn-reroll').onclick = () => { pick.base = Game.rollStats(pick.cls); renderCreate(); };
 $('btn-begin').onclick  = () => {
   Game.startGame(pick.race, pick.cls, pick.base);
   savedEnding = false;
@@ -1321,8 +1358,8 @@ function renderInventory() {
     mid.appendChild(nameEl(it, slot.qty > 1 ? ` ×${slot.qty}` : ''));
     const grade = rarityOf(it);
     mid.appendChild(el('span', 'idesc',
-      it.kind === 'weapon' ? `${grade ? `[${RARITY[grade].n}] ` : ''}${WEAPON_TYPES[it.t]?.n || ''} ${it.dice[0]}d${it.dice[1]}${it.hands === 2 ? ' · 양손' : ''}${affixBlurb(it)}`
-      : it.kind === 'armour' ? `${grade ? `[${RARITY[grade].n}] ` : ''}방어 +${it.ac}${affixBlurb(it)}`
+      it.kind === 'weapon' ? `${grade ? `[${RARITY[grade].n}] ` : ''}${WEAPON_TYPES[it.t]?.n || ''} ${it.dice[0]}d${it.dice[1]}${it.hands === 2 ? ' · 양손' : ''}${reqText(it)}${affixBlurb(it)}`
+      : it.kind === 'armour' ? `${grade ? `[${RARITY[grade].n}] ` : ''}방어 +${it.ac}${reqText(it)}${affixBlurb(it)}`
       : it.kind === 'cat' ? `촉매 · ${it.t}`
       : Game.isKnown(it.id) ? (it.desc || '사용 가능') : '마셔 보기 전에는 알 수 없다'));
     const pt = plusText(it);
@@ -1518,6 +1555,17 @@ function affixBlurb(it) {
 
    Also names the next milestone, because the whole reason to
    push past +3 is the engraving waiting at +4. */
+/* What this piece asks of your arms, if it asks anything. */
+function reqText(it) {
+  const need = it.hands === 2 ? 15
+             : it.kind === 'weapon' && (it.dice?.[1] || 0) >= 8 ? 12
+             : it.kind === 'armour' && (it.ac || 0) >= 16 ? 15
+             : it.kind === 'armour' && (it.ac || 0) >= 12 ? 12 : 0;
+  if (!need) return '';
+  const have = Game.effStats(G.player).str;
+  return have < need ? ` · 힘 ${need} 필요(현재 ${have})` : ` · 힘 ${need}`;
+}
+
 function plusText(it) {
   if (!it || (it.kind !== 'weapon' && it.kind !== 'armour')) return '';
   const plus = it.plus || 0;

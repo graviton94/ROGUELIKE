@@ -806,6 +806,28 @@ export const RELICS = [
   { id:'drum',    n:'전쟁 북',       spr:'amulet', k:'drum',    v:2,
     t:'맞아도 연격을 4분의 1만 잃는다. 몬스터가 두 칸 더 멀리서 깨어난다. 종과 함께 울리면 행군이 된다.' },
 
+  /* ── 능력치를 손대는 것들 ──────────────────────────────
+     Every other relic changes what a number does. These six
+     change the number, which is a different kind of decision:
+     they are the answer to a roll that came out wrong, and the
+     way to push a roll that came out right past what the dice
+     could ever have given you.
+
+     Resolved in effStats(), one funnel, so nothing downstream
+     has to know an ability score can be rewritten. */
+  { id:'grip',    n:'거인의 손아귀', spr:'sword',  k:'grip',    v:20,
+    t:'힘이 20이 된다. 민첩은 6으로 떨어진다.' },
+  { id:'specs',   n:'현자의 안경',   spr:'scroll', k:'specs',   v:1,
+    t:'지능과 지혜 중 높은 쪽이 둘 다가 된다. 최대 체력 −20%.' },
+  { id:'acro',    n:'곡예사의 신',   spr:'ring',   k:'acro',    v:6,
+    t:'민첩 +6. 힘 −4.' },
+  { id:'bull',    n:'황소의 심장',   spr:'amulet', k:'bull',    v:6,
+    t:'체질 +6. 매력 −6.' },
+  { id:'mask',    n:'웃는 가면',     spr:'amulet', k:'mask',    v:18,
+    t:'매력이 18이 된다. 나머지 다섯 능력치가 1씩 내려간다.' },
+  { id:'ballast', n:'균형추',        spr:'ring',   k:'ballast', v:1,
+    t:'가장 낮은 능력치가 가장 높은 것과 같아진다. 최대 체력 −25%.' },
+
   /* ── 초월 유물 ──────────────────────────────────────────
      These never drop and never appear in a shop. The only way
      to hold one is to burn a campfire fusing the two relics
@@ -928,3 +950,43 @@ export const WAVE_GROWTH  = 0.13;               // 파도마다 능력치 +13%
 export const MAX_LEVEL = 30;
 export const xpToLevel = lv => Math.floor(6 * Math.pow(lv, 2.28));
 export const statBonus = v => Math.floor((v - 10) / 2);
+
+/* ── ability rolls ────────────────────────────────────────
+   4d6-drop-lowest gave a spread of 3–18 on every ability, so
+   two heroes of the same race and class could differ by forty
+   points of total and the "다시 굴리기" button was really a
+   slot machine you were expected to spin until it paid.
+
+   Instead each class states what it *needs* and the roll happens
+   inside a band. A warrior's 힘 lands between 13 and 17 every
+   time; his 지혜 lands between 6 and 10. The character you get is
+   the character you chose, and the dice only decide the last two
+   or three points.
+
+   Race modifiers apply on top, so a 드워프 전사 and a 엘프 전사
+   still differ — by the amount the race is supposed to be worth,
+   not by whatever the dice felt like.                          */
+export const BANDS = {
+  prime: [14, 17],   // the thing the class is
+  good:  [11, 14],   // the thing it leans on
+  fair:  [9, 12],    // the thing it has
+  weak:  [6, 10],    // the thing it does without
+};
+
+export const CLASS_BAND = {
+  warrior: { str:'prime', con:'good',  dex:'fair',  chr:'fair', int:'weak',  wis:'weak' },
+  mage:    { int:'prime', dex:'good',  wis:'fair',  chr:'fair', con:'weak',  str:'weak' },
+  priest:  { wis:'prime', con:'good',  chr:'good',  str:'fair', int:'fair',  dex:'weak' },
+  rogue:   { dex:'prime', chr:'good',  int:'good',  str:'fair', con:'fair',  wis:'weak' },
+  ranger:  { dex:'prime', con:'good',  str:'good',  int:'fair', wis:'fair',  chr:'weak' },
+  paladin: { str:'good',  chr:'prime', wis:'good',  con:'good', dex:'weak',  int:'weak' },
+};
+
+/* What a fresh hero of this race and class can come out as, after
+   the race modifier. Printed on the creation screen so the player
+   can see the shape of the choice before they spend a roll. */
+export function statRange(raceKey, classKey, key) {
+  const band = BANDS[CLASS_BAND[classKey][key]];
+  const mod = (RACES[raceKey].mod[key] || 0);
+  return [Math.max(3, band[0] + mod), Math.min(20, band[1] + mod)];
+}

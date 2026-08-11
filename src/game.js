@@ -19,7 +19,7 @@ import {
   WEAPON_TYPES, PATTERNS, NAMED,
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
-  xpToLevel, statBonus,
+  xpToLevel, statBonus, BANDS, CLASS_BAND, statRange,
 } from './data.js';
 import {
   Level, computeFov, lineClear, idx, rnd, roll, clamp, MW, MH,
@@ -109,20 +109,30 @@ export function fx(ev) {
 }
 
 /* ── character creation ─────────────────────────────────── */
-export function rollStats() {
+/* Rolled inside the class's bands rather than from 4d6, so the
+   spread between two heroes of the same class is a few points
+   and not a landslide. `cls` may be omitted early in a session,
+   in which case everything lands in the middle band. */
+export function rollStats(classKey) {
+  const bands = CLASS_BAND[classKey] || null;
   const s = {};
   for (const k of STATS) {
-    const d = [roll(1, 6), roll(1, 6), roll(1, 6), roll(1, 6)].sort((a, b) => b - a);
-    s[k] = d[0] + d[1] + d[2];   // 4d6 drop lowest
+    const [lo, hi] = BANDS[bands ? bands[k] : 'fair'];
+    s[k] = lo + rnd(hi - lo + 1);
   }
   return s;
 }
 
 export function createHero(raceKey, classKey, base) {
   const race = RACES[raceKey], cls = CLASSES[classKey];
+  /* The class modifier is gone: the roll bands already encode
+     what a class is, and adding the old modifier on top counted
+     it twice — a 전사 came out at 힘 20 and 지혜 3 every time.
+     The race modifier stays, because that is the only thing left
+     that separates a 드워프 전사 from an 엘프 전사. */
   const stats = {};
   for (const k of STATS)
-    stats[k] = clamp(base[k] + (race.mod[k] || 0) + (cls.mod[k] || 0), 3, 20);
+    stats[k] = clamp(base[k] + (race.mod[k] || 0), 3, 20);
 
   const p = {
     race: raceKey, cls: classKey, stats,
@@ -157,7 +167,7 @@ export function createHero(raceKey, classKey, base) {
 
 export function recalc(p, init) {
   const race = RACES[p.race], cls = CLASSES[p.cls];
-  const conB = statBonus(p.stats.con);
+  const conB = statB(p, 'con');
   /* Growth in steps, not a trickle. The totals at level 30 are
      what they always were; the delivery is not. Nine health a
      level is a number nobody notices — the same health arriving
@@ -187,6 +197,40 @@ export function recalc(p, init) {
   p.mana = Math.min(p.mana, p.maxmana);
   p.stam = Math.min(p.stam ?? p.maxStam, p.maxStam);
 }
+
+/* ── effective ability scores ─────────────────────────────
+   `p.stats` is what the dice said and never changes. What the
+   game *reads* is this, so a relic can bend an ability score
+   without anything downstream needing to know that relics exist
+   — the same trick gearBonus plays for damage.
+
+   Every read of an ability goes through statB(). There is no
+   second path, which is the only reason a relic that rewrites
+   a score can be trusted. */
+export function effStats(p) {
+  if (!p) return { str:10, int:10, wis:10, dex:10, con:10, chr:10 };
+  const s = { ...p.stats };
+  const held = p.relics || [];
+
+  // 균형추: the low end comes up to meet the high end. The whole
+  // point of the stat spread, bought with a quarter of your life.
+  if (held.includes('ballast')) {
+    const hi = Math.max(...STATS.map(k => s[k]));
+    for (const k of STATS) s[k] = hi;
+  }
+  if (held.includes('grip'))   { s.str = Math.max(s.str, 20); s.dex = Math.min(s.dex, 6); }
+  if (held.includes('specs'))  { const hi = Math.max(s.int, s.wis); s.int = hi; s.wis = hi; }
+  if (held.includes('acro'))   { s.dex += 6; s.str -= 4; }
+  if (held.includes('bull'))   { s.con += 6; s.chr -= 6; }
+  if (held.includes('mask'))   { s.chr = Math.max(s.chr, 18); for (const k of STATS) if (k !== 'chr') s[k] -= 1; }
+
+  for (const k of STATS) s[k] = clamp(s[k], 1, 26);
+  return s;
+}
+
+/* The one reader. `statB(p, 'str')` replaced every
+   `statB(p, 'str')` in the file. */
+export const statB = (p, k) => statBonus(effStats(p)[k]);
 
 /* ── gear resolution ──────────────────────────────────────
    Every derived number the player has runs through here, so an
@@ -285,6 +329,10 @@ export function gearBonus(p) {
       case 'knot':     b.stealth -= 0.5; break;
       case 'seed':     b.maxhpPct -= 0.15; b.ac += p.seedAc || 0; break;
       case 'grudge':   b.dmgPct += Math.min(0.60, (p.grudge || 0) * 0.04); break;
+      // The stat relics pay for themselves in health, not in
+      // a second stat — see effStats() for what they actually do.
+      case 'specs':    b.maxhpPct -= 0.20; break;
+      case 'ballast':  b.maxhpPct -= 0.25; break;
 
       /* Fused. Each one is its two halves with the downside
          deepened and the upside paid out — a fused relic is not
@@ -299,13 +347,30 @@ export function gearBonus(p) {
 
 export const armourClass = p =>
   gearBonus(p).ac
-  + statBonus(p.stats.dex) + Math.floor(p.lv / 4)
+  + statB(p, 'dex') + Math.floor(p.lv / 4)
   + (p.blessed > 0 ? 4 : 0) + (p.iron > 0 ? 10 : 0)
   + (p.cls === 'paladin' ? (p.oath || 0) : 0);   // 맹세
 
+/* 힘의 아래쪽. Heavy gear asks for a number, and a hero who does
+   not have it swings badly rather than being refused — a refusal
+   is a rule you fight, a penalty is a trade you make. Two-handers
+   and plate are the only things that ask. */
+export function strainOf(p) {
+  let need = 0;
+  const w = p.equip.weapon, b = p.equip.body;
+  if (w?.hands === 2) need = Math.max(need, 15);
+  else if (w && (w.dice?.[1] || 0) >= 8) need = Math.max(need, 12);
+  if (b && (b.ac || 0) >= 16) need = Math.max(need, 15);
+  else if (b && (b.ac || 0) >= 12) need = Math.max(need, 12);
+  const have = effStats(p).str;
+  return need && have < need ? { need, have, short: need - have } : null;
+}
+
 export const toHit = p => {
-  const base = CLASSES[p.cls].bth * p.lv / 3 + statBonus(p.stats.dex) * 2
-    + statBonus(p.stats.str) + (p.blessed > 0 ? 5 : 0) + gearBonus(p).hit;
+  const strain = strainOf(p);
+  const base = CLASSES[p.cls].bth * p.lv / 3 + statB(p, 'dex') * 2
+    + statB(p, 'str') + (p.blessed > 0 ? 5 : 0) + gearBonus(p).hit
+    - (strain ? strain.short * 3 : 0);
   // Proportional, not flat: a flat penalty would cripple level 1
   // and barely register at level 20.
   return (has(p, 'fear') ? base * 0.55 : base) * gearBonus(p).hitPct;
@@ -328,6 +393,10 @@ export function afflict(p, kind, turns) {
     return;
   }
   if (g.ailShrug) turns = Math.max(1, Math.round(turns * (1 - g.ailShrug)));
+  /* 지혜 is what shrugs a curse off. High wisdom shortens every
+     ailment; low wisdom lengthens them, which is the reason a
+     wizard with dumped wisdom feels different from one without. */
+  turns = Math.max(1, Math.round(turns * clamp(1 - statB(p, 'wis') * 0.09, 0.35, 1.9)));
   if (immuneTo(p, kind)) {
     say(`${AILMENTS[kind].n}이(가) 통하지 않는다.`, 'good');
     fx({ t:'resist', x:p.x, y:p.y });
@@ -349,7 +418,7 @@ export const ailList = p =>
    swing feel worth taking. Keep them legible: a rogue should
    be able to read these three lines and plan around them.   */
 export const critChance = p => clamp(
-  0.04 + statBonus(p.stats.dex) * 0.022 + p.lv * 0.004
+  0.04 + statB(p, 'dex') * 0.022 + p.lv * 0.004
   + (p.cls === 'rogue' ? 0.10 : p.cls === 'ranger' ? 0.04 : 0)
   + gearBonus(p).crit,
   0.02, 0.80);
@@ -363,7 +432,7 @@ export const critMult = p =>
    it is deliberately wired to armour: plate keeps you alive and
    announces you down the corridor. Pick one. */
 export const stealth = p => (gearBonus(p).noStealth ? 0 : clamp(
-  0.10 + statBonus(p.stats.dex) * 0.05
+  0.10 + statB(p, 'dex') * 0.05
   + (p.race === 'halfling' ? 0.20 : p.race === 'elf' ? 0.10 : p.race === 'halfTroll' ? -0.15 : 0)
   + (p.cls === 'rogue' ? 0.25 : p.cls === 'ranger' ? 0.12 : 0)
   - (p.equip.body?.ac || 0) * 0.012
@@ -772,8 +841,8 @@ export function cast(spellId, echo = false) {
       if (!nearest) { say('시야에 적이 없다.'); break; }
       const holy = sp.id === 'smite';
       const raw = holy
-        ? roll(3 + Math.floor(p.lv / 3), 6) + statBonus(p.stats.wis) * 2
-        : roll(2 + Math.floor(p.lv / 3), 5) + statBonus(p.stats.int) * 2;
+        ? roll(3 + Math.floor(p.lv / 3), 6) + statB(p, 'wis') * 2
+        : roll(2 + Math.floor(p.lv / 3), 5) + statB(p, 'int') * 2;
       const dmg = Math.max(1, Math.round(raw * pow));
       fx({ t:'beam', fx:p.x, fy:p.y, tx:nearest.x, ty:nearest.y, color: holy ? 'y' : 'P' });
       hurtMonster(nearest, dmg, holy ? '응징의 빛' : '마력 화살');
@@ -800,7 +869,7 @@ export function cast(spellId, echo = false) {
       say('한 걸음 옆이 아닌 곳에 서 있다.', 'good'); break;
     }
     case 'cure': {
-      const h = Math.min(p.maxhp - p.hp, Math.round((12 + roll(2, 6) + statBonus(p.stats.wis) * 3) * pow * healScale()));
+      const h = Math.min(p.maxhp - p.hp, Math.round((12 + roll(2, 6) + statB(p, 'wis') * 3) * pow * healScale()));
       p.hp += h; fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(`상처가 닫힌다. 체력 +${h}.`, 'good'); break;
     }
     case 'heal': {
@@ -1238,7 +1307,11 @@ function pickByRarity(pool) {
 export function rollAffixes(item, depth, guaranteed) {
   if (item.kind !== 'weapon' && item.kind !== 'armour') return item;
   const tag = item.kind;
-  const odds = Math.min(0.55, 0.05 + depth * 0.02);
+  /* 매력 is the stat the dungeon likes you for. It moves the odds
+     that a drop carries anything at all — never enough to carry a
+     build, always enough that dumping it is a decision. */
+  const luck = G.player ? statB(G.player, 'chr') * 0.02 : 0;
+  const odds = clamp(0.05 + depth * 0.02 + luck, 0.02, 0.62);
   if (guaranteed || Math.random() < odds) {
     const a = pickAffix(PREFIXES, tag, false);
     if (a) item.pre = a.id;
@@ -1313,7 +1386,7 @@ export function step(dx, dy) {
   }
 
   if (p.stuck > 0) {
-    const pull = statBonus(p.stats.str) + roll(1, 6);
+    const pull = statB(p, 'str') + roll(1, 6);
     if (pull >= 5) { p.stuck = 0; say('거미줄을 뜯어냈다.', 'good'); }
     else { p.stuck--; say('거미줄이 발을 붙잡는다.', 'warn'); fx({ t:'struggle', x:p.x, y:p.y }); }
     endTurn(); return;
@@ -1380,7 +1453,7 @@ function forceDoor(x, y) {
     fx({ t:'door', x, y, state:'open' });
     return;
   }
-  const chance = clamp(0.14 + statBonus(p.stats.str) * 0.09 + p.lv * 0.006, 0.04, 0.85);
+  const chance = clamp(0.14 + statB(p, 'str') * 0.09 + p.lv * 0.006, 0.04, 0.85);
   if (Math.random() < chance) {
     L.tiles[idx(x, y)] = DOOR_BROKEN;
     say('문이 부서져 나갔다.', 'good');
@@ -1497,7 +1570,7 @@ function springTrap(x, y, trap) {
          not the default — and dexterity should be the thing that
          decides it. */
       if (roped()) { say('밧줄이 걸려 허공에 매달렸다. 기어 올라온다.', 'good'); return false; }
-      const grab = clamp(0.45 + statBonus(p.stats.dex) * 0.07
+      const grab = clamp(0.45 + statB(p, 'dex') * 0.07
                          + (p.cls === 'rogue' ? 0.15 : p.cls === 'ranger' ? 0.07 : 0), 0.2, 0.92);
       if (Math.random() < grab) {
         const graze = roll(1, 4);
@@ -1536,7 +1609,7 @@ function springTrap(x, y, trap) {
 function scanForTraps() {
   const p = G.player, L = G.level;
   const skill = clamp(
-    0.16 + statBonus(p.stats.wis) * 0.045 + p.lv * 0.007
+    0.16 + statB(p, 'wis') * 0.045 + p.lv * 0.007
     + (p.cls === 'rogue' ? 0.28 : p.cls === 'ranger' ? 0.10 : 0),
     0.04, 0.9);
   for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
@@ -1574,6 +1647,15 @@ function pickUp() {
   if (it.kind === 'key')  { p.keys++; say(`녹슨 열쇠를 주웠다. (${p.keys})`, 'good'); return; }
   // 서기의 깃펜 names it in your hand, before you have to bet on it.
   if (hasRelic('quill') || hasRelic('ledger')) identify(it.id, true);
+  /* 지능 reads labels. A clever hero names roughly half of what
+     they pick up on sight; a dull one names nothing and has to
+     drink it to find out, which is exactly the gamble the
+     unidentified flask is for. */
+  else if (it.kind === 'use' && !isKnown(it.id)
+           && Math.random() < clamp(statB(p, 'int') * 0.12, 0, 0.7)) {
+    identify(it.id, true);
+    say(`글자를 읽어냈다 — ${nameOf(it)}.`, 'good');
+  }
   addItem(p, it);
   /* 초월 does not get a line in the log — it gets the screen.
      This is the rarest thing that can happen to a run and the
@@ -1603,7 +1685,7 @@ function openChest(index, chest) {
       say(`열쇠로 자물쇠를 열었다. (남은 열쇠 ${p.keys})`, 'good');
     } else {
       const pick = clamp(
-        0.10 + statBonus(p.stats.dex) * 0.06 + (p.cls === 'rogue' ? 0.30 : 0) + p.lv * 0.008,
+        0.10 + statB(p, 'dex') * 0.06 + (p.cls === 'rogue' ? 0.30 : 0) + p.lv * 0.008,
         0.04, 0.92);
       if (Math.random() < pick) {
         chest.locked = false;
@@ -1721,7 +1803,7 @@ function swing(m, scale) {
   const w = p.equip.weapon;
   const dice = w ? w.dice : [1, 3];
   const g = gp;
-  let dmg = roll(dice[0], dice[1]) + statBonus(p.stats.str) * 2 + Math.floor(p.lv / 3) + g.dmg;
+  let dmg = roll(dice[0], dice[1]) + statB(p, 'str') * 2 + Math.floor(p.lv / 3) + g.dmg;
   dmg *= (1 + g.dmgPct + (p.might > 0 ? 0.6 : 0));
   dmg *= scale;
   if (kind === 'great') dmg *= 1.45;
@@ -2119,7 +2201,11 @@ export function endTurn(skipMonsters = false) {
      systems check each other. */
   const regen = Math.max(0, 1 + Math.floor(p.lv / 4)
     + (p.race === 'halfTroll' ? 1 : 0) + gearBonus(p).regen);
-  if (G.turn % 8 === 0 && p.hp < p.maxhp) p.hp = Math.min(p.maxhp, p.hp + regen);
+  /* 체질 sets how often the body closes, not only how much it
+     holds. 8 turns at 10 con, 5 at 18, 12 at 5 — a dumped
+     constitution is felt between fights as well as inside one. */
+  const beat = clamp(8 - statB(p, 'con'), 4, 14);
+  if (G.turn % beat === 0 && p.hp < p.maxhp) p.hp = Math.min(p.maxhp, p.hp + regen);
   // 응답: the priest closes on his own, twice as often as anyone.
   if (p.cls === 'priest' && G.turn % 6 === 0 && p.hp < p.maxhp)
     p.hp = Math.min(p.maxhp, p.hp + Math.max(1, Math.round(regen * healScale())));
@@ -3527,7 +3613,7 @@ export function shopStock(shop) {
 }
 
 export const priceOf = (item, buying) => {
-  const chrB = statBonus(G.player.stats.chr);
+  const chrB = statB(G.player, 'chr');
   // Same spine as salvage: a +5 sword is worth five upgrades more
   // than the plain one, at the counter as well as at the anvil.
   const base = worthOf(item) || item.cost || 10;

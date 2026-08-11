@@ -14,31 +14,27 @@
 <body>
 
 <!-- ══ title ══ -->
-<section id="sc-title" class="screen center">
-  <div class="col">
-    <pre class="logo">╔═══════════════════╗
-║   깊 은   곳      ║
-║   D E E P D E L V E ║
-╚═══════════════════╝</pre>
+<!-- The first thing anybody sees, and it did not fit on a
+     phone: 837px of stacked rows in a 568px screen, with the
+     shackle ladder and the build number simply unreachable. It is
+     a scene and four buttons now, and everything that was a list
+     moved into 기록. -->
+<section id="sc-title" class="screen">
+  <canvas id="title-scene"></canvas>
+  <div class="titleface">
+    <h1 class="gamename">깊은 곳</h1>
+    <p class="gamesub">D E E P D E L V E</p>
     <p class="tag">사람이 판 것이 셋, 그 아래에서 깨어난 것이 하나.</p>
-    <p class="blurb">
-      성채가 무너지고, 드워프가 그 아래를 팠고,<br>
-      갱도가 이름이 지워진 성소를 뚫었다.<br>
-      그 밑에서 무언가가 아직 타고 있다.<br>
-      등불이 닿는 곳까지가 당신이 아는 전부다.
-    </p>
-    <button class="big" id="btn-new">새 게임</button>
+  </div>
+  <div class="titleacts">
     <button class="big" id="btn-load" hidden>이어하기</button>
-    <!-- What the dead runs left behind, and the dial that only
-         opens once the boss is down. -->
-    <div id="memories" class="memories" hidden></div>
-    <button class="big" id="btn-codex">도감</button>
-    <div id="abyss-pick" class="abysspick" hidden>
-      <span class="abysslabel">심연</span>
-      <div class="abyssrow"></div>
-      <p class="note" id="abyss-note"></p>
+    <button class="big" id="btn-new">새 게임</button>
+    <div class="titlerow">
+      <button class="mini" id="btn-codex">기록</button>
+      <button class="mini" id="btn-help">조작법</button>
+      <button class="mini" id="btn-sound">소리 켜짐</button>
     </div>
-    <p class="fine">도트도 소리도 전부 코드로 만듭니다. 이미지·음원 파일 없음.<br><span id="build">v25</span></p>
+    <p class="fine"><span id="title-stat"></span><br>도트도 소리도 전부 코드로. 이미지·음원 파일 없음 · <span id="build">v26</span></p>
   </div>
 </section>
 
@@ -73,11 +69,30 @@
      under each monster is what buys its tells, so the page is
      both the record and the reason to keep killing things. -->
 <section id="sc-codex" class="screen" hidden>
-  <header class="bar"><h2>도감</h2><button class="mini" data-back>닫기</button></header>
+  <header class="bar"><h2>기록</h2><button class="mini" data-back>닫기</button></header>
+  <div class="codextabs" id="ledger-tabs">
+    <button class="codextab on" data-led="codex">도감</button>
+    <button class="codextab" data-led="mem">기억</button>
+    <button class="codextab" data-led="abyss">심연</button>
+  </div>
   <div class="scroll">
-    <p class="note" id="codex-lead"></p>
-    <div id="codex-tabs" class="codextabs"></div>
-    <div id="codex-list"></div>
+    <div data-led="codex">
+      <p class="note" id="codex-lead"></p>
+      <div id="codex-tabs" class="codextabs"></div>
+      <div id="codex-list"></div>
+    </div>
+    <div data-led="mem" hidden>
+      <p class="note">죽으면 판은 사라지지만 기억은 남는다. 어느 것도 능력치가 아니다 —
+        전부 이미 벌어 놓은 것을 다음 판에 넘겨주는 것뿐이다.</p>
+      <div id="memories" class="memories"></div>
+    </div>
+    <div data-led="abyss" hidden>
+      <div id="abyss-pick" class="abysspick" hidden>
+        <div class="abyssrow"></div>
+        <p class="note" id="abyss-note"></p>
+      </div>
+      <p class="note" id="abyss-locked">대군주를 쓰러뜨리면 열린다.</p>
+    </div>
   </div>
 </section>
 
@@ -200,8 +215,8 @@
   <header class="bar">
     <h2>배낭 · 장비</h2>
     <span class="chip gold">◍ <b id="inv-gold">0</b></span>
-    <button class="mini" id="btn-sound">소리 켜짐</button>
-    <button class="mini" id="btn-help">조작법</button>
+    <button class="mini" id="btn-sound2">소리</button>
+    <button class="mini" id="btn-help2">조작법</button>
     <button class="mini" data-back>닫기</button>
   </header>
   <!-- Two tabs, not one column. Five sections stacked came to

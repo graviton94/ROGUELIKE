@@ -768,3 +768,37 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .screen.assheet > .bar h2 { font-size: 12px; }
 /* The map behind a sheet is context, not a target. */
 #sc-play:has(~ .screen.assheet) #controls { opacity: .35; pointer-events: none; }
+
+/* ── 첫 화면 ─────────────────────────────────────────────
+   837px of stacked rows in a 568px phone, with the shackle
+   ladder below the fold and unreachable. It is a place and four
+   buttons now; the lists moved behind 기록. */
+#sc-title { display: block; padding: 0; overflow: hidden; }
+#title-scene {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  display: block; image-rendering: pixelated;
+}
+.titleface {
+  position: absolute; left: 0; right: 0; top: 12%;
+  text-align: center; pointer-events: none;
+}
+.gamename {
+  margin: 0; font-size: clamp(30px, 11vw, 46px); letter-spacing: .22em;
+  color: var(--W); font-weight: 600;
+  text-shadow: 0 0 18px rgba(217,138,60,.55), 0 3px 0 var(--k);
+}
+.gamesub {
+  margin: 4px 0 0; font-size: clamp(9px, 2.6vw, 11px); letter-spacing: .5em;
+  color: var(--o); padding-left: .5em;
+}
+.tag { margin: 14px 0 0; color: var(--y); font-size: clamp(10.5px, 3vw, 12.5px); letter-spacing: .04em; }
+.titleacts {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
+  padding: 0 22px calc(18px + env(safe-area-inset-bottom));
+}
+.titleacts .big { width: min(300px, 82vw); }
+.titlerow { display: flex; gap: 6px; margin-top: 2px; }
+.titlerow .mini { padding: 8px 14px; }
+.titleacts .fine { margin: 4px 0 0; text-align: center; line-height: 1.7; }
+#title-stat { color: var(--G); }

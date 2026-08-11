@@ -756,6 +756,9 @@ function frame(ts) {
   rafId = requestAnimationFrame(frame);
   const dt = Math.min(50, ts - (lastTs || ts));
   lastTs = ts;
+  /* Above the no-hero guard on purpose: the title is the one
+     screen that is running before anybody exists. */
+  if (!$('sc-title').hidden) { drawTitleScene(); return; }
   if (!G.player) return;
 
   /* Permadeath: the slot dies with the run. This lives in the
@@ -1265,34 +1268,160 @@ export function openSlots(mode) {
   renderSlots();
 }
 
+/* ── 첫 화면 ──────────────────────────────────────────────
+   An ASCII box in a monospace font said "someone's weekend
+   project". The game underneath is not that, and the title is
+   the only screen everybody sees.
+
+   So it is a place instead of a logo: a stair going down out of
+   the light, painted from the same wall and floor tiles the
+   dungeon uses, with embers drifting up out of it. Nothing new is
+   drawn here — it is the game's own vocabulary arranged to say
+   "there is a down, and something is burning at the bottom".   */
+let sparks = null, sceneAt = 0;
+
+function drawTitleScene() {
+  const cv = $('title-scene');
+  if (!cv || $('sc-title').hidden) return;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (!w || !h) return;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const c = cv.getContext('2d');
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.imageSmoothingEnabled = false;
+  setTerrainTheme('plain');
+
+  const t = Math.max(22, Math.round(w / 11));
+  const cols = Math.ceil(w / t) + 1, rows = Math.ceil(h / t) + 1;
+  c.fillStyle = PALETTE.k;
+  c.fillRect(0, 0, w, h);
+
+  /* A shaft: masonry on both sides, floor down the middle,
+     narrowing as it goes so the eye is pulled to the bottom. */
+  /* The shaft narrows as it drops, and the walls are held much
+     darker than the floor — without that gap the grid reads as
+     noise rather than as a place with a middle you could walk
+     down. The vanishing point is a little below centre, where the
+     eye lands first. */
+  const midX = cols / 2, vanish = 0.58;
+  for (let y = 0; y < rows; y++) {
+    const depth = Math.min(1, (y / rows) / vanish);
+    const half = Math.max(1.1, (cols / 2 - 0.4) * (1 - depth * 0.82));
+    for (let x = 0; x < cols; x++) {
+      const off = Math.abs(x + 0.5 - midX);
+      const px = x * t, py = y * t;
+      const wall = off >= half;
+      c.globalAlpha = 1;
+      c.drawImage(wall ? wallTile(x, y) : floorTile(x, y), px, py, t, t);
+      /* Floors keep some light so the lane is legible; walls go
+         nearly to black, and the very edges go all the way. */
+      const edge = Math.max(0, off - half) / Math.max(1, cols / 2);
+      c.globalAlpha = Math.min(0.95,
+        (wall ? 0.62 + edge * 1.6 : 0.14) + depth * (wall ? 0.28 : 0.42));
+      c.fillStyle = PALETTE.k;
+      c.fillRect(px, py, t, t);
+    }
+  }
+
+  /* The stair goes down *before* the light, so the light falls on
+     it. Drawn after, it was a cold blue chip sitting on top of an
+     amber wash. */
+  const gy = h * vanish;
+  const ss = t * 1.4;
+  c.globalAlpha = 0.85;
+  c.drawImage(sprite('stairsDown'), w / 2 - ss / 2, gy - ss * 0.5, ss, ss);
+  c.globalAlpha = 1;
+
+  /* And the reason to go down. Kept dim: this is a hole with
+     something burning a long way below it, not a bonfire. */
+  const glow = c.createRadialGradient(w / 2, gy + ss * 0.2, t * 0.1, w / 2, gy, h * 0.3);
+  glow.addColorStop(0, 'rgba(232,199,106,0.34)');
+  glow.addColorStop(0.4, 'rgba(217,138,60,0.17)');
+  glow.addColorStop(1, 'rgba(143,47,40,0)');
+  c.globalAlpha = 0.72 + 0.28 * Math.abs(Math.sin(performance.now() / 2600));
+  c.fillStyle = glow;
+  c.fillRect(0, 0, w, h);
+  c.globalAlpha = 1;
+
+  /* Embers. Seeded once, looped forever — no allocation per
+     frame, and the same drift on every visit. */
+  const now = performance.now();
+  const dt = Math.min(60, now - (sceneAt || now));
+  sceneAt = now;
+  sparks ||= Array.from({ length: 26 }, (_, i) => ({
+    x: 0.5 + (((i * 7919) % 100) / 100 - 0.5) * 0.5,
+    y: ((i * 104729) % 100) / 100,
+    v: 0.05 + ((i * 31) % 40) / 900,
+    s: 1 + (i % 3),
+  }));
+  for (const p of sparks) {
+    p.y -= p.v * dt / 1000;
+    p.x += Math.sin(now / 900 + p.y * 9) * 0.0006;
+    if (p.y < -0.05) { p.y = 1.05; p.x = 0.5 + (Math.random() - 0.5) * 0.5; }
+    c.globalAlpha = Math.max(0, Math.min(0.85, p.y * 1.1)) * 0.9;
+    c.fillStyle = p.s > 2 ? PALETTE.y : PALETTE.o;
+    c.fillRect(Math.round(p.x * w), Math.round(p.y * h), p.s, p.s);
+  }
+  c.globalAlpha = 1;
+  /* A soft floor of darkness under the type and under the
+     buttons, so neither sits on masonry. */
+  const fade = c.createLinearGradient(0, h * 0.62, 0, h);
+  fade.addColorStop(0, 'rgba(10,12,18,0)');
+  fade.addColorStop(0.55, 'rgba(10,12,18,0.72)');
+  fade.addColorStop(1, 'rgba(10,12,18,0.99)');
+  c.fillStyle = fade;
+  c.fillRect(0, 0, w, h);
+  /* And the sides, so the shaft is the only thing with light in
+     it. */
+  const sides = c.createLinearGradient(0, 0, w, 0);
+  sides.addColorStop(0, 'rgba(10,12,18,0.9)');
+  sides.addColorStop(0.28, 'rgba(10,12,18,0)');
+  sides.addColorStop(0.72, 'rgba(10,12,18,0)');
+  sides.addColorStop(1, 'rgba(10,12,18,0.9)');
+  c.fillStyle = sides;
+  c.fillRect(0, 0, w, h);
+}
+
 export function refreshTitle() {
   const btn = $('btn-load');
   if (btn) btn.hidden = !(Save.available() && Save.anySaved());
 
-  /* The ledger, on the screen where 새 게임 is pressed. Six rows,
-     each with what it wants and how far along you are — "34/50
-     상자" is a reason to open the next one. A memory that is
-     earned but invisible is a memory that does not make anybody
-     press the button again. */
+  /* One line, where ten rows and a nine-button ladder used to be.
+     What a returning player wants off the title is "am I making
+     progress" — the detail belongs behind 기록, and putting it
+     here made the screen taller than the phone. */
+  const meta = Meta.read();
+  const bits = [];
+  if (meta.runs) bits.push(`${meta.runs}판`);
+  if (meta.best?.depth) bits.push(`최고 ${meta.best.depth}층`);
+  const filled = codexFilled();
+  if (filled) bits.push(`기록 ${filled}/${codexOf()}`);
+  if (Meta.abyss()) bits.push(`심연 ${Meta.abyss()}`);
+  if (meta.wins) bits.push(`승리 ${meta.wins}`);
+  $('title-stat').textContent = bits.length ? bits.join(' · ') : '아직 아무도 내려가지 않았다.';
+  paintLedger();
+}
+
+/* The two lists that used to live on the title. Rebuilt whenever
+   the ledger screen opens, and once on boot so the title's status
+   line has its numbers. */
+function paintLedger() {
   const meta = Meta.read();
   const box = $('memories');
   box.innerHTML = '';
-  const any = MEMORIES.some(x => x.at(meta) > 0);
-  box.hidden = !any;
-  if (any) {
-    for (const m of MEMORIES) {
-      const at = Math.min(m.at(meta), m.of), done = at >= m.of;
-      const row = el('div', 'memrow' + (done ? ' on' : ''));
-      row.appendChild(el('span', 'memn', m.n));
-      const bar = el('div', 'membar');
-      const fill = el('i');
-      fill.style.width = `${(at / m.of) * 100}%`;
-      bar.appendChild(fill);
-      row.appendChild(bar);
-      row.appendChild(el('span', 'memt', done ? m.t : `${m.goal} ${at}/${m.of}`));
-      row.title = m.t;
-      box.appendChild(row);
-    }
+  for (const m of MEMORIES) {
+    const at = Math.min(m.at(meta), m.of), done = at >= m.of;
+    const row = el('div', 'memrow' + (done ? ' on' : ''));
+    row.appendChild(el('span', 'memn', m.n));
+    const bar = el('div', 'membar');
+    const fill = el('i');
+    fill.style.width = `${(at / m.of) * 100}%`;
+    bar.appendChild(fill);
+    row.appendChild(bar);
+    row.appendChild(el('span', 'memt', done ? m.t : `${m.goal} ${at}/${m.of}`));
+    row.title = m.t;
+    box.appendChild(row);
   }
 
   /* 심연 only exists once the thing at the bottom is dead, and
@@ -1302,30 +1431,30 @@ export function refreshTitle() {
   const pick = $('abyss-pick');
   const unlocked = memoryEarned(meta, 'ember');
   pick.hidden = !unlocked;
-  if (unlocked) {
-    const row = pick.querySelector('.abyssrow');
-    row.innerHTML = '';
-    const at = Meta.abyss(), open = Meta.cleared() + 1;
-    SHACKLES.forEach(a => {
-      const locked = a.n > open;
-      const b = el('button', (a.n === at ? 'on' : '') + (locked ? ' locked' : ''), String(a.n));
-      b.disabled = locked;
-      if (!locked) b.onclick = () => { Meta.setAbyss(a.n); refreshTitle(); };
-      row.appendChild(b);
-    });
-    /* Every shackle currently worn, not just the newest one — a
-       rung wears all the rungs below it, and a player who cannot
-       see that is guessing about the run they are starting. */
-    const worn = SHACKLES.slice(1, at + 1);
-    const note = $('abyss-note');
-    note.innerHTML = worn.length
-      ? worn.map(x => `<b>${x.k}</b> — ${x.t}`).join('<br>') +
-        `<br><span class="dim">전리품 ×${SHACKLES[at].gold.toFixed(2)}` +
-        (at < MAX_SHACKLE
-          ? ` · ${at}단계를 이기면 ${at + 1}단계 「${SHACKLES[at + 1].k}」가 열린다`
-          : ' · 마지막 단계') + '</span>'
-      : SHACKLES[0].t + (open >= 1 ? ` <span class="dim">1단계 「${SHACKLES[1].k}」가 열려 있다</span>` : '');
-  }
+  $('abyss-locked').hidden = unlocked;
+  if (!unlocked) return;
+  const row = pick.querySelector('.abyssrow');
+  row.innerHTML = '';
+  const at = Meta.abyss(), open = Meta.cleared() + 1;
+  SHACKLES.forEach(a => {
+    const locked = a.n > open;
+    const b = el('button', (a.n === at ? 'on' : '') + (locked ? ' locked' : ''), String(a.n));
+    b.disabled = locked;
+    if (!locked) b.onclick = () => { Meta.setAbyss(a.n); paintLedger(); refreshTitle(); };
+    row.appendChild(b);
+  });
+  /* Every shackle currently worn, not just the newest one — a
+     rung wears all the rungs below it, and a player who cannot
+     see that is guessing about the run they are starting. */
+  const worn = SHACKLES.slice(1, at + 1);
+  const note = $('abyss-note');
+  note.innerHTML = worn.length
+    ? worn.map(x => `<b>${x.k}</b> — ${x.t}`).join('<br>') +
+      `<br><span class="dim">전리품 ×${SHACKLES[at].gold.toFixed(2)}` +
+      (at < MAX_SHACKLE
+        ? ` · ${at}단계를 이기면 ${at + 1}단계 「${SHACKLES[at + 1].k}」가 열린다`
+        : ' · 마지막 단계') + '</span>'
+    : SHACKLES[0].t + (open >= 1 ? ` <span class="dim">1단계 「${SHACKLES[1].k}」가 열려 있다</span>` : '');
 }
 
 /* ── 이번 턴 ──────────────────────────────────────────────
@@ -1556,7 +1685,16 @@ export const codexOf = () => {
   return Object.values(t).reduce((s, v) => s + v.of, 0);
 };
 
+/* Three ledgers behind one door. The title screen used to stack
+   all of them and came out 837px tall in a 568px phone, with the
+   shackle ladder below the fold and unreachable. */
+let ledgerTab = 'codex';
+
 function renderCodex() {
+  for (const b of $('ledger-tabs').children) b.classList.toggle('on', b.dataset.led === ledgerTab);
+  for (const sec of document.querySelectorAll('#sc-codex [data-led]'))
+    if (sec.dataset.led && sec.tagName === 'DIV') sec.hidden = sec.dataset.led !== ledgerTab;
+  if (ledgerTab !== 'codex') { paintLedger(); return; }
   const tot = codexTotals();
   const need = tellsNeeded(Meta.read());
   $('codex-lead').textContent =
@@ -3225,9 +3363,16 @@ export function bindInput() {
     if (e.target.id === 'look') $('look').hidden = true;   // tap the backdrop
   });
 
-  const soundBtn = $('btn-sound');
-  const paintSound = () => { soundBtn.textContent = Audio.isMuted() ? '소리 꺼짐' : '소리 켜짐'; };
-  soundBtn.onclick = () => { Audio.init(); Audio.toggleMute(); paintSound(); };
+  /* Two buttons, one switch — the title carries it and so does
+     the bag, because those are the two places a hand is already
+     resting when the room gets loud. */
+  const soundBtns = [$('btn-sound'), $('btn-sound2')];
+  const paintSound = () => {
+    const off = Audio.isMuted();
+    soundBtns[0].textContent = off ? '소리 꺼짐' : '소리 켜짐';
+    soundBtns[1].textContent = off ? '소리 꺼짐' : '소리 켜짐';
+  };
+  for (const b of soundBtns) b.onclick = () => { Audio.init(); Audio.toggleMute(); paintSound(); };
   paintSound();
 
   $('btn-inv').onclick    = () => { stopAuto(); setScreen('inv'); };
@@ -3235,8 +3380,11 @@ export function bindInput() {
   $('btn-down').onclick   = () => { stopAuto(); act(Game.descend); };
   $('btn-up').onclick     = () => { stopAuto(); act(Game.ascend); };
   $('btn-door').onclick   = () => { stopAuto(); act(Game.closeDoor); };
-  $('btn-help').onclick   = () => { stopAuto(); setScreen('help'); };
+  for (const b of [$('btn-help'), $('btn-help2')])
+    b.onclick = () => { stopAuto(); setScreen('help'); };
   $('btn-codex').onclick  = () => setScreen('codex');
+  for (const b of $('ledger-tabs').children)
+    b.onclick = () => { ledgerTab = b.dataset.led; renderCodex(); };
   for (const b of $('inv-tabs').children)
     b.onclick = () => { invTab = b.dataset.tab; renderInventory(); };
   /* The strip is the lid of the record. Tapping it opens the

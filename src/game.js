@@ -2134,8 +2134,46 @@ function poisonMonster(m, kind) {
   m.poison = Math.max(m.poison || 0, 6 + Math.floor(G.player.lv / 3));
 }
 
+/* A health bar cut into thirds, each third doing something the
+   last one did not. Crossing a threshold is announced, changes
+   what the thing is, and clears its cooldown so the new shape
+   arrives immediately rather than three turns later.
+
+   The loop is a `while` on purpose: one enormous hit can carry a
+   boss through two thresholds at once, and skipping the middle
+   phase would quietly skip its escort too. */
+function enterPhase(m) {
+  if (!m.phases?.length) return;
+  const frac = m.hp / Math.max(1, m.maxhp || m.hp);
+  while ((m.phase || 0) < m.phases.length && frac <= m.phases[m.phase || 0].at) {
+    const ph = m.phases[m.phase || 0];
+    m.phase = (m.phase || 0) + 1;
+    Object.assign(m, ph.set || {});
+    for (const [k, v] of Object.entries(ph.add || {})) m[k] = (m[k] || 0) + v;
+    m.cooling = 0; m.wind = 0; m.awake = true;
+    say(`${m.n} — ${ph.n}`, 'hit');
+    if (ph.say) say(ph.say, 'warn');
+    fx({ t:'wake', x:m.x, y:m.y });
+    fx({ t:'burst', x:m.x, y:m.y, r:2.4, color:'o' });
+    fx({ t:'telegraph', urgent:true });
+    /* The threshold itself is an attack: the floor goes out from
+       under you the moment the bar crosses, so the punish for
+       standing on top of it while burst-damaging is real. */
+    if (ph.ring) castPattern(m, ph.ring);
+    if (ph.summon) spawnNear(null, ph.summon, false);
+  }
+}
+
 export function hurtMonster(m, dmg, source, opt = {}) {
   m.awake = true;
+  /* You started it. From here it follows.
+
+     Not friendly fire, though: a named thing that happens to be
+     standing in another elite's 불길 has not been picked on, and
+     an ogre that starts hunting you because two monsters splashed
+     each other would make the leash a lie in exactly the case the
+     player could not see coming. */
+  if (m.named && !opt.crossfire) m.provoked = true;
   // Any damage at all blows a disguise — a frost blast should not
   // leave a "chest" quietly smouldering.
   if (m.disguise) {
@@ -2146,6 +2184,7 @@ export function hurtMonster(m, dmg, source, opt = {}) {
   }
   const before = m.hp;
   m.hp -= dmg;
+  if (m.hp > 0) enterPhase(m);
   const via = source ? `${source}이(가) ` : '';
 
   if (m.hp <= 0) {
@@ -2510,6 +2549,27 @@ function monsterTurn(m) {
   if (m.disguise) return;
   if (m.ai === 'still' && dist2 > 2) return;
 
+  /* A named thing guards; it does not hunt the floor. The stairs
+     screen promises "피해서 내려갈 수 있다" and that promise has to
+     be true — a 185-health ogre that follows you across three
+     rooms is a toll, not a decision.
+
+     It holds a leash around where it was placed, walks back if it
+     is dragged off it, and once you have hit it the leash is
+     gone: pick the fight and it is a fight. Floor 6 was ending
+     eighteen percent of runs before this. */
+  if (m.named && !m.provoked) {
+    m.home ??= { x: m.x, y: m.y };
+    const away = Math.hypot(m.x - m.home.x, m.y - m.home.y);
+    const far  = Math.hypot(p.x - m.home.x, p.y - m.home.y);
+    if (far > NAMED_LEASH) {
+      // Out of its ground. Drift home, and let it forget.
+      if (away > 0.9) { advance(m, Math.sign(m.home.x - m.x), Math.sign(m.home.y - m.y)); return; }
+      m.awake = false;
+      return;
+    }
+  }
+
   // Webs hold everything that did not spin them.
   if (m.snared > 0 && !m.web) { m.snared--; return; }
 
@@ -2797,7 +2857,7 @@ function resolveHazard(h) {
   // Everything else standing in it, including the caster's own.
   for (const m of [...G.monsters])
     if (hit.has(idx(m.x, m.y)) && !m.disguise)
-      hurtMonster(m, Math.round(h.dmg * 0.7), PATTERNS[h.key].n, {});
+      hurtMonster(m, Math.round(h.dmg * 0.7), PATTERNS[h.key].n, { crossfire: true });
 }
 
 export const hazardAt = (x, y) => {
@@ -3413,6 +3473,49 @@ function eventApi() {
     burnOil: n => { p.lightTurns = Math.max(0, p.lightTurns - n); },
     spawn: (spr, n) => spawnNear(spr, n, false),
     spawnElite: n => spawnNear(null, n, true),
+    /* The room closes on you. Placed on the rings immediately
+       around the player rather than scattered across the floor,
+       because being surrounded is a different problem from being
+       outnumbered — no corridor to back into, no door to shut,
+       and the first turn is spent deciding which way out is
+       cheapest. This is what a lost wager in the ? room costs. */
+    surround: n => {
+      const L = G.level, p = G.player, spots = [];
+      for (let r = 1; r <= 3; r++)
+        for (let y = p.y - r; y <= p.y + r; y++)
+          for (let x = p.x - r; x <= p.x + r; x++) {
+            if (Math.max(Math.abs(x - p.x), Math.abs(y - p.y)) !== r) continue;
+            if (x < 1 || y < 1 || x >= MW - 1 || y >= MH - 1) continue;
+            if (L.solid(x, y) || monsterAt(x, y)) continue;
+            spots.push({ x, y, r });
+          }
+      /* Nearest ring first, shuffled within it, so a small number
+         lands in your face rather than politely three tiles off. */
+      spots.sort((a, b) => a.r - b.r || Math.random() - 0.5);
+      let made = 0;
+      for (const s of spots) {
+        if (made >= n) break;
+        const m = pickMonster(G.depth + 1);
+        if (!m) break;
+        /* Down an energy, so the ring spends its first turn
+           standing up. The punishment for losing the wager is the
+           position, not four free hits — the player gets exactly
+           one turn to pick a direction, roll, or drink, which is
+           the turn that makes it a fight instead of a mugging. */
+        Object.assign(m, { x:s.x, y:s.y, awake:true, energy:-1 });
+        m.maxhp = m.hp;
+        G.monsters.push(m);
+        fx({ t:'reveal', x:s.x, y:s.y });
+        made++;
+      }
+      if (made) {
+        say(`사방에서 ${made}마리가 일어섰다.`, 'hit');
+        fx({ t:'telegraph', urgent:true });
+        fx({ t:'noise', x:p.x, y:p.y, r:6 });
+      }
+      rouse(p.x, p.y, 8, 1);
+      return made;
+    },
     wakeHalf: () => {
       let n = 0;
       for (const m of G.monsters) if (!m.awake && Math.random() < 0.5) { m.awake = true; n++; }
@@ -3544,7 +3647,8 @@ export function eventOffer() {
   return {
     n: e.n, t: e.t,
     opts: e.opts.map((o, i) => ({
-      i, n: o.n, t: o.t, can: !o.need || o.need(api),
+      i, n: o.n, t: o.t, can: !o.need || o.need(api), odds: o.odds ?? null,
+      risk: o.risk || '',
     })),
   };
 }
@@ -3566,7 +3670,18 @@ export function eventChoose(i) {
   L.eventId = null;
   G.screen = 'play';
 
-  opt.run(api);
+  /* A wager, if the option declared one. The roll lives here
+     rather than inside the option so the number the button
+     printed is provably the number that was rolled — an option
+     that rolls its own chance can drift from its label, and a
+     gamble whose odds you cannot trust is just a surprise.
+
+     The altar stakes an item. This stakes the floor: the losing
+     branch does not take your gold, it puts the room around you. */
+  if (opt.odds != null && opt.fail) {
+    if (Math.random() < opt.odds) opt.run(api);
+    else { say('걸었고, 졌다.', 'warn'); opt.fail(api); }
+  } else opt.run(api);
   if (G.screen === 'play') endTurn();
 }
 
@@ -3851,6 +3966,9 @@ export function summarise(win, by) {
     tail: G.log.slice(-3).map(l => l.text),
   };
 }
+
+/* How far a named thing will follow you from where it stands. */
+const NAMED_LEASH = 9;
 
 /* One in forty crits, and never on the boss — the frame is the
    reward, and a boss fight is already carrying its own. */

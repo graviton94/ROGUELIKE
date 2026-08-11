@@ -2050,13 +2050,21 @@ export function inspect(x, y) {
     rows.push(['공격 · 방어', `${m.atk} · ${m.ac}`]);
     rows.push(['속도', `${(m.spd || 1).toFixed(2)}× ${m.spd > 1 ? '(당신보다 빠름)' : m.spd < 1 ? '(느림)' : ''}`]);
     if (m.rng) rows.push(['사거리', `${m.rng}칸에서 쏜다`]);
-    if (m.on) rows.push(['맞으면', AILMENTS[m.on].n]);
+    if (AILMENTS[m.on]) rows.push(['맞으면', AILMENTS[m.on].n]);
     if (m.regen) rows.push(['재생', `턴마다 ${m.regen}`]);
     if (m.door) rows.push(['문', m.door === 'smash' ? '부순다' : '연다']);
     if (m.heavy) rows.push(['내리치기', '한 턴 당긴 뒤 2.5배']);
     if (m.casts?.length)
       rows.push(['바닥 공격', m.casts.map(k => PATTERNS[k].n).join(' · ')]);
     if (m.elite?.length) rows.push(['정예 속성', m.elite.join(' · ')]);
+    /* Which third of the bar you are in, and what is left. A
+       phased fight the player cannot read is just a boss that
+       changes its mind. */
+    if (m.phases?.length)
+      rows.push(['단계', `${(m.phase || 0) + 1} / ${m.phases.length + 1}` +
+        ((m.phase || 0) < m.phases.length
+          ? ` — 체력 ${Math.round(m.phases[m.phase || 0].at * 100)}%에서 달라진다` : ' — 마지막')]);
+    if (m.named && !m.provoked) rows.push(['자리', '이 자리를 지킨다. 건드리지 않으면 따라오지 않는다']);
     if (m.intent) {
       const name = INTENT_NAMES.find(([k]) => k === m.intent);
       if (name) rows.push(['다음 턴', name[1]]);
@@ -2249,9 +2257,22 @@ export function renderEvent() {
     if (!o.can) row.disabled = true;
     const head = el('div', 'camphead');
     head.appendChild(el('span', 'campname', o.n));
+    /* The odds go on the button, in the same slot the altar uses.
+       A wager you cannot price is not a decision — and the number
+       shown here is the number game.js rolls, because the roll
+       lives beside the label rather than inside the option. */
     if (!o.can) head.appendChild(el('span', 'camptag', '조건이 안 된다'));
+    else if (o.odds != null) {
+      const tag = el('span', 'camptag odds', `${Math.round(o.odds * 100)}%`);
+      head.appendChild(tag);
+      row.classList.add('wager');
+    }
     row.appendChild(head);
     if (o.t) row.appendChild(el('span', 'campdesc', o.t));
+    /* What losing costs, spelled out. The gamble is meant to be
+       taken with open eyes; the surprise is which way it goes,
+       not what the downside was. */
+    if (o.can && o.risk) row.appendChild(el('span', 'campdesc risk', `실패 — ${o.risk}`));
     if (o.can) row.onclick = () => {
       Game.eventChoose(o.i);
       // An option can hand off to another screen — a relic swap,
@@ -2286,7 +2307,12 @@ export function renderStairs() {
   const crossing = regionOf(next).n !== regionOf(G.depth).n ? regionOf(next) : null;
   const bits = [];
   if (crossing) bits.push(`<b>${crossing.n}</b>이 시작된다. ${crossing.t}`);
-  if (named) bits.push(`<b class="danger">${named.warn}.</b> 계단 방에는 없다 — 피해서 내려갈 수 있다.`);
+  /* Both halves of the decision, said once. It holds its own
+     ground and will not follow you across the floor, so walking
+     past is a real option — which only means something if the
+     player also knows what walking past costs them. */
+  if (named) bits.push(`<b class="danger">${named.warn}.</b> ` +
+    '자기 자리를 지킨다 — 건드리지 않으면 따라오지 않는다. 쓰러뜨리면 유물 하나를 남긴다.');
   warn.hidden = !bits.length;
   warn.innerHTML = bits.join('<br>');
 

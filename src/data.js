@@ -304,12 +304,62 @@ export const NAMED = [
     casts:['cross', 'wave'], cool:4,
     warn:'재 속의 사제가 아래에서 기다린다',
     intro:'차가운 것이 이 층의 공기를 마시고 있다.' },
+  /* Floor 13 is corridor, not gate: the survey says a run that
+     clears floor 11 almost always reaches the emperor, so what
+     the 잿불 아래 needs is a destination, not another wall.
+
+     Staging it showed hit points are the wrong dial — the hero
+     out-heals them, so a fatter thing is only a longer fight.
+     What moves the outcome is damage per turn. 450/59 loses to a
+     level-20 hero with one upgrade about seven times in ten and
+     wins from level 22 up; it dies in roughly fifty turns rather
+     than a hundred and forty, so it reads as a fight instead of
+     an attrition race. It hits harder than the emperor and folds
+     faster, which is its whole identity: kill it quickly or it
+     kills you. It sits in its own lair, so the fight is a
+     decision the player makes rather than a toll they pay. */
+  { at:13, spr:'wyrm', n:'화로를 감은 것', hp:450, atk:59, ac:32, xp:2600,
+    ai:'hunt', spd:1.35, on:'blind', door:'smash', regen:3, heavy:true, named:true,
+    casts:['beam', 'wave', 'quake'], cool:3,
+    warn:'화로를 감은 것이 아래에서 기다린다',
+    intro:'아래쪽 어딘가에서 아주 긴 것이 몸을 고쳐 감았다.' },
 ];
 
+/* Three turns in one fight.
+
+   Staging the emperor showed the old shape was not hard so much
+   as long: 780 hit points regenerating four a turn against a
+   hero who drinks at forty percent is an arithmetic problem, and
+   the level-20 losses were mostly the four-hundred-turn cap
+   rather than deaths. A fight nobody can finish is not a climax.
+
+   So the health bar is cut into three and each third does
+   something different. It opens as it always did. At two thirds
+   the furnace comes open: it stops closing its wounds, throws
+   patterns twice as often, and the escort walks in. At one third
+   it stops guarding entirely — armour down, damage up, no
+   cooldown worth the name. The last third is a race the player
+   can win by committing, which is the turn a final fight is
+   supposed to have.
+
+   `set` replaces a field outright, `add` adds to it. Both are
+   announced before they land. */
 export const BOSS = {
   spr:'balemperor', n:'잿불의 대군주', hp:780, atk:46, ac:30, xp:5000,
   ai:'hunt', spd:1.15, on:'fear', door:'smash', regen:4, boss:true, heavy:true,
   casts:['beam', 'wave', 'zone', 'quake'], cool:3,
+  phases: [
+    { at:0.66, n:'화로가 열린다',
+      say:'가슴팍이 갈라지고 안쪽의 불이 드러났다. 상처가 더는 닫히지 않는다.',
+      set:{ regen:0, cool:2, spd:1.3 }, add:{ atk:4 }, ring:'quake', summon:2 },
+    /* No escort in the last third on purpose. The middle is the
+       crowded part; the end is meant to be the two of you and a
+       burning floor, which is the picture the run has been walking
+       towards for fifteen floors. */
+    { at:0.33, n:'마지막 숨',
+      say:'막는 것을 그만두었다. 이제 전부 후려치는 데에 쓴다.',
+      set:{ cool:1, ac:22, heavy:false }, add:{ atk:10 }, ring:'wave' },
+  ],
 };
 
 /* ── the wager ────────────────────────────────────────────

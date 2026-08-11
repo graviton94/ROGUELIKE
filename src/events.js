@@ -26,6 +26,14 @@
      opts   [{ n: label, t: what it does, run(api) }]
    Every option must resolve; there is no implicit "walk away"
    unless the event provides one, and most should.
+
+   An option may also be a wager:
+     odds   0..1 — printed on the button, rolled by game.js
+     fail   (api) => void — the losing branch
+     risk   one line naming what losing costs, printed in red
+   All three come together or none of them do. game.js owns the
+   roll on purpose, so the number on the button is provably the
+   number that was rolled.
    ═══════════════════════════════════════════════════════════ */
 
 const pct = (api, f) => Math.max(1, Math.round(api.p.maxhp * f));
@@ -296,6 +304,112 @@ export const EVENTS = [
         run: api => { api.perm('chain', 0.12); api.perm('hitPctMul', 0.95); api.say('한 번이 두 번으로 들린다.', 'level'); } },
       { n:'벽을 두드려 본다', t:'이 층 몬스터 절반이 깬다. 경험치를 크게 얻는다.',
         run: api => { const n = api.wakeHalf(); api.xp(40 + api.depth * 26); api.say(`${n}마리가 눈을 떴다.`, 'hit'); } },
+    ],
+  },
+
+  /* ── the wagers ─────────────────────────────────────────
+     The altar stakes an item; these stake the floor.
+
+     Everything above resolves: you pay a price and you get the
+     thing. That is a decision, but it is not a gamble, and the
+     ? room is exactly where a gamble belongs — it is the only
+     screen where the game will happily hand you a run-defining
+     object for free.
+
+     An option with `odds` declares its chance on the button and
+     splits into `run` (won) and `fail` (lost). game.js does the
+     rolling, so the printed number is provably the rolled number
+     — an option that rolls its own chance can drift from its own
+     label, and odds you cannot trust are just a surprise. `risk`
+     is the losing cost, printed in red under the offer, because
+     the surprise is meant to be which way it went and never what
+     the downside was.
+
+     The losing branch mostly calls `surround`, which puts bodies
+     on the rings around you rather than scattering them across
+     the floor. There is no corridor to back into and no door to
+     shut: the wager is not health or gold, it is your position,
+     and position is the thing this game is actually about. */
+  {
+    id:'ashring', n:'재로 그린 원', w:11,
+    t:'누군가 바닥에 재로 원을 그렸다. 안쪽은 아직 따뜻하고, 바깥쪽 재는 오래 전에 식었다. ' +
+      '이런 것을 그리는 데에는 이유가 있고, 대개 두 가지 중 하나다.',
+    opts:[
+      { n:'원 안에 선다', odds:0.55, risk:'원 둘레에서 셋이 일어선다',
+        t:'좌대 위의 것이 남아 있다면 가져간다.',
+        run: api => { api.relic(); api.say('재가 한 번 밝아지고, 원 안에 무언가가 남았다.', 'level'); },
+        fail: api => { api.surround(3); api.say('원은 좌대가 아니라 덫이었다.', 'hit'); } },
+      { n:'바깥의 식은 재만 쓸어담는다', t:'안전하다. 가루와 정수를 조금.',
+        run: api => api.mats({ dust: 3 + api.rnd(4), essence: api.chance(0.35) ? 1 : 0 }) },
+      { n:'지나친다', t:'', run: api => api.say('원을 크게 돌아 걸었다.') },
+    ],
+  },
+  {
+    id:'deepstair', n:'끊어진 계단', w:10, when: api => api.depth >= 3,
+    t:'아래로 이어지던 계단이 중간에서 끊겨 있다. 끊긴 자리 너머로 다음 층이 보인다. ' +
+      '뛰면 닿는다. 닿지 않으면 그 사이 어딘가로 떨어진다.',
+    opts:[
+      { n:'뛴다', odds:0.6, risk:'추락 피해와, 떨어진 자리를 둘러싼 셋',
+        t:'다음 층에 물건이 크게 늘어난 채로 도착한다.',
+        run: api => { api.nextFloor({ item: 2, mapped: true });
+                      api.say('건너뛰었다. 아래쪽이 훤히 보인다.', 'level'); },
+        fail: api => { api.hurt(pct(api, 0.22), '끊어진 계단'); api.surround(3); } },
+      { n:'밧줄을 걸어 천천히 내려간다', t:'안전하지만 오래 걸린다. 시간 25.',
+        run: api => { api.spendClock(25); api.mats({ scrap: 4 + api.rnd(4) });
+                      api.say('한참 걸렸다. 내려오는 길에 쓸 만한 것을 주웠다.') } },
+      { n:'돌아선다', t:'', run: api => api.say('끊긴 자리에서 돌아섰다.') },
+    ],
+  },
+  {
+    id:'gamblerbones', n:'도박꾼의 뼈', w:10, when: api => api.p.gold >= 120,
+    t:'마른 손 하나가 주사위 두 개를 쥔 채 굳어 있다. 손가락을 펴면 아직 굴릴 수 있다. ' +
+      '판돈은 손 옆의 무더기가 정한다.',
+    opts:[
+      { n:'한 번 굴린다', odds:0.5, risk:'건 만큼 사라지고, 소문이 돈다',
+        t:'가진 금화의 절반을 건다. 이기면 두 배로 돌려받는다.',
+        run: api => { const bet = Math.floor(api.p.gold / 2); api.p.gold += bet;
+                      api.say(`${bet}닢이 두 배가 되어 돌아왔다.`, 'level'); },
+        fail: api => { const bet = Math.floor(api.p.gold / 2); api.p.gold -= bet;
+                       api.infamy(0.2); api.say(`${bet}닢을 잃었다.`, 'hit'); } },
+      { n:'세 번 연달아 굴린다', odds:0.14, risk:'전 재산과, 소리를 듣고 온 넷',
+        t:'가진 금화 전부를 건다. 이기면 다섯 배, 그리고 유물 하나.',
+        run: api => { const bet = api.p.gold; api.p.gold += bet * 4; api.relic();
+                      api.say(`${bet}닢이 다섯 배가 되었다. 손이 무언가를 내밀었다.`, 'level'); },
+        fail: api => { api.p.gold = 0; api.infamy(0.5); api.surround(4);
+                       api.say('주사위 구르는 소리가 너무 컸다.', 'hit'); } },
+      { n:'손가락을 도로 접어준다', t:'', run: api => api.say('손을 원래대로 두고 물러났다.') },
+    ],
+  },
+  {
+    id:'hungrydoor', n:'배고픈 문', w:10, when: api => api.depth >= 6,
+    t:'문 하나가 벽에 박혀 있다. 경첩도 손잡이도 없고, 가운데가 사람 입처럼 조금 벌어져 있다. ' +
+      '안쪽에서 더운 바람이 규칙적으로 나온다. 숨 쉬는 간격이다.',
+    opts:[
+      { n:'벌어진 틈에 손을 넣는다', odds:0.4, risk:'문에서 쏟아지는 넷',
+        t:'이 층보다 네 층 깊은 물건이 나온다. 접두와 접미가 붙은 채로.',
+        run: api => { api.gear(4); api.gear(4); api.say('안쪽에서 두 개가 잡혔다.', 'level'); },
+        fail: api => { api.hurt(pct(api, 0.18), '배고픈 문'); api.surround(4);
+                       api.say('문이 다물렸다. 그리고 뒤에서 열렸다.', 'hit'); } },
+      { n:'문을 못질한다', t:'못 대신 쇳조각 8. 다음 층이 조용해진다.',
+        need: api => api.has({ scrap: 8 }),
+        run: api => { api.pay({ scrap: 8 }); api.nextFloor({ clock: 1.6, elite: 0.4 });
+                      api.say('숨소리가 멎었다.', 'good'); } },
+      { n:'지나친다', t:'', run: api => api.say('숨소리를 등지고 걸었다.') },
+    ],
+  },
+  {
+    id:'ashenpact', n:'재 속의 약속', w:9, when: api => api.depth >= 9,
+    t:'벽에 손자국이 하나 찍혀 있다. 재가 아니라 안쪽에서 눌러 만든 자국이다. ' +
+      '크기가 딱 당신 손만 하다.',
+    opts:[
+      { n:'손을 맞춰 댄다', odds:0.35, risk:'벽에서 나온 넷과, 이 층 절반이 깬다',
+        t:'최대 체력이 영구히 크게 오르고, 무기가 두 단계 벼려진다.',
+        run: api => { api.permHp(22); api.forge(2, 'weapon');
+                      api.say('벽이 따뜻해졌다. 손목까지 따라 올라온다.', 'level'); },
+        fail: api => { api.surround(4); api.wakeHalf();
+                       api.say('맞춰 댄 손을 벽이 놓아주지 않았다.', 'hit'); } },
+      { n:'자국을 재로 덮는다', t:'안전하다. 이 층의 상자 위치가 드러난다.',
+        run: api => { api.revealChests(false); api.say('자국이 덮였다. 대신 방들의 윤곽이 보였다.', 'good'); } },
     ],
   },
 ];

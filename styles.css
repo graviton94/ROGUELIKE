@@ -443,6 +443,14 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .campopt:active .campname, .campopt:active .camptag, .campopt:active .campdesc { color: var(--k); }
 #camp-back { margin-top: 12px; }
 
+/* A wager reads differently from a choice. The percentage is the
+   loudest thing on the button and the losing cost sits under it,
+   so nobody gambles without having seen both numbers. */
+.campopt.wager { border-color: var(--r); }
+.camptag.odds  { font-size: 13px; color: var(--y); letter-spacing: .04em; }
+.campdesc.risk { display: block; margin-top: 5px; font-size: 11px; color: var(--r); }
+.campopt:active .campdesc.risk, .campopt:active .camptag.odds { color: var(--k); }
+
 /* Fusion. The chosen two glow; the odds bar reads the same way
    the altar's does, because it is the same kind of bet. */
 .relicrow.chosen { border-color: var(--o); background: #241d16; }

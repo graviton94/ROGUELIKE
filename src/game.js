@@ -25,6 +25,7 @@ import {
   ARTS, SHOVE_DIST, SHOVE_WALL, CLEAVE_SHARE,
   AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE,
   AMMO, ammoById, BOW_MELEE, BOW_FALLOFF, AMMO_BUNDLE,
+  FORCE_STAM, FORCE_HURT, FORCE_NOISE, PICK_USES, CHEST_RUIN, RANGER_FOOTING,
   BRACE_TURNS, BRACE_CUT, BRACE_THORNS, FINISH_MAX,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
@@ -1537,7 +1538,10 @@ function populate(depth) {
     }
   }
 
-  if (Math.random() < 0.45) {
+  /* Rarer than it was, because it is worth something now:
+     the only answer to a lock that is silent, certain and
+     instant. Forcing is always available and always costs. */
+  if (Math.random() < 0.26) {
     const spot = L.randomFloor(busy);
     if (spot) G.items.push({ kind:'key', spr:'ring', n:'녹슨 열쇠', x: spot.x, y: spot.y });
   }
@@ -1847,17 +1851,73 @@ function forceDoor(x, y) {
     fx({ t:'door', x, y, state:'open' });
     return;
   }
-  const chance = clamp(0.14 + statB(p, 'str') * 0.09 + p.lv * 0.006, 0.04, 0.85);
+  /* Picks first: the quiet answer, and the one a rogue is for.
+     They are finite, so they are a decision rather than a
+     replacement for the key. */
+  const picks = p.pack.find(s => s.item.id === 'picks');
+  if (picks) {
+    const skill = clamp(0.34 + statB(p, 'dex') * 0.07 + lockBonus(p) + p.lv * 0.006, 0.15, 0.95);
+    if (Math.random() < skill) {
+      L.tiles[idx(x, y)] = DOOR_OPEN;
+      say('자물쇠가 소리 없이 열렸다.', 'good');
+      fx({ t:'door', x, y, state:'open' });
+      wearPicks();
+      return;
+    }
+    say('갈고리가 미끄러졌다.', 'warn');
+    fx({ t:'door', x, y, state:'stuck' });
+    wearPicks();
+    rouse(x, y, 3, 0.2);           // a pick that slips is still quiet
+    return;
+  }
+
+  /* The shoulder. It always works eventually — but eventually is
+     now paid for in breath, and then in blood, and the racket
+     grows with every try. */
+  const key = idx(x, y);
+  G.forced = G.forced || {};
+  const tries = (G.forced[key] = (G.forced[key] || 0) + 1);
+  const chance = clamp(0.14 + statB(p, 'str') * 0.09 + p.lv * 0.006
+                     + tries * 0.05, 0.04, 0.85);
+  if (p.stam >= FORCE_STAM) p.stam -= FORCE_STAM;
+  else {
+    const hurt = FORCE_HURT + Math.floor(G.depth / 2);
+    p.hp -= hurt;
+    tookHit();
+    say(`어깨로 밀어붙였다. 숨이 없어 몸이 대신 받는다. (−${hurt})`, 'hit');
+    fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg:hurt, who:'잠긴 문', severe:false });
+    if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'잠긴 문' }); return; }
+  }
+
   if (Math.random() < chance) {
     L.tiles[idx(x, y)] = DOOR_BROKEN;
+    delete G.forced[key];
     say('문이 부서져 나갔다.', 'good');
     fx({ t:'door', x, y, state:'broken' });
     rouse(x, y, 11, 0.9);          // splinters carry
   } else {
-    say('문이 꿈쩍도 하지 않는다.', 'warn');
+    say(`문이 꿈쩍도 하지 않는다. 소리만 크게 났다. (${tries}번째)`, 'warn');
     fx({ t:'door', x, y, state:'stuck' });
-    rouse(x, y, 6, 0.45);
+    // Each shove is heard further than the last.
+    rouse(x, y, FORCE_NOISE + tries * 2, Math.min(0.9, 0.45 + tries * 0.12));
   }
+}
+
+/* How much better this pair of hands is at a lock. One funnel so
+   the door, the chest and any future lock agree about who is good
+   at this — and so a class passive is written once. */
+export function lockBonus(p) {
+  return (p?.cls === 'rogue' ? 0.30 : 0)
+       + (p?.race === 'gnome' ? 0.08 : 0);
+}
+
+function wearPicks() {
+  const p = G.player;
+  const i = p.pack.findIndex(s => s.item.id === 'picks');
+  if (i < 0) return;
+  removeItem(p, i, 1);
+  const left = p.pack.find(s => s.item.id === 'picks')?.qty || 0;
+  if (!left) say('갈고리가 부러졌다. 마지막 하나였다.', 'warn');
 }
 
 export function doorToClose() {
@@ -1928,6 +1988,16 @@ const roped = () => hasRelic('knot');
 
 function springTrap(x, y, trap) {
   const p = G.player, L = G.level;
+  /* 발이 가볍다. A ranger has spent its life on ground that bites
+     and sometimes simply does not put its weight down — the trap
+     stays armed and it steps around. Nobody else gets this, and
+     it is why the class walks into a floor first. */
+  if (p.cls === 'ranger' && Math.random() < RANGER_FOOTING) {
+    trap.seen = true;
+    say(`${TRAPS[trap.kind].n} 위에서 발을 뗐다.`, 'good');
+    fx({ t:'spot', x, y });
+    return false;
+  }
   L.traps.delete(idx(x, y));
   G.trapsSprung++;
   // 부러진 나침반: you walk into every one of them and none of
@@ -2006,7 +2076,12 @@ function scanForTraps() {
     0.16 + statB(p, 'wis') * 0.045 + p.lv * 0.007
     + (p.cls === 'rogue' ? 0.28 : p.cls === 'ranger' ? 0.10 : 0),
     0.04, 0.9);
-  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+  /* How far the eye reaches, not just how good it is. A rogue
+     spots what is under its nose; a ranger reads the ground two
+     rooms out, which is the difference between disarming a floor
+     and surviving it. */
+  const reach = p.cls === 'ranger' ? 4 : p.cls === 'rogue' ? 3 : 2;
+  for (let dy = -reach; dy <= reach; dy++) for (let dx = -reach; dx <= reach; dx++) {
     const x = p.x + dx, y = p.y + dy;
     if (x < 0 || y < 0 || x >= MW || y >= MH) continue;
     const trap = L.traps.get(idx(x, y));
@@ -2206,16 +2281,30 @@ function openChest(index, chest) {
       chest.locked = false;
       say(`열쇠로 자물쇠를 열었다. (남은 열쇠 ${p.keys})`, 'good');
     } else {
+      const hasPicks = !!p.pack.find(s => s.item.id === 'picks');
       const pick = clamp(
-        0.10 + statB(p, 'dex') * 0.06 + (p.cls === 'rogue' ? 0.30 : 0) + p.lv * 0.008,
-        0.04, 0.92);
+        0.10 + statB(p, 'dex') * 0.06 + lockBonus(p) + p.lv * 0.008
+        + (hasPicks ? 0.28 : 0), 0.04, 0.92);
+      if (hasPicks) wearPicks();
       if (Math.random() < pick) {
         chest.locked = false;
-        say('자물쇠가 딸깍 열렸다.', 'good');
+        say(hasPicks ? '갈고리가 걸리고, 자물쇠가 딸깍 열렸다.' : '자물쇠가 딸깍 열렸다.', 'good');
       } else {
-        say('자물쇠가 걸려 열리지 않는다.', 'warn');
-        fx({ t:'door', x:chest.x, y:chest.y, state:'stuck' });
-        return;
+        /* A lid that will not lift gets levered. It opens, but a
+           lever through a lock goes through whatever the lock was
+           protecting — which is what a key is worth, and it is a
+           cost that can never wall off a floor the way a jammed
+           door would. */
+        chest.locked = false;
+        say('자물쇠가 버틴다 — 지렛대를 걸었다.', 'warn');
+        fx({ t:'door', x:chest.x, y:chest.y, state:'broken' });
+        rouse(chest.x, chest.y, 9, 0.7);
+        if (chest.loot?.length && Math.random() < CHEST_RUIN) {
+          const gone = chest.loot.splice(rnd(chest.loot.length), 1)[0];
+          say(`${gone.n}이(가) 지렛대에 부서졌다.`, 'bad');
+          fx({ t:'shatter', x:chest.x, y:chest.y });
+        }
+        chest.gold = Math.round(chest.gold * 0.8);
       }
     }
   }
@@ -4729,7 +4818,7 @@ export function startGame(raceKey, classKey, base) {
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
   G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.snares = []; G.bank = 0;
-  G.tally = 0; G.hushUntil = -1; G.resoFound = 0;
+  G.tally = 0; G.hushUntil = -1; G.resoFound = 0; G.forced = {};
   G.pendingAltar = null;
   shuffleAppearances(G.player);
 

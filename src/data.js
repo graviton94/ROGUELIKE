@@ -978,6 +978,28 @@ export const BOW_FALLOFF = 0.045;  // damage lost per tile, so range is not free
 export const QUIVER_MAX = 40;
 export const AMMO_BUNDLE = 12;   // arrows per purchase
 
+/* ── locks ────────────────────────────────────────────────
+   A locked door used to cost nothing to force. Fail the roll and
+   the only line was "문이 꿈쩍도 하지 않는다" — so you pressed the
+   direction again, and again, and it always opened eventually.
+   A key was a way to save turns, never a way to do something you
+   otherwise could not.
+
+   Now shouldering it spends effort, and when the effort is gone
+   it spends you. That makes three different answers to the same
+   door rather than one: the key (silent, instant, gone), the
+   picks (quiet, skill, finite), and the shoulder (loud, free,
+   costly) — and it makes standing in front of a locked door
+   during a fight a mistake instead of a delay. */
+export const FORCE_STAM   = 2;    // effort per shove
+export const FORCE_HURT   = 3;    // and what it costs once the breath is gone
+export const FORCE_NOISE  = 7;    // how far the racket carries, growing per try
+export const PICK_USES    = 3;    // tries in one set of picks
+export const CHEST_RUIN   = 0.5;  // odds a forced lid spoils something inside
+/* The ranger's footing: how often a trap under the boot simply
+   does not go off. Not immunity — a habit. */
+export const RANGER_FOOTING = 0.55;
+
 /* Ammunition. Ordinary arrows are cheap and everywhere; the other
    three are a decision about which fight you are saving them for.
    `dmg` is a multiplier on the bow's roll. */
@@ -1160,6 +1182,11 @@ export const CONSUMABLES = [
     desc:'최대 체력의 60% + 3d10 회복' },
   { id:'potMana',  spr:'potion', n:'정신의 물약',     d:2,  cost:60,  rar:8,  use:'mana',
     desc:'최대 마나의 50% + 1d6 회복' },
+  /* Not a potion — a tool. It sits in the same pack line because
+     it stacks and is spent, but it is never drunk: the lock code
+     reaches for it by id. Three tries to a set. */
+  { id:'picks',    spr:'ring',   n:'자물쇠 갈고리', d:1,  cost:55,  rar:9,  use:null,
+    desc:'잠긴 문과 상자를 조용히 연다. 실패해도 하나가 닳는다' },
   { id:'scrMap',   spr:'scroll', n:'지도 두루마리',   d:2,  cost:70,  rar:8,  use:'map',
     desc:'이 층의 지형이 전부 드러난다' },
   { id:'scrTele',  spr:'scroll', n:'전이 두루마리',   d:3,  cost:80,  rar:8,  use:'teleport',

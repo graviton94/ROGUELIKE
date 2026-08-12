@@ -62,11 +62,18 @@ export function resize() {
   if (w === cv.width && h === cv.height) return;   // nothing moved
 
   cv.width = w; cv.height = h;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  /* Device-pixel space, identity transform. The old dpr transform
+     put drawing in CSS pixels, so a sprite pixel covered
+     scale×dpr device pixels — fractional on most phones, and the
+     rounding fell differently on every column: the grid was made
+     of subtly unequal pixels. Working in device pixels with an
+     integer scale makes every sprite pixel the same square, which
+     is the whole contract of the art style. */
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.imageSmoothingEnabled = false;
 
-  viewW = box.width; viewH = box.height;
-  scale = clamp(Math.round(box.width / (CELL_SIZE * 17)), 2, 6);
+  viewW = w; viewH = h;
+  scale = clamp(Math.round(w / (CELL_SIZE * 17)), 2, 12);
   cols = Math.ceil(viewW / (CELL_SIZE * scale));
   rows = Math.ceil(viewH / (CELL_SIZE * scale));
   draw();
@@ -127,17 +134,22 @@ export function draw() {
       const tile = L.tiles[i];
       const lit = L.vis[i];
 
-      let alpha;
+      /* The fog is dithered, not faded — see shadeTile() in
+         pixels.js. The tile is drawn full-bright, then a stamp of
+         black pixels goes over it; the same light value that used
+         to become an alpha now picks the stamp. */
+      let light;
       if (lit) {
         const d = Math.hypot(x - p.x, y - p.y);
         const rid = L.roomOf[i];
         const ambient = (rid >= 0 && L.rooms[rid].lit && rid === L.roomOf[idx(p.x, p.y)]) ? 0.55 : 0;
-        alpha = clamp(0.30 + Math.max(ambient, 1 - d / (lightR + 1.5)) * 0.72, 0, 1);
+        light = clamp(0.30 + Math.max(ambient, 1 - d / (lightR + 1.5)) * 0.72, 0, 1);
       } else {
-        alpha = 0.26;
+        light = 0.26;
       }
+      const shade = Pix.shadeLevel(light);
 
-      ctx.globalAlpha = alpha;
+      ctx.globalAlpha = 1;
 
       if (tile === ROCK || tile === SHOP) {
         ctx.drawImage(wallTile(x, y), px, py, t, t);
@@ -151,47 +163,42 @@ export function draw() {
         if (tile === DOOR_BROKEN) ctx.drawImage(sprite('doorBroken'), px, py, t, t);
         if (tile === WEB)         ctx.drawImage(sprite('web'),        px, py, t, t);
         if (tile === WATER)       ctx.drawImage(sprite('water'),      px, py, t, t);
-        if (tile === CAMP) {
-          const prevA = ctx.globalAlpha;
-          ctx.globalAlpha = Math.max(prevA, 0.55 + Math.sin(performance.now() / 300) * 0.12);
-          ctx.drawImage(sprite('camp'), px, py, t, t);
-          ctx.globalAlpha = prevA;
-        }
-        if (tile === ALTAR) {
-          const prevA = ctx.globalAlpha;
-          ctx.globalAlpha = Math.max(prevA, 0.6 + Math.sin(performance.now() / 380) * 0.18);
-          ctx.drawImage(sprite('altar'), px, py, t, t);
-          ctx.globalAlpha = prevA;
-        }
-        if (tile === EVENT) {
-          const prevA = ctx.globalAlpha;
-          ctx.globalAlpha = Math.max(prevA, 0.62 + Math.sin(performance.now() / 340) * 0.16);
-          ctx.drawImage(sprite('event'), px, py, t, t);
-          ctx.globalAlpha = prevA;
-        }
-        if (tile === ANVIL) {
-          const prevA = ctx.globalAlpha;
-          ctx.globalAlpha = Math.max(prevA, 0.7 + Math.sin(performance.now() / 500) * 0.12);
-          ctx.drawImage(sprite('anvil'), px, py, t, t);
-          ctx.globalAlpha = prevA;
+        if (tile === RUBBLE)      ctx.drawImage(sprite('rubble'),     px, py, t, t);
+
+        // A trap you have spotted is drawn; one you haven't isn't.
+        const tr = L.traps.get(i);
+        if (tr && tr.seen) ctx.drawImage(sprite('trap'), px, py, t, t);
+      }
+
+      if (shade) ctx.drawImage(Pix.shadeTile(shade), px, py, t, t);
+
+      /* The glowing things sit above the fog: drawn full-bright,
+         then re-dithered at their own pulse, never darker than
+         it. The quantized sine makes them flicker between dither
+         steps — a lamp, not a fade. Re-stamping at the tile's own
+         level is a no-op (ordered dither: same cells go black),
+         so the floor around them stays exactly as dark as it was. */
+      if (tile !== ROCK && tile !== SHOP) {
+        const beacon =
+          tile === CAMP  ? ['camp',  0.55 + Math.sin(performance.now() / 300) * 0.12] :
+          tile === ALTAR ? ['altar', 0.60 + Math.sin(performance.now() / 380) * 0.18] :
+          tile === EVENT ? ['event', 0.62 + Math.sin(performance.now() / 340) * 0.16] :
+          tile === ANVIL ? ['anvil', 0.70 + Math.sin(performance.now() / 500) * 0.12] : null;
+        if (beacon) {
+          ctx.drawImage(sprite(beacon[0]), px, py, t, t);
+          const blv = Math.min(shade, Pix.shadeLevel(beacon[1]));
+          if (blv) ctx.drawImage(Pix.shadeTile(blv), px, py, t, t);
         }
         if (tile === PROP) {
           const o = propAt(L, x, y);
           if (o) {
             // A lit brazier throws its own light, so it is drawn
             // at full brightness whatever the fog says.
-            const prevA = ctx.globalAlpha;
-            if (o.kind === 'brazier' && o.lit) ctx.globalAlpha = 1;
-            ctx.drawImage(sprite(o.kind === 'brazier' && o.lit ? 'brazierLit' : o.kind),
-                          px, py, t, t);
-            ctx.globalAlpha = prevA;
+            const isLit = o.kind === 'brazier' && o.lit;
+            ctx.drawImage(sprite(isLit ? 'brazierLit' : o.kind), px, py, t, t);
+            if (!isLit && shade) ctx.drawImage(Pix.shadeTile(shade), px, py, t, t);
           }
         }
-        if (tile === RUBBLE)      ctx.drawImage(sprite('rubble'),     px, py, t, t);
-
-        // A trap you have spotted is drawn; one you haven't isn't.
-        const tr = L.traps.get(i);
-        if (tr && tr.seen) ctx.drawImage(sprite('trap'), px, py, t, t);
       }
 
       /* A shopfront tells you what it sells before you walk in:
@@ -366,8 +373,8 @@ export function draw() {
   const po = Juice.offsetOf(p);
   const hx = (p.x + po.x - cx) * t + t / 2, hy = (p.y + po.y - cy) * t + t / 2;
   const glow = ctx.createRadialGradient(hx, hy, t * 0.4, hx, hy, t * lightR);
-  glow.addColorStop(0, 'rgba(217,138,60,0.16)');
-  glow.addColorStop(1, 'rgba(217,138,60,0)');
+  glow.addColorStop(0, 'rgba(248,124,32,0.16)');
+  glow.addColorStop(1, 'rgba(248,124,32,0)');
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, viewW, viewH);
   blitActor(heroSprite(p), hx - t / 2, hy - t / 2, t, po);
@@ -3683,9 +3690,13 @@ function bindMapGestures() {
   const tileUnder = (clientX, clientY) => {
     const box = cv.getBoundingClientRect();
     const { cx, cy, t } = camera();
+    /* t is in device pixels now; the pointer arrives in CSS
+       pixels. Convert through the bitmap/box ratio rather than
+       devicePixelRatio, so a mid-transition box can't lie. */
+    const kx = cv.width / box.width, ky = cv.height / box.height;
     return {
-      x: Math.floor(cx + (clientX - box.left) / t),
-      y: Math.floor(cy + (clientY - box.top) / t),
+      x: Math.floor(cx + (clientX - box.left) * kx / t),
+      y: Math.floor(cy + (clientY - box.top) * ky / t),
     };
   };
 

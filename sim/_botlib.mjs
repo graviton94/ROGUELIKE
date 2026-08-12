@@ -348,6 +348,12 @@ function runBot(race, cls, clear, opt = {}) {
       }
     }
 
+    /* An offer underfoot waits for a press now instead of throwing
+       its screen up on arrival, so the bot has to reach for it.
+       Without this it walks over every fire, altar and anvil in
+       the dungeon and measures a game with no furniture. */
+    if (Game.hereOffer && Game.hereOffer()) { Game.openHere(); continue; }
+
     /* Loose an arrow rather than walk into a fight you could have
        finished from here. Only past arm's length — a bow up close
        is half a blow, so stepping back and shooting is the whole

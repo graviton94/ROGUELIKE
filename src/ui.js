@@ -1125,6 +1125,13 @@ export function refresh() {
      walked past a doorway. A dim, dead row costs 40px once; a
      jumping map costs it on every step. */
   $('btn-door').disabled = !Game.doorToClose();
+  /* The offer underfoot waits to be pressed rather than opening
+     itself. Labelled with what it is, so the player never presses
+     it blind. */
+  const here = Game.hereOffer();
+  const hb = $('btn-here');
+  hb.hidden = !here;
+  if (here) hb.textContent = `${here.n} 열기`;
 
   const logBox = $('log');
   logBox.innerHTML = '';
@@ -3785,6 +3792,10 @@ export function bindInput() {
   $('btn-down').onclick   = () => { stopAuto(); act(Game.descend); };
   $('btn-up').onclick     = () => { stopAuto(); act(Game.ascend); };
   $('btn-door').onclick   = () => { stopAuto(); act(Game.closeDoor); };
+  $('btn-here').onclick   = () => {
+    stopAuto();
+    if (Game.openHere()) { setScreen(G.screen); refresh(); }
+  };
   $('btn-shoot').onclick  = () => { stopAuto(); act(Game.shoot); };
   for (const b of [$('btn-help'), $('btn-help2')])
     b.onclick = () => { stopAuto(); setScreen('help'); };

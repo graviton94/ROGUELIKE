@@ -210,6 +210,10 @@
       <div class="pair">
         <button id="btn-cast">주문서</button>
         <button id="btn-door" disabled>문 닫기</button>
+        <!-- 모닥불·제단·모루·? 는 밟는 순간 화면을 띄우지 않는다.
+             걷는 손가락 아래로 시트가 올라오면, 다음 반복 입력이
+             버튼을 눌러 버린다. 서 있는 동안 이 버튼이 기다린다. -->
+        <button id="btn-here" hidden>열기</button>
       </div>
       <!-- Only there when a bow is in hand and something is in
            line: a button that is dark most of the game is worse

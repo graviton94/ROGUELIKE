@@ -887,15 +887,31 @@ export const makeConsumable = id => ({ kind:'use', ...CONSUMABLES.find(c => c.id
    counts down, not twenty arrows taking twenty slots. */
 export const makeQuiver = id => ({ kind:'quiver', slot:'quiver', ...quiverById(id) });
 
+export const PACK_MAX = 20;
+
+/* Will this item find a home? Asked *before* the floor lets go of
+   it. addItem used to answer by refusing after the caller had
+   already spliced the thing out of G.items, which meant a full
+   pack did not stop a pickup — it deleted the item. A rare drop
+   walked over with twenty slots full simply ceased to exist, and
+   the only trace was one line in the log. */
+export function packRoom(p, item) {
+  if (!item) return false;
+  if (item.kind === 'use' || item.kind === 'cat')
+    if (p.pack.some(s => s.item.id === item.id)) return true;   // stacks
+  return p.pack.length < PACK_MAX;
+}
+
 export function addItem(p, item, qty = 1) {
   // Catalysts stack the same way flasks do — you carry three
   // 정련의 촉매, not three separate lines in the pack.
   if (item.kind === 'use' || item.kind === 'cat') {
     const slot = p.pack.find(s => s.item.id === item.id);
-    if (slot) { slot.qty += qty; return; }
+    if (slot) { slot.qty += qty; return true; }
   }
-  if (p.pack.length >= 20) { say('배낭이 가득 찼다.', 'warn'); return; }
+  if (p.pack.length >= PACK_MAX) { say('배낭이 가득 찼다.', 'warn'); return false; }
   p.pack.push({ item, qty });
+  return true;
 }
 
 export function removeItem(p, slotIdx, qty = 1) {
@@ -2440,11 +2456,24 @@ export function step(dx, dy) {
     G.shop = SHOPS.find(s => s.id === shopId); G.screen = 'shop'; return;
   }
 
+  /* The four tiles that offer something used to throw their whole
+     screen up the instant a foot landed on them. Walking is held
+     input in this game — a d-pad press that repeats, a tapped
+     path that runs — so the sheet arrived *under the thumb* and
+     the next repeat pressed a button on it. A choice you make by
+     accident is not a choice.
+     Now the foot lands, the turn is spent like any other step,
+     and the offer waits. `hereOffer()` tells the row what is
+     underfoot; `openHere()` is the deliberate press. Exactly the
+     shape 문 닫기 already has. */
   const t = L.tiles[ni];
-  if (t === CAMP)  { p.x = nx; p.y = ny; refreshFov(); G.screen = 'camp'; return; }
-  if (t === ALTAR) { p.x = nx; p.y = ny; refreshFov(); G.screen = 'altar'; return; }
-  if (t === EVENT) { p.x = nx; p.y = ny; refreshFov(); G.screen = 'event'; return; }
-  if (t === ANVIL) { p.x = nx; p.y = ny; refreshFov(); G.screen = 'anvil'; return; }
+  if (t === CAMP || t === ALTAR || t === EVENT || t === ANVIL) {
+    p.x = nx; p.y = ny;
+    refreshFov();
+    say(`${OFFER_NAME[t]} 위에 섰다.`, 'good');
+    endTurn();
+    return;
+  }
   if (t === PROP) { if (bumpProp(nx, ny)) endTurn(); return; }
   if (t === DOOR)        { openDoor(nx, ny); endTurn(); return; }
   if (t === DOOR_LOCKED) { forceDoor(nx, ny); endTurn(); return; }
@@ -2559,6 +2588,29 @@ function wearPicks() {
   removeItem(p, i, 1);
   const left = p.pack.find(s => s.item.id === 'picks')?.qty || 0;
   if (!left) say('갈고리가 부러졌다. 마지막 하나였다.', 'warn');
+}
+
+/* What is under the hero's feet that is worth a press, if
+   anything. One reader, so the button, the prompt and the key
+   binding can never disagree about whether there is an offer. */
+export const OFFER_NAME = { [CAMP]:'모닥불', [ALTAR]:'제단', [EVENT]:'수상한 자리', [ANVIL]:'모루' };
+const OFFER_SCREEN = { [CAMP]:'camp', [ALTAR]:'altar', [EVENT]:'event', [ANVIL]:'anvil' };
+
+export function hereOffer() {
+  const p = G.player, L = G.level;
+  if (!p || !L || !G.running) return null;
+  const t = L.tiles[idx(p.x, p.y)];
+  if (t === EVENT && !L.eventId) return null;      // already taken
+  const screen = OFFER_SCREEN[t];
+  return screen ? { screen, n: OFFER_NAME[t] } : null;
+}
+
+/* The deliberate press. Nothing else opens these. */
+export function openHere() {
+  const o = hereOffer();
+  if (!o) return false;
+  G.screen = o.screen;
+  return true;
 }
 
 export function doorToClose() {
@@ -2750,6 +2802,13 @@ function pickUp() {
     // choice can be walked away from and come back to.
     if (!takeRelic(it.id) && G.screen !== 'relic') return;
     G.items.splice(i, 1);
+    return;
+  }
+  /* Gold and keys go nowhere near the pack, so they are always
+     takeable. Everything else has to have a slot waiting before
+     the floor gives it up. */
+  if (it.kind !== 'gold' && it.kind !== 'key' && !packRoom(p, it)) {
+    say(`배낭이 가득 찼다 — ${nameOf(it)}은(는) 발밑에 그대로 있다.`, 'warn');
     return;
   }
   G.items.splice(i, 1);
@@ -5194,7 +5253,7 @@ export function altarOffer(id) {
      the only part of a gamble that is actually enjoyable — the
      part where you can still see the jackpot going by. */
   const result = altarRoll(offer.odds);
-  G.pendingAltar = { result, weight, odds: offer.odds };
+  G.pendingAltar = { result, weight, odds: offer.odds, gave: id };
   return result;
 }
 
@@ -5207,7 +5266,7 @@ export function altarSettle() {
   G.pendingAltar = null;
 
   fx({ t:'altar', result: pend.result, x:p.x, y:p.y });
-  grantBoon(pend.result, pend.weight);
+  grantBoon(pend.result, pend.weight, pend.gave);
 
   G.level.tiles[idx(p.x, p.y)] = FLOOR;   // one use, then it is stone
   G.level.altar = null;
@@ -5216,7 +5275,7 @@ export function altarSettle() {
   endTurn();
 }
 
-function grantBoon(result, weight) {
+function grantBoon(result, weight, gave = 'blood') {
   const p = G.player, d = G.depth;
 
   if (result === '재앙') {
@@ -5274,27 +5333,49 @@ function grantBoon(result, weight) {
     return;
   }
 
-  // 성공
-  const pick = rnd(4);
-  if (pick === 0) {
-    const heal = Math.ceil(p.maxhp * 0.5);
-    const got = Math.min(p.maxhp - p.hp, heal);
-    p.hp += got; p.mana = p.maxmana;
-    p.ail = {};
-    fx({ t:'heal', x:p.x, y:p.y, amt:got });
-    say(`상처가 전부 닫힌다. 체력 +${got}.`, 'good');
-  } else if (pick === 1) {
-    const g = Math.round((160 + d * 70) * weight);
-    p.gold += g;
-    say(`금화 ${g}닢이 쏟아진다.`, 'good');
-  } else if (pick === 2) {
-    p.mats.scrap += Math.round((6 + d) * weight);
-    p.mats.dust += Math.round((2 + d * 0.3) * weight);
-    say('쓸 만한 재료가 남는다.', 'good');
-  } else {
-    const it = pickItem(d + 4);
-    if (it) { rollAffixes(it, d + 6, true); addItem(p, it); say(`${affixName(it)}을(를) 얻었다.`, 'good'); }
-  }
+  /* 성공. The reward never comes back in the coin it was paid in.
+     Bleeding used to have a one-in-four chance of buying a heal
+     and gold a one-in-four chance of buying gold — which is not a
+     bargain with a god, it is change from a till. What you gave
+     decides which door is *closed*; the rest are open. */
+  /* Keyed by what the payout *is*, not by what buys it. The first
+     version named the gold payout `blood` — after the offering it
+     was written for — and the exclusion table then closed the
+     wrong door: paying gold shut out materials and left gold wide
+     open. The bench caught it at 33%. A lookup keyed on one thing
+     and read as another is a bug waiting for a second reader. */
+  const PAYOUTS = {
+    gold: () => {
+      const g = Math.round((160 + d * 70) * weight);
+      p.gold += g; say(`금화 ${g}닢이 쏟아진다.`, 'good');
+    },
+    mats: () => {
+      p.mats.scrap += Math.round((6 + d) * weight);
+      p.mats.dust += Math.round((2 + d * 0.3) * weight);
+      say('쓸 만한 재료가 남는다.', 'good');
+    },
+    gear: () => {
+      const it = pickItem(d + 4);
+      if (it) {
+        rollAffixes(it, d + 6, true);
+        if (!addItem(p, it)) { it.x = p.x; it.y = p.y; G.items.push(it); }
+        say(`${affixName(it)}을(를) 얻었다.`, 'good');
+      }
+    },
+    flesh: () => {
+      const got = Math.min(p.maxhp - p.hp, Math.ceil(p.maxhp * 0.5));
+      p.hp += got; p.mana = p.maxmana; p.ail = {};
+      fx({ t:'heal', x:p.x, y:p.y, amt:got });
+      say(`상처가 전부 닫힌다. 체력 +${got}.`, 'good');
+    },
+  };
+  /* Each offering shuts the door it came through. Blood cannot buy
+     blood back, gold cannot buy gold, and a burnt weapon does not
+     come back as a weapon — it comes back as the thing you could
+     not have bought. */
+  const CLOSED = { blood: 'flesh', gold: 'gold', gear: 'gear' };
+  const open = Object.keys(PAYOUTS).filter(k => k !== CLOSED[gave]);
+  PAYOUTS[open[rnd(open.length)]]();
 }
 
 /* ── shops ──────────────────────────────────────────────── */

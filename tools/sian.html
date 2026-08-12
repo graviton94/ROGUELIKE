@@ -1,0 +1,739 @@
+<title>깊은 곳 도트 시안</title>
+<style>
+/* ── tokens ───────────────────────────────────────────────
+   밝은 테마는 이 게임이 실제로 쓰는 양피지 색에서, 어두운 테마는
+   던전 바닥 색에서 가져왔습니다. 강조색은 잉걸불 하나뿐입니다. */
+:root {
+  --ground:  #e7e0d0;
+  --surface: #f3eee1;
+  --sunken:  #ddd4bf;
+  --line:    #c6bba1;
+  --ink:     #1c1a1f;
+  --dim:     #6b6353;
+  --faint:   #8d8574;
+  --ember:   #b5551a;
+  --emberIn: #ffffff;
+  --gold:    #8a6a12;
+  --shadow:  0 1px 0 rgba(28,26,31,.06), 0 8px 24px -14px rgba(28,26,31,.5);
+  --stage:   #14161f;
+
+  --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+  --sans: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+          "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:  #101119;
+    --surface: #181a25;
+    --sunken:  #0b0c12;
+    --line:    #2a2e3d;
+    --ink:     #e9e4d5;
+    --dim:     #9a9384;
+    --faint:   #6d6a63;
+    --ember:   #f0873a;
+    --emberIn: #14161f;
+    --gold:    #e8bd45;
+    --shadow:  0 1px 0 rgba(0,0,0,.4), 0 10px 30px -16px #000;
+    --stage:   #0a0b10;
+  }
+}
+:root[data-theme="dark"] {
+  --ground:  #101119;
+  --surface: #181a25;
+  --sunken:  #0b0c12;
+  --line:    #2a2e3d;
+  --ink:     #e9e4d5;
+  --dim:     #9a9384;
+  --faint:   #6d6a63;
+  --ember:   #f0873a;
+  --emberIn: #14161f;
+  --gold:    #e8bd45;
+  --shadow:  0 1px 0 rgba(0,0,0,.4), 0 10px 30px -16px #000;
+  --stage:   #0a0b10;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+canvas { image-rendering: pixelated; display: block; }
+
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+/* ── eyebrow / labels ── */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 0 0 14px;
+}
+
+/* ── header ── */
+header { padding: 72px 0 40px; border-bottom: 1px solid var(--line); }
+h1 {
+  font-size: clamp(34px, 5.5vw, 56px);
+  line-height: 1.08;
+  letter-spacing: -.02em;
+  font-weight: 800;
+  margin: 0 0 20px;
+  text-wrap: balance;
+}
+.lede { font-size: 18px; color: var(--dim); max-width: 62ch; margin: 0 0 8px; }
+.lede strong { color: var(--ink); font-weight: 700; }
+
+.note {
+  margin-top: 28px; padding: 16px 18px;
+  border-left: 3px solid var(--ember);
+  background: var(--surface);
+  font-size: 15px; color: var(--dim);
+  max-width: 68ch;
+}
+.note b { color: var(--ink); }
+
+/* ── comparison ── */
+section { padding: 56px 0; border-bottom: 1px solid var(--line); }
+h2 {
+  font-size: 13px; font-family: var(--mono); font-weight: 700;
+  letter-spacing: .18em; text-transform: uppercase;
+  color: var(--ember); margin: 0 0 6px;
+}
+.h2sub { font-size: 26px; font-weight: 750; letter-spacing: -.01em; margin: 0 0 8px; }
+.h2note { color: var(--dim); max-width: 62ch; margin: 0 0 28px; font-size: 15px; }
+
+.gridscroll { overflow-x: auto; padding-bottom: 6px; }
+table.compare { border-collapse: collapse; width: 100%; min-width: 640px; }
+table.compare th, table.compare td {
+  border-bottom: 1px solid var(--line);
+  padding: 14px 10px; text-align: center; vertical-align: middle;
+}
+table.compare thead th { border-bottom-width: 2px; }
+table.compare th.rowhead {
+  text-align: left; font-family: var(--mono); font-size: 12px;
+  letter-spacing: .1em; color: var(--dim); font-weight: 500; white-space: nowrap;
+}
+.colname { font-weight: 750; font-size: 15px; display: block; }
+.colspec {
+  font-family: var(--mono); font-size: 11px; color: var(--faint);
+  letter-spacing: .08em; display: block; margin-top: 2px;
+}
+.cellbox {
+  display: inline-flex; align-items: flex-end; justify-content: center;
+  background: var(--stage); border-radius: 2px; padding: 6px;
+}
+
+.toggles { display: flex; gap: 8px; margin: 0 0 22px; flex-wrap: wrap; }
+button.tg {
+  font-family: var(--mono); font-size: 12px; letter-spacing: .08em;
+  padding: 7px 14px; border-radius: 2px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--dim);
+}
+button.tg[aria-pressed="true"] { background: var(--ember); border-color: var(--ember); color: var(--emberIn); font-weight: 700; }
+button.tg:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+
+/* ── proposal blocks ── */
+.prop { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 40px; align-items: start; }
+@media (max-width: 800px) { .prop { grid-template-columns: 1fr; gap: 24px; } }
+.propname { display: flex; align-items: baseline; gap: 12px; margin: 0 0 4px; }
+.propnum {
+  font-family: var(--mono); font-size: 12px; color: var(--ember);
+  letter-spacing: .1em; font-weight: 700;
+}
+.propname h3 { font-size: 28px; margin: 0; font-weight: 800; letter-spacing: -.01em; }
+.propname .en { font-family: var(--mono); font-size: 12px; color: var(--faint); letter-spacing: .12em; }
+.prop p { color: var(--dim); font-size: 15px; margin: 0 0 14px; }
+.prop p strong { color: var(--ink); font-weight: 700; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 18px; padding: 0; list-style: none; }
+.chips li {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
+  padding: 4px 9px; border: 1px solid var(--line); border-radius: 2px;
+  color: var(--dim); background: var(--surface);
+}
+.chips li b { color: var(--ink); font-weight: 700; }
+
+.scene {
+  background: var(--stage); border-radius: 3px; padding: 10px;
+  box-shadow: var(--shadow); overflow: hidden;
+}
+.scene canvas { width: 100%; height: auto; }
+.scenecap {
+  font-family: var(--mono); font-size: 11px; color: var(--faint);
+  letter-spacing: .08em; margin-top: 8px;
+}
+
+.tradeoff { display: grid; gap: 2px; margin-top: 4px; }
+.tradeoff div {
+  display: grid; grid-template-columns: 88px 1fr; gap: 12px;
+  font-size: 14px; padding: 7px 0; border-top: 1px solid var(--line);
+}
+.tradeoff dt, .tradeoff .k {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
+  color: var(--faint); text-transform: uppercase; padding-top: 3px;
+}
+.tradeoff .v { color: var(--dim); }
+.tradeoff .v.good { color: var(--ink); }
+
+/* ── summary table ── */
+table.sum { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 14px; }
+table.sum th, table.sum td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; }
+table.sum thead th {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--faint); font-weight: 500; border-bottom-width: 2px;
+}
+table.sum td.num { font-variant-numeric: tabular-nums; }
+table.sum tr.pick td { background: color-mix(in srgb, var(--ember) 9%, transparent); }
+table.sum tr.pick td:first-child { box-shadow: inset 3px 0 0 var(--ember); }
+.pickmark { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--ember); font-weight: 700; }
+
+footer { padding: 48px 0 80px; color: var(--faint); font-size: 14px; }
+footer p { max-width: 62ch; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<header>
+  <div class="wrap">
+    <p class="eyebrow">깊은 곳 · 도트 그래픽 리디자인</p>
+    <h1>다섯 갈래의 시안</h1>
+    <p class="lede">
+      같은 여섯 가지 대상 — 주인공, 오크, 쥐, 검, 물약, 바닥 — 을 다섯 가지 방식으로
+      그렸습니다. 앞의 넷은 <strong>수준</strong>의 차이고, 마지막 하나는 <strong>방향</strong>의 차이입니다. <strong>고르시면 그 하나로 118개 전부를 통일합니다.</strong>
+    </p>
+    <div class="note">
+      <b>이번엔 손으로 픽셀을 찍지 않았습니다.</b> 시안 2·3·4는 도형(타원·사각형·모서리 깎기)과
+      광원 모델로 <b>생성</b>합니다. 좌우 대칭이 구조적으로 보장되고, 비율이 무너지지 않고,
+      118개가 같은 규칙 아래 나옵니다 — 지금까지 제가 놓쳤던 게 정확히 그 세 가지입니다.
+      시안 1은 지금 저장소에 들어 있는 것과 같은 해상도라 비교 기준으로 넣었습니다.
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>비교</h2>
+    <p class="h2sub">같은 것을 네 번 그린다</p>
+    <p class="h2note">
+      실제 게임에서 한 칸은 화면에서 32~80px입니다. 아래는 같은 크기로 맞춰 놓았으니
+      해상도 차이가 곧 담을 수 있는 정보량의 차이입니다.
+    </p>
+    <div class="toggles" role="group" aria-label="보기 크기">
+      <button class="tg" id="tg-big" aria-pressed="true">확대해서 보기</button>
+      <button class="tg" id="tg-real" aria-pressed="false">게임에서 보이는 크기</button>
+    </div>
+    <div class="gridscroll">
+      <table class="compare" id="cmp"></table>
+    </div>
+  </div>
+</section>
+
+<div id="props"></div>
+
+<section>
+  <div class="wrap">
+    <h2>요약</h2>
+    <p class="h2sub">무엇을 사고 무엇을 내주는가</p>
+    <div class="gridscroll">
+      <table class="sum">
+        <thead>
+          <tr><th>시안</th><th>해상도</th><th class="num">스프라이트당 픽셀</th><th>코드 변경</th><th>가장 큰 대가</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>1 각인</b></td><td>16×16</td><td class="num">256</td>
+            <td>없음</td><td>얼굴과 장비를 동시에 담지 못함</td>
+          </tr>
+          <tr class="pick">
+            <td><b>2 부조</b> <span class="pickmark">추천</span></td><td>24×24 (타일 16)</td><td class="num">576</td>
+            <td>렌더러 20줄</td><td>스프라이트가 칸 밖으로 넘쳐 겹침 순서를 정해야 함</td>
+          </tr>
+          <tr>
+            <td><b>3 주조</b></td><td>32×32</td><td class="num">1,024</td>
+            <td>타일 크기 전면</td><td>한 화면에 보이는 칸 수가 줄어듦</td>
+          </tr>
+          <tr>
+            <td><b>4 낙인</b></td><td>32×32</td><td class="num">1,024</td>
+            <td>타일 크기 전면</td><td>색이 적어 몬스터 40종을 색으로 구분하기 어려움</td>
+          </tr>
+          <tr>
+            <td><b>5 등불</b></td><td>32×32 단색조</td><td class="num">1,024</td>
+            <td>타일 + 색 규칙</td><td>희귀도·상태이상을 색으로 알리던 장치 전부 재설계</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p class="eyebrow">다음</p>
+    <p>
+      번호 하나만 주시면 그 방식으로 118개를 채웁니다. 섞어도 됩니다 —
+      예를 들어 “3번인데 색은 4번처럼” 같은 것도 그대로 됩니다.
+    </p>
+  </div>
+</footer>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   절차적 스프라이트 렌더러
+
+   손으로 픽셀을 찍는 대신, 도형을 정규좌표(0~1)로 쌓고 광원을
+   걸어 원하는 해상도로 굽습니다. 도형을 x=0.5 기준으로 대칭
+   배치하므로 좌우가 어긋날 수가 없고, 같은 정의가 16·24·32
+   어디서나 같은 비율로 나옵니다.
+   ═══════════════════════════════════════════════════════════ */
+
+/* 재질: [외곽선, 그늘, 기본, 밝은면] */
+const MAT = {
+  skin:  ['#5e3116', '#a5673a', '#e9b783', '#ffdcb0'],
+  hair:  ['#1c1008', '#3a2814', '#6b4a26', '#9c7440'],
+  cloth: ['#0f2749', '#22508f', '#4f9bdc', '#a3dcf3'],
+  steel: ['#1b2130', '#5a6478', '#9aa4b8', '#e4e9f2'],
+  green: ['#0f3520', '#2b7a44', '#5fbc6b', '#a4dd7c'],
+  gold:  ['#5c3a0c', '#a8801f', '#e8bd45', '#fbe9a4'],
+  red:   ['#3f0f16', '#8a2226', '#e0463c', '#f79a83'],
+  glass: ['#2a3340', '#6d7a8c', '#b7c2cf', '#eef3f8'],
+  wood:  ['#2a190e', '#43301c', '#7c5a33', '#b08a55'],
+  stone: ['#12161f', '#2c3448', '#454f68', '#65718c'],
+  ash:   ['#0b0d13', '#1d2230', '#333b4e', '#4d5670'],
+  tusk:  ['#4e4838', '#8f886f', '#d9d5c4', '#f6f3e7'],
+  dark:  ['#000000', '#0a0910', '#141520', '#1e2030'],
+  lamp:  ['#0d0906', '#33200f', '#7a5323', '#d5a259'],   // 등불빛 4계조
+};
+
+const LX = -0.58, LY = -0.81;               // 광원: 왼쪽 위
+
+/* 도형. cx·cy·rx·ry 전부 0~1 정규좌표. */
+const E = (cx, cy, rx, ry, mat, z, o) => ({ t: 'e', cx, cy, rx, ry, mat, z: z || 0, ...(o || {}) });
+const R = (cx, cy, rx, ry, mat, z, o) => ({ t: 'r', cx, cy, rx, ry, mat, z: z || 0, rot: 0, ...(o || {}) });
+
+/* x=0.5 기준으로 뒤집은 쌍을 만든다. 대칭은 여기서 보장된다. */
+function pair(s) {
+  const m = { ...s, cx: 1 - s.cx };
+  if (m.rot) m.rot = -m.rot;
+  return [s, m];
+}
+
+function inside(s, x, y) {
+  let dx = x - s.cx, dy = y - s.cy;
+  if (s.rot) {
+    const c = Math.cos(-s.rot), si = Math.sin(-s.rot);
+    [dx, dy] = [dx * c - dy * si, dx * si + dy * c];
+  }
+  if (s.t === 'e') return (dx * dx) / (s.rx * s.rx) + (dy * dy) / (s.ry * s.ry) <= 1;
+  const ax = Math.abs(dx) / s.rx, ay = Math.abs(dy) / s.ry;
+  if (s.cut) {                                   // 모서리 깎기
+    if (ax + ay > 1 + s.cut) return false;
+  }
+  return ax <= 1 && ay <= 1;
+}
+
+/* 그 도형 안에서의 명암값 0~1. 가장자리로 갈수록 광원 방향이 지배한다. */
+function shade(s, x, y) {
+  let dx = (x - s.cx) / s.rx, dy = (y - s.cy) / s.ry;
+  if (s.rot) {
+    const c = Math.cos(-s.rot), si = Math.sin(-s.rot);
+    [dx, dy] = [dx * c - dy * si, dx * si + dy * c];
+  }
+  const r = Math.min(1, Math.hypot(dx, dy));
+  const n = r < 1e-4 ? 0 : -((dx / r) * LX + (dy / r) * LY);
+  return 0.55 + n * r * 0.5 + (s.flat || 0);
+}
+
+const ORDERED = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+
+/* 굽기. style이 단계 수·외곽선 두께·디더를 정한다. */
+function bake(shapes, N, style) {
+  const mat = new Array(N * N).fill(null);      // 재질 이름
+  const val = new Float32Array(N * N);          // 명암 0~1
+
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const px = (x + 0.5) / N, py = (y + 0.5) / N;
+      let best = null;
+      for (const s of shapes) {
+        if (!inside(s, px, py)) continue;
+        if (!best || s.z >= best.z) best = s;
+      }
+      if (!best) continue;
+      const i = y * N + x;
+      mat[i] = best.mat;
+      val[i] = shade(best, px, py);
+    }
+  }
+
+  // 외곽선: 재질이 바뀌거나 비는 이웃이 있으면 0단계
+  const out = new Array(N * N).fill(null);
+  const at = (x, y) => (x < 0 || y < 0 || x >= N || y >= N) ? null : mat[y * N + x];
+  const steps = style.steps;                    // 2 또는 3
+  /* 단색조: 재질이 달라도 같은 램프를 쓴다. 정체성을 색이 아니라
+     실루엣과 명암이 나르게 된다 — 원조 게임보이가 그랬던 것처럼. */
+  const rampOf = m => style.mono && m !== 'dark' ? MAT[style.mono] : MAT[m];
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = y * N + x, m = mat[i];
+    if (!m) continue;
+    const edge = !at(x - 1, y) || !at(x + 1, y) || !at(x, y - 1) || !at(x, y + 1);
+    const ramp = rampOf(m);
+    if (edge) { out[i] = ramp[0]; continue; }
+    let v = val[i];
+    if (style.dither) v += ((ORDERED[y & 3][x & 3] / 16) - 0.5) * 0.14;
+    let idx;
+    if (steps === 2) idx = v < 0.60 ? 1 : 3;
+    else idx = v < 0.42 ? 1 : (v < 0.76 ? 2 : 3);
+    out[i] = ramp[idx];
+  }
+
+  // 굵은 외곽선: 한 겹 더 바깥으로
+  if (style.bold) {
+    const grown = out.slice();
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const i = y * N + x;
+      if (!mat[i]) continue;
+      if (!at(x - 1, y) || !at(x + 1, y) || !at(x, y - 1) || !at(x, y + 1)) {
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= N || ny >= N) continue;
+          const j = ny * N + nx;
+          if (!mat[j]) grown[j] = (style.mono ? MAT[style.mono] : MAT[mat[i]])[0];
+        }
+      }
+    }
+    return grown;
+  }
+  return out;
+}
+
+/* ── 대상들 ────────────────────────────────────────────── */
+const FIG = {};
+
+FIG.hero = () => [
+  ...pair(R(0.285, 0.70, 0.058, 0.125, 'cloth', 1)),       // 팔
+  ...pair(E(0.285, 0.835, 0.056, 0.052, 'skin', 2)),       // 손
+  ...pair(R(0.415, 0.915, 0.058, 0.085, 'ash', 1)),        // 다리
+  ...pair(R(0.415, 0.975, 0.068, 0.028, 'wood', 2)),       // 신발
+  R(0.50, 0.665, 0.185, 0.185, 'cloth', 2, { cut: 0.3 }),  // 몸통 — 머리 밑까지 겹침
+  R(0.50, 0.505, 0.055, 0.05, 'skin', 1),                  // 목
+  E(0.50, 0.315, 0.235, 0.215, 'skin', 3),                 // 머리
+  E(0.50, 0.255, 0.245, 0.165, 'hair', 4),                 // 머리카락
+  ...pair(E(0.295, 0.325, 0.045, 0.105, 'hair', 4)),       // 옆머리
+  ...pair(E(0.408, 0.35, 0.038, 0.045, 'dark', 6, { flat: -0.6 })), // 눈
+];
+
+FIG.orc = () => [
+  ...pair(R(0.225, 0.71, 0.075, 0.145, 'green', 1)),
+  ...pair(E(0.225, 0.865, 0.072, 0.062, 'green', 2)),
+  ...pair(R(0.395, 0.94, 0.078, 0.06, 'ash', 1)),
+  R(0.50, 0.695, 0.225, 0.195, 'steel', 2, { cut: 0.32 }),
+  E(0.50, 0.335, 0.29, 0.235, 'green', 3),
+  E(0.50, 0.26, 0.295, 0.135, 'green', 4, { flat: 0.14 }),
+  ...pair(E(0.255, 0.315, 0.055, 0.072, 'green', 4)),      // 귀
+  ...pair(E(0.405, 0.335, 0.042, 0.042, 'red', 6, { flat: -0.2 })),
+  ...pair(E(0.415, 0.46, 0.027, 0.05, 'tusk', 6)),         // 엄니
+];
+
+FIG.rat = () => [
+  R(0.20, 0.66, 0.175, 0.021, 'skin', 0, { rot: 0.45 }),   // 꼬리 — 몸에 닿는다
+  R(0.44, 0.895, 0.05, 0.075, 'ash', 1),                   // 다리
+  R(0.74, 0.895, 0.05, 0.075, 'ash', 1),
+  E(0.58, 0.70, 0.275, 0.19, 'wood', 2),                   // 몸
+  E(0.755, 0.415, 0.085, 0.10, 'wood', 3),                 // 귀
+  E(0.76, 0.425, 0.048, 0.058, 'skin', 4),
+  E(0.845, 0.615, 0.175, 0.175, 'wood', 5),                // 머리
+  E(0.905, 0.575, 0.036, 0.04, 'dark', 6, { flat: -0.5 }), // 눈
+  E(0.995, 0.665, 0.038, 0.034, 'red', 6),                 // 코
+];
+
+FIG.sword = () => {
+  const a = Math.PI / 4;
+  return [
+    R(0.605, 0.395, 0.052, 0.36, 'steel', 2, { rot: a }),   // 날
+    R(0.628, 0.372, 0.018, 0.335, 'steel', 3, { rot: a, flat: 0.4 }), // 능선
+    R(0.335, 0.665, 0.145, 0.038, 'gold', 4, { rot: -a }),  // 코등이
+    R(0.245, 0.755, 0.036, 0.105, 'wood', 3, { rot: a }),   // 자루
+    E(0.155, 0.865, 0.052, 0.052, 'gold', 4),               // 손잡이 끝
+  ];
+};
+
+FIG.potion = () => [
+  E(0.50, 0.665, 0.265, 0.265, 'glass', 1),
+  E(0.50, 0.705, 0.215, 0.215, 'red', 2),
+  R(0.50, 0.30, 0.085, 0.145, 'glass', 1),
+  R(0.50, 0.155, 0.115, 0.065, 'wood', 3, { cut: 0.35 }),
+  E(0.375, 0.585, 0.055, 0.085, 'glass', 4, { flat: 0.5 }), // 유리 반사
+];
+
+/* 바닥·벽은 스프라이트가 아니라 생성기입니다 — 좌표 해시로 얼룩을
+   흩뿌리므로 이어 붙여도 무늬가 눈에 띄게 반복되지 않습니다. */
+function hash(x, y) {
+  let h = (x * 73856093) ^ (y * 19349663);
+  h = (h ^ (h >>> 13)) * 1274126177;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+function tile(kind, N, style, tx, ty) {
+  /* 벽은 줄눈이 어긋난 벽돌, 바닥은 판석입니다. 얼룩만 흩뿌리면
+     노이즈로 보이지 뭘로 지은 것인지가 안 보입니다. */
+  const out = new Array(N * N);
+  const ramp = style.mono ? MAT[style.mono] : MAT[kind === 'wall' ? 'stone' : 'ash'];
+  const two = style.steps === 2;
+  const lo = 1, mid = two ? 1 : 2, hi = two ? 3 : 3;
+
+  if (kind === 'wall') {
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const h = hash(tx * N + x, ty * N + y);
+      out[y * N + x] = ramp[h < .12 ? hi : h < .5 ? mid : lo];
+    }
+  } else {
+    /* 바닥은 벽보다 한 단계 어둡고 훨씬 잠잠합니다. 벽만큼 얼룩지면
+       어디가 걸어갈 수 있는 곳인지가 안 보입니다. */
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const h = hash(tx * N + x + 977, ty * N + y + 331);
+      out[y * N + x] = ramp[h < .06 ? mid : lo];
+    }
+  }
+
+  const course = Math.round(N / 2.6);           // 벽돌 한 켜 높이
+  if (kind === 'wall') {
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const row = Math.floor(y / course);
+      const jog = (row + tx) % 2 ? Math.round(N / 2) : 0;
+      const joint = (y % course === 0) || ((x + jog) % N === 0);
+      if (joint) out[y * N + x] = ramp[0];
+    }
+    for (let x = 0; x < N; x++) {               // 윗면에 빛, 아랫면에 턱
+      out[x] = ramp[0];
+      out[N + x] = ramp[hi];
+      if (N > 16) out[2 * N + x] = ramp[mid];
+      out[(N - 1) * N + x] = ramp[0];
+    }
+  } else {
+    /* 판석 줄눈: 칸마다 어긋나게 놓아 격자가 눈에 띄지 않게 합니다. */
+    const gy = (ty * 7 + tx * 3) % N, gx = (tx * 5 + ty * 11) % N;
+    for (let i = 0; i < N; i++) {
+      out[gy * N + i] = ramp[0];
+      out[i * N + gx] = ramp[0];
+    }
+  }
+  return out;
+}
+
+/* ── 그리기 ────────────────────────────────────────────── */
+function paint(ctx, cells, N, px, ox, oy) {
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const c = cells[y * N + x];
+    if (!c) continue;
+    ctx.fillStyle = c;
+    ctx.fillRect(ox + x * px, oy + y * px, px, px);
+  }
+}
+
+function spriteCanvas(fig, N, style, px) {
+  const cv = document.createElement('canvas');
+  cv.width = N * px; cv.height = N * px;
+  const c = cv.getContext('2d');
+  c.imageSmoothingEnabled = false;
+  paint(c, bake(FIG[fig](), N, style), N, px, 0, 0);
+  return cv;
+}
+
+/* ── 시안 정의 ─────────────────────────────────────────── */
+const SIAN = [
+  {
+    n: '1', name: '각인', en: 'ENGRAVED', N: 16, tile: 16,
+    style: { steps: 3, dither: false, bold: false },
+    hand: true,
+    chips: ['해상도 <b>16×16</b>', '재질당 <b>4색</b>', '<b>손으로</b> 문자열 격자', '코드 변경 <b>없음</b>'],
+    body: `지금 저장소에 들어 있는 것입니다. 한 칸이 <strong>256픽셀</strong>이라
+      얼굴을 넣으면 장비가 안 들어가고, 장비를 넣으면 얼굴이 뭉갭니다.
+      마인크래프트 아이템이 이 해상도인 건 맞지만, 그건 <strong>물체 하나</strong>일 때 이야기입니다.
+      사람 한 명에 머리·얼굴·팔·손·몸통·다리·신발을 넣는 순간 각 부위가 2~3픽셀로 떨어집니다.`,
+    trade: [['얻는 것', '아무것도 안 바꿔도 됨. 파일 크기 그대로.', 0],
+            ['잃는 것', '종족 8종을 얼굴로 구분하는 설계가 사실상 성립하지 않음.', 0]],
+  },
+  {
+    n: '2', name: '부조', en: 'RELIEF', N: 24, tile: 16,
+    style: { steps: 3, dither: false, bold: false },
+    chips: ['액터 <b>24×24</b>', '타일 <b>16×16</b>', '재질당 <b>4색</b>', '렌더러 <b>20줄</b>'],
+    body: `바닥 칸은 16으로 두고 <strong>생물과 아이템만 24로 키워 칸 밖으로 넘치게</strong> 합니다.
+      포켓몬 오버월드가 쓰는 방법입니다 — 캐릭터가 타일보다 커야 사람이 땅 위에 서 있는 것처럼 보입니다.
+      픽셀이 <strong>2.25배</strong>로 늘어나 얼굴·장비·손이 동시에 들어가고,
+      지도는 지금 보이는 만큼 그대로 보입니다.`,
+    trade: [['얻는 것', '해상도는 벌고 화면에 보이는 칸 수는 안 잃음.', 1],
+            ['잃는 것', '스프라이트가 위 칸을 덮으므로 겹침 순서를 y로 정렬해야 함.', 0]],
+  },
+  {
+    n: '3', name: '주조', en: 'CAST', N: 32, tile: 32,
+    style: { steps: 3, dither: true, bold: false },
+    chips: ['전부 <b>32×32</b>', '재질당 <b>4색 + 디더</b>', '가장 <b>풍부함</b>', '타일 크기 <b>전면 변경</b>'],
+    body: `전부 32로 올리고 단계 사이에 <strong>디더</strong>를 넣습니다.
+      네 단계밖에 없는 램프가 여덟 단계처럼 보이고, 금속과 유리와 살결이
+      서로 다른 물질로 읽힙니다. 뱀파이어 서바이버즈가 서 있는 자리가 대략 여기입니다.
+      대신 한 칸이 커진 만큼 <strong>화면에 보이는 칸 수가 줄어듭니다</strong> —
+      좁은 복도에서는 오히려 좋고, 넓은 방에서는 답답합니다.`,
+    trade: [['얻는 것', '재질감. 얼굴 표정, 갑옷의 이음선, 유리의 반사까지 들어감.', 1],
+            ['잃는 것', '폰 화면에서 한 번에 보이는 칸이 11칸에서 8칸으로.', 0]],
+  },
+  {
+    n: '4', name: '낙인', en: 'BRAND', N: 32, tile: 32,
+    style: { steps: 2, dither: false, bold: true },
+    chips: ['전부 <b>32×32</b>', '재질당 <b>2색</b>', '외곽선 <b>2px</b>', '실루엣 <b>우선</b>'],
+    body: `해상도는 3번과 같지만 <strong>색을 재질당 둘로 줄이고 외곽선을 두 배로</strong> 굵힙니다.
+      멀리서도, 어두운 층에서도, 등불 밖에서도 형태가 먼저 읽힙니다.
+      118개를 한 사람이 그린 것처럼 묶는 데는 이 방식이 가장 강합니다 —
+      규칙이 적을수록 어긋날 곳이 없습니다.
+      대신 <strong>몬스터 40종을 색으로 나누기 어려워</strong> 실루엣으로만 구분해야 합니다.`,
+    trade: [['얻는 것', '어떤 조명, 어떤 크기에서도 무너지지 않는 가독성.', 1],
+            ['잃는 것', '미묘한 색 차이로 등급·상태를 표시하던 것들을 다시 설계해야 함.', 0]],
+  },
+  {
+    n: '5', name: '등불', en: 'LAMPLIGHT', N: 32, tile: 32,
+    style: { steps: 3, dither: true, bold: false, mono: 'lamp' },
+    chips: ['전부 <b>32×32</b>', '<b>단색조 4계조</b>', '색은 <b>0가지</b>', '가장 <b>강한 통일감</b>'],
+    body: `방향 자체를 바꾸는 안입니다. <strong>색을 전부 버리고 등불빛 네 계조만</strong> 씁니다.
+      쥐가 갈색이라서 쥐인 게 아니라 <strong>쥐 모양이라서</strong> 쥐인 세계가 됩니다.
+      118개가 절대로 따로 놀 수 없고, 등불 반경 밖이 진짜로 어둡게 느껴집니다 —
+      이 게임이 식량과 횃불 시계를 돌리는 게임이라는 걸 그림이 대신 말해 줍니다.
+      대신 <strong>독·화염·냉기를 색으로 구분하던 것들</strong>은 전부 형태나 표식으로 옮겨야 합니다.`,
+    trade: [['얻는 것', '한 사람이 그린 것 같은 통일감. 어둠이 연출이 아니라 규칙이 됨.', 1],
+            ['잃는 것', '희귀도·상태이상·속성을 색으로 알리던 장치 전부 재설계.', 0]],
+  },
+];
+
+const SUBJECTS = [
+  ['주인공', 'hero'], ['오크', 'orc'], ['쥐', 'rat'],
+  ['검', 'sword'], ['물약', 'potion'],
+];
+
+/* ── 비교표 ────────────────────────────────────────────── */
+let BIG = true;
+
+function buildCompare() {
+  const t = document.getElementById('cmp');
+  const disp = BIG ? 96 : 40;
+  let h = '<thead><tr><th class="rowhead"></th>';
+  for (const s of SIAN) h += `<th><span class="colname">${s.n} ${s.name}</span>
+    <span class="colspec">${s.N}×${s.N}</span></th>`;
+  h += '</tr></thead><tbody>';
+  for (const [label, key] of SUBJECTS) {
+    h += `<tr><th class="rowhead">${label}</th>`;
+    for (const s of SIAN) h += `<td data-fig="${key}" data-sian="${s.n}"></td>`;
+    h += '</tr>';
+  }
+  h += `<tr><th class="rowhead">바닥·벽</th>`;
+  for (const s of SIAN) h += `<td data-fig="__tiles" data-sian="${s.n}"></td>`;
+  h += '</tr></tbody>';
+  t.innerHTML = h;
+
+  for (const td of t.querySelectorAll('td[data-fig]')) {
+    const s = SIAN.find(v => v.n === td.dataset.sian);
+    const box = document.createElement('span');
+    box.className = 'cellbox';
+    if (td.dataset.fig === '__tiles') {
+      const N = s.tile, px = Math.max(1, Math.round(disp / (N * 2)));
+      const cv = document.createElement('canvas');
+      cv.width = N * px * 2; cv.height = N * px * 2;
+      const c = cv.getContext('2d'); c.imageSmoothingEnabled = false;
+      paint(c, tile('wall', N, s.style, 0, 0), N, px, 0, 0);
+      paint(c, tile('wall', N, s.style, 1, 0), N, px, N * px, 0);
+      paint(c, tile('floor', N, s.style, 0, 1), N, px, 0, N * px);
+      paint(c, tile('floor', N, s.style, 1, 1), N, px, N * px, N * px);
+      box.appendChild(cv);
+    } else {
+      const px = Math.max(1, Math.round(disp / s.N));
+      box.appendChild(spriteCanvas(td.dataset.fig, s.N, s.style, px));
+    }
+    td.appendChild(box);
+  }
+}
+
+/* ── 시안 블록 + 장면 ──────────────────────────────────── */
+function scene(s, w) {
+  /* 한 방을 그립니다. 벽으로 둘러싸인 바닥에 주인공·오크·검·물약이
+     실제 게임과 같은 칸 크기로 서 있습니다. */
+  const COLS = 11, ROWS = 6;
+  const px = Math.max(2, Math.floor(w / (COLS * s.tile)));
+  const T = s.tile * px;
+  const cv = document.createElement('canvas');
+  cv.width = COLS * T; cv.height = ROWS * T;
+  const c = cv.getContext('2d');
+  c.imageSmoothingEnabled = false;
+
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    const wall = y === 0 || y === 1 || x === 0 || x === COLS - 1 || y === ROWS - 1;
+    paint(c, tile(wall ? 'wall' : 'floor', s.tile, s.style, x, y), s.tile, px, x * T, y * T);
+  }
+
+  /* 액터는 칸보다 클 수 있으므로 발끝을 칸 바닥에 맞추고 위로 넘칩니다. */
+  const put = (fig, tx, ty) => {
+    const cells = bake(FIG[fig](), s.N, s.style);
+    const sz = s.N * px;
+    paint(c, cells, s.N, px, tx * T + (T - sz) / 2, (ty + 1) * T - sz);
+  };
+  put('orc', 7, 3);
+  put('rat', 3, 2);
+  put('hero', 5, 3);
+  put('sword', 2, 4);
+  put('potion', 9, 4);
+
+  /* 등불: 주인공 주변만 밝고 가장자리로 갈수록 어둡습니다. */
+  const g = c.createRadialGradient(5.5 * T, 3.6 * T, T * 0.6, 5.5 * T, 3.6 * T, T * 5.2);
+  g.addColorStop(0, 'rgba(240,135,58,0.10)');
+  g.addColorStop(0.55, 'rgba(10,11,16,0.05)');
+  g.addColorStop(1, 'rgba(6,7,11,0.72)');
+  c.fillStyle = g;
+  c.fillRect(0, 0, cv.width, cv.height);
+  return cv;
+}
+
+function buildProps() {
+  const host = document.getElementById('props');
+  for (const s of SIAN) {
+    const sec = document.createElement('section');
+    sec.innerHTML = `
+      <div class="wrap">
+        <div class="prop">
+          <div>
+            <div class="propname">
+              <span class="propnum">시안 ${s.n}</span>
+              <h3>${s.name}</h3>
+              <span class="en">${s.en}</span>
+            </div>
+            <ul class="chips">${s.chips.map(x => `<li>${x}</li>`).join('')}</ul>
+            <p>${s.body}</p>
+            <div class="tradeoff">
+              ${s.trade.map(([k, v, good]) =>
+                `<div><span class="k">${k}</span><span class="v${good ? ' good' : ''}">${v}</span></div>`).join('')}
+            </div>
+          </div>
+          <div>
+            <div class="scene"></div>
+            <p class="scenecap">한 칸 ${s.tile}px · 액터 ${s.N}px · 등불 반경 안팎</p>
+          </div>
+        </div>
+      </div>`;
+    host.appendChild(sec);
+    const box = sec.querySelector('.scene');
+    box.appendChild(scene(s, 520));
+  }
+}
+
+buildCompare();
+buildProps();
+
+const big = document.getElementById('tg-big'), real = document.getElementById('tg-real');
+function setBig(v) {
+  BIG = v;
+  big.setAttribute('aria-pressed', String(v));
+  real.setAttribute('aria-pressed', String(!v));
+  buildCompare();
+}
+big.addEventListener('click', () => setBig(true));
+real.addEventListener('click', () => setBig(false));
+</script>

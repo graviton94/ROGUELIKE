@@ -1450,57 +1450,57 @@ export const RACE_BODY = {
   human: {
     down: [
       '.....000000.....',
-      '...11nnnnnn11...',
-      '..1nNNnnnnnnn1..',
-      '..1nNnnnnnnnn1..',
-      '..1nnnhhhhnnn1..',
-      '..1nnhaaaahnn1..',
-      '..0nhWkhhWkhn0..',
-      '..0nhhhhhhhhn0..',
-      '...0HhhhhhhH0...',
+      '...00nnnnnn00...',
+      '..0nnnnnnnnnn0..',
+      '..0nnhhhhhhnn0..',
+      '..0hhkkhhkkhh0..',
+      '..0hhhhhhhhhh0..',
+      '...0HHhhhhHH0...',
       '....00hhhh00....',
-      '...2CCCCCCCC2...',
-      '.0C0CCCCCCCC0C0.',
-      '.0h0CCCCCCDD0h0.',
-      '..22CCCCCCDD22..',
+      '...XCCCCCCCCX...',
+      '.XDDXCCCCCCXDDX.',
+      '.XhhXCCCCCCXhhX.',
+      '..XXXCCCCCCXXX..',
+      '....XCCCCCCX....',
+      '....XDDDDDDX....',
+      '....XDDXXDDX....',
       '....1nn11nn1....',
-      '....1111.111....',
     ],
     side: [
       '.....000000.....',
-      '...11nnnnnn11...',
-      '..1nNNnnnnnnn1..',
-      '..1nNnnnnnnnn1..',
-      '..1nnnnnhhhhh0..',
-      '..1nnnnhaaaaa0..',
-      '..1nnnhWkhaaa0..',
-      '..1nnhhhhhhhh0..',
-      '...1nhhhhhhh0...',
-      '....0haaah00....',
-      '...2CCCCCCCC2...',
-      '..22CCCCCCCC0C0.',
-      '..0hCCCCCCDD0h0.',
-      '..22CCCCCCDD22..',
+      '...00nnnnnn00...',
+      '..0nnnnnnnnn00..',
+      '..0nnnnnhhhhh0..',
+      '..0nnnnhkkhhh0..',
+      '..0nnnhhhhhhh0..',
+      '...0nnhhhhhH0...',
+      '.....00hhh00....',
+      '...XCCCCCCCCX...',
+      '..XDDXCCCCCCX...',
+      '..XhhXCCCCCCX...',
+      '...XXXCCCCCCX...',
+      '.....XCCCCCCX...',
+      '.....XDDDDDDX...',
+      '.....XDDDDX.....',
       '.....1nnnn1.....',
-      '....111nnn1.....',
     ],
     up: [
       '.....000000.....',
-      '...11nnnnnn11...',
-      '..1nNNnnnnnnn1..',
-      '..1nNnnnnnnnn1..',
-      '..1nNnnnnnnnn1..',
-      '..1nnnnnnnnnn1..',
-      '..1nnnnnnnnnn1..',
-      '..1nnnnnnnnnn1..',
-      '...1nnnnnnnn1...',
+      '...00nnnnnn00...',
+      '..0nnnnnnnnnn0..',
+      '..0nnnnnnnnnn0..',
+      '..0nnnnnnnnnn0..',
+      '..0nnnnnnnnnn0..',
+      '...0nnnnnnnn0...',
       '....00hhhh00....',
-      '...2CCCCCCCC2...',
-      '.0C0CCCCCCCC0C0.',
-      '.0h0CCCCCCDD0h0.',
-      '..22CCCCCCDD22..',
+      '...XCCCCCCCCX...',
+      '.XDDXCCCCCCXDDX.',
+      '.XhhXCCCCCCXhhX.',
+      '..XXXCCCCCCXXX..',
+      '....XCCCCCCX....',
+      '....XDDDDDDX....',
+      '....XDDXXDDX....',
       '....1nn11nn1....',
-      '....1111.111....',
     ],
   },
 
@@ -1922,55 +1922,55 @@ export const CLASS_KIT = {
   warrior: {
     down: [
       '.....222222.....',
-      '...22dssssd22...',
+      '...22dSSSSd22...',
       '..2dSSSSSSSSd2..',
-      '..2dSS2222SSd2..',
       '..2dS2....2Sd2..',
       '..2dS2....2Sd2..',
-      '...22......22...',
+      '...2S2....2S2...',
       '................',
       '................',
-      '................',
-      '..2dSSSSSSSSd2..',
-      '2dS2SCCCCCCS2Sd2',
-      '.222SCCCCDDS222.',
-      '...2SSSSSSSSd2..',
+      '..2SSSSSSSSSS2..',
+      '.2SsSSDCCDSSsS2.',
+      '..22SDCCCCDS22..',
+      '...2SDCCCCDS2...',
+      '....2SCCCCS2....',
+      '....2ssssss2....',
       '................',
       '................',
     ],
     side: [
       '.....222222.....',
-      '...22dssssd22...',
+      '...22dSSSSd22...',
       '..2dSSSSSSSSd2..',
-      '..2dSS2222SSd2..',
-      '..2dS2....2Sd2..',
-      '..2dS2....2Sd2..',
-      '...22......22...',
+      '..2dSSSSSS2Sd2..',
+      '..2dS2.....2S2..',
+      '...2S2......2...',
       '................',
       '................',
-      '................',
-      '..2dSSSSSSSSd2..',
-      '..22SCCCCCCS2Sd2',
-      '..2SSCCCCDDS222.',
-      '..2SSSSSSSSSd2..',
+      '..2SSSSSSSSSS2..',
+      '.2SsSSDCCCCDX...',
+      '..22SSDCCCCDX...',
+      '...2SSDCCCCDX...',
+      '.....2SDCCCDX...',
+      '.....2ssssssX...',
       '................',
       '................',
     ],
     up: [
       '.....222222.....',
-      '...22dssssd22...',
+      '...22dSSSSd22...',
       '..2dSSSSSSSSd2..',
       '..2dSSSSSSSSd2..',
       '..2dSSSSSSSSd2..',
-      '..2dS2....2Sd2..',
-      '...22......22...',
+      '...2S2....2S2...',
       '................',
       '................',
-      '................',
-      '..2dSSSSSSSSd2..',
-      '2dS2SCCCCCCS2Sd2',
-      '.222SCCCCDDS222.',
-      '...2SSSSSSSSd2..',
+      '..2SSSSSSSSSS2..',
+      '.2SsSSDCCDSSsS2.',
+      '..22SDCCCCDS22..',
+      '...2SDCCCCDS2...',
+      '....2SCCCCS2....',
+      '....2ssssss2....',
       '................',
       '................',
     ],
@@ -2272,16 +2272,19 @@ export const CLASS_KIT = {
    what lets one drawing serve six classes and still have a lit
    side and a shaded side. */
 export const CLASS_TINT = {
-  warrior: ['s', 'd'],
-  mage:    ['b', '6'],
-  priest:  ['w', 'u'],
-  rogue:   ['d', 'q'],
-  ranger:  ['e', '5'],
-  paladin: ['y', '3'],
+  warrior: ['S', 's', '2'],
+  mage:    ['B', 'b', '6'],
+  priest:  ['W', 'w', '9'],
+  rogue:   ['g', 'd', 'k'],
+  ranger:  ['E', 'e', '5'],
+  paladin: ['Y', 'y', '3'],
 };
 
 /* One keeper per shop, so the six of them are not identical. */
-export const SHOP_TINT = [['e', '5'], ['s', 'd'], ['r', '4'], ['w', 'u'], ['P', 'p'], ['B', 'b']];
+export const SHOP_TINT = [
+  ['E', 'e', '5'], ['S', 's', '2'], ['R', 'r', '4'],
+  ['W', 'w', '9'], ['V', 'P', '7'], ['B', 'b', '6'],
+];
 
 export const VIEWS = ['down', 'side', 'up'];
 
@@ -2303,10 +2306,10 @@ function rgb(hex) {
   return v;
 }
 
-const DEFAULT_TINT = ['s', 'd'];
+const DEFAULT_TINT = ['S', 's', '2'];
 
 function bakeGrid(grid, tint, flip = false) {
-  const [lit, shade] = tint || DEFAULT_TINT;
+  const [lit, shade, line] = tint || DEFAULT_TINT;
   const c = document.createElement('canvas');
   c.width = CELL; c.height = CELL;
   const x = c.getContext('2d');
@@ -2318,6 +2321,7 @@ function bakeGrid(grid, tint, flip = false) {
       let ch = line[flip ? CELL - 1 - col : col] || '.';
       if (ch === 'C') ch = lit;
       else if (ch === 'D') ch = shade;
+      else if (ch === 'X') ch = line;
       const color = PALETTE[ch];
       if (!color) continue;
       const [r, g, b] = rgb(color);

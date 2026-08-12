@@ -11,7 +11,7 @@ const COLS = Number(process.argv[5] || 10);
 const PAD = 4;
 
 const P = Pix.PALETTE;
-const TINT = { C: 's', D: 'g' };
+const TINT = { C: 'S', D: 's', X: '2' };
 
 function gridSize(g) { return Math.max(g.length, ...g.map(l => l.length)); }
 function compose(body, kit) {
@@ -51,7 +51,14 @@ if (GROUP === 'sprites' || GROUP === 'all') {
         push(`${race}/${cls}.${v}`, compose(view(Pix.RACE_BODY[race], v), view(Pix.CLASS_KIT[cls], v)), tintOf(cls));
 } else {
   for (const n of GROUP.split(',')) {
-    if (Pix.SPRITES[n]) push(n, Pix.SPRITES[n]);
+    if (n.includes('/')) {
+      // race/class — 합성된 주인공을 세 방향으로
+      const [race, cls] = n.split('/');
+      for (const v of ['down', 'side', 'up'])
+        push(`${race}/${cls}.${v}`,
+             compose(view(Pix.RACE_BODY[race], v), view(Pix.CLASS_KIT[cls], v)), tintOf(cls));
+    }
+    else if (Pix.SPRITES[n]) push(n, Pix.SPRITES[n]);
     else if (Pix.RACE_BODY[n]) for (const v of ['down', 'side', 'up']) push(`${n}.${v}`, view(Pix.RACE_BODY[n], v));
     else if (Pix.CLASS_KIT[n]) for (const v of ['down', 'side', 'up']) push(`${n}.${v}`, view(Pix.CLASS_KIT[n], v), tintOf(n));
     else console.error(`? unknown: ${n}`);
@@ -59,7 +66,7 @@ if (GROUP === 'sprites' || GROUP === 'all') {
 }
 function tintOf(cls) {
   const t = Pix.CLASS_TINT[cls];
-  return Array.isArray(t) ? { C: t[0], D: t[1] } : { C: t || 's', D: 'g' };
+  return Array.isArray(t) ? { C: t[0], D: t[1], X: t[2] } : TINT;
 }
 
 const N = Math.max(...entries.map(([, g]) => gridSize(g)));
@@ -90,6 +97,7 @@ entries.forEach(([name, grid, tint], i) => {
       let ch = line[c] || '.';
       if (ch === 'C') ch = tint.C;
       if (ch === 'D') ch = tint.D;
+      if (ch === 'X') ch = tint.X;
       const col = P[ch];
       if (!col) continue;
       for (let dy = 0; dy < Z; dy++) for (let dx = 0; dx < Z; dx++)

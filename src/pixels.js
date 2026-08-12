@@ -54,7 +54,7 @@ export const PALETTE = {
   q: '#151a26',       // deep shadow
 
   /* stone & steel */
-  2: '#0c1017',       // steel outline
+  2: '#242b3d',       // steel outline
   d: '#333d54',       // steel shadow
   g: '#4a5670',       // stone
   G: '#6b7893',       // lit stone
@@ -63,58 +63,58 @@ export const PALETTE = {
   W: '#f6f3e7',       // highlight
 
   /* bone */
-  9: '#1f1c14',       // bone outline
+  9: '#4e4838',       // bone outline
   u: '#8f886f',       // bone shadow
   w: '#d9d5c4',       // bone
 
   /* wood */
-  1: '#130a04',       // wood outline
+  1: '#2a190e',       // wood outline
   n: '#43301c',       // wood shadow
   N: '#7c5a33',       // wood
   M: '#b08a55',       // lit wood
 
   /* blood */
-  4: '#1c060a',       // red outline
+  4: '#3f0f16',       // red outline
   r: '#8a2226',       // dark red
   R: '#e0463c',       // red
   x: '#f79a83',       // pale red
 
   /* ember */
-  m: '#291102',       // ember outline
+  m: '#5e2c08',       // ember outline
   o: '#c9701c',       // ember
   O: '#f8a938',       // bright ember
 
   /* gold */
-  3: '#2c1b05',       // gold outline
+  3: '#6b4410',       // gold outline
   y: '#e8bd45',       // gold
   Y: '#fbe9a4',       // pale gold
 
   /* green */
-  5: '#05160b',       // green outline
+  5: '#0f3520',       // green outline
   e: '#2b7a44',       // dark green
   E: '#5fbc6b',       // green
   F: '#a4dd7c',       // pale green
 
   /* blue */
-  6: '#050f1f',       // blue outline
+  6: '#0f2749',       // blue outline
   b: '#22508f',       // dark blue
   B: '#4f9bdc',       // sky
   I: '#a3dcf3',       // ice
 
   /* violet */
-  7: '#100517',       // violet outline
+  7: '#281038',       // violet outline
   p: '#5b3080',       // violet
   P: '#b276d2',       // orchid
   V: '#e3bcf4',       // pale violet
 
   /* teal */
-  8: '#031715',       // teal outline
+  8: '#0c3a39',       // teal outline
   c: '#2c7d82',       // teal
   t: '#5fcabb',       // pale teal
   T: '#b6f2e4',       // bright teal
 
   /* skin */
-  0: '#2a1407',       // skin outline
+  0: '#5e3116',       // skin outline
   H: '#a5673a',       // skin shadow
   h: '#e9b783',       // skin
   a: '#ffdcb0',       // skin light
@@ -288,39 +288,39 @@ export const SPRITES = {
   /* ── humanoids ──────────────────────────────────────── */
   kobold: [
     '................',
-    '..11......11....',
-    '..1n1....1n1....',
-    '..1nn1..1nn1....',
-    '..11nn1111nn1...',
-    '22.11NNNNNN11...',
-    'S2.1nNMMMMNn1...',
-    'S2.1nwRMMRwn1...',
-    '.S21nNMMMMNn1...',
-    '..S11WWWWWW11...',
-    '..111nnnnnn111..',
-    '.11nNMMMMMMNn11.',
-    '11nNMMMMMMMMNn11',
-    '11nNNMMMMMMNNn11',
-    '.11nnn1111nnn11.',
+    '..11........11..',
+    '..1n1......1n1..',
+    '..1nN1....1Nn1..',
+    '2..1NNM11MNN1...',
+    'S2.1NMMMMMMN1...',
+    'S2.1MwRMMRwM1...',
+    '.S21MMMMMMMM1...',
+    '..S1nWWWWWWn1...',
+    '..1nNM1MM1MNn1..',
+    '.1nNNMMMMMMNNn1.',
+    '.1nNMMM11MMMNn1.',
+    '.1nNNMMMMMMNNn1.',
+    '..1nNM1111MNn1..',
+    '...1n1....1n1...',
     '..1111....1111..',
   ],
   orc: [
     '................',
     '....5555........',
-    '...555555.......',
-    '..55EFFE55..22..',
-    '..55EEEE55..2S..',
-    '.55FwkEkw55.2S..',
-    '.55eEEEEe55SS...',
-    '.55WEeeEW552S...',
-    '.5511NNN11552...',
-    '551MNNMMMN155...',
-    '55NNMNNNMNN55...',
-    '55NNMNNNMNN55...',
-    '.55NNMMMNN55....',
-    '..55eE55Ee55....',
-    '..5511..1155....',
-    '..1111..1111....',
+    '...5EFFE5...22..',
+    '..5EFFEEE5..2S..',
+    '..5EFEeeE5..2S..',
+    '..5FwkEkw5..2S..',
+    '..5eEEEEE5.2SS..',
+    '..5WEeeEW5.2S...',
+    '.51M1NNN1152S...',
+    '51MNNMMMNN1S....',
+    '51NNMNNNMN12....',
+    '51NNMNNNMNn1....',
+    '.51NNMMMNN15....',
+    '..5eE555eE5.....',
+    '..515...515.....',
+    '.1111...1111....',
   ],
   dog: [
     '................',

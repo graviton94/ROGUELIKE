@@ -95,8 +95,12 @@ function reduce(img, W, H, box, cover = 0.34) {
    대두입니다.                                                */
 export function draft(groups, dir, opt = {}) {
   const {
-    headW = 8, headH = 7, bodyW = 12, bodyH = 9, split = 0.29, N = 16,
+    headW = 8, bodyW = 12, bodyH = 9, split = 0.29, N = 16,
   } = opt;
+  /* 머리는 1행부터, 몸은 바닥에서 bodyH 만큼. 둘이 겹치면 나중에 놓는
+     머리가 몸통을 지웁니다 — 거인의 가슴이 통째로 날아갔던 자리입니다.
+     목 한 줄만 겹치도록 머리 높이를 깎습니다.                  */
+  const headH = Math.max(4, Math.min(opt.headH ?? 7, N - bodyH));
 
   /* 장비만 따로 뽑을 때도 **몸과 같은 자**로 재야 층이 겹칩니다.
      frame 을 주면 크기는 거기서 재고 그림은 groups 만 그립니다. */
@@ -181,6 +185,24 @@ export function denoise(grid, keep = new Set(['k', 'W', '.'])) {
     for (const [v, k] of tally) if (k >= 3 && v !== c) out[y][x] = v;
   }
   return out.map(r => r.join(''));
+}
+
+/* ── 목 붙이기 ────────────────────────────────────────────
+   머리와 몸을 다른 배율로 줄이다 보면 그 사이에 빈 줄이 생깁니다.
+   작은 몸(아이 골격)일수록 잘 생기고, 그러면 머리가 공중에 뜹니다.
+   빈 줄을 찾아 그만큼 위쪽 덩어리를 내려 붙입니다.            */
+export function settle(grid) {
+  const N = grid.length;
+  const empty = y => !grid[y] || !/[^.]/.test(grid[y]);
+  let first = 0; while (first < N && empty(first)) first++;
+  let gap = first; while (gap < N && !empty(gap)) gap++;      // 머리 끝
+  let next = gap; while (next < N && empty(next)) next++;     // 몸 시작
+  const d = next - gap;
+  if (d <= 0 || next >= N) return grid;
+  const out = Array.from({ length: N }, () => '.'.repeat(N));
+  for (let y = gap - 1; y >= first; y--) out[y + d] = grid[y];
+  for (let y = next; y < N; y++) out[y] = grid[y];
+  return out;
 }
 
 // ── 프리셋 ────────────────────────────────────────────────

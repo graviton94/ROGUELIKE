@@ -939,7 +939,7 @@ export function drawEffects(ctx, camX, camY, t) {
     ctx.globalAlpha = k > 0.65 ? (1 - k) / 0.35 : 1;
     const pop = k < 0.12 ? 1 + (0.12 - k) * 3 : 1;      // snap outward on birth
     const size = Math.max(11, t * 0.42 * n.size * pop);
-    ctx.font = `900 ${size}px ui-monospace, monospace`;
+    ctx.font = `900 ${size}px Galmuri11, ui-monospace, monospace`;
     ctx.lineWidth = Math.max(2, size * 0.22);
     ctx.strokeStyle = PALETTE.k;
     ctx.strokeText(n.text, X(n.x), Y(n.y));

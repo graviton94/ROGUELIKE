@@ -54,7 +54,7 @@ export const PALETTE = {
   q: '#151a26',       // deep shadow
 
   /* stone & steel */
-  2: '#242b3d',       // steel outline
+  2: '#0c1017',       // steel outline
   d: '#333d54',       // steel shadow
   g: '#4a5670',       // stone
   G: '#6b7893',       // lit stone
@@ -63,58 +63,58 @@ export const PALETTE = {
   W: '#f6f3e7',       // highlight
 
   /* bone */
-  9: '#4e4838',       // bone outline
+  9: '#1f1c14',       // bone outline
   u: '#8f886f',       // bone shadow
   w: '#d9d5c4',       // bone
 
   /* wood */
-  1: '#2a190e',       // wood outline
+  1: '#130a04',       // wood outline
   n: '#43301c',       // wood shadow
   N: '#7c5a33',       // wood
   M: '#b08a55',       // lit wood
 
   /* blood */
-  4: '#3f0f16',       // red outline
+  4: '#1c060a',       // red outline
   r: '#8a2226',       // dark red
   R: '#e0463c',       // red
   x: '#f79a83',       // pale red
 
   /* ember */
-  m: '#5e2c08',       // ember outline
+  m: '#291102',       // ember outline
   o: '#c9701c',       // ember
   O: '#f8a938',       // bright ember
 
   /* gold */
-  3: '#6b4410',       // gold outline
+  3: '#2c1b05',       // gold outline
   y: '#e8bd45',       // gold
   Y: '#fbe9a4',       // pale gold
 
   /* green */
-  5: '#0f3520',       // green outline
+  5: '#05160b',       // green outline
   e: '#2b7a44',       // dark green
   E: '#5fbc6b',       // green
   F: '#a4dd7c',       // pale green
 
   /* blue */
-  6: '#0f2749',       // blue outline
+  6: '#050f1f',       // blue outline
   b: '#22508f',       // dark blue
   B: '#4f9bdc',       // sky
   I: '#a3dcf3',       // ice
 
   /* violet */
-  7: '#281038',       // violet outline
+  7: '#100517',       // violet outline
   p: '#5b3080',       // violet
   P: '#b276d2',       // orchid
   V: '#e3bcf4',       // pale violet
 
   /* teal */
-  8: '#0c3a39',       // teal outline
+  8: '#031715',       // teal outline
   c: '#2c7d82',       // teal
   t: '#5fcabb',       // pale teal
   T: '#b6f2e4',       // bright teal
 
   /* skin */
-  0: '#5e3116',       // skin outline
+  0: '#2a1407',       // skin outline
   H: '#a5673a',       // skin shadow
   h: '#e9b783',       // skin
   a: '#ffdcb0',       // skin light
@@ -154,19 +154,19 @@ export const SPRITES = {
   rat: [
     '................',
     '................',
-    '.........kkk....',
-    '........kNNNk...',
-    '........kNNNk...',
-    '....kkkkkNNNk...',
-    '..kkNNNNNNNNk...',
-    '.kNNNNNNNkkNk...',
-    'kNNNNNNNNkkNNk..',
-    'kNNNNNNNNNNNNk..',
-    'kNNNNNNNNNNNkk..',
-    '.kNNNNNNNNNNk...',
-    '.kkNNkkNNkkNk...',
-    '..kNNk.kNNk.k...',
-    '..kkkk.kkkk.....',
+    '................',
+    '..........11....',
+    '.........1nN1...',
+    '......11111nN1..',
+    '11..11nnnnNNNn1.',
+    '1n11nNNNNNwkNN1.',
+    '.1nNMMMMMMNNNw1.',
+    '.1nNMMMMMMMNN11.',
+    '.11nNMMMMMMN11..',
+    '..11nn11nn111...',
+    '...1nn1.1nn1....',
+    '...111...111....',
+    '................',
     '................',
   ],
   /* 굶은 들쥐 — the same animal after a bad month. Greyer,
@@ -193,16 +193,16 @@ export const SPRITES = {
     '................',
     '................',
     '.22..........22.',
-    '2gG2........2Gg2',
-    '2gGg22....22gGg2',
-    '2gGGGg2222gGGGg2',
-    '.2gGGg2dd2gGGg2.',
-    '..2gg22dd22gg2..',
-    '...222dRRd222...',
-    '......4RxR4.....',
+    '2dd2........2dd2',
+    '2dGd22....22dGd2',
+    '2dGGGd2222dGGGd2',
+    '.2dGGd2dd2dGGd2.',
+    '..2dd22dd22dd2..',
+    '...222wkkw222...',
+    '.....2dRRd2.....',
+    '.....2dwwd2.....',
     '......2dd2......',
     '.......22.......',
-    '................',
     '................',
     '................',
     '................',
@@ -212,39 +212,39 @@ export const SPRITES = {
      lizard. */
   snake: [
     '................',
-    '....555555......',
-    '...5EFFFFE5.....',
-    '...5FkFFkF5.....',
-    '...5EFFFFE5.....',
-    '...5EF44FE5.....',
-    '...55EFFE55.....',
-    '.....5EE5.......',
-    '....55EE55......',
-    '...5EEEEEE5.....',
-    '..5EEEEEEEE5....',
-    '..5EE5555EEE5...',
-    '..5EE5..55EEE5..',
-    '..5EEe5..5EEE5..',
-    '...5eEEeeEEEe5..',
-    '....55555555....',
+    '.....555555.....',
+    '....55EEEE55....',
+    '...55EFFFFE55...',
+    '...5EwkEEkwE5...',
+    '...5EFFFFFFE5...',
+    '...55EF44FE55...',
+    '....55EFFE55....',
+    '.....5EFFE5.....',
+    '....5eEFFEe5....',
+    '...5eEE55EEe5...',
+    '..5eEE5ee5EEe5..',
+    '.5eEE5eEEe5EEe5.',
+    '.5EEE5eEEe5EEE5.',
+    '.5eEEe5ee5eEEe5.',
+    '..55eeeeeeee55..',
   ],
   /* The legs are steel: eight dark legs on a dark outline in
      front of dark masonry is one dark smudge. */
   spider: [
     '................',
-    '.s............s.',
-    '.s............s.',
-    '..s..........s..',
+    's..............s',
+    '.ss..........ss.',
+    '..ss........ss..',
+    '....22222222....',
+    '..22dddddddd22..',
+    '.2ddwkddddkwdd2.',
+    '.2dddddddddddd2.',
+    '.2dgGddddddGgd2.',
+    '..2dddddddddd2..',
+    '...22dddddd22...',
     '..ss.222222.ss..',
-    's..s2dggGd2s..s.',
-    'ss..2dRddRd2..ss',
-    '..ss2dggggd2ss..',
-    '...s2dgGGgd2s...',
-    '..ss.2dgggd2.ss.',
-    '.ss...2ddd2...ss',
-    's......222......',
-    '................',
-    '................',
+    '.ss..........ss.',
+    's..............s',
     '................',
     '................',
   ],
@@ -252,92 +252,92 @@ export const SPRITES = {
     '................',
     '................',
     '................',
-    '....55...55.....',
-    '...5eE5.5eE5....',
-    '..5eEFFe5EFe5...',
-    '.5eEFFFFFFFFe5..',
-    '.5EFFEEFFEFFE5..',
-    '5EFFFFFFFFFFFE5.',
-    '5EFEFFFFEFFFFE5.',
-    '5EFFFFFFFFFFFE5.',
-    '.5eEFFFFFFFFe5..',
-    '..5eeeeeeeee5...',
-    '...555555555....',
-    '................',
+    '.....555555.....',
+    '...55eEEEEe55...',
+    '..5eEFFFFFFEe5..',
+    '.5eEFFFFFFFFEe5.',
+    '.5EFFEEEEEEFFE5.',
+    '5EFFFFFFFFFFFFE5',
+    '5EFEEFFFFFFEEFE5',
+    '5EFFFFFFFFFFFFE5',
+    '.5eEFFFFFFFFEe5.',
+    '..5eeEEEEEEee5..',
+    '...55eeeeee55...',
+    '.....555555.....',
     '................',
   ],
   jelly: [
     '................',
+    '......7777......',
+    '....77PPPP77....',
+    '...7PPVVVVPP7...',
+    '..7PPVVVVVVPP7..',
+    '..7PPPPPPPPPP7..',
+    '.7PPwkPPPPkwPP7.',
+    '.7PPPPPPPPPPPP7.',
+    '.7PPPPPPPPPPPP7.',
+    '.7pPPPPPPPPPPp7.',
+    '.7pPPPPPPPPPPp7.',
+    '..7ppPPPPPPpp7..',
+    '..77pppppppp77..',
+    '...7777777777...',
     '................',
-    '.....kkkkkk.....',
-    '...kkPPPPPPkk...',
-    '..kPPPPPPPPPPk..',
-    '..kPPPPPPPPPPk..',
-    '.kPPkkPPPPkkPPk.',
-    '.kPPkkPPPPkkPPk.',
-    '.kPPPPPPPPPPPPk.',
-    '.kPPPPPPPPPPPPk.',
-    '.kPPPPPPPPPPPPk.',
-    '..kPPPPPPPPPPk..',
-    '..kPPPPPPPPPPk..',
-    '...kkPPPPPPkk...',
-    '.....kkkkkk.....',
     '................',
   ],
 
   /* ── humanoids ──────────────────────────────────────── */
   kobold: [
     '................',
-    '..11........11..',
-    '..1n1......1n1..',
-    '..1nN1....1Nn1..',
-    '2..1NNM11MNN1...',
-    'S2.1NMMMMMMN1...',
-    'S2.1MwRMMRwM1...',
-    '.S21MMMMMMMM1...',
-    '..S1nWWWWWWn1...',
-    '..1nNM1MM1MNn1..',
-    '.1nNNMMMMMMNNn1.',
-    '.1nNMMM11MMMNn1.',
-    '.1nNNMMMMMMNNn1.',
-    '..1nNM1111MNn1..',
-    '...1n1....1n1...',
+    '..11......11....',
+    '..1n1....1n1....',
+    '..1nn1..1nn1....',
+    '..11nn1111nn1...',
+    '22.11NNNNNN11...',
+    'S2.1nNMMMMNn1...',
+    'S2.1nwRMMRwn1...',
+    '.S21nNMMMMNn1...',
+    '..S11WWWWWW11...',
+    '..111nnnnnn111..',
+    '.11nNMMMMMMNn11.',
+    '11nNMMMMMMMMNn11',
+    '11nNNMMMMMMNNn11',
+    '.11nnn1111nnn11.',
     '..1111....1111..',
   ],
   orc: [
     '................',
     '....5555........',
-    '...5EFFE5...22..',
-    '..5EFFEEE5..2S..',
-    '..5EFEeeE5..2S..',
-    '..5FwkEkw5..2S..',
-    '..5eEEEEE5.2SS..',
-    '..5WEeeEW5.2S...',
-    '.51M1NNN1152S...',
-    '51MNNMMMNN1S....',
-    '51NNMNNNMN12....',
-    '51NNMNNNMNn1....',
-    '.51NNMMMNN15....',
-    '..5eE555eE5.....',
-    '..515...515.....',
-    '.1111...1111....',
+    '...555555.......',
+    '..55EFFE55..22..',
+    '..55EEEE55..2S..',
+    '.55FwkEkw55.2S..',
+    '.55eEEEEe55SS...',
+    '.55WEeeEW552S...',
+    '.5511NNN11552...',
+    '551MNNMMMN155...',
+    '55NNMNNNMNN55...',
+    '55NNMNNNMNN55...',
+    '.55NNMMMNN55....',
+    '..55eE55Ee55....',
+    '..5511..1155....',
+    '..1111..1111....',
   ],
   dog: [
     '................',
+    '......11...11...',
+    '.....1nn1.1nn1..',
+    '.....1nNn11nNn1.',
+    '.....1nNNNNNNn1.',
+    '...111nNNNNNNn1.',
+    '.11nnnNNNNwkNN1.',
+    '1nNNMMMMMMNNNw1.',
+    '1nNMMMMMMMMNN11.',
+    '1nNMMMMMMMMN11..',
+    '.1nNMMMMMMMN1...',
+    '.11nn111nn1n1...',
+    '..1nn1..1nn11...',
+    '..111....111....',
     '................',
-    '.........11.11..',
-    '........1nN1nN1.',
-    '........1NM1NM1.',
-    '.......11NMMMN1.',
-    '11...111nNMMMMN1',
-    '1n1.1nNNMMMMkWM1',
-    '.1n11nNMMMMMMMw1',
-    '.1nNNMMMMMMMMM11',
-    '..1NMMMMMMMMMM1.',
-    '..1NMMMMMMMMMN1.',
-    '..1NMMMMMMMMN1..',
-    '..1N1MN1MN1N1...',
-    '..111.11.11.1...',
     '................',
   ],
   ogre: [

@@ -207,6 +207,12 @@ export function createHero(raceKey, classKey, base) {
   if (classKey === 'ranger') {
     p.equip.weapon = { kind:'weapon', ...WEAPONS.find(w => w.n === '짧은 활') };
     addItem(p, makeAmmo('arrow'), 24);
+    /* And the knife stays on the belt. Handing the ranger a bow
+       *instead of* a weapon left it as the only class in the game
+       with nothing to swing when something closed — a bow up
+       close is half a blow, and an empty quiver is a stick. It
+       measured 5.3 floors that way and 6.1 with the knife. */
+    addItem(p, { kind:'weapon', ...WEAPONS[0] }, 1);
   }
   return p;
 }

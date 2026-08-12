@@ -1716,6 +1716,9 @@ export const SUFFIXES = [
   { id:'execution', n:'처형',   tags:['weapon'], execute:0.22 },
   { id:'storm',   n:'폭풍',     tags:['weapon'], chain:0.30, dmg:2 },
   { id:'ruin',    n:'파멸',     tags:['weapon'], critMult:0.7 },
+  /* 밝기를 팔아 힘을 사는 접미. 「선택에 의한 리스크」가 장비에서
+     나오는 자리 — 더 세게 때리는 대신 두 칸 덜 본다. */
+  { id:'soot',    n:'그을음',   tags:['weapon'], dmgPct:0.24, lightR:-2 },
 
   { id:'ward',    n:'수호',     tags:['armour'], ac:4 },
   { id:'shadow',  n:'그림자',   tags:['armour'], stealth:0.16 },
@@ -2067,6 +2070,15 @@ export const RELICS = [
      to be deep enough that two runs never hold the same five. */
   { id:'lamp',    n:'꺼지지 않는 등', spr:'torch', k:'lamp',    v:2,
     t:'기름이 줄지 않는다. 대신 불빛이 2칸 좁다.' },
+  /* ── 불에 관한 것들 ──────────────────────────────────────
+     빛은 이 게임에서 유일하게 **공간을 바꾸는** 자원이다. 그래서
+     빛을 건드리는 유물은 수치가 아니라 판을 바꾸고, 판을 바꾸는
+     것 중 가장 센 것은 전설(myth)로 잠근다 — 8층 아래에서만 나오고
+     뽑히는 무게도 넷 중 하나다. */
+  { id:'nighteye', n:'밤에 익은 눈', spr:'ring', k:'nighteye', v:300,
+    t:'불이 꺼져도 손이 무뎌지지 않는다. 대신 기름을 300만큼 덜 담는다.' },
+  { id:'everflame', n:'꺼지지 않는 불꽃', spr:'torch', k:'everflame', v:5, myth:1,
+    t:'전설. 불빛이 5칸 아래로 내려가지 않는다 — 기름이 바닥나도. 대신 최대 체력 −20%.' },
   { id:'moth',    n:'나방의 표식',   spr:'ring',   k:'moth',    v:0.10,
     t:'층에 들어설 때 모닥불·제단·상인·사건 위치가 보인다. 최대 체력 −10%.' },
   { id:'knot',    n:'매듭 밧줄',     spr:'ring',   k:'knot',    v:0.5,

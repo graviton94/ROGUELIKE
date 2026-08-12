@@ -183,7 +183,7 @@ export function createHero(raceKey, classKey, base) {
     lv: 1, xp: 0,
     hp: 0, maxhp: 0, mana: 0, maxmana: 0,
     gold: 250,
-    lightTurns: 1100,
+    lightTurns: 700,
     blessed: 0,
     ail: {},          // ailment -> turns remaining
     stuck: 0,         // turns still caught in a web
@@ -432,6 +432,7 @@ export function gearBonus(p) {
       case 'vow':      b.dmgPct += 0.30; break;
       case 'scale':    if (p.hp <= p.maxhp * 0.3) b.dmgPct += 0.60; break;
       case 'lamp':     b.lightR -= 2; break;
+      case 'everflame': b.maxhpPct -= 0.20; break;
       case 'moth':     b.maxhpPct -= 0.10; break;
       case 'knot':     b.stealth -= 0.5; break;
       case 'seed':     b.maxhpPct -= 0.15; b.ac += p.seedAc || 0; break;
@@ -1098,7 +1099,7 @@ export function useItem(slotIdx) {
       say('발밑이 열리고, 한 층을 미끄러져 내려간다.', 'warn');
       enterDepth(G.depth + 1, false, BRANCHES[0]);
       break;
-    case 'torch': p.lightTurns = Math.min(2600, p.lightTurns + 900); say('새 횃불에 불을 붙였다.', 'good'); break;
+    case 'torch': p.lightTurns = Math.min(oilCap(), p.lightTurns + 520); say('새 횃불에 불을 붙였다.', 'good'); break;
 
     /* 연막탄. The one verb this game did not have: breaking
        pursuit. Everything walks at your speed here, so once a
@@ -2401,10 +2402,23 @@ export function pickAffix(table, tag, allowCurse) {
    the player nothing until it was too late; a radius that closes
    in over the last few hundred turns is a warning you can act on
    — and on a 빛이 없는 층 it is the whole fight. */
+/* 기름은 무한정 쌓이지 않는다. 상한이 없으면 보급이 소모를 앞지르고,
+   그러면 시계가 멈춘다. 사그라진 잉걸은 그 통을 더 작게 만든다. */
+export const OIL_CAP = 1100;
+export const oilCap = () => OIL_CAP - (hasRelic('nighteye') ? 300 : 0);
+
+/* 한 턴에 태우는 기름. 6층까지는 1, 그 아래로 한 단씩. */
+export const OIL_BURN = depth => depth >= 11 ? 3 : depth >= 6 ? 2 : 1;
+
+/* 세 계단이 아니라 여섯 계단. 예전 표는 기름이 300 남을 때까지
+   계속 7칸이었고, 그 300은 한 층을 통째로 덮는 양이라 플레이어는
+   마지막 순간까지 아무것도 느끼지 못했다. 판의 90%를 가장 밝은
+   반경에서 보낸 이유가 그것이다 (sim/oil.mjs). 좁혀 오는 것이
+   보여야 경로를 바꿀 마음이 생긴다. */
 export const lightRadiusOf = p => {
   if (G.depth === 0) return 12;
   const t = p.lightTurns;
-  return t <= 0 ? 2 : t < 80 ? 3 : t < 300 ? 5 : 7;
+  return t <= 0 ? 2 : t < 60 ? 3 : t < 180 ? 4 : t < 360 ? 5 : t < 640 ? 6 : 7;
 };
 
 export function refreshFov() {
@@ -2412,6 +2426,9 @@ export function refreshFov() {
   let radius = lightRadiusOf(p);
   radius += gearBonus(p).lightR;
   if (p.race === 'elf') radius += 1;          // "눈이 밝다"
+  /* 전설. 기름이 바닥나도 다섯 칸은 남는다 — 이 판에서 가장 센
+     효과이고, 그래서 전설급으로 잠가 둔다. */
+  if (hasRelic('everflame')) radius = Math.max(radius, 5);
   if (has(p, 'blind')) radius = 1;
   computeFov(G.level, p.x, p.y, radius);
   G.lightRadius = radius;
@@ -2875,7 +2892,7 @@ function bumpProp(x, y) {
      hit at all. */
   if (o.kind === 'brazier' && !o.lit) {
     o.lit = true;
-    p.lightTurns += 260;
+    p.lightTurns = Math.min(oilCap(), p.lightTurns + 240);
     say('화로에 불을 옮겼다. 기름이 조금 아껴진다.', 'good');
     fx({ t:'forge', x, y });
     // Fire is bright, and bright carries. Four tiles, not the
@@ -3201,7 +3218,12 @@ function swing(m, scale, opt = {}) {
   const armour = m.ac * 1.15 * (1 - gp.pierce);   // 꿰뚫는: armour counts for less
   // 대검류 is wilder; everything else swings true.
   const aim = kind === 'great' ? 0.88 : 1;
-  const chance = asleep ? 1 : clamp(0.44 + (toHit(p) * aim - armour) / 55, 0.18, 0.95);
+  /* 불이 꺼지면 반경만 줄어드는 것이 아니라 손도 무뎌진다. 두 칸
+     앞이 벽인지도 모르는 자리에서 정확히 때릴 수는 없다. 잠든 것은
+     예외 — 어둠 속에서 자는 것을 찾아낸 것은 오히려 공이다. */
+  const blind = G.depth > 0 && p.lightTurns <= 0 && !hasRelic('nighteye');
+  const chance = asleep ? 1
+    : clamp((0.44 + (toHit(p) * aim - armour) / 55) * (blind ? 0.78 : 1), 0.14, 0.95);
   if (Math.random() > chance) {
     say(pickLine(MISS_AT, m.n, nextLine()));
     fx({ t:'miss', x:m.x, y:m.y });
@@ -3650,8 +3672,16 @@ export function unownedRelic() {
   const held = new Set(G.player?.relics || []);
   // Fused relics are never on a floor and never in a shop. The
   // fire is the only door.
-  const pool = RELICS.filter(r => !held.has(r.id) && !r.fused);
-  return pool.length ? pool[rnd(pool.length)].id : null;
+  /* 전설(myth)은 8층 아래에서만 나오고, 나와도 넷 중 하나꼴이다.
+     판을 바꾸는 물건이 첫 층에서 굴러다니면 그 판은 이미 끝난 것이다. */
+  const pool = RELICS.filter(r => !held.has(r.id) && !r.fused
+    && (!r.myth || G.depth >= 8));
+  if (!pool.length) return null;
+  for (let guard = 0; guard < 12; guard++) {
+    const r = pool[rnd(pool.length)];
+    if (!r.myth || Math.random() < 0.25) return r.id;
+  }
+  return pool.find(r => !r.myth)?.id || pool[0].id;
 }
 
 /* An elite always leaves something with a name on it — and one
@@ -3763,6 +3793,13 @@ export function endTurn(skipMonsters = false) {
     const watched = G.monsters.some(m => G.level.vis[idx(m.x, m.y)]);
     if (watched) G.did.walkSeen = (G.did.walkSeen || 0) + 1;
   }
+  /* 빛도 같은 자리에서 센다. 「횃불이 있다」와 「횃불이 문다」는 다르고,
+     후자는 어느 반경에서 얼마나 오래 있었는지로만 알 수 있다.
+     sim/oil.mjs가 이 줄을 읽는다. */
+  if (G.depth > 0) {
+    const band = lightRadiusOf(p);
+    (G.lit || (G.lit = {}))[band] = (G.lit[band] || 0) + 1;
+  }
   G.act = null;
   /* How long you have not moved. Cheap to keep and the only
      thing 소리 없는 강철 needs — armour that hides you while you
@@ -3802,12 +3839,19 @@ export function endTurn(skipMonsters = false) {
        the torch chip, which counts whole turns. 굶주린 불 spends
        its extra thirty percent as three whole turns in every ten
        rather than as 0.3 of a turn each time. */
+    /* 깊을수록 어둠이 짙다. 한 턴에 1을 태우던 시절, 판의 90%를
+       가장 밝은 반경에서 보냈고 불이 꺼지는 판은 48판 중 1판이었다
+       (sim/oil.mjs). 보급이 소모를 앞질렀다는 뜻이고, 그러면 그것은
+       시계가 아니라 장식이다. 깊이로 태우면 초반은 그대로 관대하고
+       후반에만 조여든다 — 위협이 커지는 곳에서 시야가 좁아진다. */
     if (!hasRelic('lamp'))
-      p.lightTurns -= (G.branch?.drain || 1)
+      p.lightTurns -= (G.branch?.drain || 1) * OIL_BURN(G.depth)
         * (hasRelic('famine') ? 3 : hasRelic('hunger') ? 2 : 1)
         + (hasShackle('hunger') && G.turn % 10 < 3 ? 1 : 0);
-    if (p.lightTurns === 300) say('기름이 절반쯤 남았다.', 'warn');
-    if (p.lightTurns === 80)  say('불빛이 손바닥만큼 줄었다.', 'warn');
+    if (p.lightTurns === 640) say('불빛이 한 뼘 줄었다.', 'warn');
+    if (p.lightTurns === 360) say('기름이 절반쯤 남았다.', 'warn');
+    if (p.lightTurns === 180) say('빛이 팔 길이만큼만 간다.', 'warn');
+    if (p.lightTurns === 60)  say('불빛이 손바닥만큼 줄었다.', 'warn');
     if (p.lightTurns === 0)   say('불이 꺼졌다. 두 칸 앞이 벽인지 아닌지도 모른다.', 'hit');
     if (p.lightTurns < 0) p.lightTurns = 0;
     G.floorTurn++;
@@ -4532,11 +4576,18 @@ export function campCash() {
   spendCamp();
 }
 
+export const CAMP_OIL = 200;
+
 export function campRest() {
   const p = G.player;
   // Sitting down ends the run of unrested floors, pile or not.
   if (G.bank >= 2) say(`판돈 ${G.bank}층치가 불에 탔다.`, 'warn');
   G.bank = 0;
+  /* 앉은 김에 심지도 갈아 끼운다. 모닥불이 층마다 하나씩 오는
+     안전한 보급처이고, 화로와 기름병이 그보다 위험하거나 비싼
+     보급처다 — 셋의 값이 다르기 때문에 경로가 선택이 된다. */
+  const oil = Math.min(oilCap() - p.lightTurns, CAMP_OIL);
+  if (oil > 0) { p.lightTurns += oil; say(`심지를 갈았다. 기름 +${oil}.`, 'good'); }
   const heal = Math.min(p.maxhp - p.hp,
     Math.ceil(p.maxhp * CAMP_HEAL * (hasShackle('dryspring') ? 0.5 : 1)));
   p.hp += heal;
@@ -5003,6 +5054,11 @@ function eventApi() {
     /* the floor */
     rouse: r => rouse(p.x, p.y, r, 1),
     burnOil: n => { p.lightTurns = Math.max(0, p.lightTurns - n); },
+    /* 기름을 붓는 쪽. burnOil만 있고 이쪽이 없어서, 사건은 기름을
+       태울 수만 있고 채울 수는 없었다 — 불에 관한 사건을 쓰려면
+       양쪽이 다 있어야 한다. 상한은 통 크기가 정한다. */
+    oil: n => { const got = Math.min(oilCap() - p.lightTurns, n);
+      if (got > 0) p.lightTurns += got; return Math.max(0, got); },
     spawn: (spr, n) => spawnNear(spr, n, false),
     spawnElite: n => spawnNear(null, n, true),
     /* The room closes on you. Placed on the rings immediately
@@ -5705,7 +5761,7 @@ export function startGame(raceKey, classKey, base) {
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0; G.kills = 0; G.eventsSeen = 0;
   G.regionAt = null;
   G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0; G.fused = 0; G.catUsed = 0;
-  G.did = {}; G.act = null;
+  G.did = {}; G.act = null; G.lit = {};
   G.engraved = 0; G.memories = []; G.relicShelf = null;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;

@@ -72,10 +72,19 @@ function burstShards(x, y, palette, n, power) {
 function number(x, y, text, color, size, drift) {
   /* Several readouts can land on one tile in a single turn — a
      miss, then a hit, then a kill. Stack them instead of letting
-     them print on top of each other. */
+     them print on top of each other.
+
+     The test used to be a one-tile box, which is narrower than the
+     text: 「빗나감」 is three glyphs wide and spills well past its
+     own tile. Four monsters around you printed eight readouts into
+     three tiles and none of them could be read. The box is now as
+     wide as the words actually are, and the window is long enough
+     to cover a whole turn's worth. */
   let lift = 0;
+  const wide = 0.9 + text.length * 0.34;
   for (const n of numbers)
-    if (Math.abs(n.x - x - 0.5) < 1 && Math.abs(n.y - y) < 1.6 && n.age < 300) lift += 0.62;
+    if (Math.abs(n.x - x - 0.5) < wide && Math.abs(n.y - y) < 1.4 && n.age < 460) lift += 0.7;
+  if (lift > 4.2) lift = 4.2;              // 화면 밖으로 밀어내지는 않는다
 
   numbers.push({
     x: x + 0.5 + (Math.random() - 0.5) * 0.35, y: y + 0.35 - lift,
@@ -144,7 +153,9 @@ export function pump(queue, player) {
       }
 
       case 'miss':
-        number(e.x, e.y, '빗나감', PALETTE.s, 0.8);
+        /* 한 글자면 충분하다. 빗맞은 것은 알아야 하되, 옆 칸의
+           피해 숫자를 덮을 만큼 중요하지는 않다. */
+        number(e.x, e.y, '빗', PALETTE.s, 0.72);
         sfx.miss();
         break;
 

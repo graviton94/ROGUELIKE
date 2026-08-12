@@ -53,11 +53,14 @@ if (GROUP === 'sprites' || GROUP === 'all') {
 } else {
   for (const n of GROUP.split(',')) {
     if (n.includes('/')) {
-      // race/class — 합성된 주인공을 세 방향으로
-      const [race, cls] = n.split('/');
-      for (const v of ['down', 'side', 'up'])
-        push(`${race}/${cls}.${v}`,
-             compose(view(Pix.RACE_BODY[race], v), view(Pix.CLASS_KIT[cls], v)), tintOf(cls));
+      // race/class[+weapon] — 합성된 주인공을 세 방향으로
+      const [race, rest] = n.split('/');
+      const [cls, wep] = rest.split('+');
+      for (const v of ['down', 'side', 'up']) {
+        let g = compose(view(Pix.RACE_BODY[race], v), view(Pix.CLASS_KIT[cls], v));
+        if (wep && Pix.HELD[wep]) g = compose(g, view(Pix.HELD[wep], v));
+        push(`${race}/${cls}${wep ? '+' + wep : ''}.${v}`, g, tintOf(cls));
+      }
     }
     else if (Pix.SPRITES[n]) {
       const g = Pix.SPRITES[n];

@@ -432,6 +432,11 @@ export function draw() {
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, viewW, viewH);
   blitActor(heroSprite(p), hx - t / 2, hy - t / 2, t, po);
+  /* 장착한 무기는 별도 층입니다. 직업 그림에 구워 넣으면 무기를
+     바꿔도 손에 든 것이 안 바뀌기 때문에, 주인공을 찍은 뒤 그 위에
+     겹칩니다. 없는 종류면 아무것도 안 그립니다. */
+  const held = p.equip?.weapon?.t && sprite(`held:${p.equip.weapon.t}:${heroFace}`);
+  if (held) ctx.drawImage(held, hx - t / 2, hy - t / 2, t, t);
 
   /* The countdown goes on last. It used to be drawn with the
      tint, which put it underneath the hero sprite — and a disc

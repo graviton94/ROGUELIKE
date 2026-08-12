@@ -278,8 +278,16 @@ export const RACES = {
 export const TRAITS = {
   warrior: { n:'세 번째 손', max:3,
     t:'같은 적을 연달아 맞히면 세 번째 타격은 무조건 치명타다. 빗나가면 처음부터.' },
-  mage:    { n:'이중 시전', max:4,
-    t:'주문을 넷 쓸 때마다 다음 하나는 마나를 쓰지 않고 두 번 나간다.' },
+  /* 이중 시전 was a discount: every fourth spell free and doubled.
+     A discount is not an axis — it made the mage cast the same
+     spell it was already casting, slightly more often. The class
+     had a list and no grammar.
+     잔향 is the grammar. Nothing here costs or saves mana; what
+     changes is that the spell you cast *before* this one decides
+     what this one does, so a mage plays sentences rather than
+     words. */
+  mage:    { n:'잔향', max:1,
+    t:'주문마다 다른 잔향이 남는다. 다음 주문 하나가 그 잔향에 따라 변한다 — 마나가 아니라 순서가 위력이다.' },
   priest:  { n:'응답', max:0,
     t:'체력이 절반 아래일 때 모든 회복이 60% 더 든다. 여섯 턴마다 저절로 아문다.' },
   /* It used to be a light that was on or off — p.shadow was 0 or
@@ -334,6 +342,26 @@ export const SPELLS = {
     { id:'heal',   name:'중상 치유',   short:'회복', lv:13, cost:8,  desc:'깊은 상처까지 되돌린다.' },
   ],
 };
+
+/* ── 잔향 ─────────────────────────────────────────────────
+   What each spell leaves behind for the next one. Five spells,
+   five afterimages, and every spell reads every afterimage — so
+   the mage's kit is twenty-five sentences rather than five words,
+   without a single extra button on the row.
+
+   Deliberately none of these is "cheaper". A caster that plays
+   for discounts plays the same spell more often; a caster that
+   plays for order plays a different spell on purpose. */
+export const ECHOES = {
+  bolt:   { id:'spark', n:'불씨', t:'다음 주문의 위력이 크게 오른다' },
+  blink:  { id:'haste', n:'자취', t:'다음 주문은 턴을 쓰지 않는다' },
+  detect: { id:'eye',   n:'눈',   t:'다음 주문이 보이는 나머지 전부에게도 절반으로 간다' },
+  frost:  { id:'rime',  n:'서리', t:'다음 주문에 맞은 것은 한 턴을 잃는다' },
+  map:    { id:'reach', n:'지형', t:'다음 주문이 층 전체를 방으로 삼는다' },
+};
+export const ECHO_TURNS = 4;     // how long an afterimage lingers
+export const ECHO_POWER = 0.6;   // 불씨
+export const ECHO_SPLASH = 0.5;  // 눈
 
 /* ── status effects ───────────────────────────────────────
    Everything a monster can leave on you. `dur` is turns; the

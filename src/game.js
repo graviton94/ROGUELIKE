@@ -25,6 +25,7 @@ import {
   ECHO_ROOM_HOPS, ECHO_ROOM_TOLL, ECHO_ROOM_KEEP,
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   ARTS, SHOVE_DIST, SHOVE_WALL, CLEAVE_SHARE,
+  ECHOES, ECHO_TURNS, ECHO_POWER, ECHO_SPLASH,
   SHADOW_MAX, SHADOW_TICK, FAN_RANGE, FAN_ARC, FAN_SHARE, VANISH_HUSH, VITALS_MULT,
   AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE,
   AMMO, ammoById, BOW_MELEE, BOW_FALLOFF, AMMO_BUNDLE,
@@ -622,7 +623,11 @@ export function traitState() {
   if (!spec) return null;
   switch (p.cls) {
     case 'warrior': return { ...spec, at: p.chain3 || 0, ready: (p.chain3 || 0) >= 2 };
-    case 'mage':    return { ...spec, at: p.casts % 4, ready: (p.casts % 4) === 3 };
+    case 'mage': {
+      const e = liveEcho(p);
+      return { ...spec, at: e ? 1 : 0, max: 1, ready: !!e,
+               note: e ? `${e.n} — ${e.t}` : '' };
+    }
     case 'ranger':  return { ...spec, at: p.markN || 0, ready: (p.markN || 0) >= 5,
                              note: p.markN ? `+${Math.round((p.markN) * 9)}%` : '' };
     case 'paladin': return { ...spec, at: p.oath || 0, ready: (p.oath || 0) >= 8,
@@ -633,6 +638,31 @@ export function traitState() {
     case 'priest':  return { ...spec, at: 0, max: 0, ready: p.hp < p.maxhp * 0.5 };
   }
   return spec;
+}
+
+/* ── 잔향 ─────────────────────────────────────────────────
+   The mage's axis, and the same shape as every other resource
+   here: one place it is written, one place it is read, one place
+   it is spent. It lives on the player rather than on G because it
+   is the caster's, not the floor's — it survives a staircase the
+   way a held shade does. */
+export function liveEcho(p = G.player) {
+  if (!p || p.cls !== 'mage' || !p.echo) return null;
+  if (G.turn > p.echo.until) return null;
+  const spec = ECHOES[p.echo.from];
+  return spec ? { ...spec, from: p.echo.from } : null;
+}
+
+function leaveEcho(p, spellId) {
+  if (p.cls !== 'mage' || !ECHOES[spellId]) return;
+  p.echo = { from: spellId, until: G.turn + ECHO_TURNS };
+  fx({ t:'echoLeft', x:p.x, y:p.y, id: ECHOES[spellId].id });
+}
+
+function takeEcho(p) {
+  const e = liveEcho(p);
+  if (e) { p.echo = null; say(`잔향 — ${e.n}. ${e.t}.`, 'level'); }
+  return e;
 }
 
 /* ── 그림자 ───────────────────────────────────────────────
@@ -1344,7 +1374,7 @@ function baseSwing(p) {
        + Math.floor(p.lv / 3) + gearBonus(p).dmg;
 }
 
-export function cast(spellId, echo = false) {
+export function cast(spellId) {
   const p = G.player;
   // One entry point for the row, the keys and the tooltip: an art
   // and a spell are the same gesture to the player.
@@ -1354,19 +1384,18 @@ export function cast(spellId, echo = false) {
   // 침묵의 서약 trades the whole spellbook for a third more
   // damage in the hand — the sharpest build commitment here.
   if (hasRelic('vow')) { say('서약이 혀를 막는다. 주문은 나오지 않는다.', 'warn'); return; }
-  /* 이중 시전. Every fourth spell a mage casts is free and comes
-     out twice. Checked before the mana test on purpose — the free
-     one has to be castable at zero mana, which is most of the
-     point of a class that runs dry by floor three. */
-  const twice = p.cls === 'mage' && (p.casts || 0) % 4 === 3;
-  // `echo` is the second barrel calling back in. It is part of
-  // the same free cast, so it must not be charged for — without
-  // this the counter has already advanced and the recursion pays
-  // full price, which made the whole trait cost *more* mana.
-  const cost = (twice || echo) ? 0 : spellCost(p, sp);
+  const cost = spellCost(p, sp);
   if (p.mana < cost) { say('마나가 모자란다.', 'warn'); return; }
 
-  const visible = G.monsters.filter(m => G.level.vis[idx(m.x, m.y)]);
+  /* 잔향 is read before anything is spent, because 지형 changes
+     what counts as a target and 자취 changes whether this cast
+     ends the turn — both of which the guards below depend on. */
+  const echo = p.cls === 'mage' ? liveEcho(p) : null;
+  const reach = echo?.id === 'reach';
+
+  /* 지형 makes the floor the room: a spell may reach what you know
+     is down there rather than only what you can see from here. */
+  const visible = G.monsters.filter(m => reach || G.level.vis[idx(m.x, m.y)]);
   const nearest = visible.sort((a, b) =>
     Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
 
@@ -1379,14 +1408,36 @@ export function cast(spellId, echo = false) {
   p.mana -= cost;
   // 술사의 지팡이: the rod gives one back. Small, constant, and
   // the reason a mage keeps a wand in hand rather than a sword.
-  if (!echo && fitRule(p, 'siphon')) p.mana = Math.min(p.maxmana, p.mana + 1);
-  if (!echo) p.casts = (p.casts || 0) + 1;
-  if (twice) say(`${sp.name}이(가) 두 번 나간다. 마나는 들지 않았다.`, 'level');
+  if (fitRule(p, 'siphon')) p.mana = Math.min(p.maxmana, p.mana + 1);
+  p.casts = (p.casts || 0) + 1;
+  if (echo) takeEcho(p);          // consumed here, whatever it does below
   /* 룬을 새긴 자의 것: the plate still chokes the pool. What does
      get out comes out twice as hard, which is the trade for
      wearing the thing that was strangling you. */
-  const pow = spellPower(p, sp.id) * (oddAwake('runeplate') ? 2 : 1);
+  const pow = spellPower(p, sp.id) * (oddAwake('runeplate') ? 2 : 1)
+            * (echo?.id === 'spark' ? 1 + ECHO_POWER : 1);
   const aff = SPELL_AFFIXES.find(a => a.id === p.spellAffix?.[sp.id]);
+
+  /* 서리's afterimage: whatever this spell touches loses its next
+     move. Negative energy is the same lever 밀쳐내기 uses to spend
+     a monster's turn for it, so a new trait cannot invent a second
+     kind of "stunned". */
+  const rime = m => { if (echo?.id === 'rime' && G.monsters.includes(m)) m.energy = -1; };
+  /* 눈's afterimage: everything else in the room takes half. The
+     splash rolls off the damage the spell actually dealt, so every
+     multiplier already applied to the main target carries. */
+  const splash = (from, dmg, label) => {
+    if (echo?.id !== 'eye') return;
+    let n = 0;
+    for (const o of [...visible]) {
+      if (o === from || !G.monsters.includes(o) || o.disguise) continue;
+      const d = Math.max(1, Math.round(dmg * ECHO_SPLASH));
+      fx({ t:'beam', fx:p.x, fy:p.y, tx:o.x, ty:o.y, color:'W' });
+      hurtMonster(o, d, label, { weapon: 'spell' });
+      rime(o); n++;
+    }
+    if (n) say(`눈이 열려 있다 — ${n}에게도 닿았다.`, 'level');
+  };
 
   switch (sp.id) {
     case 'bolt':
@@ -1400,6 +1451,8 @@ export function cast(spellId, echo = false) {
       fx({ t:'beam', fx:p.x, fy:p.y, tx:nearest.x, ty:nearest.y, color: holy ? 'y' : 'P' });
       hurtMonster(nearest, dmg, holy ? '응징의 빛' : '마력 화살', { weapon: 'spell' });
       spellDrain(aff, dmg);
+      rime(nearest);
+      splash(nearest, dmg, holy ? '응징의 빛' : '마력 화살');
       // 메아리치는: half of it carries to a second target.
       // 울림의 은총 does the same thing without needing the affix,
       // so a caster who finds one has it on every spell at once.
@@ -1458,24 +1511,37 @@ export function cast(spellId, echo = false) {
       break;
     }
     case 'frost': {
+      /* 지형's afterimage turns the burst into the floor. Frost is
+         the only spell in the book whose reach is a radius, so it
+         is the one that feels the difference. */
       let n = 0;
-      fx({ t:'burst', x:p.x, y:p.y, r:5, color:'B' });
+      const r = reach ? 999 : 5;
+      fx({ t:'burst', x:p.x, y:p.y, r: reach ? 10 : 5, color:'B' });
       for (const m of [...visible])
-        if (Math.hypot(m.x - p.x, m.y - p.y) <= 5) {
+        if (Math.hypot(m.x - p.x, m.y - p.y) <= r) {
           const d = Math.max(1, Math.round((roll(3, 8) + p.lv) * pow));
-          hurtMonster(m, d, '서리', { weapon: 'spell' }); spellDrain(aff, d); n++;
+          hurtMonster(m, d, '서리', { weapon: 'spell' }); spellDrain(aff, d);
+          rime(m); n++;
         }
-      say(n ? '주변 공기가 얼어붙는다.' : '얼릴 것이 없다.', n ? 'good' : ''); break;
+      say(n ? (reach ? '층 전체의 공기가 얼어붙는다.' : '주변 공기가 얼어붙는다.')
+            : '얼릴 것이 없다.', n ? 'good' : ''); break;
     }
     case 'map': revealMap(); say('층의 구조가 머릿속에 그려진다.', 'good'); break;
   }
-  /* The second barrel. `p.echoingSpell` stops it recursing: the
-     free cast fires twice, never four times. */
-  if (twice && !echo && G.running) {
+  /* 자취: this cast was free of the clock, so it also leaves
+     nothing behind. Without that the mage blinks, casts free,
+     leaves 자취 again, and never spends a turn at all — an
+     infinite free action dressed as a trait. The rule is one
+     sentence: a cast that did not cost a turn does not write the
+     next word. */
+  const free = echo?.id === 'haste';
+  if (!free) {
+    leaveEcho(p, sp.id);
+    endTurn();
+  } else {
     fx({ t:'twin', x:p.x, y:p.y });
-    cast(spellId, true);
+    say('자취를 따라, 시간을 쓰지 않고.', 'good');
   }
-  if (!echo) endTurn();
 }
 
 /* Spell enhancement is the same two dials as gear: a flat safe

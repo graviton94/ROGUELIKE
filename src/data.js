@@ -303,10 +303,17 @@ export const TRAITS = {
     t:'맞을 때마다 방어 +1이 쌓인다(층마다 초기화, 최대 +8). 처치하면 하나 풀린다. 기예 넷이 이 벽을 태운다 — 방어가 곧 탄약이다.' },
 };
 
+/* No `mod` here. Each entry used to carry one — 팔라딘 str+2,
+   전사 str+3 — and createHero stopped reading it when the roll
+   bands took over ("the bands already encode what a class is").
+   Nothing has read it since, and it lied convincingly: the entry
+   said 팔라딘 힘 +2 while CLASS_BAND rolled it 힘 11.8 against the
+   warrior's 14.8. What a class rolls lives in CLASS_BAND, and now
+   that is the only place it lives. */
 export const CLASSES = {
-  warrior: { name:'전사',     mod:{ str:+3, con:+2, int:-2, wis:-2 }, hd:9, bth:5.0, realm:null,     note:'주문 없이, 오직 무기로.' },
-  mage:    { name:'마법사',   mod:{ int:+3, str:-2, con:-2 },         hd:0, bth:2.0, realm:'arcane', note:'지능이 곧 힘. 맞으면 죽는다.' },
-  priest:  { name:'사제',     mod:{ wis:+3, str:-1, dex:-1 },         hd:2, bth:3.0, realm:'divine', note:'스스로를 고치며 나아간다.' },
+  warrior: { name:'전사',     hd:9, bth:5.0, realm:null,     note:'주문 없이, 오직 무기로.' },
+  mage:    { name:'마법사',   hd:0, bth:2.0, realm:'arcane', note:'지능이 곧 힘. 맞으면 죽는다.' },
+  priest:  { name:'사제',     hd:2, bth:3.0, realm:'divine', note:'스스로를 고치며 나아간다.' },
   /* No realm, for the same reason the ranger lost one: casting
      the mage's five spells with the mage's stat minus two is not
      a class, it is a worse mage holding a knife. Measured, the
@@ -314,12 +321,12 @@ export const CLASSES = {
      most-used button belonged to someone else.
      Its axis is 그림자: ammunition you gather by not being seen
      and burn in one of four ways. */
-  rogue:   { name:'도적',     mod:{ dex:+3, int:+1, str:-1, wis:-2 }, hd:6, bth:4.0, realm:null,     note:'보이지 않는 동안 모으고, 한 번에 태운다.' },
+  rogue:   { name:'도적',     hd:6, bth:4.0, realm:null,     note:'보이지 않는 동안 모으고, 한 번에 태운다.' },
   /* No realm. Casting the mage's book with the mage's stat minus
      two was the whole reason this class read as an in-between —
      it was a worse mage holding a worse dagger. Its five buttons
      are arrows now, and nobody else has those. */
-  ranger:  { name:'레인저',   mod:{ dex:+3, int:+1, con:+1 },         hd:5, bth:4.8, realm:null,     note:'활이 곧 직업. 거리를 지운 쪽이 진다.' },
+  ranger:  { name:'레인저',   hd:5, bth:4.8, realm:null,     note:'활이 곧 직업. 거리를 지운 쪽이 진다.' },
   /* The last class holding someone else's list. 사제 and 팔라딘
      shared all five divine spells — measured, 5/5 identical — so
      what separated them was one trait line and a stat spread.
@@ -327,7 +334,7 @@ export const CLASSES = {
      worse it goes) *is* a book of heals. The paladin's axis was
      never a caster's: 맹세 is a wall built out of being hit, and
      the four arts below are the only things that spend it. */
-  paladin: { name:'팔라딘',   mod:{ str:+2, wis:+1, chr:+2, dex:-2 }, hd:6, bth:4.5, realm:null,     note:'맞아서 쌓고, 그 벽을 태워 되갚는다.' },
+  paladin: { name:'팔라딘',   hd:6, bth:4.5, realm:null,     note:'맞아서 쌓고, 그 벽을 태워 되갚는다.' },
 };
 for (const [k, c] of Object.entries(CLASSES)) c.trait = TRAITS[k];
 
@@ -2197,7 +2204,15 @@ export const CLASS_BAND = {
   priest:  { wis:'prime', con:'good',  chr:'good',  str:'fair', int:'fair',  dex:'weak' },
   rogue:   { dex:'prime', chr:'good',  int:'good',  str:'fair', con:'fair',  wis:'weak' },
   ranger:  { dex:'prime', con:'good',  str:'good',  int:'fair', wis:'fair',  chr:'weak' },
-  paladin: { str:'good',  chr:'prime', wis:'good',  con:'good', dex:'weak',  int:'weak' },
+  /* 매력이 prime이었다. 신성 주문을 지혜로 쓰던 시절에는 말이
+     됐다 — 그때 팔라딘은 갑옷 입은 사제였고, 지혜가 주문을,
+     매력이 값을 샀다. 주문책을 뗀 지금 그 배분이 남긴 것은,
+     최고 능력치가 상점 흥정인 근접 직업이다.
+     측정: 2레벨 팔라딘의 한 턴 기대 피해 1.6, 전사 4.6. 힘 11.8
+     대 14.8이고 명중치는 2.2 대 6.3이었다. 판금을 입고 사제만큼
+     때린다.
+     맹세는 맞아서 쌓고 휘둘러 쓴다. 밴드도 그걸로 맞춘다. */
+  paladin: { str:'prime', con:'good',  chr:'good',  wis:'fair', dex:'weak',  int:'weak' },
 };
 
 /* What a fresh hero of this race and class can come out as, after

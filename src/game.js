@@ -670,10 +670,20 @@ export function spellSlots() {
   /* Arts come first in the row, because a class that has them
      leads with them. 침묵의 서약 takes spells, not hands — an art
      is not spoken. */
+  /* The row has to grey out on exactly the tests useArt refuses
+     on, or the button lies. It only knew about the arts that need
+     a body, so the ranger's three shooting arts read as live with
+     no bow and no clear line — useArt then declined and, costing
+     no turn, handed anything looping on the row an infinite loop.
+     The measured shape of that: the bot spun on 조준 사격 within
+     14 turns of every ranger run. Both lists are consulted here
+     now, and the ammo test with them. */
   const arts = (ARTS[p.cls] || []).map(a => {
     const locked = a.lv > p.lv;
     const near = G.level && adjacentMonsters(p).length > 0;
-    const noTarget = ART_NEEDS_BODY.includes(a.id) && !near;
+    const noTarget = (ART_NEEDS_BODY.includes(a.id) && !near)
+                  || (ART_NEEDS_SHOT.includes(a.id) && !(G.level && shotTarget()))
+                  || (!!a.ammo && (quiver(p)?.qty || 0) < a.ammo);
     return {
       id: a.id, name: a.name, short: a.short || a.name.slice(0, 2),
       lv: a.lv, cost: a.stam, art: true, locked, silent: false, noTarget,

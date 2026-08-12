@@ -3799,6 +3799,7 @@ export function endTurn(skipMonsters = false) {
   if (G.depth > 0) {
     const band = lightRadiusOf(p);
     (G.lit || (G.lit = {}))[band] = (G.lit[band] || 0) + 1;
+    hint('near');
   }
   G.act = null;
   /* How long you have not moved. Cheap to keep and the only
@@ -4157,9 +4158,90 @@ function monsterTurn(m) {
     if (m.thief) return;
   }
 
-  let sx = Math.sign(dx), sy = Math.sign(dy);
+  /* ── 무엇을 보고 쫓는가 ────────────────────────────────
+     여기까지 오는 동안 몬스터는 아무것도 보지 않고 쫓았다. 한 번
+     깨면 시야와 무관하게 플레이어의 현재 좌표를 알았고, 그래서
+     「물러선다」는 수가 존재할 수 없었다. 도망쳐도 정확히 따라오니
+     공짜 매질만 받는 셈이었다.
+
+     이제는 본 것만 안다. 그리고 무엇을 보느냐는 **네 횃불이 정한다**
+     — L.vis는 「네 빛이 닿고 시선이 통하는 칸」이라, 그 칸에 선
+     것만 너를 본다. 불을 끄면 놈들도 너를 잃는다. 횃불이 위협이자
+     동시에 도구가 되는 지점이 여기다.
+
+     이름 있는 것과 정예는 예외다. 그것은 네가 고른 싸움이고,
+     고른 싸움에서 걸어 나갈 수 있으면 고른 것이 아니다. */
+  const keen = m.named || m.boss || m.elite?.length;
+  const sees = keen || dist <= 1.5 || L.vis[idx(m.x, m.y)];
+  if (sees) { m.mark = { x: p.x, y: p.y }; m.lost = 0; }
+  else {
+    m.lost = (m.lost || 0) + 1;
+    const at = m.mark && m.x === m.mark.x && m.y === m.mark.y;
+    if (at || m.lost > TRACK_TURNS) {
+      /* 자취가 끊겼다. 그렇다고 다시 재우면 층이 죽는다 — 한 번
+         그렇게 했더니 판이 세 배로 길어지고 걷기 비중이 도로 올라갔다.
+         잃은 것은 위치이지 관심이 아니다. 마지막 자리 근처를 헤매게
+         두면, 네가 돌아오는 순간 다시 문다.
+
+         아주 멀어진 것만 잠든다. 지도 반대편에서 영원히 서성이는
+         것은 위협이 아니라 계산 낭비다. */
+      if (m.mark) { G.lostMe = (G.lostMe || 0) + 1; if (dist < 9) hint('trail'); }
+      m.mark = null;
+      if (m.lost > TRACK_TURNS * 4 && dist > 14) { m.awake = false; m.lost = 0; return; }
+      advance(m, rnd(3) - 1, rnd(3) - 1);
+      return;
+    }
+  }
+
+  const goal = sees ? p : (m.mark || p);
+  let sx = Math.sign(goal.x - m.x), sy = Math.sign(goal.y - m.y);
   if (m.ai === 'erratic' && Math.random() < 0.45) { sx = rnd(3) - 1; sy = rnd(3) - 1; }
   advance(m, sx, sy);
+}
+
+/* 자취를 몇 턴이나 쫓는가. 짧으면 후퇴가 공짜가 되고, 길면
+   후퇴가 없다. */
+export const TRACK_TURNS = 6;
+
+/* ── 어둠이 말해 주는 것 ──────────────────────────────────
+   빛을 줄이면 보이는 것이 줄어든다. 그것만으로는 긴장이 아니라
+   무지다 — 무엇이 있는지 짐작조차 못 하면 물러설 이유도 생기지
+   않는다. 그래서 안 보이는 것을 글로 알린다. 위치는 주지 않고,
+   수와 거리와 방향만.
+
+   소리를 글로 옮기는 쪽을 골랐다: 이 게임의 로그는 이미 화면의
+   절반이고, 새 장치를 만드는 것보다 있는 통로로 말하는 편이 낫다. */
+const HINT_EVERY = 4;
+function hint(kind) {
+  if (G.turn - (G.hintAt || -99) < HINT_EVERY) return;
+  const p = G.player, L = G.level;
+  if (kind === 'trail') {
+    G.hintAt = G.turn;
+    say(pickOne(['무언가가 네 자리를 지나쳐 갔다.',
+              '발소리가 멀어진다. 자취를 놓친 모양이다.',
+              '숨소리가 갈라져 흩어졌다.']), 'good');
+    return;
+  }
+  const unseen = G.monsters.filter(m => m.awake && !m.disguise
+    && !L.vis[idx(m.x, m.y)] && Math.hypot(m.x - p.x, m.y - p.y) <= 8);
+  if (!unseen.length) { G.near = 0; return; }
+  const near = Math.min(...unseen.map(m => Math.hypot(m.x - p.x, m.y - p.y)));
+  const closing = G.near && near < G.near - 0.4;
+  G.near = near;
+  G.hintAt = G.turn;
+  G.did && (G.did.hinted = (G.did.hinted || 0) + 1);
+
+  const many = unseen.length >= 3 ? '여럿' : unseen.length === 2 ? '둘' : '하나';
+  if (near <= 2.5)
+    say(pickOne([`바로 옆 어둠에서 숨소리가 난다. ${many}.`,
+              `손이 닿을 거리에 무언가 있다. ${many}.`]), 'hit');
+  else if (closing)
+    say(pickOne([`소리가 가까워지고 있다. ${many}.`,
+              `어둠 속에서 발이 빨라졌다. ${many}.`]), 'warn');
+  else
+    say(pickOne([`빛 밖에서 무언가 움직인다. ${many}.`,
+              `어둠이 부스럭거린다. ${many}.`,
+              `돌 위를 끄는 소리. ${many}.`]), 'warn');
 }
 
 function monsterMelee(m) {

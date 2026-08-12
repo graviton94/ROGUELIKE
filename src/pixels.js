@@ -1482,6 +1482,89 @@ export const SPRITES = {
    outline, which is the single biggest thing eight pixels could
    not afford and the reason everything used to read as a blob. */
 export const RACE_BODY = {
+  /* ── 방향 ─────────────────────────────────────────────────
+     `race@dir` and `cls@dir` are picked up automatically by
+     bakeAll; anything not drawn here falls back to the undirected
+     sheet, so the conversion runs one race and one kit at a time.
+
+     down  the face, both eyes
+     up    the back of the head — no face at all, which is what
+           sells the turn more than anything else
+     left  one eye, the ear on the far side hidden
+     right the same sheet, read the other way
+  */
+  'human@down': [
+    '................',
+    '....kkkkkkkk....',
+    '...knnnnnnnnk...',
+    '...kaAAAAAAak...',
+    '...kAwwwwwwAk...',
+    '...kAkwwwwkAk...',
+    '...kAwwwwwwAk...',
+    '...kaAwwwwAak...',
+    '....kaAAAAak....',
+    '..kkCCCCCCCCkk..',
+    '.kCCCCCCCCCCCCk.',
+    '.kCCCCCCCCCCCCk.',
+    '.kCCCCk..kCCCCk.',
+    '..kkkjk..kjkkk..',
+    '....kjnk.knjk...',
+    '.....kkk.kkk....',
+  ],
+  'human@up': [
+    '................',
+    '....kkkkkkkk....',
+    '...knnnnnnnnk...',
+    '...knjnnnnjnk...',
+    '...knnnnnnnnk...',
+    '...knnnnnnnnk...',
+    '...knnnnnnnnk...',
+    '...kannnnnnak...',
+    '....kaaaaaak....',
+    '..kkCCCCCCCCkk..',
+    '.kCCCCCCCCCCCCk.',
+    '.kCCCCCCCCCCCCk.',
+    '.kCCCCk..kCCCCk.',
+    '..kkkjk..kjkkk..',
+    '....kjnk.knjk...',
+    '.....kkk.kkk....',
+  ],
+  'human@left': [
+    '................',
+    '...kkkkkkkk.....',
+    '..knnnnnnnnk....',
+    '..knnnaAAAak....',
+    '..knnAwwwwAk....',
+    '..knAkwwwwAk....',
+    '..knAwwwwwAk....',
+    '..kaAwwwwAak....',
+    '...kaAAAAak.....',
+    '..kkCCCCCCkk....',
+    '.kCCCCCCCCCCk...',
+    '.kCCCCCCCCCCk...',
+    '..kCCCCCCCCk....',
+    '...kjkkkkjk.....',
+    '..kjnk..knjk....',
+    '..kkk....kkk....',
+  ],
+  'human@right': [
+    '................',
+    '.....kkkkkkkk...',
+    '....knnnnnnnnk..',
+    '....kaAAAannnk..',
+    '....kAwwwwAnnk..',
+    '....kAwwwwkAnk..',
+    '....kAwwwwwAnk..',
+    '....kaAwwwwAak..',
+    '.....kaAAAAak...',
+    '....kkCCCCCCkk..',
+    '...kCCCCCCCCCCk.',
+    '...kCCCCCCCCCCk.',
+    '....kCCCCCCCCk..',
+    '.....kjkkkkjk...',
+    '....kjnk..knjk..',
+    '....kkk....kkk..',
+  ],
   /* Same rules as the bestiary: two-pixel forms, one lit row on
      the top of each surface, edges in the darkest shade of the
      material rather than in black. The layout is fixed so a kit
@@ -1637,6 +1720,78 @@ export const RACE_BODY = {
    Each kit owns row 0 (what is on the head) and rows 4–6 (what
    is on the body), and deliberately never touches rows 1–3. */
 export const CLASS_KIT = {
+  'warrior@down': [
+    '................',
+    '...qQQQQQQQQQq..',
+    '..qQQQQQQQQQQQq.',
+    '..qqq......qqq..',
+    '................',
+    '................',
+    '................',
+    '................',
+    'qQQq........qQQq',
+    'qQQq........qQQq',
+    '.qq..........qq.',
+    '..k....yy....k..',
+    '.......yy.......',
+    '................',
+    '................',
+    '................',
+  ],
+  'warrior@up': [
+    '................',
+    '...qQQQQQQQQQq..',
+    '..qQQQQQQQQQQQq.',
+    '..qqqQQQQQQqqq..',
+    '................',
+    '................',
+    '................',
+    '................',
+    'qQQq........qQQq',
+    'qQQq........qQQq',
+    '.qq..........qq.',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+  ],
+  'warrior@left': [
+    '................',
+    '..qQQQQQQQq.....',
+    '.qQQQQQQQQQq....',
+    '.qqq.....qqq....',
+    '................',
+    '................',
+    '................',
+    '................',
+    'qQQq......qQQq..',
+    'qQQq......qQQq..',
+    '.qq........qq...',
+    'QQ..............',
+    'Qk..............',
+    '................',
+    '................',
+    '................',
+  ],
+  'warrior@right': [
+    '................',
+    '.....qQQQQQQQq..',
+    '....qQQQQQQQQQq.',
+    '....qqq.....qqq.',
+    '................',
+    '................',
+    '................',
+    '................',
+    '..qQQq......qQQq',
+    '..qQQq......qQQq',
+    '...qq........qq.',
+    '..............QQ',
+    '..............kQ',
+    '................',
+    '................',
+    '................',
+  ],
   /* Rows 0–3 are what is on the head, rows 8–14 what is on the
      body. Nothing here writes into rows 4–7 — that is the face,
      and a helmet that eats the face is how six classes ended up
@@ -1791,9 +1946,9 @@ export const SHOP_TINT = ['e', 's', 'r', 'W', 'P', 'b'];
 
 /* Race under, class over. Any cell the kit leaves as '.' shows
    the body beneath, which is why the face survives the helmet. */
-function bakeHero(race, cls) {
-  const body = RACE_BODY[race] || RACE_BODY.human;
-  const kit = CLASS_KIT[cls] || CLASS_KIT.warrior;
+function bakeHero(race, cls, bodyOverride, kitOverride) {
+  const body = bodyOverride || RACE_BODY[race] || RACE_BODY.human;
+  const kit = kitOverride || CLASS_KIT[cls] || CLASS_KIT.warrior;
   /* The composite is the size of the body sheet, so a race drawn
      at sixteen and a kit drawn at sixteen merge at sixteen — and
      an eight-pixel kit over an eight-pixel body still works. */
@@ -1812,9 +1967,21 @@ function bakeHero(race, cls) {
 }
 
 export function bakeAll() {
+  /* The undirected key first, then whichever directions the race
+     and kit sheets both happen to declare. A race drawn four ways
+     under a kit drawn one way still works — it just faces the
+     same way in every direction, which is exactly what the whole
+     file did before. */
   for (const race of Object.keys(RACE_BODY))
-    for (const cls of Object.keys(CLASS_KIT))
+    for (const cls of Object.keys(CLASS_KIT)) {
       baked.set(`hero:${race}:${cls}`, bakeHero(race, cls));
+      for (const d of DIRS) {
+        const body = RACE_BODY[`${race}@${d}`] || RACE_BODY[race];
+        const kit  = CLASS_KIT[`${cls}@${d}`]  || CLASS_KIT[cls];
+        if (RACE_BODY[`${race}@${d}`] || CLASS_KIT[`${cls}@${d}`])
+          baked.set(`hero:${race}:${cls}@${d}`, bakeHero(race, cls, body, kit));
+      }
+    }
   for (const [name, grid] of Object.entries(SPRITES)) {
     if (name === 'hero') {
       // Kept as the fallback for anything that asks for a class
@@ -1826,10 +1993,37 @@ export function bakeAll() {
     } else {
       baked.set(name, bakeGrid(grid));
     }
+    // 'wolf@left' bakes under its own key and is found by sprite('wolf','left')
   }
 }
 
-export const sprite = name => baked.get(name) || baked.get('rubble');
+/* ── which way it is looking ───────────────────────────────
+   Pokémon's overworld reads because everything on it has a
+   front, a back and two sides — a creature that faces the player
+   no matter which way it walked is a cardboard standee, and at
+   sixteen pixels the standee is most of why the last four passes
+   looked wrong.
+
+   Directions are a *suffix* on the sprite key, and the lookup
+   falls back to the undirected sheet. So a sheet that has been
+   drawn four ways is used four ways, and one that has not is
+   used exactly as before — the art can be converted one creature
+   at a time instead of all at once. */
+export const DIRS = ['down', 'up', 'left', 'right'];
+
+/* Which way an actor is facing, from the step it last took.
+   `down` (toward the player) is the resting pose, same as every
+   sprite drawn before this existed. */
+export function facingOf(dx, dy) {
+  if (!dx && !dy) return 'down';
+  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'right' : 'left';
+  return dy > 0 ? 'down' : 'up';
+}
+
+export const sprite = (name, dir) =>
+  (dir && baked.get(`${name}@${dir}`))
+  || baked.get(name)
+  || baked.get('rubble');
 
 /* ── particle stock ───────────────────────────────────────
    When something dies we throw its own pixels across the
@@ -1839,7 +2033,7 @@ const shardCache = new Map();
 
 export function spriteColors(name) {
   // hero:elf:mage and hero:mage both scatter the same palette.
-  const key = name.startsWith('hero') ? 'hero' : name;
+  const key = name.startsWith('hero') ? 'hero' : name.split('@')[0];
   if (shardCache.has(key)) return shardCache.get(key);
   const grid = SPRITES[key];
   const out = [];

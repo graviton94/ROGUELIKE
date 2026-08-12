@@ -4,7 +4,7 @@
    in the DOM; only the map is pixels.
    ═══════════════════════════════════════════════════════════ */
 
-import { sprite, wallTile, floorTile, CELL_SIZE, PALETTE, setTerrainTheme } from './pixels.js';
+import { sprite, wallTile, floorTile, CELL_SIZE, PALETTE, setTerrainTheme, facingOf } from './pixels.js';
 import * as Pix from './pixels.js';
 import {
   RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS, statRange,
@@ -338,7 +338,7 @@ export function draw() {
       ctx.restore();
     }
 
-    blitActor(sprite(m.spr), mx, my, t, o);
+    blitActor(sprite(m.spr, m.facing), mx, my, t, o);
     if (m.disguise) continue;     // no sleep marker, no health bar — it is furniture
 
     /* A sleeping target is a free critical, so say so plainly —
@@ -876,7 +876,7 @@ function drawIntent(kind, mx, my, t) {
    a race is somehow missing, so a bad save can never blank the
    thing the player is looking at. */
 export const heroSprite = p =>
-  sprite(`hero:${p.race}:${p.cls}`) || sprite(`hero:${p.cls}`);
+  sprite(`hero:${p.race}:${p.cls}`, p?.facing) || sprite(`hero:${p.cls}`, p?.facing);
 
 /* One sprite, plus a squash-punch on impact and an additive
    pass that whitens it for a few frames when it takes a hit. */

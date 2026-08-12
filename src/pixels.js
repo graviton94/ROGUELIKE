@@ -657,6 +657,16 @@ export const SPRITES = {
     '..ssss..',
     '.ssssss.',
   ],
+  brazierLit2: [
+    '....o...',
+    '.o.oyo..',
+    '.ooyWyo.',
+    '.ssssss.',
+    '..ssss..',
+    '...ss...',
+    '..ssss..',
+    '.ssssss.',
+  ],
   pillar: [
     '.GGGGGG.',
     '.GggggG.',
@@ -707,6 +717,18 @@ export const SPRITES = {
     '.nnnnn..',
     '........',
   ],
+  /* Frame two of the fire: the flame leans and sheds a spark.
+     Same logs, same footprint — only the light moves. */
+  camp2: [
+    '.....o..',
+    '....o...',
+    '...oyo..',
+    '..yWyo..',
+    '.oyyyo..',
+    'nnoyonn.',
+    '.nnnnn..',
+    '........',
+  ],
   campSpent: [
     '........',
     '........',
@@ -734,6 +756,18 @@ export const SPRITES = {
     'bbbbbbbb',
     'bBbbbbBb',
     'bbbbbbbb',
+    '.bbbbbb.',
+    '........',
+  ],
+  /* Frame two: the same pool with the glints shifted one over —
+     a palette-cycle wave, the oldest trick the PPU knew. */
+  water2: [
+    '........',
+    '..bbbb..',
+    '.bbBbbB.',
+    'bBbbbbbb',
+    'bbbbBbbb',
+    'bbBbbbBb',
     '.bbbbbb.',
     '........',
   ],

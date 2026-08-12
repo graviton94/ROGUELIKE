@@ -4,6 +4,23 @@
    true black, midnight indigo, and 8-step DAC primaries.
    ═══════════════════════════════════════════════════════════ */
 
+/* ── the typeface ─────────────────────────────────────────
+   Galmuri11 (OFL — fonts/OFL.md), subset to the exact glyphs
+   this game's source can ever put on screen: ~970 characters,
+   21KB. The one binary asset in the project, and the single
+   biggest step the UI takes toward the console: every letter is
+   now made of the same pixels the sprites are. */
+@font-face {
+  font-family: 'Galmuri11';
+  src: url('fonts/Galmuri11.woff2') format('woff2');
+  font-weight: 400; font-display: swap;
+}
+@font-face {
+  font-family: 'Galmuri11';
+  src: url('fonts/Galmuri11-Bold.woff2') format('woff2');
+  font-weight: 700; font-display: swap;
+}
+
 :root {
   --k:#000000; --d:#181830; --g:#484878; --G:#9090c0;
   --w:#d8d8c0; --W:#f8f8f8;
@@ -14,8 +31,8 @@
   --p:#8028a8; --P:#c868f8;
   --s:#98a0b8;
 
-  --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas,
-          "Apple SD Gothic Neo", "Noto Sans KR", monospace;
+  --mono: 'Galmuri11', ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo,
+          Consolas, "Apple SD Gothic Neo", "Noto Sans KR", monospace;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -166,6 +183,10 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 /* The band this race and class can ever roll inside. */
 .sbar u { position: absolute; inset: 0 auto; top: 0; height: 100%; background: var(--g); }
 .sbar i { position: relative; display: block; height: 100%; background: var(--B); }
+.sbar::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background: repeating-linear-gradient(to right, transparent 0 7px, var(--d) 7px 9px);
+}
 .statrow .srange { width: 44px; font-size: 9.5px; color: var(--G); text-align: right; }
 
 /* ── play HUD ── */
@@ -262,8 +283,15 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 .gauge { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .glabel { font-size: 9.5px; color: var(--G); width: 18px; }
 .gval   { font-size: 10.5px; color: var(--w); width: 62px; text-align: right; }
-.track { flex: 1 1 auto; height: 7px; background: var(--k); border: 1px solid var(--g); }
+.track { position: relative; flex: 1 1 auto; height: 7px; background: var(--k); border: 1px solid var(--g); }
 .track i { display: block; height: 100%; transition: width .16s linear; }
+/* Console gauges come in cells. The ticks are painted over the
+   fill in the track's own background colour, so the bar reads as
+   segments without the fill logic knowing anything about it. */
+.track::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(to right, transparent 0 7px, var(--k) 7px 9px);
+}
 .track i.hp { background: var(--R); }
 .track i.mp { background: var(--B); }
 .track i.st { background: var(--E); }

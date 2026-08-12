@@ -26,6 +26,8 @@ import {
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   ARTS, SHOVE_DIST, SHOVE_WALL, CLEAVE_SHARE,
   ECHOES, ECHO_TURNS, ECHO_POWER, ECHO_SPLASH,
+  OATH_BLOW, CALL_PULL, CALL_COST, RING_COST, RING_BASE, RING_STEP,
+  ATONE_BASE, ATONE_HEAL, ATONE_CAP, KILL_MEND,
   SHADOW_MAX, SHADOW_TICK, FAN_RANGE, FAN_ARC, FAN_SHARE, VANISH_HUSH, VITALS_MULT,
   AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE,
   AMMO, ammoById, BOW_MELEE, BOW_FALLOFF, AMMO_BUNDLE,
@@ -758,13 +760,18 @@ export function spellSlots() {
        breath is one or two and never the thing that stops you,
        and a button whose real price is invisible is a button the
        player learns by being disappointed. */
-    const short = a.shade ? (p.shadow || 0) < a.shade : false;
+    const price = artPrice(p, a);
     return {
       id: a.id, name: a.name, short: a.short || a.name.slice(0, 2),
-      lv: a.lv, cost: a.shade || a.stam, stam: a.stam, shade: a.shade || 0,
+      lv: a.lv, stam: a.stam,
+      /* The pip shows the resource that actually gates the button.
+         For 응보 that is however much is in the pouch right now,
+         because the art empties it. */
+      cost: price ? (a[price.key] === 'all' ? price.held : price.spend) : a.stam,
+      pool: price?.n || null, shade: a.shade || 0,
       art: true, locked, silent: false, noTarget,
       plus: 0, affix: null,
-      ready: !locked && !noTarget && !short && p.stam >= a.stam,
+      ready: !locked && !noTarget && !price?.short && p.stam >= a.stam,
     };
   });
   if (!realm) return arts;
@@ -1043,17 +1050,45 @@ function teleport() {
 /* ── spells ─────────────────────────────────────────────── */
 /* Arts that are pointless with nothing in reach, so the row can
    grey them out the way it greys out a bolt with no target. */
-const ART_NEEDS_BODY = ['shove', 'cleave', 'finisher', 'vitals'];
+const ART_NEEDS_BODY = ['shove', 'cleave', 'finisher', 'vitals', 'requite', 'ring'];
 /* And the ones that need something down a clear line instead —
    the ranger's row greys out on the same reading of the room that
    the 쏘기 button uses. */
 const ART_NEEDS_SHOT = ['aimed', 'pierce', 'volley'];
 /* The rogue's two that only need to *see* something — no bow, no
    reach, just a body in the light. */
-const ART_NEEDS_SIGHT = ['shadowstep', 'fan'];
+const ART_NEEDS_SIGHT = ['shadowstep', 'fan', 'call'];
 /* And the one that needs something to lose you: vanishing in an
    empty room is a wasted shade, so the row says so. */
 const ART_NEEDS_WATCHER = ['vanish'];
+
+/* ── what an art spends besides breath ───────────────────
+   Two classes now hold ammunition of their own, and a third will
+   read wrong the day someone adds a fourth unless there is one
+   place that answers "what does this button cost, and have I got
+   it". `all` means the art empties the pouch rather than taking a
+   fixed bite — 응보 is priced off what it burns. */
+const ART_POOLS = {
+  shade: { field: 'shadow', n: '그림자', cls: 'rogue' },
+  oath:  { field: 'oath',   n: '맹세',   cls: 'paladin' },
+};
+export function artPrice(p, a) {
+  for (const [key, pool] of Object.entries(ART_POOLS)) {
+    if (!a[key]) continue;
+    const held = p?.[pool.field] || 0;
+    const want = a[key] === 'all' ? 1 : a[key];
+    /* `all` may carry a ceiling. 속죄 without one emptied the
+       pouch every time it was pressed, and measured at depth that
+       left 응보 at 0.4 and 심판의 고리 at 0.1 uses a run — two of
+       the four arts existed only on paper because the heal had
+       always already spent them. A ceiling keeps the art usable
+       at one point of oath, which is what floor one needs, while
+       leaving something in the pouch to swing with. */
+    const cap = a[key] === 'all' ? Math.min(held, a[`${key}Max`] ?? held) : a[key];
+    return { ...pool, key, held, want, spend: cap, short: held < want };
+  }
+  return null;
+}
 
 /* The eight neighbours, in the order a landing spot should be
    tried: straight behind first, then around. */
@@ -1110,14 +1145,19 @@ export function useArt(id) {
   if (ART_NEEDS_WATCHER.includes(id) && !awakeWatchers().length) {
     say('너를 보고 있는 것이 없다.', 'warn'); return;
   }
-  // 그림자 is spent here and nowhere else.
-  if (a.shade && (p.shadow || 0) < a.shade) { say('그림자가 모자란다.', 'warn'); return; }
+  // 그림자 and 맹세 are spent here and nowhere else.
+  const price = artPrice(p, a);
+  if (price?.short) { say(`${price.n}이(가) 모자란다.`, 'warn'); return; }
   // An art that flies costs arrows on top of breath, and refuses
   // rather than half-firing when the quiver cannot cover it.
   if (a.ammo && (quiver()?.qty || 0) < a.ammo) { say('화살이 모자란다.', 'warn'); return; }
   p.stam -= a.stam;
   if (a.ammo) spendArrows(a.ammo);
-  if (a.shade) p.shadow = Math.max(0, (p.shadow || 0) - a.shade);
+  /* Held for the arts that are priced off what they burned —
+     the spend happens before the switch so nothing can read the
+     pouch twice. */
+  const burned = price ? price.spend : 0;
+  if (price) p[price.field] = Math.max(0, price.held - burned);
 
   switch (id) {
     case 'shove': {
@@ -1206,6 +1246,72 @@ export function useArt(id) {
       fx({ t:'finisher', x:p.x, y:p.y, tx:m.x, ty:m.y, power:gone });
       say(`숨을 모아 내리친다.`, 'level');
       swing(m, 1 + gone * (FINISH_MAX - 1));
+      break;
+    }
+
+    /* ── 팔라딘의 넷 ───────────────────────────────────
+       Every one of these takes the wall down to swing it. That is
+       the decision the class did not have while it was casting
+       the priest's book: a heal cost mana, and mana was not
+       keeping him alive. */
+    case 'requite': {
+      /* The converter. Priced off what it burned rather than off
+         the target, so it is the mirror of the warrior's 마무리 —
+         that one asks how hurt *it* is, this asks how hurt *you*
+         are. */
+      const m = near.sort((x, y) => y.hp - x.hp)[0];
+      fx({ t:'finisher', x:p.x, y:p.y, tx:m.x, ty:m.y, power: burned / 8 });
+      say(burned >= 5 ? `여덟 번 맞은 값을 한 번에 돌려준다.` : '맹세를 태워 내리친다.', 'level');
+      swing(m, 1 + burned * OATH_BLOW);
+      break;
+    }
+    case 'call': {
+      /* The answer a slow class can actually use. A paladin does
+         not catch an archer; it makes the archer come. Everything
+         in sight is dragged two tiles and wakes up — waking the
+         room is the price, and for this class that is not much of
+         a price, which is the joke. */
+      const seen = visibleMonsters();
+      let moved = 0;
+      for (const m of seen) {
+        m.awake = true; m.provoked = true;
+        const dx = Math.sign(p.x - m.x), dy = Math.sign(p.y - m.y);
+        for (let i = 0; i < CALL_PULL; i++) {
+          const nx = m.x + dx, ny = m.y + dy;
+          if ((nx === p.x && ny === p.y) || G.level.solid(nx, ny) || monsterAt(nx, ny)) break;
+          m.x = nx; m.y = ny; moved++;
+        }
+      }
+      fx({ t:'burst', x:p.x, y:p.y, r:4, color:'y' });
+      say(seen.length ? `이름을 불렀다 — ${seen.length}이(가) 끌려온다.`
+                      : '부를 것이 없다.', seen.length ? 'level' : 'warn');
+      refreshFov();
+      break;
+    }
+    case 'ring': {
+      /* The ring answer. Weight comes from the oath still held
+         after the toll, so a paladin who has been beaten on all
+         floor swings a heavier circle than one who has not. */
+      const share = RING_BASE + (p.oath || 0) * RING_STEP;
+      const hit = adjacentMonsters(p);
+      fx({ t:'cleave', x:p.x, y:p.y, n:hit.length, wide:false });
+      say(hit.length > 2 ? '한 바퀴가 전부를 지나갔다.' : '고리를 그렸다.', 'level');
+      for (const m of [...hit]) if (G.monsters.includes(m)) swing(m, share);
+      break;
+    }
+    case 'atone': {
+      /* The class's only healing, and it is paid for in wall
+         rather than in mana. Deliberately not routed through
+         healScale — that multiplier is the priest's trait, and
+         the two classes have just been separated. */
+      const share = Math.min(ATONE_CAP, ATONE_BASE + ATONE_HEAL * burned);
+      const h = Math.min(p.maxhp - p.hp, Math.round(p.maxhp * share));
+      p.hp += h;
+      const cured = ailList(p);
+      p.ail = {}; p.stuck = 0;
+      fx({ t:'heal', x:p.x, y:p.y, amt:h });
+      say(`견딘 것이 되돌아온다. 체력 +${h}.`, 'good');
+      if (cured.length) say(`${cured.map(k => AILMENTS[k].n).join(' · ')}이(가) 가셨다.`, 'good');
       break;
     }
 
@@ -3010,9 +3116,25 @@ export const goldGain = n => Math.max(0, Math.round(
    뼈 목걸이 is the slow one, worth taking early or not at all. */
 function onKill(m) {
   const p = G.player;
-  // 맹세 spends itself down as he wins — the wall is highest at
-  // the moment he is losing, which is when a paladin needs it.
-  if (p.cls === 'paladin' && p.oath > 0) p.oath--;
+  /* 맹세 used to spend itself down as he won: the wall was
+     highest at the moment he was losing. That was right while the
+     oath was only armour. It is wrong now that four arts spend
+     it — the kill taxed the same pool the arts were paying from,
+     and measured, the oath sat at zero for 55% of turns, never
+     once filled, and peaked at five of eight in 25 runs. A
+     resource you cannot hold is not ammunition.
+     The wall now comes down only when he takes it down himself. */
+  /* …and the wall pays back through the body that built it. A
+     flat heal-on-kill was measured first and worked, but it was a
+     bandage bolted to the side of the class — it had nothing to
+     do with 맹세. This does: the debt is repaid in proportion to
+     how much of it he is still carrying, so the paladin who has
+     been beaten all floor mends hardest, and the one who spent
+     the wall on 응보 a moment ago mends least.
+     It does not consume the oath. Being paid for holding it is
+     the counterweight to four arts that all want it spent. */
+  if (p.cls === 'paladin' && p.hp < p.maxhp && (p.oath || 0) > 0)
+    p.hp = Math.min(p.maxhp, p.hp + Math.max(1, Math.round(p.oath * KILL_MEND * (1 + p.lv / 6))));
   if (hasUnique('ashcount')) G.ashCount = (G.ashCount || 0) + 1;
   if ((hasRelic('hunger') || hasRelic('famine')) && p.hp < p.maxhp) {
     const base = hasRelic('famine') ? relicVal('famine') : relicVal('hunger');

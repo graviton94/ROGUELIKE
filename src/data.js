@@ -300,7 +300,7 @@ export const TRAITS = {
   ranger:  { n:'표적', max:5,
     t:'같은 적을 때릴 때마다 그 적에게 주는 피해가 9%씩 쌓인다(최대 45%). 대상을 바꾸면 사라진다.' },
   paladin: { n:'맹세', max:8,
-    t:'맞을 때마다 방어 +1이 쌓인다(층마다 초기화, 최대 +8). 처치하면 하나 되돌려준다.' },
+    t:'맞을 때마다 방어 +1이 쌓인다(층마다 초기화, 최대 +8). 처치하면 하나 풀린다. 기예 넷이 이 벽을 태운다 — 방어가 곧 탄약이다.' },
 };
 
 export const CLASSES = {
@@ -320,7 +320,14 @@ export const CLASSES = {
      it was a worse mage holding a worse dagger. Its five buttons
      are arrows now, and nobody else has those. */
   ranger:  { name:'레인저',   mod:{ dex:+3, int:+1, con:+1 },         hd:5, bth:4.8, realm:null,     note:'활이 곧 직업. 거리를 지운 쪽이 진다.' },
-  paladin: { name:'팔라딘',   mod:{ str:+2, wis:+1, chr:+2, dex:-2 }, hd:6, bth:4.5, realm:'divine', note:'느리지만 무너지지 않는다.' },
+  /* The last class holding someone else's list. 사제 and 팔라딘
+     shared all five divine spells — measured, 5/5 identical — so
+     what separated them was one trait line and a stat spread.
+     The priest keeps the book, because 응답 (heal harder the
+     worse it goes) *is* a book of heals. The paladin's axis was
+     never a caster's: 맹세 is a wall built out of being hit, and
+     the four arts below are the only things that spend it. */
+  paladin: { name:'팔라딘',   mod:{ str:+2, wis:+1, chr:+2, dex:-2 }, hd:6, bth:4.5, realm:null,     note:'맞아서 쌓고, 그 벽을 태워 되갚는다.' },
 };
 for (const [k, c] of Object.entries(CLASSES)) c.trait = TRAITS[k];
 
@@ -966,6 +973,27 @@ export const ARTS = {
       desc:'모은 것을 한 번에 태운다. 갑옷을 지나가는 한 방. (그림자 3)' },
   ],
 
+  /* 속죄 leads, and that ordering was measured rather than
+     chosen. Taking the divine book away took the paladin's only
+     healing with it, and with 속죄 sitting at level 11 the class
+     fell from 2.4층 to 1.3층 — it was dying on floor one to
+     굶은 들쥐 with nothing to close a wound. The heal has to be
+     the first thing it learns, because it is the only thing it
+     has that a potion is not.
+     Both 'all' arts empty the same pouch, which is the decision
+     the class is built on: the wall you saved is either the blow
+     or the bandage, never both. */
+  paladin: [
+    { id:'atone',   name:'속죄',       short:'속죄', lv:1,  stam:2, oath:'all', oathMax:3,
+      desc:'견딘 만큼 아문다. 맹세를 최대 셋까지 태우고 상처와 병을 함께 닫는다. (맹세 1~3)' },
+    { id:'call',    name:'선언',       short:'선언', lv:4,  stam:2, oath:2,
+      desc:'이름을 부른다. 보이는 것들이 두 칸 끌려오고, 전부 깨어난다. (맹세 2)' },
+    { id:'ring',    name:'심판의 고리', short:'고리', lv:7,  stam:2, oath:3,
+      desc:'둘러싼 것들을 한 바퀴에 친다. 맹세가 높을수록 무겁다. (맹세 3)' },
+    { id:'requite', name:'응보',       short:'응보', lv:11, stam:1, oath:'all',
+      desc:'쌓인 맹세를 전부 태워 내리친다. 많이 맞았을수록 무겁다. (맹세 전부)' },
+  ],
+
   ranger: [
     { id:'aimed',   name:'조준 사격', short:'조준', lv:1,  stam:2, ammo:1,
       desc:'빗나가지 않는다. 그리고 멀수록 아프다 — 활의 감쇠가 뒤집힌다.' },
@@ -993,6 +1021,41 @@ export const FAN_SHARE   = 0.7;   // what each body in the arc takes of one swin
    the warrior's 버티기 has a comment about. */
 export const VANISH_HUSH = 3;     // turns nothing can notice you afterwards
 export const VITALS_MULT = 2.6;
+
+/* ── 팔라딘의 넷 ──────────────────────────────────────────
+   The rogue gathers by not being seen; this one gathers by being
+   hit. Same grammar — ammunition you save and burn — and the
+   opposite instruction, so the two can never be the same class.
+
+   The tension is the whole design: 맹세 *is* the armour class.
+   Spending it is taking the wall down to swing it, which means
+   every one of these four asks "am I finished being hit yet?"
+
+   Two of the four answer what a slow, heavy class otherwise
+   cannot reach: 선언 drags the archers into arm's length instead
+   of chasing them, and 심판의 고리 answers a ring rather than a
+   body. And 속죄 is the class's only healing now — earned by
+   having been hurt, which is where a paladin's healing should
+   come from rather than from a spell list it borrowed. */
+export const OATH_BLOW  = 0.30;   // 응보: damage per oath burned
+export const CALL_PULL  = 2;      // 선언: tiles dragged
+export const CALL_COST  = 2;
+export const RING_COST  = 3;
+export const RING_BASE  = 0.60;   // 심판의 고리: share of a swing, before oath
+export const RING_STEP  = 0.10;   // …and per point of oath held
+/* 속죄 pays a floor plus a slope. The slope alone made the art
+   worthless exactly when the class needed it — a level-two
+   paladin holds one or two oath, and 7% of a small health bar is
+   not a decision, it is a wasted turn. The floor is what a
+   potion-less class needs to survive floor one; the slope is
+   what makes holding the wall worth it. */
+export const ATONE_BASE = 0.08;
+export const ATONE_HEAL = 0.06;
+export const ATONE_CAP  = 0.55;
+/* Health returned per point of oath still held, on a kill. One
+   was measured against 0.5 and 1.5 — 0.5 left the class on floor
+   1.7, 1.5 bought nothing over 1.0 (both 1.9). */
+export const KILL_MEND  = 1;
 
 export const AIMED_GAIN  = 0.09;   // damage per tile, instead of the usual loss
 export const PIERCE_KEEP = 0.85;   // what the arrow carries to the next body

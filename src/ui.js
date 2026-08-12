@@ -750,6 +750,15 @@ const SPELL_ICONS = {
      급소 as the wedge. No new pixels, and the row is never blank —
      drawSpellInto returns silently on an id it does not know, so
      a missing line here is four buttons with nothing on them. */
+  /* The paladin's four, on the same rule as the rogue's: shapes
+     that are already in this file. A blow paid for in wall reads
+     as the wedge, the shout as the ring of the sweep, the circle
+     as the four-point star, and 속죄 as the cross everything else
+     that heals uses. */
+  requite:    [wedge,                               'y'],
+  call:       [(c, x, y, r) => rain(c, x, y, r),    'o'],
+  ring:       [sweep,                               'y'],
+  atone:      [(c, x, y, r) => plus(c, x, y, r),    'W'],
   shadowstep: [zigzag,                              'P'],
   fan:        [sweep,                               'B'],
   vanish:     [(c, x, y, r) => star4(c, x, y, r),   'g'],
@@ -1180,8 +1189,10 @@ function renderSpellRow() {
          never the thing stopping you, and a tooltip that says
          "1기력" over a button held shut by an empty shadow pouch
          is the row lying in a quieter way. */
-      const unit = s.shade ? '그림자' : s.art ? '기력' : 'mp';
-      const price = s.shade ? `그림자 ${s.shade} · 기력 ${s.stam}` : `${s.cost}${unit}`;
+      /* Whichever pool the rules say gates this button — 그림자 for
+         the rogue, 맹세 for the paladin, breath for everyone else. */
+      const price = s.pool ? `${s.pool} ${s.cost} · 기력 ${s.stam}`
+                           : `${s.cost}${s.art ? '기력' : 'mp'}`;
       b.title = s.silent ? `${s.name} — 침묵의 서약으로 봉인됨`
               : s.noTarget ? (s.art ? `${s.name} — 조건이 아직 아니다`
                                     : `${s.name} — 시야에 적이 없다`)

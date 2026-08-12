@@ -3,3 +3,7 @@ node_modules/
 *.log
 .vscode/
 .idea/
+
+# 미리보기 시트는 tools/sheet.mjs가 격자에서 다시 뽑아냅니다. 저장소에
+# 이미지 파일을 한 장도 두지 않는다는 규칙은 그 출력에도 적용됩니다.
+tools/*.png

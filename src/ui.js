@@ -134,22 +134,20 @@ export function draw() {
       const tile = L.tiles[i];
       const lit = L.vis[i];
 
-      /* The fog is dithered, not faded — see shadeTile() in
-         pixels.js. The tile is drawn full-bright, then a stamp of
-         black pixels goes over it; the same light value that used
-         to become an alpha now picks the stamp. */
-      let light;
+      /* The fog is a smooth alpha fade — tried as ordered dither
+         once (v33) and walked back: the sprites are the pixels,
+         the light is allowed to be light. Hard dots, soft glow. */
+      let alpha;
       if (lit) {
         const d = Math.hypot(x - p.x, y - p.y);
         const rid = L.roomOf[i];
         const ambient = (rid >= 0 && L.rooms[rid].lit && rid === L.roomOf[idx(p.x, p.y)]) ? 0.55 : 0;
-        light = clamp(0.30 + Math.max(ambient, 1 - d / (lightR + 1.5)) * 0.72, 0, 1);
+        alpha = clamp(0.30 + Math.max(ambient, 1 - d / (lightR + 1.5)) * 0.72, 0, 1);
       } else {
-        light = 0.26;
+        alpha = 0.26;
       }
-      const shade = Pix.shadeLevel(light);
 
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = alpha;
 
       if (tile === ROCK || tile === SHOP) {
         ctx.drawImage(wallTile(x, y), px, py, t, t);
@@ -163,42 +161,47 @@ export function draw() {
         if (tile === DOOR_BROKEN) ctx.drawImage(sprite('doorBroken'), px, py, t, t);
         if (tile === WEB)         ctx.drawImage(sprite('web'),        px, py, t, t);
         if (tile === WATER)       ctx.drawImage(sprite('water'),      px, py, t, t);
-        if (tile === RUBBLE)      ctx.drawImage(sprite('rubble'),     px, py, t, t);
-
-        // A trap you have spotted is drawn; one you haven't isn't.
-        const tr = L.traps.get(i);
-        if (tr && tr.seen) ctx.drawImage(sprite('trap'), px, py, t, t);
-      }
-
-      if (shade) ctx.drawImage(Pix.shadeTile(shade), px, py, t, t);
-
-      /* The glowing things sit above the fog: drawn full-bright,
-         then re-dithered at their own pulse, never darker than
-         it. The quantized sine makes them flicker between dither
-         steps — a lamp, not a fade. Re-stamping at the tile's own
-         level is a no-op (ordered dither: same cells go black),
-         so the floor around them stays exactly as dark as it was. */
-      if (tile !== ROCK && tile !== SHOP) {
-        const beacon =
-          tile === CAMP  ? ['camp',  0.55 + Math.sin(performance.now() / 300) * 0.12] :
-          tile === ALTAR ? ['altar', 0.60 + Math.sin(performance.now() / 380) * 0.18] :
-          tile === EVENT ? ['event', 0.62 + Math.sin(performance.now() / 340) * 0.16] :
-          tile === ANVIL ? ['anvil', 0.70 + Math.sin(performance.now() / 500) * 0.12] : null;
-        if (beacon) {
-          ctx.drawImage(sprite(beacon[0]), px, py, t, t);
-          const blv = Math.min(shade, Pix.shadeLevel(beacon[1]));
-          if (blv) ctx.drawImage(Pix.shadeTile(blv), px, py, t, t);
+        if (tile === CAMP) {
+          const prevA = ctx.globalAlpha;
+          ctx.globalAlpha = Math.max(prevA, 0.55 + Math.sin(performance.now() / 300) * 0.12);
+          ctx.drawImage(sprite('camp'), px, py, t, t);
+          ctx.globalAlpha = prevA;
+        }
+        if (tile === ALTAR) {
+          const prevA = ctx.globalAlpha;
+          ctx.globalAlpha = Math.max(prevA, 0.6 + Math.sin(performance.now() / 380) * 0.18);
+          ctx.drawImage(sprite('altar'), px, py, t, t);
+          ctx.globalAlpha = prevA;
+        }
+        if (tile === EVENT) {
+          const prevA = ctx.globalAlpha;
+          ctx.globalAlpha = Math.max(prevA, 0.62 + Math.sin(performance.now() / 340) * 0.16);
+          ctx.drawImage(sprite('event'), px, py, t, t);
+          ctx.globalAlpha = prevA;
+        }
+        if (tile === ANVIL) {
+          const prevA = ctx.globalAlpha;
+          ctx.globalAlpha = Math.max(prevA, 0.7 + Math.sin(performance.now() / 500) * 0.12);
+          ctx.drawImage(sprite('anvil'), px, py, t, t);
+          ctx.globalAlpha = prevA;
         }
         if (tile === PROP) {
           const o = propAt(L, x, y);
           if (o) {
             // A lit brazier throws its own light, so it is drawn
             // at full brightness whatever the fog says.
-            const isLit = o.kind === 'brazier' && o.lit;
-            ctx.drawImage(sprite(isLit ? 'brazierLit' : o.kind), px, py, t, t);
-            if (!isLit && shade) ctx.drawImage(Pix.shadeTile(shade), px, py, t, t);
+            const prevA = ctx.globalAlpha;
+            if (o.kind === 'brazier' && o.lit) ctx.globalAlpha = 1;
+            ctx.drawImage(sprite(o.kind === 'brazier' && o.lit ? 'brazierLit' : o.kind),
+                          px, py, t, t);
+            ctx.globalAlpha = prevA;
           }
         }
+        if (tile === RUBBLE)      ctx.drawImage(sprite('rubble'),     px, py, t, t);
+
+        // A trap you have spotted is drawn; one you haven't isn't.
+        const tr = L.traps.get(i);
+        if (tr && tr.seen) ctx.drawImage(sprite('trap'), px, py, t, t);
       }
 
       /* A shopfront tells you what it sells before you walk in:

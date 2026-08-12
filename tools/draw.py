@@ -71,12 +71,45 @@ def splice(name, grid, src):
     return src[:m.start()] + m.group(1) + body + m.group(3) + src[m.end():]
 
 
+def to_dir(name, views, src):
+    """평평한 SPRITES 항목 하나를 {down, side, up} 묶음으로 바꾼다.
+
+    몬스터에 방향이 생기면서 필요해졌습니다. 기존 격자가 배열이든
+    이미 묶음이든 상관없이 통째로 갈아 끼웁니다."""
+    for v, grid in views.items():
+        if len(grid) != 16:
+            raise ValueError(f'{name}.{v}: {len(grid)}행')
+        for i, line in enumerate(grid):
+            if len(line) != 16:
+                raise ValueError(f'{name}.{v} {i}행: {len(line)}글자 |{line}|')
+
+    body = f'  {name}: {{\n'
+    for v in ('down', 'side', 'up'):
+        body += f'    {v}: [\n'
+        body += ''.join("      '%s',\n" % l for l in views[v])
+        body += '    ],\n'
+    body += '  },'
+
+    # 배열 형태 또는 이미 묶음 형태, 둘 다 잡는다
+    arr = re.compile(r'^  %s: \[\n(?:.*?\n)*?  \],' % re.escape(name), re.M)
+    obj = re.compile(r'^  %s: \{\n(?:.*?\n)*?  \},' % re.escape(name), re.M)
+    for pat in (obj, arr):
+        m = pat.search(src)
+        if m:
+            return src[:m.start()] + body + src[m.end():]
+    raise KeyError(f'{name} 을 찾지 못했습니다')
+
+
 def apply(grids):
     src = PIXELS.read_text()
+    n = 0
     for name, grid in grids.items():
-        src = splice(name, grid, src)
+        if isinstance(grid, dict):
+            src = to_dir(name, grid, src); n += 3
+        else:
+            src = splice(name, grid, src); n += 1
     PIXELS.write_text(src)
-    print(f'{len(grids)}개 반영: ' + ', '.join(grids))
+    print(f'{n}장 반영: ' + ', '.join(grids))
 
 
 if __name__ == '__main__':

@@ -75,7 +75,11 @@ function check(label, g, name) {
 
 const want = n => !only || only.has(n);
 
-for (const [n, g] of Object.entries(P.SPRITES)) if (want(n)) check(`SPRITES.${n}`, g, n);
+for (const [n, g] of Object.entries(P.SPRITES)) {
+  if (!want(n)) continue;
+  if (Array.isArray(g)) check(`SPRITES.${n}`, g, n);
+  else for (const view of P.VIEWS) check(`SPRITES.${n}.${view}`, g[view], n);
+}
 for (const [n, v] of Object.entries(P.RACE_BODY)) if (want(n))
   for (const view of P.VIEWS) check(`RACE_BODY.${n}.${view}`, v[view], n);
 for (const [n, v] of Object.entries(P.CLASS_KIT)) if (want(n))

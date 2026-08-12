@@ -123,6 +123,22 @@ const wallMask = (L, x, y) =>
    flips every move, which is what swaps the forward foot. */
 let heroFace = 'down', heroStep = 0, heroMoveAt = -1e9, heroAt = null;
 
+/* 몬스터도 같은 방식으로 방향을 가진다. 규칙 쪽은 여전히 facing을
+   모르고, 여기서 서 있던 칸이 바뀌는 것만 보고 알아낸다. WeakMap이라
+   죽은 몬스터는 알아서 사라진다. */
+const monFace = new WeakMap();
+function monsterSprite(m) {
+  const was = monFace.get(m);
+  let face = was ? was.face : 'down';
+  if (was && (was.x !== m.x || was.y !== m.y)) {
+    const dx = m.x - was.x, dy = m.y - was.y;
+    if (Math.abs(dx) >= Math.abs(dy)) face = dx > 0 ? 'right' : dx < 0 ? 'left' : face;
+    else face = dy > 0 ? 'down' : 'up';
+  }
+  monFace.set(m, { x: m.x, y: m.y, face });
+  return sprite(`${m.spr}:${face}`) || sprite(m.spr);
+}
+
 function trackHero(p) {
   if (heroAt && (heroAt.x !== p.x || heroAt.y !== p.y)) {
     const dx = p.x - heroAt.x, dy = p.y - heroAt.y;
@@ -377,7 +393,7 @@ export function draw() {
       ctx.restore();
     }
 
-    blitActor(sprite(m.spr), mx, my, t, o);
+    blitActor(monsterSprite(m), mx, my, t, o);
     if (m.disguise) continue;     // no sleep marker, no health bar — it is furniture
 
     /* A sleeping target is a free critical, so say so plainly —

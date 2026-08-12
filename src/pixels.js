@@ -304,24 +304,62 @@ export const SPRITES = {
     '...1n1....1n1...',
     '..1111....1111..',
   ],
-  orc: [
-    '................',
-    '....5555........',
-    '...5EFFE5...22..',
-    '..5EFFEEE5..2S..',
-    '..5EFEeeE5..2S..',
-    '..5FwkEkw5..2S..',
-    '..5eEEEEE5.2SS..',
-    '..5WEeeEW5.2S...',
-    '.51M1NNN1152S...',
-    '51MNNMMMNN1S....',
-    '51NNMNNNMN12....',
-    '51NNMNNNMNn1....',
-    '.51NNMMMNN15....',
-    '..5eE555eE5.....',
-    '..515...515.....',
-    '.1111...1111....',
-  ],
+  orc: {
+    down: [
+      '................',
+      '....5555........',
+      '...5EFFE5...22..',
+      '..5EFFEEE5..2S..',
+      '..5EFEeeE5..2S..',
+      '..5FwkEkw5..2S..',
+      '..5eEEEEE5.2SS..',
+      '..5WEeeEW5.2S...',
+      '.51M1NNN1152S...',
+      '51MNNMMMNN1S....',
+      '51NNMNNNMN12....',
+      '51NNMNNNMNn1....',
+      '.51NNMMMNN15....',
+      '..5eE555eE5.....',
+      '..515...515.....',
+      '.1111...1111....',
+    ],
+    side: [
+      '................',
+      '...5555.........',
+      '..5EEFFE5.......',
+      '..5EEFFEE5..22..',
+      '..5EEFEeE55.2S..',
+      '..5eEwkEeEE52S..',
+      '..5eEEEEEEE52S..',
+      '..5eEEEeWE5SS...',
+      '.51MNNNN115S....',
+      '.1MNNMMMNN1.....',
+      '.1NNMNNNMN1.....',
+      '.1NNMNNNMNn.....',
+      '..1NNMMMNN1.....',
+      '..5eE555eE5.....',
+      '..515...515.....',
+      '.1111...1111....',
+    ],
+    up: [
+      '................',
+      '....5555........',
+      '...5eEEe5...22..',
+      '..5eEEEEe5..2S..',
+      '..5eEEEEe5..2S..',
+      '..5eEEEEe5..2S..',
+      '..5eEEEEe5.2SS..',
+      '..5eEEEEe5.2S...',
+      '.51NNNNN1152S...',
+      '51NMNNNMN11S....',
+      '51NNMNMNNN12....',
+      '51NNNMNNNNn1....',
+      '.51NMNNNMN15....',
+      '..5eE555eE5.....',
+      '..515...515.....',
+      '.1111...1111....',
+    ],
+  },
   dog: [
     '................',
     '......11...11...',
@@ -2393,6 +2431,20 @@ export function bakeAll() {
         baked.set(`hero:${cls}`, bakeGrid(grid, tint));
     } else if (name === 'keeper') {
       SHOP_TINT.forEach((tint, i) => baked.set(`keeper:${i + 1}`, bakeGrid(grid, tint)));
+    } else if (!Array.isArray(grid)) {
+      /* 방향을 가진 몬스터. 주인공과 같은 규칙이다 — 정면·옆·뒤를
+         그리면 왼쪽은 옆을 뒤집어 만든다. */
+      for (const view of VIEWS) {
+        const g = viewOf(grid, view);
+        if (view === 'side') {
+          baked.set(`${name}:right`, bakeGrid(g));
+          baked.set(`${name}:left`,  bakeGrid(g, null, true));
+        } else {
+          baked.set(`${name}:${view}`, bakeGrid(g));
+        }
+      }
+      // 방향을 묻지 않고 부르면 정면이 나온다.
+      baked.set(name, baked.get(`${name}:down`));
     } else {
       baked.set(name, bakeGrid(grid));
     }
@@ -2412,7 +2464,8 @@ export function spriteColors(name) {
   // hero:elf:mage:down:0 and hero:mage both scatter the same palette.
   const key = name.startsWith('hero') ? 'hero' : name.split(':')[0];
   if (shardCache.has(key)) return shardCache.get(key);
-  const grid = SPRITES[key];
+  const src = SPRITES[key];
+  const grid = src && !Array.isArray(src) ? viewOf(src, 'down') : src;
   const out = [];
   if (grid) {
     /* Outline steps are excluded: a burst made of a thing's own

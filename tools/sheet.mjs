@@ -32,8 +32,9 @@ const view = (src, v) => (Array.isArray(src) ? src : src[v] || src.down);
 let entries = [];
 const push = (n, g, t) => entries.push([n, g, t || TINT]);
 
+const flat = g => (Array.isArray(g) ? g : view(g, 'down'));
 if (GROUP === 'sprites' || GROUP === 'all') {
-  for (const [n, g] of Object.entries(Pix.SPRITES)) push(n, g);
+  for (const [n, g] of Object.entries(Pix.SPRITES)) push(n, flat(g));
 } else if (GROUP === 'hero') {
   for (const race of Object.keys(Pix.RACE_BODY))
     for (const v of ['down', 'side', 'up']) push(`${race}.${v}`, view(Pix.RACE_BODY[race], v));
@@ -58,7 +59,11 @@ if (GROUP === 'sprites' || GROUP === 'all') {
         push(`${race}/${cls}.${v}`,
              compose(view(Pix.RACE_BODY[race], v), view(Pix.CLASS_KIT[cls], v)), tintOf(cls));
     }
-    else if (Pix.SPRITES[n]) push(n, Pix.SPRITES[n]);
+    else if (Pix.SPRITES[n]) {
+      const g = Pix.SPRITES[n];
+      if (Array.isArray(g)) push(n, g);
+      else for (const v of ['down', 'side', 'up']) push(`${n}.${v}`, view(g, v));
+    }
     else if (Pix.RACE_BODY[n]) for (const v of ['down', 'side', 'up']) push(`${n}.${v}`, view(Pix.RACE_BODY[n], v));
     else if (Pix.CLASS_KIT[n]) for (const v of ['down', 'side', 'up']) push(`${n}.${v}`, view(Pix.CLASS_KIT[n], v), tintOf(n));
     else console.error(`? unknown: ${n}`);

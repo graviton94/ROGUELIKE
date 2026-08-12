@@ -128,15 +128,28 @@ export const SPRITES = {
     '..n..n..',
     '..n..n..',
   ],
+  /* Redrawn at sixteen. At eight a leg was one pixel and an eye
+     was one pixel, so there was nowhere to put a jaw, an outline
+     or a shadow — which is most of why everything read as the
+     same blob wearing different colours. Same palette, same file,
+     four times the room. */
   orc: [
-    '..eeee..',
-    '.eEEEEe.',
-    '.eRwwRe.',
-    '..ewwe..',
-    '.nnNNnn.',
-    'sn.NN.ns',
-    '..n..n..',
-    '..s..s..',
+    '................',
+    '.....kkkkk......',
+    '....keeeeek.....',
+    '...keEEEEEek....',
+    '...keEeeeEek....',
+    '..kkeRwWwRekk...',
+    '..kwkeewweekwk..',
+    '...kkeWWWWekk...',
+    '....keeWWeek....',
+    '...knnNNNNnnk...',
+    '..knnNNNNNNnnk..',
+    '.kskn.NNNN.nksk.',
+    '.ks..knnnnk..sk.',
+    '.....kn..nk.....',
+    '.....ks..sk.....',
+    '....kss..ssk....',
   ],
   dog: [
     '........',
@@ -976,13 +989,22 @@ export const CLASS_TINT = {
 const CELL = 8;
 const baked = new Map();
 
+/* The grid says how big it is, rather than the file saying every
+   grid is eight by eight. Eight pixels is one pixel for a leg and
+   one for an eye — there is physically nowhere to put an outline
+   or a shade, which is the whole reason the sprites look the way
+   they do. The renderer already draws every sprite into a tile-
+   sized box, so a 16×16 sheet and an 8×8 one can sit in the same
+   file and be redrawn one at a time instead of all at once. */
 function bakeGrid(grid, tint) {
+  const rows = grid.length || CELL;
+  const cols = (grid[0] || '').length || CELL;
   const c = document.createElement('canvas');
-  c.width = CELL; c.height = CELL;
+  c.width = cols; c.height = rows;
   const x = c.getContext('2d');
-  for (let row = 0; row < CELL; row++) {
+  for (let row = 0; row < rows; row++) {
     const line = grid[row] || '';
-    for (let col = 0; col < CELL; col++) {
+    for (let col = 0; col < cols; col++) {
       let ch = line[col] || '.';
       if (ch === 'C') ch = tint || 's';
       const color = PALETTE[ch];
@@ -1002,10 +1024,15 @@ export const SHOP_TINT = ['e', 's', 'r', 'W', 'P', 'b'];
 function bakeHero(race, cls) {
   const body = RACE_BODY[race] || RACE_BODY.human;
   const kit = CLASS_KIT[cls] || CLASS_KIT.warrior;
+  /* The composite is the size of the body sheet, so a race drawn
+     at sixteen and a kit drawn at sixteen merge at sixteen — and
+     an eight-pixel kit over an eight-pixel body still works. */
+  const rows = Math.max(body.length, kit.length);
+  const cols = Math.max((body[0] || '').length, (kit[0] || '').length);
   const merged = [];
-  for (let row = 0; row < CELL; row++) {
+  for (let row = 0; row < rows; row++) {
     let line = '';
-    for (let col = 0; col < CELL; col++) {
+    for (let col = 0; col < cols; col++) {
       const over = (kit[row] || '')[col] || '.';
       line += over !== '.' ? over : ((body[row] || '')[col] || '.');
     }

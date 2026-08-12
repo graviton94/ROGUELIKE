@@ -1053,6 +1053,7 @@ export function useItem(slotIdx) {
   if (!slot || slot.item.kind !== 'use') return;
   const it = slot.item;
   let spent = true;
+  G.act = 'use';
   // Using it is how you find out what it was.
   identify(it.id);
 
@@ -1244,6 +1245,7 @@ export function useArt(id) {
   if (ART_NEEDS_BODY.includes(id) && !near.length) {
     say('손이 닿는 곳에 아무것도 없다.', 'warn'); return;
   }
+  G.act = 'cast';                 // 기예도 플레이어에겐 같은 몸짓이다
   if (ART_NEEDS_SHOT.includes(id)) {
     if (weaponType(p) !== 'bow') { say('활이 없다.', 'warn'); return; }
     if (!shotTarget()) { say('사선이 트인 것이 없다.', 'warn'); return; }
@@ -1735,6 +1737,7 @@ export function cast(spellId) {
   if (TARGETED.includes(sp.id) && !nearest) { say('시야에 적이 없다.', 'warn'); return; }
 
   p.mana -= cost;
+  G.act = 'cast';                 // 마나가 실제로 나간 지점에서만 센다
   // 술사의 지팡이: the rod gives one back. Small, constant, and
   // the reason a mage keeps a wand in hand rather than a sword.
   if (fitRule(p, 'siphon')) p.mana = Math.min(p.maxmana, p.mana + 1);
@@ -2609,6 +2612,7 @@ export function hereOffer() {
 export function openHere() {
   const o = hereOffer();
   if (!o) return false;
+  G.act = 'open';
   G.screen = o.screen;
   return true;
 }
@@ -2795,6 +2799,7 @@ function pickUp() {
   const p = G.player;
   const i = G.items.findIndex(it => it.x === p.x && it.y === p.y);
   if (i < 0) return;
+  G.act = 'pick';
   const it = G.items[i];
   if (it.kind === 'chest') { openChest(i, it); return; }
   if (it.kind === 'relic') {
@@ -3105,6 +3110,7 @@ export const canShoot = () => !!shotTarget();
    skips the roll for the arts that promise they cannot miss. */
 function loose(m, scale = 1, opt = {}) {
   const p = G.player;
+  G.act = 'shoot';
   const a = quiver(p) || QUIVERS[0];
   const dist = Math.hypot(m.x - p.x, m.y - p.y);
   const g = gearBonus(p);
@@ -3168,6 +3174,7 @@ export function shoot() {
    know, and nothing else in the file did until now. */
 function swing(m, scale, opt = {}) {
   const p = G.player;
+  G.act = 'fight';
 
   /* You did not attack a mimic — you reached for a chest. It
      gets the first bite for that, and your swing still lands. */
@@ -3742,6 +3749,21 @@ export function ascend() {
 export function endTurn(skipMonsters = false) {
   const p = G.player;
   G.turn++;
+  /* 한 턴이 무엇이었는지 여기 한 곳에서만 센다. 행동이 자기 이름을
+     남기지 않았으면 그 턴은 걷기다. 콘텐츠가 몇 %나 닿는지는 이미
+     쟀고(reach.mjs) 96%였다 — 그런데도 재미가 없었으니, 남은 질문은
+     「무엇이 있는가」가 아니라 「무엇을 하며 시간을 보내는가」다.
+     sim/turns.mjs가 이 한 줄만 읽는다. */
+  const kind = G.act || 'walk';
+  (G.did || (G.did = {}))[kind] = (G.did[kind] || 0) + 1;
+  /* 걷기가 다 같은 걷기는 아니다. 스톤수프도 걷는 턴이 대부분이지만
+     그 걷기는 「보이는 위협 앞에서의 걷기」다. 그래서 걷는 동안 적이
+     하나라도 눈에 있었는지를 따로 센다 — 이 둘의 차이가 곧 긴장이다. */
+  if (kind === 'walk' && G.level) {
+    const watched = G.monsters.some(m => G.level.vis[idx(m.x, m.y)]);
+    if (watched) G.did.walkSeen = (G.did.walkSeen || 0) + 1;
+  }
+  G.act = null;
   /* How long you have not moved. Cheap to keep and the only
      thing 소리 없는 강철 needs — armour that hides you while you
      hold still has to know when you are holding still. */
@@ -5683,6 +5705,7 @@ export function startGame(raceKey, classKey, base) {
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0; G.kills = 0; G.eventsSeen = 0;
   G.regionAt = null;
   G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0; G.fused = 0; G.catUsed = 0;
+  G.did = {}; G.act = null;
   G.engraved = 0; G.memories = []; G.relicShelf = null;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;

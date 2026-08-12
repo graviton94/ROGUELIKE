@@ -29,7 +29,7 @@ import {
   OATH_BLOW, CALL_PULL, CALL_COST, RING_COST, RING_BASE, RING_STEP,
   ATONE_BASE, ATONE_HEAL, ATONE_CAP, KILL_MEND,
   SHADOW_MAX, SHADOW_TICK, FAN_RANGE, FAN_ARC, FAN_SHARE, VANISH_HUSH, VITALS_MULT,
-  AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE,
+  AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, SNARE_STEP, VOLLEY_SHARE,
   AMMO, ammoById, BOW_MELEE, BOW_FALLOFF, AMMO_BUNDLE,
   FORCE_STAM, FORCE_HURT, FORCE_NOISE, PICK_USES, CHEST_RUIN, RANGER_FOOTING,
   FLURRY_MAX, FLURRY_STEP, FLURRY_STAM, FINISH_MAX,
@@ -1448,7 +1448,30 @@ export function useArt(id) {
       if (!G.snares.some(s2 => s2.x === p.x && s2.y === p.y))
         G.snares.push({ x:p.x, y:p.y });
       fx({ t:'snare', x:p.x, y:p.y });
-      say('발밑에 덫을 묻었다. 밟는 쪽이 손해다.', 'good');
+      /* …and then he gets off it. Burying a trap and standing on
+         it was the art describing something it did not do: the
+         thing chasing you never reaches the tile, because you are
+         still in the way. Stepping back is what turns this from a
+         corridor trick into the class's only answer to being
+         reached — and the ranger is the one class whose weapon
+         stops working at arm's length. */
+      const from = visibleMonsters()[0];
+      let back = 0;
+      if (from) {
+        const dx = Math.sign(p.x - from.x) || (rnd(2) ? 1 : -1);
+        const dy = Math.sign(p.y - from.y);
+        for (let i = 0; i < SNARE_STEP; i++) {
+          const nx = p.x + dx, ny = p.y + dy;
+          if (G.level.solid(nx, ny) || monsterAt(nx, ny)) break;
+          const t = G.level.tiles[idx(nx, ny)];
+          if (t === CAMP || t === ALTAR || t === EVENT || t === ANVIL
+              || G.level.shopAt.has(idx(nx, ny))) break;
+          p.x = nx; p.y = ny; back++;
+        }
+        if (back) { refreshFov(); fx({ t:'roll', x:p.x, y:p.y, dx, dy, dist:back }); }
+      }
+      say(back ? `발밑에 덫을 묻고 ${back}칸 물러섰다.`
+               : '발밑에 덫을 묻었다. 밟는 쪽이 손해다.', 'good');
       break;
     }
     case 'volley': {
@@ -2224,8 +2247,19 @@ export function step(dx, dy) {
   const ni = idx(nx, ny);
   if (L.tiles[ni] === undefined) return;
 
+  /* A body comes before a counter. The shop check used to sit
+     above this, which meant anything standing on a merchant's
+     tile could not be attacked at all — walking into it opened
+     the shop, spent no turn, and left the thing there. In town
+     that is harmless because nothing hostile walks there; the
+     travelling merchant put the same tile in the dungeon, where
+     things do. Measured: one warrior run in forty locked into
+     shop:leave → melee → shop:leave forever. */
+  const onCounter = monsterAt(nx, ny);
   const shopId = L.shopAt.get(ni);
-  if (shopId) { G.shop = SHOPS.find(s => s.id === shopId); G.screen = 'shop'; return; }
+  if (shopId && !(onCounter && !onCounter.disguise)) {
+    G.shop = SHOPS.find(s => s.id === shopId); G.screen = 'shop'; return;
+  }
 
   const t = L.tiles[ni];
   if (t === CAMP)  { p.x = nx; p.y = ny; refreshFov(); G.screen = 'camp'; return; }

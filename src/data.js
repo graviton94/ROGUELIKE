@@ -995,13 +995,20 @@ export const ARTS = {
   ],
 
   ranger: [
-    { id:'aimed',   name:'조준 사격', short:'조준', lv:1,  stam:2, ammo:1,
+    /* Breath, not arrows. Measured at level twelve the ranger died
+       holding 14.5 arrows with its lungs empty, so the cost moved
+       off the binding resource — but charging two arrows instead
+       was measured too, and it cost the *early* ranger 0.4 of a
+       floor: a level-three hunter with 24 arrows and no shop in
+       reach is exactly where the quiver does bind. So: cheaper in
+       breath, unchanged in arrows. */
+    { id:'aimed',   name:'조준 사격', short:'조준', lv:1,  stam:1, ammo:1,
       desc:'빗나가지 않는다. 그리고 멀수록 아프다 — 활의 감쇠가 뒤집힌다.' },
     { id:'pierce',  name:'관통 사격', short:'관통', lv:4,  stam:3, ammo:1,
       desc:'화살이 일직선 위의 모든 것을 뚫고 지나간다.' },
     { id:'snare',   name:'덫 놓기',   short:'덫',   lv:8,  stam:3,
-      desc:'발밑에 덫을 묻는다. 밟은 것은 두 턴을 잃는다.' },
-    { id:'volley',  name:'빗발',      short:'빗발', lv:12, stam:5, ammo:3,
+      desc:'발밑에 덫을 묻고 물러선다. 따라온 것은 두 턴을 잃는다.' },
+    { id:'volley',  name:'빗발',      short:'빗발', lv:12, stam:3, ammo:3,
       desc:'보이는 모든 것에게 한 발씩. 각각은 절반만 아프다.' },
   ],
 };
@@ -1060,7 +1067,21 @@ export const KILL_MEND  = 1;
 export const AIMED_GAIN  = 0.09;   // damage per tile, instead of the usual loss
 export const PIERCE_KEEP = 0.85;   // what the arrow carries to the next body
 export const SNARE_TURNS = 2;
-export const VOLLEY_SHARE = 0.5;
+/* How far the ranger steps back after burying it. The art always
+   said the ground should do the catching, and then left him
+   standing on his own trap — which against four bodies at once is
+   a turn spent doing nothing. Measured before this: the ranger
+   lost 40 of 40 pack fights, swinging a bow 13.8 times a fight
+   because nothing in its four arts reopens a gap. */
+export const SNARE_STEP = 2;
+/* 빗발 was strictly worse than 휩쓸기, a level-three art: it cost
+   five breath and three arrows to hit each body for half, where
+   the warrior pays three breath to hit each adjacent body for
+   0.8. Against the four-body swarm both reach the same four. A
+   level-twelve capstone that loses to a level-three art in the
+   situation it was written for is not a balance question, it is a
+   typo with a long life. */
+export const VOLLEY_SHARE = 0.65;
 
 export const SHOVE_DIST   = 2;     // tiles pushed
 export const SHOVE_WALL   = 0.5;   // extra damage, as a share of a normal blow, on impact

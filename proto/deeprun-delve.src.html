@@ -1,0 +1,668 @@
+<meta charset="utf-8">
+<title>DEEPRUN 하강</title>
+<style>
+@font-face{font-family:'Galmuri';src:url(data:font/woff2;base64,__REG__) format('woff2');font-weight:400;font-display:block}
+@font-face{font-family:'Galmuri';src:url(data:font/woff2;base64,__BOLD__) format('woff2');font-weight:700;font-display:block}
+:root{
+  --void:#08070d; --deck:#14121d; --slot:#1e1b2c; --edge:#332d4a; --fogc:#0d0b14;
+  --bone:#f2ecdc; --dim:#8d84a8;
+  --amber:#ffb020; --cyan:#22e8ff; --mag:#ff2f9e; --acid:#b6ff2e; --blood:#ff3b30;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--void);color:var(--bone);
+  font-family:'Galmuri',ui-monospace,monospace;font-weight:400;
+  -webkit-font-smoothing:none;display:flex;justify-content:center;padding:10px;
+  overscroll-behavior:none;-webkit-user-select:none;user-select:none}
+#app{width:100%;max-width:1000px;display:flex;flex-direction:column;gap:8px}
+
+.hdr{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.logo{font-weight:700;font-size:15px;letter-spacing:.2em;color:var(--amber)}
+.logo i{font-style:normal;color:var(--dim)}
+.vit{font-size:11px;color:var(--dim);letter-spacing:.08em;
+  font-variant-numeric:tabular-nums;display:flex;gap:12px}
+.vit b{color:var(--bone);font-weight:700}
+.vit .hp b{color:var(--acid)}
+
+#cols{display:grid;grid-template-columns:minmax(0,1fr) 268px;gap:8px;align-items:start}
+@media (max-width:760px){#cols{grid-template-columns:minmax(0,1fr)}}
+
+/* ── 지도: 걸어서 읽는 층 ── */
+#mapwrap{background:var(--deck);border:2px solid var(--edge);padding:7px;overflow-x:auto}
+#map{display:grid;gap:0;width:max-content;margin:0 auto;
+  font-size:15px;line-height:1;font-weight:700}
+.c{width:17px;height:19px;display:flex;align-items:center;justify-content:center;
+  color:var(--edge);background:var(--void)}
+.c.fog{background:var(--fogc);color:transparent}
+.c.mem{opacity:.42}
+.c.wall{color:#241d38;background:#100d1a}
+.c.floor{color:#3b3357;background:#151122}
+.c.you{color:var(--bone);background:#2c2440}
+.c.stair{color:var(--acid)}
+.c.cache{color:var(--cyan)}
+.c.forge{color:var(--mag)}
+.c.foe{color:var(--blood)}
+.c.foe.near{background:#2a1220}
+.c.hilite{background:#3a2f18}
+
+#legend{font-size:10px;color:var(--dim);line-height:1.8;margin-top:6px;
+  display:flex;gap:10px;flex-wrap:wrap}
+#legend span b{font-weight:700}
+
+/* ── 압력계 ── */
+#gauge{background:linear-gradient(180deg,#181425,#0d0b14);border:3px solid var(--edge);
+  padding:8px 10px;display:flex;align-items:center;gap:10px;position:relative;overflow:hidden}
+#gauge.fire{border-color:var(--amber)}
+#plabel{font-size:10px;color:var(--dim);letter-spacing:.16em;line-height:1.5;flex:none}
+#pnum{font-weight:700;font-size:clamp(26px,6vw,38px);line-height:1;color:var(--amber);
+  font-variant-numeric:tabular-nums;text-shadow:0 0 10px #ffb02033;min-width:3.4ch;letter-spacing:.04em;text-align:right}
+#ptrail{flex:1;font-size:10.5px;color:var(--dim);text-align:right;line-height:1.6;
+  max-height:52px;overflow:hidden}
+#ptrail b{color:var(--mag);font-weight:700}
+#ptrail i{font-style:normal;color:var(--cyan)}
+
+/* ── 교전 ── */
+#fight{background:var(--deck);border:2px solid var(--edge);padding:7px;min-height:74px}
+#fight .ft{font-size:10px;color:var(--dim);letter-spacing:.14em;margin-bottom:6px}
+#foes{display:flex;gap:5px;flex-wrap:wrap}
+.foe{background:var(--slot);border:2px solid var(--edge);padding:4px 6px;min-width:96px;flex:none}
+.foe.front{border-color:var(--amber)}
+.foe.dead{opacity:.22;filter:grayscale(1)}
+.foe .fn{font-size:10.5px;font-weight:700;line-height:1.3}
+.foe .fb{height:6px;background:#0a0812;border:1px solid var(--edge);margin:3px 0}
+.foe .fb i{display:block;height:100%;background:var(--acid)}
+.foe .fx{font-size:9px;color:var(--dim);line-height:1.35}
+
+/* ── 체인 ── */
+#chainwrap{background:var(--deck);border:2px solid var(--edge);padding:8px}
+.ch{font-size:10px;color:var(--dim);letter-spacing:.14em;margin-bottom:6px;
+  display:flex;justify-content:space-between;gap:6px}
+#chain{display:flex;gap:5px;overflow-x:auto;padding-bottom:3px}
+.mod{background:var(--slot);border:2px solid var(--edge);padding:5px 7px;min-width:100px;
+  flex:none;cursor:grab;position:relative;text-align:left;font:inherit;color:inherit}
+.mod.on{border-color:var(--amber);background:#2b2136;transform:translateY(-3px)}
+.mod.sel{border-color:var(--mag)}
+.mod .mi{font-size:9px;color:var(--dim);letter-spacing:.06em}
+.mod .mn{font-size:11px;font-weight:700;line-height:1.3;margin:2px 0}
+.mod .md{font-size:9px;color:var(--dim);line-height:1.45}
+.mod.gen .mn{color:var(--acid)} .mod.mul .mn{color:var(--mag)} .mod.gun .mn{color:var(--amber)}
+
+#relics{display:flex;gap:5px;flex-wrap:wrap;min-height:0}
+.rel{background:#241a2e;border:2px solid var(--mag);padding:4px 6px;font-size:9.5px;
+  color:var(--bone);line-height:1.4;max-width:150px}
+.rel b{color:var(--mag);font-weight:700;display:block;font-size:10.5px}
+
+.side{display:flex;flex-direction:column;gap:8px}
+.panel{background:var(--deck);border:2px solid var(--edge);padding:8px}
+.panel h4{margin:0 0 6px;font-size:10px;color:var(--dim);letter-spacing:.14em;font-weight:400}
+#logbox{font-size:10.5px;line-height:1.75;color:var(--dim);height:150px;overflow:hidden}
+#logbox b{color:var(--bone);font-weight:700}
+#logbox u{text-decoration:none;color:var(--amber)}
+
+/* ── 조작 ── */
+#pad{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;max-width:220px;margin:0 auto}
+#pad button{padding:11px 0;font-size:13px}
+.bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+button{font:inherit;background:var(--slot);border:2px solid var(--edge);color:var(--bone);
+  padding:8px 12px;font-size:11.5px;font-weight:700;cursor:pointer;letter-spacing:.05em}
+button:hover:not(:disabled),button:focus-visible{border-color:var(--cyan);color:var(--cyan);outline:none}
+button.go{background:var(--amber);color:#1a1206;border-color:#ffd070}
+button:disabled{opacity:.35;cursor:default}
+.hint{font-size:10px;color:var(--dim);line-height:1.7}
+.hint b{color:var(--amber);font-weight:700}
+
+#draft{position:fixed;inset:0;background:#08070df2;display:none;z-index:9;
+  align-items:center;justify-content:center;padding:14px}
+#draft.on{display:flex}
+.dbox{width:min(680px,100%);background:var(--deck);border:3px solid var(--amber);padding:16px}
+.dbox h3{margin:0 0 3px;font-size:13px;color:var(--amber);letter-spacing:.1em}
+.dbox p{margin:0 0 12px;font-size:10.5px;color:var(--dim);line-height:1.7}
+.cards{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.card{background:var(--slot);border:2px solid var(--edge);padding:11px;cursor:pointer;text-align:left}
+.card:hover,.card:focus-visible{border-color:var(--mag);outline:none}
+.card .cn{font-size:12px;font-weight:700;color:var(--cyan);margin-bottom:4px}
+.card .cd{font-size:10px;color:var(--dim);line-height:1.6}
+
+#over{position:fixed;inset:0;background:#08070df7;display:none;z-index:10;
+  flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:18px}
+#over.on{display:flex}
+#over h2{margin:0;font-size:24px;letter-spacing:.1em}
+#over p{margin:0;font-size:11.5px;color:var(--dim);line-height:1.9;max-width:44ch}
+#flash{position:fixed;inset:0;pointer-events:none;background:#fff;opacity:0;z-index:8}
+@media (prefers-reduced-motion:reduce){.mod.on{transform:none}}
+</style>
+
+<div id="app">
+  <div class="hdr">
+    <div class="logo">DEEPRUN <i>하강</i></div>
+    <div class="vit">
+      <span>구역 <b id="dep">1</b></span>
+      <span class="hp">노심 <b id="hp">30</b>/<b id="mhp">30</b></span>
+      <span>정지시킨 것 <b id="kills">0</b></span>
+    </div>
+  </div>
+
+  <div id="cols">
+    <div style="display:flex;flex-direction:column;gap:8px;min-width:0">
+      <div id="mapwrap"><div id="map"></div>
+        <div id="legend">
+          <span><b style="color:#f2ecdc">@</b> 나</span>
+          <span><b style="color:#ff3b30">rRsW</b> 적</span>
+          <span><b style="color:#22e8ff">◆</b> 부품함</span>
+          <span><b style="color:#ff2f9e">▲</b> 화로</span>
+          <span><b style="color:#b6ff2e">&gt;</b> 하강로</span>
+        </div>
+      </div>
+
+      <div id="gauge">
+        <div id="plabel">압력<br>PRESSURE</div>
+        <div id="pnum">0</div>
+        <div id="ptrail"></div>
+      </div>
+
+      <div id="fight"><div class="ft" id="ftitle">교전 없음 — 걸으십시오</div>
+        <div id="foes"></div></div>
+
+      <div id="chainwrap">
+        <div class="ch"><span>가동 순서 — 왼쪽부터 발화한다</span><span id="chc"></span></div>
+        <div id="chain"></div>
+        <div id="relics" style="margin-top:7px"></div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="panel"><h4>기록</h4><div id="logbox"></div></div>
+      <div class="panel"><h4>조작</h4>
+        <div id="pad">
+          <button data-d="-1,-1">↖</button><button data-d="0,-1">↑</button><button data-d="1,-1">↗</button>
+          <button data-d="-1,0">←</button><button data-d="0,0">·</button><button data-d="1,0">→</button>
+          <button data-d="-1,1">↙</button><button data-d="0,1">↓</button><button data-d="1,1">↘</button>
+        </div>
+        <div class="hint" style="margin-top:7px">방향키·WASD로 걷습니다. 적에게 <b>부딪히면</b> 체인이 가동합니다.
+        옆에 붙은 적은 <b>전부 같이</b> 나옵니다 — 좁은 길에서 싸우면 하나만 상대합니다.</div>
+      </div>
+      <div class="panel"><h4>순서</h4>
+        <div class="hint">모듈을 <b>끌어서</b> 자리를 바꾸십시오. 곱하기 전에 쏘면 아무것도 아닙니다.<br>
+        <b>발생 → 증폭 → 방출</b>이 기본형입니다.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="draft"><div class="dbox">
+  <h3 id="dh">부품함</h3>
+  <p id="dp">하나만 접합됩니다. 자리는 접합한 뒤 끌어서 정합니다.</p>
+  <div class="cards" id="cards"></div>
+</div></div>
+
+<div id="over"><h2 id="ot"></h2><p id="op"></p>
+  <button onclick="location.reload()">다시</button></div>
+<div id="flash"></div>
+
+<script>
+const $ = i => document.getElementById(i);
+const rnd = n => Math.floor(Math.random()*n);
+const pick = a => a[rnd(a.length)];
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sleep = ms => new Promise(r => setTimeout(r, reduce ? 0 : ms));
+
+/* ══ 규칙층 — DOM을 모른다. 그래서 벤치가 같은 코드를 돌릴 수 있다. ══ */
+
+/* 모듈 셋. 발생 gen 압력을 만들고 · 증폭 mul 곱하고 · 방출 gun 피해로 바꾼다.
+   순서가 전부다. */
+const MODS = {
+  boiler:{id:'boiler',n:'증기 보일러',k:'gen',t:'발생',d:'압력 +9'},
+  scrap: {id:'scrap', n:'고철 연소', k:'gen',t:'발생',d:'교전 중인 적 하나마다 +5'},
+  bleed: {id:'bleed', n:'배압 회수', k:'gen',t:'발생',d:'잃은 노심 1당 +1'},
+  spark: {id:'spark', n:'점화 플러그',k:'gen',t:'발생',d:'압력 +4 · 다음 증폭 +0.4'},
+  amp:   {id:'amp',   n:'증폭 코일', k:'mul',t:'증폭',d:'압력 ×1.6'},
+  over:  {id:'over',  n:'과열 밸브', k:'mul',t:'증폭',d:'압력 ×2.2 · 노심 −3'},
+  echo:  {id:'echo',  n:'되울림',   k:'mul',t:'증폭',d:'바로 앞 모듈이 한 번 더'},
+  cast:  {id:'cast',  n:'산탄 방출', k:'gun',t:'방출',d:'압력의 55%를 전원에게'},
+  lance: {id:'lance', n:'관통 사출', k:'gun',t:'방출',d:'압력 전부를 맨 앞 하나에'},
+  arc:   {id:'arc',   n:'감전 아크', k:'gun',t:'방출',d:'압력의 40%를 앞 둘에'},
+  vent:  {id:'vent',  n:'냉각 배출', k:'gun',t:'방출',d:'압력의 25%를 전원 · 노심 +5'},
+};
+const POOL = Object.values(MODS);
+
+/* 유물 — 체인의 규칙 자체를 바꾼다 */
+const RELICS = {
+  twin:  {id:'twin',  n:'쌍둥이 축',   d:'마지막 증폭이 한 번 더 걸린다'},
+  siege: {id:'siege', n:'공성 탄두',   d:'첫 방출은 장갑을 무시한다'},
+  hoard: {id:'hoard', n:'축압기',     d:'교전이 끝나도 압력의 40%가 남는다'},
+  plate: {id:'plate', n:'덧댄 장갑',   d:'적의 타격 −2'},
+};
+
+/* 적 — 규칙이 한 줄로 읽힌다 */
+const FOES = {
+  crawler:{k:'crawler',g:'r',n:'배선 게',  hp:16, dmg:5, r:'평범하다'},
+  plate:  {k:'plate',  g:'R',n:'장갑 보행기',hp:38, dmg:9, r:'받는 피해 −5', armor:5},
+  swarm:  {k:'swarm',  g:'s',n:'나노 군체', hp:10, dmg:4, r:'두 칸씩 움직인다', fast:true},
+  siphon: {k:'siphon', g:'W',n:'흡열 드론', hp:22, dmg:6, r:'가동 전 압력 −7', leech:7},
+};
+
+const W = 33, H = 17;
+const IDX = (x,y) => y*W + x;
+
+function makeFloor(depth){
+  const t = new Array(W*H).fill('#');
+  const rooms = [];
+  for (let i=0;i<7+depth;i++){
+    const rw = 4+rnd(6), rh = 3+rnd(3);
+    const rx = 1+rnd(W-rw-2), ry = 1+rnd(H-rh-2);
+    rooms.push([rx,ry,rw,rh]);
+    for (let y=ry;y<ry+rh;y++) for (let x=rx;x<rx+rw;x++) t[IDX(x,y)]='.';
+  }
+  const cx = r => [r[0]+(r[2]>>1), r[1]+(r[3]>>1)];
+  for (let i=1;i<rooms.length;i++){
+    const [ax,ay] = cx(rooms[i-1]), [bx,by] = cx(rooms[i]);
+    for (let x=Math.min(ax,bx);x<=Math.max(ax,bx);x++) t[IDX(x,ay)]='.';
+    for (let y=Math.min(ay,by);y<=Math.max(ay,by);y++) t[IDX(bx,y)]='.';
+  }
+  return {t, rooms, cx};
+}
+
+function newRun(){
+  return { depth:1, hp:30, mhp:30, kills:0, p:0,
+    chain:[MODS.boiler, MODS.amp, MODS.cast], relics:[], log:[], trail:[],
+    firedGun:0 };
+}
+
+function enterDepth(G){
+  const F = makeFloor(G.depth);
+  G.t = F.t; G.seen = new Array(W*H).fill(false); G.mem = new Array(W*H).fill(false);
+  const [sx,sy] = F.cx(F.rooms[0]);
+  G.x = sx; G.y = sy;
+  const far = F.rooms[F.rooms.length-1]; const [ex,ey] = F.cx(far);
+  G.t[IDX(ex,ey)] = '>';
+  // 부품함 · 화로
+  const spots = [];
+  for (let i=1;i<F.rooms.length-1;i++) spots.push(F.cx(F.rooms[i]));
+  for (let i=0;i<Math.min(2,spots.length);i++) G.t[IDX(...spots[i])] = '◆';
+  if (spots.length>2) G.t[IDX(...spots[2])] = '▲';
+  // 적
+  G.foes = [];
+  const kinds = G.depth===1 ? ['crawler','crawler','swarm']
+              : G.depth===2 ? ['crawler','swarm','plate','siphon']
+              : ['plate','siphon','swarm','plate','crawler'];
+  const n = 6 + G.depth*2;
+  for (let i=0;i<n;i++){
+    let x,y,tries=0;
+    do { x=rnd(W); y=rnd(H); tries++; } while (tries<200 &&
+      (G.t[IDX(x,y)]==='#' || (Math.abs(x-sx)<6 && Math.abs(y-sy)<4) || foeAt(G,x,y)));
+    if (G.t[IDX(x,y)]==='#') continue;
+    const F0 = FOES[kinds[i % kinds.length]];
+    G.foes.push({...F0, x, y, maxhp:F0.hp, hp:F0.hp});
+  }
+  see(G);
+}
+
+const foeAt = (G,x,y) => G.foes.find(f=>f.hp>0 && f.x===x && f.y===y);
+const walkable = (G,x,y) => x>=0&&y>=0&&x<W&&y<H&&G.t[IDX(x,y)]!=='#';
+
+function see(G){
+  const R = 5;
+  for (let y=G.y-R;y<=G.y+R;y++) for (let x=G.x-R;x<=G.x+R;x++){
+    if (x<0||y<0||x>=W||y>=H) continue;
+    if ((x-G.x)**2 + (y-G.y)**2 > R*R+2) continue;
+    G.seen[IDX(x,y)] = true; G.mem[IDX(x,y)] = true;
+  }
+}
+
+/* 옆에 붙은 것은 전부 함께 나온다 — 이게 위치를 의미 있게 만든다 */
+function engaged(G, target){
+  const set = target ? [target] : [];
+  for (const f of G.foes){
+    if (f.hp<=0 || set.includes(f)) continue;
+    if (Math.abs(f.x-G.x)<=1 && Math.abs(f.y-G.y)<=1) set.push(f);
+  }
+  return set;
+}
+
+/* ── 체인 발화. 순수 계산. 애니메이션은 이 결과를 재생할 뿐. ── */
+function resolveChain(G, foes, sink){
+  const say = (t,kind) => sink && sink(t,kind);
+  const alive = () => foes.filter(f=>f.hp>0);
+  let bonus = 0;                       // 점화 플러그가 다음 증폭에 얹는 값
+  let gunNo = 0;
+  let total = 0;
+  const has = id => G.relics.some(r=>r.id===id);
+  const leech = alive().filter(f=>f.leech).reduce((s,f)=>s+f.leech,0);
+  if (leech){ G.p = Math.max(0, G.p - leech); say(`흡열 −${leech}`); }
+
+  let lastMul = -1;
+  for (let i=0;i<G.chain.length;i++){
+    if (G.chain[i].k==='mul') lastMul = i;
+  }
+
+  const run = (m, i, depth) => {
+    if (depth > 3) return;
+    if (m.k === 'gen'){
+      let add = 0;
+      if (m.id==='boiler') add = 9;
+      if (m.id==='scrap')  add = alive().length * 5;
+      if (m.id==='bleed')  add = G.mhp - G.hp;
+      if (m.id==='spark'){ add = 4; bonus += 0.4; }
+      G.p += add; say(`${m.n} +${add}`);
+    } else if (m.k === 'mul'){
+      if (m.id==='echo'){
+        const prev = G.chain[i-1];
+        if (prev){ say(`되울림 → ${prev.n}`); run(prev, i-1, depth+1); }
+        else say('되울릴 것이 없다');
+        return;
+      }
+      const base = m.id==='over' ? 2.2 : 1.6;
+      const mult = base + bonus; bonus = 0;
+      G.p = Math.round(G.p * mult * 10)/10;
+      if (m.id==='over') G.hp -= 3;
+      say(`×${mult.toFixed(1)}${m.id==='over'?' · 노심 −3':''}`, 'mul');
+      if (has('twin') && i===lastMul && depth===0){
+        G.p = Math.round(G.p * base * 10)/10;
+        say(`쌍둥이 축 ×${base}`, 'mul');
+      }
+    } else {
+      const A = alive();
+      if (!A.length){ say('겨눌 것이 없다'); return; }
+      gunNo++;
+      const pierce = has('siege') && gunNo===1;
+      let hits = [];
+      if (m.id==='cast')  hits = A.map(f=>[f, G.p*0.55]);
+      if (m.id==='lance') hits = [[A[0], G.p]];
+      if (m.id==='arc')   hits = A.slice(0,2).map(f=>[f, G.p*0.40]);
+      if (m.id==='vent'){ hits = A.map(f=>[f, G.p*0.25]); G.hp = Math.min(G.mhp, G.hp+5); }
+      let sum = 0;
+      for (const [f, raw] of hits){
+        const d = Math.max(1, Math.round(raw) - (pierce ? 0 : (f.armor||0)));
+        f.hp -= d; sum += d;
+        if (f.hp<=0){ f.hp=0; G.kills++; }
+      }
+      total += sum;
+      say(`${m.n} → ${sum} 피해`, 'gun');
+      G.p = 0;
+    }
+  };
+
+  for (let i=0;i<G.chain.length;i++){
+    run(G.chain[i], i, 0);
+    if (G.hp<=0) break;
+    if (sink) sink('@step:'+i);
+  }
+  G.p = has('hoard') ? Math.round(G.p*0.4) : 0;
+  return total;
+}
+
+/* 남은 적의 반격 */
+function retaliate(G, foes){
+  const has = id => G.relics.some(r=>r.id===id);
+  const A = foes.filter(f=>f.hp>0);
+  const dmg = A.reduce((s,f)=>s + Math.max(1, f.dmg - (has('plate')?2:0)), 0);
+  G.hp -= dmg;
+  return dmg;
+}
+
+/* ══ 화면층 ══ */
+let G = null, busy = false;
+
+function log(t){ G.log.push(t); if (G.log.length>40) G.log.shift();
+  $('logbox').innerHTML = G.log.slice(-9).reverse().join('<br>'); }
+function trail(t, kind){
+  const w = kind==='mul' ? `<b>${t}</b>` : kind==='gun' ? `<i>${t}</i>` : t;
+  G.trail.push(w); if (G.trail.length>5) G.trail.shift();
+  $('ptrail').innerHTML = G.trail.slice(-3).join('<br>');
+  $('pnum').textContent = Math.round(G.p);
+}
+function flash(col){ if (reduce) return; const f=$('flash');
+  f.style.background=col; f.style.opacity='.16';
+  setTimeout(()=>f.style.transition='opacity .22s',10);
+  setTimeout(()=>{f.style.opacity='0';},60);
+  setTimeout(()=>f.style.transition='',300); }
+
+const GLYPH = { '#':'▒', '.':'·', '>':'>', '◆':'◆', '▲':'▲' };
+function drawMap(){
+  const m = $('map');
+  m.style.gridTemplateColumns = `repeat(${W}, 17px)`;
+  let html = '';
+  for (let y=0;y<H;y++) for (let x=0;x<W;x++){
+    const i = IDX(x,y);
+    if (!G.mem[i]){ html += '<div class="c fog">·</div>'; continue; }
+    const lit = G.seen[i];
+    let cls = 'c' + (lit?'':' mem'), ch;
+    if (x===G.x && y===G.y){ cls+=' you'; ch='@'; }
+    else {
+      const f = lit && foeAt(G,x,y);
+      if (f){ cls += ' foe' + (Math.abs(f.x-G.x)<=1&&Math.abs(f.y-G.y)<=1?' near':''); ch = f.g; }
+      else { const t=G.t[i];
+        cls += t==='#'?' wall': t==='>'?' stair': t==='◆'?' cache': t==='▲'?' forge':' floor';
+        ch = GLYPH[t]||'·'; }
+    }
+    html += `<div class="${cls}">${ch}</div>`;
+  }
+  m.innerHTML = html;
+}
+
+function drawFoes(foes){
+  $('foes').innerHTML = foes.map((f,i)=>`
+    <div class="foe ${i===0?'front':''} ${f.hp<=0?'dead':''}">
+      <div class="fn" style="color:${f.hp<=0?'var(--dim)':'var(--blood)'}">${f.n}</div>
+      <div class="fb"><i style="width:${Math.max(0,f.hp/f.maxhp*100)}%"></i></div>
+      <div class="fx">${f.hp}/${f.maxhp} · ${f.r}</div>
+    </div>`).join('');
+}
+
+function render(){
+  $('dep').textContent = G.depth; $('hp').textContent = Math.max(0,G.hp);
+  $('mhp').textContent = G.mhp; $('kills').textContent = G.kills;
+  $('pnum').textContent = Math.round(G.p);
+  drawMap();
+  $('chc').textContent = `${G.chain.length}칸`;
+  $('chain').innerHTML = G.chain.map((m,i)=>`
+    <button class="mod ${m.k} ${selI===i?'sel':''}" draggable="true" data-i="${i}">
+      <div class="mi">${i+1} · ${m.t}</div>
+      <div class="mn">${m.n}</div>
+      <div class="md">${m.d}</div>
+    </button>`).join('');
+  $('relics').innerHTML = G.relics.map(r=>`<div class="rel"><b>${r.n}</b>${r.d}</div>`).join('');
+  wireChain();
+}
+
+/* ── 한 걸음 ── */
+async function step(dx, dy){
+  if (busy || G.hp<=0) return;
+  const nx = G.x+dx, ny = G.y+dy;
+  if (dx||dy){
+    const f = foeAt(G, nx, ny);
+    if (f) { await bump(f); return; }
+    if (!walkable(G,nx,ny)) return;
+    G.x = nx; G.y = ny;
+  }
+  see(G);
+  const t = G.t[IDX(G.x,G.y)];
+  if (t === '>'){ return descend(); }
+  if (t === '◆'){ G.t[IDX(G.x,G.y)]='.'; log('<u>부품함</u>을 열었다.'); render(); return draft(); }
+  if (t === '▲'){ G.t[IDX(G.x,G.y)]='.'; const h=Math.min(12, G.mhp-G.hp);
+    G.hp += h; G.mhp += 4; log(`<u>화로</u> — 노심 +${h}, 최대 +4.`); }
+  foeTurn();
+  render();
+}
+
+function foeTurn(){
+  for (const f of G.foes){
+    if (f.hp<=0) continue;
+    const dist = Math.max(Math.abs(f.x-G.x), Math.abs(f.y-G.y));
+    if (dist > 7 || dist <= 1) continue;
+    const steps = f.fast ? 2 : 1;
+    for (let s=0;s<steps;s++){
+      const dx = Math.sign(G.x-f.x), dy = Math.sign(G.y-f.y);
+      const cand = [[dx,dy],[dx,0],[0,dy]];
+      for (const [ax,ay] of cand){
+        if ((!ax&&!ay)) continue;
+        const tx=f.x+ax, ty=f.y+ay;
+        if (!walkable(G,tx,ty) || foeAt(G,tx,ty) || (tx===G.x&&ty===G.y)) continue;
+        f.x=tx; f.y=ty; break;
+      }
+    }
+  }
+}
+
+async function bump(target){
+  busy = true;
+  const foes = engaged(G, target);
+  $('ftitle').textContent = `교전 — ${foes.length}체`;
+  G.trail = []; drawFoes(foes); render();
+  $('gauge').classList.add('fire');
+
+  // 순수 계산이 낸 사건을 그대로 재생한다
+  const events = [];
+  const snapshot = [];
+  resolveChain(G, foes, (t,kind)=>{
+    if (typeof t === 'string' && t.startsWith('@step:')) events.push(['step', +t.slice(6)]);
+    else events.push(['say', t, kind, G.p, foes.map(f=>f.hp)]);
+  });
+  // 위 호출이 이미 상태를 끝까지 진행시켰다. 재생은 문구/막대만 따라간다.
+  const finalP = G.p;
+  for (const e of events){
+    if (e[0]==='step'){ markOn(e[1], true); await sleep(70); markOn(e[1], false); continue; }
+    const [,t,kind,p,hps] = e;
+    G.p = p; trail(t, kind);
+    foes.forEach((f,i)=>f.__show = hps[i]);
+    drawFoes(foes.map(f=>({...f, hp:f.__show})));
+    if (kind==='gun') flash('#22e8ff');
+    await sleep(240);
+  }
+  $('gauge').classList.remove('fire');
+  G.p = finalP;
+  drawFoes(foes);
+
+  const left = foes.filter(f=>f.hp>0);
+  if (left.length){
+    const d = retaliate(G, foes);
+    flash('#ff3b30'); trail(`반격 −${d}`);
+    log(`<b>${left.length}체</b>가 버텼다 — 노심 −${d}.`);
+  } else {
+    log(`<b>${foes.length}체</b>를 한 번에 정지시켰다.`);
+  }
+  G.foes = G.foes.filter(f=>f.hp>0);
+  $('ftitle').textContent = left.length ? `교전 — ${left.length}체 남음` : '정지 — 걸으십시오';
+  foeTurn();
+  busy = false;
+  render();
+  if (G.hp<=0) return end(false);
+}
+
+function markOn(i,on){ const el = $('chain').children[i]; if (el) el.classList.toggle('on', on); }
+
+async function descend(){
+  G.depth++;
+  if (G.depth > 3) return end(true);
+  log(`<u>구역 ${G.depth}</u>로 내려갔다.`);
+  enterDepth(G);
+  render();
+  relicDraft();
+}
+
+/* ── 뽑기 ── */
+function offer(title, note, list, take){
+  $('dh').textContent = title; $('dp').textContent = note;
+  $('cards').innerHTML = list.map((m,i)=>`
+    <button class="card" data-i="${i}">
+      <div class="cn">${m.n}${m.t?` <span style="color:var(--dim);font-size:9.5px">· ${m.t}</span>`:''}</div>
+      <div class="cd">${m.d}</div>
+    </button>`).join('');
+  [...$('cards').children].forEach((b,i)=> b.onclick = ()=>{
+    take(list[i]); $('draft').classList.remove('on'); busy=false; render(); });
+  busy = true;
+  $('draft').classList.add('on');
+}
+function draft(){
+  const have = new Set(G.chain.map(m=>m.id));
+  const pool = POOL.filter(m=>!have.has(m.id));
+  const three = [];
+  while (three.length < Math.min(3,pool.length)){ const m=pick(pool); if(!three.includes(m)) three.push(m); }
+  if (!three.length) return;
+  offer('부품함', '하나만 접합됩니다. 자리는 접합한 뒤 끌어서 정합니다.',
+    three, m => { G.chain.push(m); log(`<u>${m.n}</u>을 체인 끝에 접합했다.`); });
+}
+function relicDraft(){
+  const have = new Set(G.relics.map(r=>r.id));
+  const pool = Object.values(RELICS).filter(r=>!have.has(r.id));
+  if (!pool.length) return;
+  const two = []; while (two.length < Math.min(2,pool.length)){ const r=pick(pool); if(!two.includes(r)) two.push(r); }
+  offer('하강 보상 — 유물', '유물은 체인의 규칙 자체를 바꿉니다.',
+    two, r => { G.relics.push(r); log(`유물 <u>${r.n}</u>.`); });
+}
+
+/* ── 순서 바꾸기 ── */
+let dragI = null, selI = null;
+function wireChain(){
+  [...$('chain').children].forEach(el=>{
+    el.addEventListener('dragstart', ()=>{ dragI = +el.dataset.i; el.style.opacity='.4'; });
+    el.addEventListener('dragend', ()=>{ el.style.opacity=''; });
+    el.addEventListener('dragover', e=>e.preventDefault());
+    el.addEventListener('drop', e=>{ e.preventDefault();
+      const to = +el.dataset.i; if (dragI===null||dragI===to) return;
+      move(dragI, to); dragI=null; selI=null; render(); });
+    el.addEventListener('click', ()=>{
+      if (busy) return;
+      const i = +el.dataset.i;
+      if (selI===null){ selI=i; render(); }
+      else if (selI===i){ selI=null; render(); }
+      else { move(selI,i); selI=null; render(); }
+    });
+  });
+}
+function move(from,to){ const [m]=G.chain.splice(from,1); G.chain.splice(to,0,m); }
+
+function end(win){
+  busy = true;
+  $('ot').textContent = win ? '지표로 올라왔다' : '노심 정지';
+  $('ot').style.color = win ? 'var(--acid)' : 'var(--blood)';
+  $('op').innerHTML = win
+    ? `구역 셋 돌파 · 모듈 ${G.chain.length} · 유물 ${G.relics.length} · 정지시킨 것 ${G.kills}`
+    : `구역 ${G.depth}에서 노심이 꺼졌습니다.<br><br>같은 모듈이라도 <b>순서</b>가 다르면 결과가 다릅니다 —
+       발생으로 압력을 모으고, 증폭으로 부풀리고, 마지막에 방출하십시오.`;
+  $('over').classList.add('on');
+}
+
+/* ── 입력 ── */
+const KEYS = { ArrowUp:[0,-1], ArrowDown:[0,1], ArrowLeft:[-1,0], ArrowRight:[1,0],
+  w:[0,-1], s:[0,1], a:[-1,0], d:[1,0], '.':[0,0] };
+addEventListener('keydown', e=>{
+  const k = KEYS[e.key] || KEYS[e.key.toLowerCase?.()];
+  if (!k) return; e.preventDefault(); step(k[0], k[1]);
+});
+$('pad').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  const [dx,dy] = b.dataset.d.split(',').map(Number); step(dx,dy);
+});
+
+G = newRun(); enterDepth(G); render();
+log('구역 1. <u>◆</u>는 부품, <u>▲</u>는 화로, <u>&gt;</u>는 아래로.');
+
+/* ── 벤치 창구 ── */
+window.__step = step;
+window.__peek = () => ({ x:G.x, y:G.y, hp:G.hp, depth:G.depth, kills:G.kills,
+  chain:G.chain.length, chainIds:G.chain.map(m=>m.id),
+  revealed:G.mem.filter(Boolean).length, foes:G.foes.filter(f=>f.hp>0).length,
+  draftOpen:$('draft').classList.contains('on'), over:$('over').classList.contains('on') });
+
+/* ── 벤치: 순서가 결과를 바꾸는가. 화면 없이 규칙만 돌린다. ── */
+window.__bench = function(trials){
+  const perms = a => a.length<=1 ? [a] :
+    a.flatMap((x,i)=>perms([...a.slice(0,i),...a.slice(i+1)]).map(p=>[x,...p]));
+  const kit = ['boiler','spark','amp','over','cast'].map(id=>MODS[id]);
+  const out = {};
+  for (const P of perms(kit)){
+    const key = P.map(m=>m.n).join(' → ');
+    let sum = 0;
+    for (let t=0;t<trials;t++){
+      const g = { hp:30, mhp:30, p:0, kills:0, chain:P, relics:[] };
+      const foes = [ {...FOES.crawler,maxhp:16}, {...FOES.plate,maxhp:38}, {...FOES.swarm,maxhp:10} ];
+      sum += resolveChain(g, foes, null);
+    }
+    out[key] = Math.round(sum/trials*10)/10;
+  }
+  const rows = Object.entries(out).sort((a,b)=>b[1]-a[1]);
+  return { best:rows[0], worst:rows[rows.length-1], spread:rows[0][1]-rows[rows.length-1][1],
+           n:rows.length, top:rows.slice(0,5), bottom:rows.slice(-3) };
+};
+</script>

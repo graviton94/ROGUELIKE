@@ -1,0 +1,993 @@
+/* ═══════════════════════════════════════════════════════════
+   juice.js — the layer between "what happened" and "how hard
+   it lands". game.js emits typed events into G.fx; nothing in
+   here ever changes a rule. Everything is time-based, so a
+   player holding a direction down never queues up a backlog
+   of animations — the world just keeps up.
+   ═══════════════════════════════════════════════════════════ */
+
+import { PALETTE, spriteColors } from './pixels.js';
+import { MW as MAP_W } from './world.js';
+import { sfx, from as earFrom } from './audio.js';
+
+/* ── stores ─────────────────────────────────────────────── */
+const shards = [];     // pixel chunks knocked off a sprite
+const numbers = [];    // floating damage / heal readouts
+const rings = [];      // expanding shockwaves
+const beams = [];      // spell traces
+const slashes = [];    // weapon arcs, shaped by family
+const tracked = new WeakMap();   // actor -> interpolation state
+
+let shake = 0;         // remaining shake magnitude, in tiles
+let freeze = 0;        // hit-stop, ms
+let flashScreen = 0;   // full-screen tint, 0..1
+let vignette = 0;      // damage read at the edges, 0..1
+let flashHue = 'W';
+
+const MAX_SHARDS = 260;
+
+/* Actors are plain objects that survive between turns, so a
+   WeakMap keyed on identity gives us per-entity animation
+   without game.js ever knowing this file exists. */
+export function track(actor) {
+  let s = tracked.get(actor);
+  if (!s) {
+    s = { x: actor.x, y: actor.y, ox: 0, oy: 0, lx: 0, ly: 0, flash: 0, squash: 0 };
+    tracked.set(actor, s);
+    return s;
+  }
+  if (s.x !== actor.x || s.y !== actor.y) {
+    // Remember where it was and slide in from there.
+    s.ox += s.x - actor.x;
+    s.oy += s.y - actor.y;
+    s.x = actor.x; s.y = actor.y;
+    if (Math.abs(s.ox) > 2.5 || Math.abs(s.oy) > 2.5) { s.ox = 0; s.oy = 0; }  // teleport, don't streak
+  }
+  return s;
+}
+
+const at = (actor) => tracked.get(actor);
+
+/* ── spawning ───────────────────────────────────────────── */
+/* Velocities are in tiles per second and gravity in tiles per
+   second squared, so a shard from an ordinary hit travels about
+   a tile and a half before it fades. */
+function burstShards(x, y, palette, n, power) {
+  for (let i = 0; i < n && shards.length < MAX_SHARDS; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = (1.6 + Math.random() * 3.4) * power;
+    shards.push({
+      x: x + 0.5 + (Math.random() - 0.5) * 0.5,
+      y: y + 0.5 + (Math.random() - 0.5) * 0.5,
+      vx: Math.cos(a) * sp,
+      vy: Math.sin(a) * sp - 1.9 * power,
+      life: 420 + Math.random() * 420,
+      age: 0,
+      size: Math.random() < 0.3 ? 2 : 1,
+      color: palette[(Math.random() * palette.length) | 0],
+    });
+  }
+}
+
+function number(x, y, text, color, size, drift) {
+  /* Several readouts can land on one tile in a single turn — a
+     miss, then a hit, then a kill. Stack them instead of letting
+     them print on top of each other. */
+  let lift = 0;
+  for (const n of numbers)
+    if (Math.abs(n.x - x - 0.5) < 1 && Math.abs(n.y - y) < 1.6 && n.age < 300) lift += 0.62;
+
+  numbers.push({
+    x: x + 0.5 + (Math.random() - 0.5) * 0.35, y: y + 0.35 - lift,
+    vy: -0.0016 - Math.random() * 0.0007,
+    vx: (drift || 0) * 0.0006,
+    life: size > 1.15 ? 900 : 680, age: 0, text, color, size,
+  });
+}
+
+function ring(x, y, maxr, color, life) {
+  rings.push({ x: x + 0.5, y: y + 0.5, maxr, color, life: life || 380, age: 0 });
+}
+
+const buzz = ms => { try { navigator.vibrate?.(ms); } catch { /* not supported */ } };
+
+/* ── event intake ───────────────────────────────────────── */
+export function pump(queue, player) {
+  for (const e of queue) {
+    /* Where this happened, handed to the ear once per event. A
+       door smashed two rooms west should arrive from the west and
+       arrive quieter — that is the one thing sound does better
+       than a screen, and it was being thrown away. */
+    earFrom(e.x, e.y);
+    switch (e.t) {
+      case 'lunge': {
+        const s = at(player);
+        if (s) { s.lx = e.dx * 0.42; s.ly = e.dy * 0.42; }
+        /* An arc swept in the direction of the blow. The shape
+           says which weapon threw it — a dagger's is a short
+           stab, a greatsword's is a half-circle — so the family
+           you chose is visible in the swing, not only in a
+           tooltip. */
+        slashes.push({
+          x: e.x + 0.5, y: e.y + 0.5,
+          a: Math.atan2(e.dy, e.dx),
+          kind: e.kind || 'sword',
+          age: 0, life: e.kind === 'great' ? 300 : 200,
+        });
+        break;
+      }
+
+      /* The dodge: a streak along the path travelled and a ring
+         where you landed, so a roll reads as a roll and not as a
+         two-tile teleport. */
+      case 'roll': {
+        beams.push({ fx: e.x - e.dx * e.dist, fy: e.y - e.dy * e.dist,
+                     tx: e.x, ty: e.y, color: PALETTE.B, age: 0, life: 240, thin: true });
+        ring(e.x, e.y, 1.1, PALETTE.B, 300);
+        buzz(8); sfx.roll();
+        break;
+      }
+
+      /* Marked ground going off. One ring per tile is too much at
+         twenty tiles, so the whole shape flashes at once and the
+         shards come from the middle of it. */
+      case 'hazard': {
+        const n = e.tiles.length;
+        for (const i of e.tiles) {
+          const x = i % MAP_W, y = (i / MAP_W) | 0;
+          if (Math.random() < 24 / n) burstShards(x, y, [PALETTE[e.tone] || PALETTE.o, PALETTE.y], 3, 1.1);
+        }
+        shake = Math.max(shake, 0.5);
+        flashScreen = Math.max(flashScreen, 0.26); flashHue = e.tone || 'o';
+        buzz([18, 26, 18]); sfx.blast();
+        break;
+      }
+
+      case 'miss':
+        number(e.x, e.y, '빗나감', PALETTE.s, 0.8);
+        sfx.miss();
+        break;
+
+      // The moment your free critical evaporates. Worth a beat.
+      case 'wake':
+        number(e.x, e.y - 0.3, '!', PALETTE.R, 1.2);
+        break;
+
+      /* The ground being marked. Louder than the mark is bright,
+         because the shape can be off the edge of the view. */
+      case 'telegraph':
+        sfx.warn(e.urgent);
+        break;
+
+      case 'hit': {
+        const big = e.crit || e.sneak;
+        number(e.x, e.y, String(e.dmg) + (e.sneak ? '!!' : e.crit ? '!' : ''),
+               e.on === 'player' ? PALETTE.R : big ? PALETTE.y : PALETTE.W,
+               big ? 1.45 : 1);
+
+        if (e.on === 'monster') {
+          const s = at(findByPos(e)); if (s) { s.flash = 1; s.squash = 1; }
+          burstShards(e.x, e.y, spriteColors(e.spr || 'rat'), big ? 14 : 6, big ? 1.5 : 0.9);
+          shake = Math.max(shake, big ? 0.42 : 0.13);
+          if (big) { freeze = 70; ring(e.x, e.y, 1.6, PALETTE.y); flashScreen = 0.22; flashHue = 'y'; }
+          buzz(big ? 32 : 10);
+          if (e.sneak) sfx.sneak(); else if (e.crit) sfx.crit(); else sfx.hit(e.weapon, 1);
+        } else {
+          /* Getting hit is the one thing that should always read.
+             A full-screen wash hides the board at the exact moment
+             you need to see it, so the damage colour goes to the
+             edges and leaves the middle alone. */
+          const s = at(player);
+          if (s) {
+            const dx = e.from ? Math.sign(e.x - e.from.x) : 0;
+            const dy = e.from ? Math.sign(e.y - e.from.y) : 0;
+            s.lx = dx * 0.3; s.ly = dy * 0.3; s.flash = 1;
+            s.squash = Math.max(s.squash || 0, e.severe ? 1 : 0.6);
+          }
+          shake = Math.max(shake, e.severe ? 0.6 : 0.24);
+          vignette = Math.max(vignette, e.severe ? 1 : 0.55);
+          if (e.severe) { freeze = 60; ring(e.x, e.y, 1.5, PALETTE.R, 260); }
+          burstShards(e.x, e.y, [PALETTE.R, PALETTE.r, PALETTE.W], e.severe ? 16 : 8, e.severe ? 1.5 : 1.0);
+          buzz(e.severe ? [22, 40, 22] : 18);
+          sfx.hurt(e.severe);
+          if (e.low) sfx.lowHp();
+        }
+        break;
+      }
+
+      case 'kill': {
+        /* Overkill deserves to be named. Erasing something that
+           still had most of its health is the loudest thing a
+           player can do to a monster, and until now it was the
+           same three shards as a finishing tap. */
+        if (e.over > 0.7) {
+          const word = e.over > 2 ? '박살' : e.over > 1.3 ? '분쇄' : '오버킬';
+          number(e.x, e.y - 1.0, word, PALETTE.o, 1.6 + Math.min(e.over, 3) * 0.25);
+          freeze = Math.max(freeze, 120 + e.over * 70);
+          ring(e.x, e.y, 3.4 + e.over, PALETTE.W, 520);
+        }
+        const power = 1.3 + e.over * 0.9 + (e.crit ? 0.5 : 0);
+        burstShards(e.x, e.y, spriteColors(e.spr || 'rat'), Math.round(20 + e.over * 22), power);
+        ring(e.x, e.y, 2.2 + e.over, PALETTE.o, 460);
+        shake = Math.max(shake, 0.34 + e.over * 0.3);
+        freeze = Math.max(freeze, e.boss ? 260 : 90 + e.over * 60);
+        flashScreen = Math.max(flashScreen, e.boss ? 0.8 : 0.2 + e.over * 0.2);
+        flashHue = e.boss ? 'W' : 'o';
+        if (e.boss) { ring(e.x, e.y, 26, PALETTE.o, 1500); ring(e.x, e.y, 18, PALETTE.y, 1100); }
+        buzz(e.boss ? [60, 60, 60, 60, 140] : e.over > 0.5 ? [16, 26, 40] : 26);
+        if (e.boss) sfx.victory(); else sfx.kill(e.over);
+        break;
+      }
+
+      case 'comboTier':
+        sfx.combo(e.n);
+        ring(e.x, e.y, 4 + e.n * 0.2, PALETTE.y, 620);
+        number(e.x, e.y - 0.6, `${e.n} 연격`, PALETTE.y, 1.5);
+        flashScreen = Math.max(flashScreen, 0.3); flashHue = 'y';
+        shake = Math.max(shake, 0.4);
+        buzz([20, 30, 20, 30, 60]);
+        break;
+
+      case 'heal': {
+        number(e.x, e.y, `+${e.amt}`, PALETTE.E, 1.15, 0);
+        ring(e.x, e.y, 1.8, PALETTE.E, 520);
+        for (let i = 0; i < 10 && shards.length < MAX_SHARDS; i++)
+          shards.push({
+            x: e.x + Math.random(), y: e.y + 1, vx: (Math.random() - 0.5) * 0.6,
+            vy: -1.4 - Math.random() * 0.8, life: 620, age: 0, size: 1,
+            color: Math.random() < 0.5 ? PALETTE.E : PALETTE.e, float: true,
+          });
+        sfx.heal();
+        break;
+      }
+
+      /* Two sizes. Health now arrives every third level in a
+         lump, and the frame has to say which kind of level this
+         was or the stepping is invisible. */
+      case 'levelup':
+        ring(e.x, e.y, e.big ? 9 : 6, PALETTE.y, e.big ? 1000 : 800);
+        ring(e.x, e.y, e.big ? 6 : 4, PALETTE.W, 600);
+        if (e.big) ring(e.x, e.y, 3, PALETTE.o, 700);
+        number(e.x, e.y - 0.8, e.big ? '몸이 커졌다' : 'LEVEL UP',
+               e.big ? PALETTE.W : PALETTE.y, e.big ? 2.0 : 1.6);
+        flashScreen = Math.max(flashScreen, e.big ? 0.7 : 0.45); flashHue = 'y';
+        if (e.big) { shake = Math.max(shake, 0.5); freeze = 110; }
+        buzz(e.big ? [40, 40, 40, 40, 140] : [30, 40, 30, 40, 90]);
+        sfx.levelup();
+        break;
+
+      case 'beam':
+        beams.push({ fx: e.fx, fy: e.fy, tx: e.tx, ty: e.ty, color: PALETTE[e.color] || PALETTE.P, life: 260, age: 0 });
+        shake = Math.max(shake, 0.16);
+        break;
+
+      case 'burst':
+        ring(e.x, e.y, e.r, PALETTE[e.color] || PALETTE.B, 520);
+        burstShards(e.x, e.y, [PALETTE[e.color] || PALETTE.B, PALETTE.W], 26, 1.6);
+        shake = Math.max(shake, 0.35);
+        break;
+
+      case 'death':
+        flashScreen = 1; flashHue = 'r';
+        shake = Math.max(shake, 0.9);
+        buzz([80, 60, 200]);
+        sfx.death();
+        break;
+
+      // An arrow out of the dark. The trail is the warning.
+      case 'shot':
+        beams.push({ fx: e.fx, fy: e.fy, tx: e.tx, ty: e.ty,
+                     color: PALETTE.w, life: 200, age: 0, thin: true });
+        buzz(12);
+        break;
+
+      /* Your arrow, and theirs, must never be the same streak —
+         the two lines cross the same room and the player has to
+         read at a glance which way one is going. Theirs is a thin
+         bone line; yours is thicker, tinted by what is nocked, and
+         leaves a puff at the string. */
+      case 'loose': {
+        const tone = { arrow:'W', heavy:'s', venom:'e', ember:'o' }[e.ammo] || 'W';
+        beams.push({ fx: e.fx, fy: e.fy, tx: e.tx, ty: e.ty,
+                     color: PALETTE[tone], life: 240, age: 0 });
+        const dx = e.tx - e.fx, dy = e.ty - e.fy;
+        const len = Math.max(0.001, Math.hypot(dx, dy));
+        for (let i = 0; i < 6 && shards.length < MAX_SHARDS; i++) {
+          shards.push({
+            x: e.fx + 0.5, y: e.fy + 0.5,
+            vx: (dx / len) * (2 + Math.random() * 1.6) + (Math.random() - 0.5),
+            vy: (dy / len) * (2 + Math.random() * 1.6) + (Math.random() - 0.5),
+            life: 180 + Math.random() * 140, age: 0, size: 1, color: PALETTE[tone],
+          });
+        }
+        buzz(14);
+        sfx.miss();
+        break;
+      }
+
+      case 'trap': {
+        const hue = { dart:'s', poison:'e', pit:'k', teleport:'P', alarm:'y' }[e.kind] || 'R';
+        ring(e.x, e.y, e.kind === 'alarm' ? 9 : 2.4, PALETTE[hue] || PALETTE.R, 620);
+        burstShards(e.x, e.y, [PALETTE[hue] || PALETTE.R, PALETTE.W], 18, 1.4);
+        number(e.x, e.y - 0.5, '함정!', PALETTE.o, 1.3);
+        shake = Math.max(shake, 0.45);
+        flashScreen = Math.max(flashScreen, 0.28); flashHue = hue === 'k' ? 'r' : hue;
+        buzz([30, 40, 60]);
+        break;
+      }
+
+      // The chest that wasn't. Worth the biggest tell in the file.
+      case 'reveal':
+        ring(e.x, e.y, 3.4, PALETTE.R, 700);
+        ring(e.x, e.y, 2.0, PALETTE.o, 520);
+        number(e.x, e.y - 0.7, '미믹!', PALETTE.R, 1.7);
+        burstShards(e.x, e.y, [PALETTE.n, PALETTE.N, PALETTE.R], 22, 1.7);
+        shake = Math.max(shake, 0.6);
+        freeze = Math.max(freeze, 130);
+        flashScreen = Math.max(flashScreen, 0.42); flashHue = 'R';
+        buzz([50, 50, 90]);
+        break;
+
+      case 'chest':
+        ring(e.x, e.y, 2.2, PALETTE.y, 520);
+        for (let i = 0; i < 16 && shards.length < MAX_SHARDS; i++)
+          shards.push({
+            x: e.x + Math.random(), y: e.y + 0.6,
+            vx: (Math.random() - 0.5) * 4, vy: -3 - Math.random() * 3,
+            life: 700, age: 0, size: 1,
+            color: Math.random() < 0.6 ? PALETTE.y : PALETTE.W,
+          });
+        buzz(24);
+        sfx.pick();
+        break;
+
+      case 'ail': {
+        const hue = { poison:'E', blind:'g', fear:'P', slow:'B', paralyze:'R' }[e.kind] || 'P';
+        ring(e.x, e.y, 2.6, PALETTE[hue], 700);
+        flashScreen = Math.max(flashScreen, 0.3); flashHue = hue;
+        shake = Math.max(shake, 0.3);
+        buzz([40, 30, 40]);
+        break;
+      }
+
+      case 'resist':
+        number(e.x, e.y - 0.4, '저항', PALETTE.B, 1.2);
+        ring(e.x, e.y, 1.8, PALETTE.B, 420);
+        break;
+
+      case 'struggle':
+        number(e.x, e.y - 0.3, '···', PALETTE.w, 1);
+        shake = Math.max(shake, 0.18);
+        break;
+
+      case 'splash':
+        for (let i = 0; i < 12 && shards.length < MAX_SHARDS; i++)
+          shards.push({
+            x: e.x + Math.random(), y: e.y + 0.6,
+            vx: (Math.random() - 0.5) * 5, vy: -2.4 - Math.random() * 2,
+            life: 480, age: 0, size: 1,
+            color: Math.random() < 0.5 ? PALETTE.B : PALETTE.b,
+          });
+        break;
+
+      case 'door':
+        if (e.state === 'broken') {
+          burstShards(e.x, e.y, [PALETTE.n, PALETTE.N], 20, 1.6);
+          shake = Math.max(shake, 0.5);
+          buzz([40, 40, 70]);
+        } else if (e.state === 'stuck') {
+          shake = Math.max(shake, 0.22);
+          number(e.x, e.y - 0.3, '덜컹', PALETTE.s, 0.9);
+          buzz(20);
+        } else {
+          shake = Math.max(shake, 0.08);
+        }
+        sfx.door();
+        break;
+
+      // Something heard you. Show how far the sound carried.
+      case 'noise':
+        ring(e.x, e.y, e.r, PALETTE.o, 720);
+        break;
+
+      /* Enhancement, in three sizes. The strike is a bet now, so
+         the animation has to say which way it went before the log
+         line does — sparks up for a hit, sparks down and grey for
+         a miss, and a full flash for the double. */
+      case 'forge':
+        if (e.fail) {
+          ring(e.x, e.y, 1.4, PALETTE.s, 420);
+          number(e.x, e.y - 0.5, '실패', PALETTE.s, 1.1);
+          for (let i = 0; i < 10 && shards.length < MAX_SHARDS; i++)
+            shards.push({
+              x: e.x + Math.random(), y: e.y + 0.5,
+              vx: (Math.random() - 0.5) * 3, vy: -1.4 - Math.random() * 1.2,
+              life: 480, age: 0, size: 1,
+              color: Math.random() < 0.5 ? PALETTE.s : PALETTE.g,
+            });
+          buzz(14); sfx.bust();
+          break;
+        }
+        ring(e.x, e.y, e.big ? 3.4 : 2.2, PALETTE.y, e.big ? 760 : 560);
+        number(e.x, e.y - 0.5, e.big ? '+2' : '+1', e.big ? PALETTE.W : PALETTE.y, e.big ? 2.1 : 1.5);
+        for (let i = 0; i < (e.big ? 40 : 18) && shards.length < MAX_SHARDS; i++)
+          shards.push({
+            x: e.x + Math.random(), y: e.y + 0.5,
+            vx: (Math.random() - 0.5) * (e.big ? 8 : 5), vy: -3.5 - Math.random() * (e.big ? 5 : 3),
+            life: 640, age: 0, size: 1,
+            color: Math.random() < 0.5 ? PALETTE.y : PALETTE.o,
+          });
+        flashScreen = Math.max(flashScreen, e.big ? 0.5 : 0.22); flashHue = 'y';
+        if (e.big) { shake = Math.max(shake, 0.5); freeze = 90; sfx.jackpot(); }
+        buzz(e.big ? [40, 30, 60] : [25, 30, 45]);
+        break;
+
+      /* 절단. One crit in forty. Everything the engine has: the
+         world stops, the screen goes white, and the number is
+         twice the size of any other number the game draws. */
+      case 'perfect':
+        freeze = 190;
+        flashScreen = Math.max(flashScreen, 0.85); flashHue = 'W';
+        shake = Math.max(shake, 1.0);
+        ring(e.x, e.y, 4.2, PALETTE.W, 620);
+        ring(e.x, e.y, 2.0, PALETTE.R, 460);
+        number(e.x, e.y - 0.7, '절단', PALETTE.W, 2.6);
+        for (let i = 0; i < 54 && shards.length < MAX_SHARDS; i++) {
+          const a = Math.random() * Math.PI * 2, v = 5 + Math.random() * 7;
+          shards.push({
+            x: e.x + 0.5, y: e.y + 0.5,
+            vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1,
+            life: 760, age: 0, size: Math.random() < 0.3 ? 2 : 1,
+            color: Math.random() < 0.5 ? PALETTE.W : PALETTE.R,
+          });
+        }
+        buzz([70, 50, 110]); sfx.crit();
+        break;
+
+      /* An engraving being cut. Violet like the relic tier,
+         because a rule arriving is a different event from a
+         number arriving. */
+      case 'engrave':
+        freeze = 130;
+        for (const r of [1.6, 3.2, 4.8]) ring(e.x, e.y, r, PALETTE.P, 780);
+        number(e.x, e.y - 0.7, '각인', PALETTE.P, 2.2);
+        for (let i = 0; i < 34 && shards.length < MAX_SHARDS; i++) {
+          const a = Math.random() * Math.PI * 2, v = 3 + Math.random() * 5;
+          shards.push({ x: e.x + 0.5, y: e.y + 0.5,
+            vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1.5,
+            life: 820, age: 0, size: Math.random() < 0.3 ? 2 : 1,
+            color: Math.random() < 0.5 ? PALETTE.P : PALETTE.W });
+        }
+        flashScreen = Math.max(flashScreen, 0.6); flashHue = 'P';
+        shake = Math.max(shake, 0.6);
+        buzz([50, 40, 80]); sfx.jackpot();
+        break;
+
+      // 이중 시전. A second ring inside the first, so the free
+      // cast is visibly a *second* one and not a bigger one.
+      case 'twin':
+        ring(e.x, e.y, 1.4, PALETTE.B, 420);
+        ring(e.x, e.y, 2.6, PALETTE.P, 520);
+        number(e.x, e.y - 0.5, '이중', PALETTE.B, 1.3);
+        flashScreen = Math.max(flashScreen, 0.24); flashHue = 'B';
+        buzz([16, 14, 16]);
+        break;
+
+      /* 초월. The rarest frame in the game, and it belongs to a
+         pickup rather than a kill — the one time the floor gives
+         you something instead of taking it. */
+      case 'transcend':
+        freeze = 240;
+        flashScreen = Math.max(flashScreen, 0.9); flashHue = 'W';
+        for (const r of [1.6, 3.0, 4.6, 6.4])
+          ring(e.x, e.y, r, PALETTE.W, 900);
+        /* The same fireworks serve 초월 and 공명 — both are the
+           moment a run stops being ordinary — so the word comes
+           from the event rather than from here. */
+        number(e.x, e.y - 0.9, e.word || '초월', PALETTE.W, 3.0);
+        for (let i = 0; i < 70 && shards.length < MAX_SHARDS; i++) {
+          const a = Math.random() * Math.PI * 2, v = 2 + Math.random() * 8;
+          shards.push({
+            x: e.x + 0.5, y: e.y + 0.5,
+            vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2,
+            life: 1200, age: 0, size: Math.random() < 0.35 ? 2 : 1,
+            color: Math.random() < 0.6 ? PALETTE.W : PALETTE.y,
+          });
+        }
+        buzz([40, 30, 40, 30, 120]); sfx.jackpot();
+        break;
+
+      /* 역류의. The death frame has already played by the time
+         this arrives, and that is the point — the screen has to
+         be taken back. */
+      case 'tide':
+        freeze = 200;
+        flashScreen = Math.max(flashScreen, 0.75); flashHue = 'B';
+        ring(e.x, e.y, 5.2, PALETTE.B, 820);
+        ring(e.x, e.y, 2.6, PALETTE.W, 620);
+        number(e.x, e.y - 0.8, '역류', PALETTE.B, 2.4);
+        shake = Math.max(shake, 0.6);
+        buzz([90, 60, 90]); sfx.jackpot();
+        break;
+
+      // Something ate a level off your gear. Small, grey, nasty.
+      case 'corrode':
+        ring(e.x, e.y, 1.6, PALETTE.e, 480);
+        number(e.x, e.y - 0.4, '부식', PALETTE.e, 1.3);
+        flashScreen = Math.max(flashScreen, 0.2); flashHue = 'e';
+        buzz([30, 20, 30]); sfx.bust();
+        break;
+
+      /* The sword coming apart in your hands. The one outcome in
+         the game that takes something away permanently, so it gets
+         the loudest frame the fire screen can throw. */
+      case 'shatter':
+        ring(e.x, e.y, 3.0, PALETTE.R, 700);
+        number(e.x, e.y - 0.6, '파괴', PALETTE.R, 2.2);
+        for (let i = 0; i < 46 && shards.length < MAX_SHARDS; i++)
+          shards.push({
+            x: e.x + Math.random(), y: e.y + 0.5,
+            vx: (Math.random() - 0.5) * 9, vy: -2 - Math.random() * 6,
+            life: 820, age: 0, size: Math.random() < 0.4 ? 2 : 1,
+            color: Math.random() < 0.5 ? PALETTE.s : PALETTE.G,
+          });
+        flashScreen = Math.max(flashScreen, 0.55); flashHue = 'R';
+        shake = Math.max(shake, 0.85); freeze = 140;
+        buzz([60, 40, 90]); sfx.bust();
+        break;
+
+      // The gamble resolving. Violet for a curse, gold for a gift.
+      case 'enchant': {
+        const hue = e.cursed ? 'P' : 'y';
+        ring(e.x, e.y, 4.4, PALETTE[hue], 780);
+        ring(e.x, e.y, 2.6, PALETTE.W, 560);
+        number(e.x, e.y - 0.7, e.cursed ? '저주' : '인챈트', PALETTE[hue], 1.6);
+        burstShards(e.x, e.y, [PALETTE[hue], PALETTE.W], 26, 1.7);
+        flashScreen = Math.max(flashScreen, e.cursed ? 0.5 : 0.38); flashHue = hue;
+        shake = Math.max(shake, 0.4);
+        freeze = Math.max(freeze, 120);
+        buzz(e.cursed ? [70, 50, 120] : [25, 35, 25, 35, 70]);
+        break;
+      }
+
+      case 'drain':
+        number(e.x, e.y - 0.2, `+${e.amt}`, PALETTE.R, 1.05);
+        ring(e.x, e.y, 1.4, PALETTE.r, 380);
+        break;
+
+      case 'execute':
+        number(e.x, e.y - 0.6, '처형', PALETTE.R, 1.6);
+        ring(e.x, e.y, 3.0, PALETTE.R, 560);
+        shake = Math.max(shake, 0.55);
+        freeze = Math.max(freeze, 110);
+        buzz([40, 30, 80]);
+        break;
+
+      // 연쇄 arcing to the next body.
+      case 'arc':
+        beams.push({ fx: e.fx, fy: e.fy, tx: e.tx, ty: e.ty,
+                     color: PALETTE.B, life: 240, age: 0 });
+        shake = Math.max(shake, 0.2);
+        break;
+
+      /* ── the warrior's four ─────────────────────────────
+         Four arts that answer four different problems should not
+         look like each other, or the row becomes four buttons
+         that all mean "attack". Each takes a different primitive
+         as its spine: a line, a circle, a floor mark, a column. */
+
+      // 밀쳐내기 — everything travels one way. A shove is a
+      // direction before it is damage.
+      case 'shove': {
+        beams.push({ fx: e.x, fy: e.y, tx: e.tx, ty: e.ty,
+                     color: PALETTE.W, life: 200, age: 0, thin: true });
+        for (let i = 0; i < 14 && shards.length < MAX_SHARDS; i++) {
+          const spread = (Math.random() - 0.5) * 0.7;
+          shards.push({
+            x: e.x + 0.5 + e.dx * 0.6, y: e.y + 0.5 + e.dy * 0.6,
+            vx: (e.dx + spread * -e.dy) * (3.2 + Math.random() * 2.4),
+            vy: (e.dy + spread * e.dx) * (3.2 + Math.random() * 2.4) - 0.6,
+            life: 260 + Math.random() * 220, age: 0,
+            size: 1, color: PALETTE.s,
+          });
+        }
+        if (e.hit) {
+          // It met a wall. That is the payoff, so it gets the noise.
+          ring(e.tx, e.ty, 1.5, PALETTE.W, 300);
+          burstShards(e.tx, e.ty, [PALETTE.W, PALETTE.s, PALETTE.g], 20, 1.5);
+          number(e.tx, e.ty - 0.6, '벽!', PALETTE.W, 1.15);
+          shake = Math.max(shake, 0.7);
+          buzz([30, 40, 60]);
+          sfx.blast();
+        } else {
+          shake = Math.max(shake, 0.22);
+          sfx.step();
+        }
+        break;
+      }
+
+      // 휩쓸기 — a full circle, thrown outward from the middle.
+      // The only effect in the game that reads as "all around".
+      case 'cleave': {
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2;
+          slashes.push({ x: e.x + 0.5, y: e.y + 0.5, a, kind: 'great',
+                         age: -i * 8, life: 260 });
+        }
+        ring(e.x, e.y, 1.9, PALETTE.o, 340);
+        burstShards(e.x, e.y, [PALETTE.o, PALETTE.W], 8 + (e.n || 0) * 5, 1.7);
+        shake = Math.max(shake, 0.3 + (e.n || 0) * 0.06);
+        buzz(35);
+        sfx.crit();
+        break;
+      }
+
+      // 버티기 — nothing flies. A mark on the ground under the
+      // feet, because the art is about *not* moving.
+      case 'brace': {
+        ring(e.x, e.y, 1.15, PALETTE.y, 520);
+        ring(e.x, e.y, 0.75, PALETTE.s, 620);
+        number(e.x, e.y - 0.5, '버틴다', PALETTE.y, 1.1);
+        buzz([20, 30, 20]);
+        sfx.heal();
+        break;
+      }
+
+      // Each blow the stance turns away: a short spark back down
+      // the line it came from. Quiet on purpose — it happens a lot.
+      /* ── the ranger's four ─────────────────────────────
+         The warrior's arts happen at arm's length and are drawn
+         at the hero. These happen across the room and are drawn
+         at the far end of it — that difference is most of what
+         makes the two classes feel unlike each other in the
+         hand. */
+
+      // 조준 사격 — the pause before it, then one clean line. The
+      // ring closes on the target instead of expanding off it.
+      case 'aimed': {
+        rings.push({ x: e.tx + 0.5, y: e.ty + 0.5, maxr: 2.2, color: PALETTE.E,
+                     life: 300, age: 0, shrink: true });
+        beams.push({ fx: e.fx, fy: e.fy, tx: e.tx, ty: e.ty,
+                     color: PALETTE.E, life: 300, age: 0 });
+        number(e.tx, e.ty - 0.8, `${Math.round(e.dist)}칸`, PALETTE.E, 1.05);
+        freeze = Math.max(freeze, 55);
+        shake = Math.max(shake, 0.25);
+        buzz([18, 26, 18]);
+        sfx.crit();
+        break;
+      }
+
+      // 관통 사격 — one line all the way to the wall, thick, and
+      // it does not stop where the first body is.
+      case 'pierceShot': {
+        beams.push({ fx: e.fx, fy: e.fy,
+                     tx: e.fx + e.dx * e.rng, ty: e.fy + e.dy * e.rng,
+                     color: PALETTE.B, life: 340, age: 0 });
+        for (let i = 1; i <= e.rng; i += 2)
+          ring(e.fx + e.dx * i, e.fy + e.dy * i, 0.8, PALETTE.b, 240);
+        shake = Math.max(shake, 0.35);
+        buzz([24, 20, 24]);
+        sfx.crit();
+        break;
+      }
+
+      // 덫 — nothing flies at all. A mark bitten into the floor.
+      case 'snare':
+        ring(e.x, e.y, 0.9, PALETTE.n, 480);
+        number(e.x, e.y - 0.4, '덫', PALETTE.N, 1.0);
+        sfx.door();
+        break;
+
+      case 'snared':
+        ring(e.x, e.y, 1.3, PALETTE.N, 380);
+        burstShards(e.x, e.y, [PALETTE.n, PALETTE.N], 12, 1.1);
+        number(e.x, e.y - 0.6, '걸렸다', PALETTE.N, 1.15);
+        shake = Math.max(shake, 0.3);
+        buzz([40, 30]);
+        sfx.blast();
+        break;
+
+      // 빗발 — many, from above, at once.
+      case 'volley': {
+        for (let i = 0; i < 10 && shards.length < MAX_SHARDS; i++) {
+          const a2 = Math.random() * Math.PI * 2;
+          shards.push({
+            x: e.x + 0.5 + Math.cos(a2) * 2.2, y: e.y + 0.5 + Math.sin(a2) * 2.2 - 3,
+            vx: 0, vy: 5 + Math.random() * 3,
+            life: 300 + Math.random() * 200, age: 0, size: 1, color: PALETTE.y,
+          });
+        }
+        ring(e.x, e.y, 3.2, PALETTE.y, 420);
+        shake = Math.max(shake, 0.3 + (e.n || 0) * 0.05);
+        buzz([16, 16, 16, 16]);
+        sfx.crit();
+        break;
+      }
+
+      case 'braceHit':
+        beams.push({ fx: e.x, fy: e.y, tx: e.from.x, ty: e.from.y,
+                     color: PALETTE.y, life: 160, age: 0, thin: true });
+        break;
+
+      // 마무리 — a column. Shards go straight up and the flash
+      // comes straight down, and the whole thing scales with how
+      // little the target has left.
+      case 'finisher': {
+        const p = 0.4 + (e.power || 0) * 0.9;
+        for (let i = 0; i < 18 && shards.length < MAX_SHARDS; i++) {
+          shards.push({
+            x: e.tx + 0.5 + (Math.random() - 0.5) * 0.8, y: e.ty + 0.7,
+            vx: (Math.random() - 0.5) * 1.1,
+            vy: -(5.5 + Math.random() * 3.5) * p,
+            life: 420 + Math.random() * 260, age: 0,
+            size: Math.random() < 0.4 ? 2 : 1,
+            color: Math.random() < 0.5 ? PALETTE.W : PALETTE.o,
+          });
+        }
+        beams.push({ fx: e.tx, fy: e.ty - 4, tx: e.tx, ty: e.ty,
+                     color: PALETTE.W, life: 220, age: 0 });
+        ring(e.tx, e.ty, 1.2 + p, PALETTE.o, 380);
+        flashScreen = Math.max(flashScreen, 0.35 * p); flashHue = 'W';
+        freeze = Math.max(freeze, 70 * p);
+        shake = Math.max(shake, 0.5 + p * 0.5);
+        buzz([50, 30, 90]);
+        sfx.crit();
+        break;
+      }
+
+      case 'drop':
+        ring(e.x, e.y, 2.0, PALETTE.y, 620);
+        number(e.x, e.y - 0.5, '전리품', PALETTE.y, 1.2);
+        if (e.relic) sfx.relic(); else sfx.pick();
+        break;
+
+      // Breaking gear down: sparks, not fireworks.
+      case 'salvage':
+        for (let i = 0; i < 14 && shards.length < MAX_SHARDS; i++)
+          shards.push({
+            x: e.x + Math.random(), y: e.y + 0.5,
+            vx: (Math.random() - 0.5) * 5, vy: -2.5 - Math.random() * 2.5,
+            life: 520, age: 0, size: 1,
+            color: Math.random() < 0.5 ? PALETTE.s : PALETTE.G,
+          });
+        shake = Math.max(shake, 0.2);
+        buzz(18);
+        break;
+
+      /* The altar answering. The scale of the flash is the news:
+         you know it was good before you read the log. */
+      case 'altar': {
+        const spec = {
+          '대성공': { hue:'y', r:9, n:26, txt:'대성공', size:2.0, buzz:[40,40,40,40,120] },
+          '성공':   { hue:'E', r:5, n:16, txt:'성공',   size:1.5, buzz:[25,35,60] },
+          '허탕':   { hue:'g', r:2, n:6,  txt:'허탕',   size:1.2, buzz:20 },
+          '재앙':   { hue:'R', r:8, n:24, txt:'재앙',   size:2.0, buzz:[80,60,80,60,160] },
+        }[e.result] || { hue:'P', r:3, n:8, txt:'…', size:1.2, buzz:20 };
+        ring(e.x, e.y, spec.r, PALETTE[spec.hue], 900);
+        ring(e.x, e.y, spec.r * 0.55, PALETTE.W, 640);
+        burstShards(e.x, e.y, [PALETTE[spec.hue], PALETTE.W], spec.n, 2.0);
+        number(e.x, e.y - 0.9, spec.txt, PALETTE[spec.hue], spec.size);
+        flashScreen = Math.max(flashScreen, e.result === '허탕' ? 0.2 : 0.7);
+        flashHue = spec.hue;
+        shake = Math.max(shake, e.result === '허탕' ? 0.2 : 0.75);
+        freeze = Math.max(freeze, e.result === '허탕' ? 60 : 220);
+        buzz(spec.buzz);
+        if (e.result === '대성공') sfx.jackpot();
+        else if (e.result === '재앙') sfx.bust();
+        else sfx.tick(e.result === '성공' ? 10 : 2);
+        break;
+      }
+
+      case 'spot':
+        number(e.x, e.y - 0.3, '!', PALETTE.o, 1.1);
+        ring(e.x, e.y, 1.2, PALETTE.o, 380);
+        sfx.tick(6);
+        break;
+    }
+  }
+  queue.length = 0;
+}
+
+/* `hit` events carry a position, not a reference — look up the
+   actor standing there so we can flash the right sprite. */
+let monsterLookup = () => null;
+export function bindLookup(fn) { monsterLookup = fn; }
+const findByPos = e => monsterLookup(e.x, e.y);
+
+/* ── simulation ─────────────────────────────────────────── */
+export function update(dt, actors) {
+  if (freeze > 0) { freeze -= dt; dt = Math.min(dt, 3); }   // hit-stop: near-still, never frozen solid
+
+  const k = Math.min(1, dt / 16.7);
+
+  for (const a of actors) {
+    const s = track(a);
+    s.ox *= Math.pow(0.62, k);
+    s.oy *= Math.pow(0.62, k);
+    s.lx *= Math.pow(0.55, k);
+    s.ly *= Math.pow(0.55, k);
+    if (Math.abs(s.ox) < 0.004) s.ox = 0;
+    if (Math.abs(s.oy) < 0.004) s.oy = 0;
+    s.flash = Math.max(0, s.flash - dt / 170);
+    s.squash = Math.max(0, s.squash - dt / 190);
+  }
+
+  for (let i = shards.length - 1; i >= 0; i--) {
+    const p = shards[i];
+    p.age += dt;
+    if (p.age >= p.life) { shards.splice(i, 1); continue; }
+    const f = dt / 1000;
+    p.x += p.vx * f;
+    p.y += p.vy * f;
+    if (p.float) p.vy *= Math.pow(0.94, k);
+    else { p.vy += 11 * f; p.vx *= Math.pow(0.97, k); }
+  }
+
+  for (let i = numbers.length - 1; i >= 0; i--) {
+    const n = numbers[i];
+    n.age += dt;
+    if (n.age >= n.life) { numbers.splice(i, 1); continue; }
+    n.y += n.vy * dt;
+    n.x += n.vx * dt;
+  }
+
+  for (let i = rings.length - 1; i >= 0; i--) {
+    rings[i].age += dt;
+    if (rings[i].age >= rings[i].life) rings.splice(i, 1);
+  }
+
+  for (let i = beams.length - 1; i >= 0; i--) {
+    beams[i].age += dt;
+    if (beams[i].age >= beams[i].life) beams.splice(i, 1);
+  }
+
+  for (let i = slashes.length - 1; i >= 0; i--) {
+    slashes[i].age += dt;
+    if (slashes[i].age >= slashes[i].life) slashes.splice(i, 1);
+  }
+
+  shake *= Math.pow(0.86, k);
+  if (shake < 0.005) shake = 0;
+  flashScreen *= Math.pow(0.88, k);
+  if (flashScreen < 0.01) flashScreen = 0;
+  vignette *= Math.pow(0.90, k);
+  if (vignette < 0.01) vignette = 0;
+}
+
+/* ── queries used by the renderer ───────────────────────── */
+export function offsetOf(actor) {
+  const s = tracked.get(actor);
+  return s ? { x: s.ox + s.lx, y: s.oy + s.ly, flash: s.flash, squash: s.squash } : ZERO;
+}
+const ZERO = { x: 0, y: 0, flash: 0, squash: 0 };
+
+export const shakeVec = () => shake === 0
+  ? ZERO
+  : { x: (Math.random() - 0.5) * shake, y: (Math.random() - 0.5) * shake };
+
+/* ── drawing ────────────────────────────────────────────── */
+export function drawEffects(ctx, camX, camY, t) {
+  const X = v => (v - camX) * t;
+  const Y = v => (v - camY) * t;
+
+  for (const b of beams) {
+    const k = 1 - b.age / b.life;
+    ctx.globalAlpha = k;
+    ctx.strokeStyle = b.color;
+    ctx.lineWidth = Math.max(b.thin ? 1 : 2, t * (b.thin ? 0.07 : 0.18)) * (0.4 + k);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(X(b.fx + 0.5), Y(b.fy + 0.5));
+    ctx.lineTo(X(b.tx + 0.5), Y(b.ty + 0.5));
+    ctx.stroke();
+  }
+
+  for (const r of rings) {
+    const k = r.age / r.life;
+    ctx.globalAlpha = (1 - k) * 0.8;
+    ctx.strokeStyle = r.color;
+    ctx.lineWidth = Math.max(1.5, t * 0.12) * (1 - k);
+    ctx.beginPath();
+    /* A ring normally opens outward from where something landed.
+       조준 사격 closes instead — the aim tightening onto a body
+       reads as the opposite gesture, and it should. */
+    const grow = r.shrink ? (1.1 - k * 0.95) : (0.15 + k * 0.95);
+    ctx.arc(X(r.x), Y(r.y), r.maxr * t * grow, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  /* The swing itself. Each family gets its own sweep and reach,
+     drawn as a thick stroked arc that thins as it fades. */
+  const SWEEP = {
+    dagger: { arc: 0.55, r: 0.62, w: 0.10, color: PALETTE.W },
+    sword:  { arc: 1.25, r: 0.82, w: 0.13, color: PALETTE.W },
+    axe:    { arc: 2.00, r: 0.95, w: 0.20, color: PALETTE.o },
+    spear:  { arc: 0.28, r: 1.45, w: 0.12, color: PALETTE.B },
+    mace:   { arc: 1.55, r: 0.80, w: 0.22, color: PALETTE.y },
+    great:  { arc: 2.60, r: 1.10, w: 0.26, color: PALETTE.R },
+  };
+  for (const sl of slashes) {
+    const k = 1 - sl.age / sl.life;
+    const sp = SWEEP[sl.kind] || SWEEP.sword;
+    ctx.save();
+    ctx.globalAlpha = k * 0.9;
+    ctx.strokeStyle = sp.color;
+    ctx.lineWidth = Math.max(2, t * sp.w * (0.35 + k));
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    // swept from one edge of the arc to the other as it ages
+    const swept = sp.arc * (1 - k);
+    ctx.arc(X(sl.x), Y(sl.y), sp.r * t,
+            sl.a - sp.arc / 2 + swept * 0.35, sl.a - sp.arc / 2 + swept);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  const px = Math.max(1, Math.round(t / 8));
+  for (const p of shards) {
+    const k = p.age / p.life;
+    ctx.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(Math.round(X(p.x)), Math.round(Y(p.y)), px * p.size, px * p.size);
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const n of numbers) {
+    const k = n.age / n.life;
+    ctx.globalAlpha = k > 0.65 ? (1 - k) / 0.35 : 1;
+    const pop = k < 0.12 ? 1 + (0.12 - k) * 3 : 1;      // snap outward on birth
+    const size = Math.max(11, t * 0.42 * n.size * pop);
+    ctx.font = `900 ${size}px ui-monospace, monospace`;
+    ctx.lineWidth = Math.max(2, size * 0.22);
+    ctx.strokeStyle = PALETTE.k;
+    ctx.strokeText(n.text, X(n.x), Y(n.y));
+    ctx.fillStyle = n.color;
+    ctx.fillText(n.text, X(n.x), Y(n.y));
+  }
+  ctx.globalAlpha = 1;
+}
+
+export function drawScreenFlash(ctx, w, h, hurt = 0) {
+  /* Being *at* low health, not being hit. The old vignette
+     flashed on damage and decayed in half a second, so walking
+     around at fifteen percent looked exactly like walking around
+     at full — and the number is in the corner, where nobody is
+     looking during a fight.
+
+     A slow breath, not a strobe: this has to be readable at a
+     glance and survivable for a hundred turns. */
+  if (hurt > 0) {
+    const beat = 0.5 + 0.5 * Math.sin(performance.now() / (420 - hurt * 140));
+    const a = (0.16 + hurt * 0.30) * (0.62 + beat * 0.38);
+    const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.20,
+                                       w / 2, h / 2, Math.max(w, h) * 0.66);
+    g.addColorStop(0, 'rgba(143,47,40,0)');
+    g.addColorStop(1, `rgba(143,47,40,${a.toFixed(3)})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  }
+  /* The edges first: damage reads as the screen closing in,
+     which leaves the board visible in the middle where the
+     player has to keep making decisions. */
+  if (vignette > 0) {
+    const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.28,
+                                       w / 2, h / 2, Math.max(w, h) * 0.62);
+    g.addColorStop(0, 'rgba(143,47,40,0)');
+    g.addColorStop(1, `rgba(143,47,40,${(vignette * 0.62).toFixed(3)})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  }
+  if (flashScreen <= 0) return;
+  ctx.globalAlpha = flashScreen * 0.5;
+  ctx.fillStyle = PALETTE[flashHue] || PALETTE.W;
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalAlpha = 1;
+}
+
+export function reset() {
+  shards.length = 0; numbers.length = 0; rings.length = 0; beams.length = 0;
+  slashes.length = 0; vignette = 0;
+  shake = 0; freeze = 0; flashScreen = 0;
+}

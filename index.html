@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#0a0c12">
+<meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>깊은 곳 · Deepdelve</title>
@@ -14,26 +14,109 @@
 <body>
 
 <!-- ══ title ══ -->
-<section id="sc-title" class="screen center">
-  <div class="col">
-    <pre class="logo">╔═══════════════════╗
-║   깊 은   곳      ║
-║   D E E P D E L V E ║
-╚═══════════════════╝</pre>
-    <p class="tag">25층 아래, 잿불의 대군주가 기다린다.</p>
-    <p class="blurb">
-      여덟 종족과 여섯 직업. 여섯 상점이 있는 마을.<br>
-      등불이 닿는 곳까지가 당신이 아는 전부다.<br>
-      죽으면 처음부터다.
-    </p>
-    <button class="big" id="btn-new">모험 시작</button>
-    <p class="fine">도트는 전부 코드로 그려집니다. 이미지 파일 없음.</p>
+<!-- The first thing anybody sees, and it did not fit on a
+     phone: 837px of stacked rows in a 568px screen, with the
+     shackle ladder and the build number simply unreachable. It is
+     a scene and four buttons now, and everything that was a list
+     moved into 기록. -->
+<section id="sc-title" class="screen">
+  <canvas id="title-scene"></canvas>
+  <div class="titleface">
+    <h1 class="gamename">깊은 곳</h1>
+    <p class="gamesub">D E E P D E L V E</p>
+    <p class="tag">사람이 판 것이 셋, 그 아래에서 깨어난 것이 하나.</p>
+  </div>
+  <div class="titleacts">
+    <button class="big" id="btn-load" hidden>이어하기</button>
+    <button class="big" id="btn-new">새 게임</button>
+    <div class="titlerow">
+      <button class="mini" id="btn-codex">기록</button>
+      <button class="mini" id="btn-help">조작법</button>
+      <button class="mini" id="btn-sound">소리 켜짐</button>
+    </div>
+    <p class="fine"><span id="title-stat"></span><br>도트도 소리도 전부 코드로. 이미지·음원 파일 없음 · <span id="build">v32</span></p>
+  </div>
+</section>
+
+<!-- ══ the sheet ══
+     Two surfaces on the same paper. The card is what arrives —
+     the first of a thing, one or two sentences, non-blocking. The
+     scroll is what accumulates: the whole record, set as
+     paragraphs under floor headings, for reading rather than
+     glancing. Neither is a screen; both sit over the map so the
+     run never stops. -->
+<div id="lorecard" hidden>
+  <canvas class="deck top"></canvas>
+  <div class="sheet">
+    <div class="lorehead"><canvas class="loreicon"></canvas>
+      <div><span class="lorekind"></span><span class="lorename"></span></div></div>
+    <p class="loretext"></p>
+  </div>
+  <canvas class="deck bot"></canvas>
+</div>
+
+<div id="scroll" hidden>
+  <canvas class="deck top"></canvas>
+  <div class="sheet">
+    <header class="scrollbar"><b>기록</b><button class="mini" id="scroll-close">덮는다</button></header>
+    <div class="scrolltext" id="scroll-text"></div>
+  </div>
+  <canvas class="deck bot"></canvas>
+</div>
+
+<!-- ══ codex ══
+     Everything the dead runs met. Not a museum: the body count
+     under each monster is what buys its tells, so the page is
+     both the record and the reason to keep killing things. -->
+<section id="sc-codex" class="screen" hidden>
+  <header class="bar"><h2>기록</h2><button class="mini" data-back>닫기</button></header>
+  <div class="codextabs" id="ledger-tabs">
+    <button class="codextab on" data-led="codex">도감</button>
+    <button class="codextab" data-led="mem">기억</button>
+    <button class="codextab" data-led="reso">공명</button>
+    <button class="codextab" data-led="abyss">심연</button>
+  </div>
+  <div class="scroll">
+    <div data-led="codex">
+      <p class="note" id="codex-lead"></p>
+      <div id="codex-tabs" class="codextabs"></div>
+      <div id="codex-list"></div>
+    </div>
+    <div data-led="mem" hidden>
+      <p class="note">죽으면 판은 사라지지만 기억은 남는다. 어느 것도 능력치가 아니다 —
+        전부 이미 벌어 놓은 것을 다음 판에 넘겨주는 것뿐이다.</p>
+      <div id="memories" class="memories"></div>
+    </div>
+    <div data-led="reso" hidden>
+      <p class="note">손에 든 것들이 서로를 알아보면 판이 다른 것이 된다.
+        숫자가 아니라 규칙이 바뀌고, 한 번 켜지면 꺼지지 않는다.</p>
+      <div id="reso-list"></div>
+    </div>
+    <div data-led="abyss" hidden>
+      <div id="abyss-pick" class="abysspick" hidden>
+        <div class="abyssrow"></div>
+        <p class="note" id="abyss-note"></p>
+      </div>
+      <p class="note" id="abyss-locked">대군주를 쓰러뜨리면 열린다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══ save slots ══ -->
+<section id="sc-slots" class="screen" hidden>
+  <header class="bar">
+    <h2 id="slots-title">저장 슬롯</h2>
+    <button class="mini" id="slots-back">닫기</button>
+  </header>
+  <div class="scroll">
+    <p class="note" id="slots-lead"></p>
+    <div id="slot-list"></div>
   </div>
 </section>
 
 <!-- ══ character creation ══ -->
 <section id="sc-create" class="screen" hidden>
-  <header class="bar"><h2>캐릭터 생성</h2></header>
+  <header class="bar"><h2>캐릭터 생성</h2><canvas id="hero-preview" class="heropv"></canvas></header>
   <div class="scroll">
     <h3 class="sect">종족</h3>
     <div class="pickgrid" id="race-list"></div>
@@ -45,6 +128,8 @@
 
     <h3 class="sect">능력치 <button class="mini" id="btn-reroll">다시 굴리기</button></h3>
     <div id="stat-preview"></div>
+    <h3 class="sect">능력치가 하는 일</h3>
+    <p class="note" id="stat-detail"></p>
   </div>
   <footer class="bar"><button class="big" id="btn-begin">이 인물로 시작</button></footer>
 </section>
@@ -53,11 +138,16 @@
 <section id="sc-play" class="screen" hidden>
   <header id="hud">
     <div class="hudtop">
-      <span id="hud-name" class="who"></span>
-      <span class="chip">Lv <b id="hud-lv">1</b></span>
-      <span class="chip">AC <b id="hud-ac">0</b></span>
       <span class="chip gold">◍ <b id="hud-gold">0</b></span>
       <span class="chip depth" id="hud-depth">마을</span>
+      <span class="chip mats" id="hud-mats" hidden>재료 <b id="hud-mats-n">0</b></span>
+      <span class="chip keys" id="hud-keys" hidden>열쇠 <b id="hud-keys-n">0</b></span>
+      <span class="chip combo" id="hud-combo" hidden><b id="hud-combo-n">0</b> 연격</span>
+      <span class="chip relics" id="hud-relics" hidden>유물 <b id="hud-relics-n">0/5</b></span>
+      <span class="chip clock" id="hud-clock" hidden><b id="hud-clock-n"></b></span>
+      <span class="chip wager" id="hud-bank" hidden>판돈 <b id="hud-bank-n"></b></span>
+      <span class="chip trait" id="hud-trait" hidden><b id="hud-trait-n"></b></span>
+      <span class="chip reso" id="hud-reso" hidden><b id="hud-reso-n"></b></span>
     </div>
     <div class="gauge">
       <span class="glabel">HP</span>
@@ -69,36 +159,64 @@
       <div class="track"><i id="hud-manabar" class="mp"></i></div>
       <span class="gval" id="hud-mana">0/0</span>
     </div>
+    <div class="gauge" id="hud-stam-wrap">
+      <span class="glabel">기력</span>
+      <div class="track"><i id="hud-stambar" class="st"></i></div>
+      <span class="gval" id="hud-stam">0/0</span>
+    </div>
     <div class="hudbot">
+      <span id="hud-name" class="who"></span>
+      <span class="xp">Lv <b id="hud-lv">1</b></span>
+      <span class="xp">AC <b id="hud-ac">0</b></span>
       <span class="xp">XP <b id="hud-xp">0/0</b></span>
+      <span class="xp" id="hud-oil-wrap">불 <b id="hud-oil">0</b></span>
       <span id="hud-flags" class="flags"></span>
     </div>
   </header>
 
-  <div id="stage"><canvas id="map"></canvas></div>
+  <div id="stage">
+    <canvas id="map"></canvas>
+    <canvas id="mini" title="탭하면 크기가 바뀝니다"></canvas>
+    <!-- What just took health off you, as faces and numbers. The
+         log is prose and prose is for reading; this is for
+         glancing at mid-fight, which is a different job and was
+         never going to fit in the same channel. Inside the map so
+         it costs no layout height. -->
+    <div id="tally" hidden></div>
+  </div>
 
   <div id="log" aria-live="polite"></div>
 
   <div id="controls">
     <div id="dpad">
-      <button data-dir="-1,-1" aria-label="북서">↖</button>
-      <button data-dir="0,-1"  aria-label="북">↑</button>
-      <button data-dir="1,-1"  aria-label="북동">↗</button>
-      <button data-dir="-1,0"  aria-label="서">←</button>
-      <button data-dir="0,0"   aria-label="대기" class="wait">·</button>
-      <button data-dir="1,0"   aria-label="동">→</button>
-      <button data-dir="-1,1"  aria-label="남서">↙</button>
-      <button data-dir="0,1"   aria-label="남">↓</button>
-      <button data-dir="1,1"   aria-label="남동">↘</button>
+      <button data-dir="-1,-1" aria-label="북서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.9 5.9 L21.9 14.3 L14.1 14.1 L14.3 21.9 Z"/></svg></button>
+      <button data-dir="0,-1" aria-label="북"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4 L17.4 20.6 L12 14.9 L6.6 20.6 Z"/></svg></button>
+      <button data-dir="1,-1" aria-label="북동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.1 5.9 L9.7 21.9 L9.9 14.1 L2.1 14.3 Z"/></svg></button>
+      <button data-dir="-1,0" aria-label="서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 12 L20.6 6.6 L14.9 12 L20.6 17.4 Z"/></svg></button>
+      <button data-dir="0,0" class="wait" aria-label="대기"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.4"/></svg></button>
+      <button data-dir="1,0" aria-label="동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 12 L3.4 17.4 L9.1 12 L3.4 6.6 Z"/></svg></button>
+      <button data-dir="-1,1" aria-label="남서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.9 18.1 L14.3 2.1 L14.1 9.9 L21.9 9.7 Z"/></svg></button>
+      <button data-dir="0,1" aria-label="남"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.6 L6.6 3.4 L12 9.1 L17.4 3.4 Z"/></svg></button>
+      <button data-dir="1,1" aria-label="남동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.1 18.1 L2.1 9.7 L9.9 9.9 L9.7 2.1 Z"/></svg></button>
     </div>
     <div id="acts">
+      <div class="pair quick" id="quick-row"></div>
+      <div class="pair spells" id="spell-row" hidden></div>
       <button id="btn-inv">배낭 · 장비</button>
-      <button id="btn-cast">주문</button>
+      <!-- Paired so the new spell row pays for itself: the book is
+           now a reference screen, not the thing you tap every turn. -->
+      <div class="pair">
+        <button id="btn-cast">주문서</button>
+        <button id="btn-door" disabled>문 닫기</button>
+      </div>
+      <!-- Only there when a bow is in hand and something is in
+           line: a button that is dark most of the game is worse
+           than a button that appears when it means something. -->
+      <button id="btn-shoot" hidden>쏘기 <b id="shoot-n"></b></button>
       <div class="pair">
         <button id="btn-down">▼ 내려가기</button>
         <button id="btn-up">▲ 올라가기</button>
       </div>
-      <button id="btn-help" class="ghost">조작법</button>
     </div>
   </div>
 </section>
@@ -108,13 +226,34 @@
   <header class="bar">
     <h2>배낭 · 장비</h2>
     <span class="chip gold">◍ <b id="inv-gold">0</b></span>
+    <button class="mini" id="btn-sound2">소리</button>
+    <button class="mini" id="btn-help2">조작법</button>
     <button class="mini" data-back>닫기</button>
   </header>
+  <!-- Two tabs, not one column. Five sections stacked came to
+       1383px of scrolling in a 791px window, and the two things a
+       player switches between — what is on me, what is in the bag
+       — were the two furthest apart. -->
+  <div class="codextabs" id="inv-tabs">
+    <button class="codextab on" data-tab="worn">몸</button>
+    <button class="codextab" data-tab="bag">배낭</button>
+  </div>
   <div class="scroll">
-    <h3 class="sect">착용 중</h3>
-    <div id="equip-list"></div>
-    <h3 class="sect">배낭</h3>
-    <div id="pack-list"></div>
+    <div data-inv="worn">
+      <h3 class="sect">착용 중</h3>
+      <div id="equip-list"></div>
+      <h3 class="sect">유물 <span id="relic-count" style="margin-left:auto;color:var(--P)"></span></h3>
+      <div id="relic-held"></div>
+      <h3 class="sect">전투</h3>
+      <div id="combat-stats"></div>
+    </div>
+    <div data-inv="bag" hidden>
+      <h3 class="sect">재료</h3>
+      <div id="mat-list"></div>
+      <h3 class="sect">배낭</h3>
+      <p class="note" id="pack-hint">무기와 갑옷은 <b>분해</b>해서 강화 재료로 쓸 수 있습니다. 상인에게 파는 것과 둘 중 하나입니다.</p>
+      <div id="pack-list"></div>
+    </div>
   </div>
 </section>
 
@@ -136,29 +275,671 @@
 <!-- ══ spells ══ -->
 <section id="sc-spell" class="screen" hidden>
   <header class="bar">
-    <h2>주문</h2>
-    <span class="chip mana">✦ <b id="spell-mana">0/0</b></span>
+    <h2 id="spell-title">주문</h2>
+    <span class="chip mana" id="spell-chip">✦ <b id="spell-mana">0/0</b></span>
     <button class="mini" data-back>닫기</button>
   </header>
   <div class="scroll"><div id="spell-list"></div></div>
+</section>
+
+<!-- ══ campfire ══ -->
+<section id="sc-camp" class="screen" hidden>
+  <header class="bar"><h2>모닥불</h2><span class="chip depth" id="camp-depth">1층</span></header>
+  <div class="scroll">
+    <p class="note" id="camp-lead">불은 한 번만 쓸 수 있다. 하나만 고르시오.</p>
+    <div id="camp-choices"></div>
+    <div id="camp-targets" hidden>
+      <h3 class="sect" id="camp-target-head">대상</h3>
+      <!-- fusion: two relics into the fire -->
+      <div id="fuse-box" hidden>
+        <div id="fuse-pick"></div>
+        <div id="fuse-odds"></div>
+        <p class="note" id="fuse-note"></p>
+        <button class="big" id="fuse-go" disabled>불에 넣는다</button>
+      </div>
+      <button class="mini" id="camp-back">← 돌아가기</button>
+    </div>
+  </div>
+</section>
+
+<!-- ══ the anvil ══
+     Not spent like the fire. You leave when your purse is empty
+     or when you decide to stop, and nothing else. -->
+<section id="sc-anvil" class="screen" hidden>
+  <header class="bar">
+    <h2>모루</h2>
+    <span class="chip depth" id="anvil-depth">1층</span>
+    <button class="mini" id="anvil-leave">떠난다</button>
+  </header>
+  <div class="scroll">
+    <p class="note" id="anvil-lead"></p>
+    <div id="anvil-mode" class="styleswitch">
+      <button data-mode="upgrade">강화</button>
+      <button data-mode="enchant">인챈트</button>
+      <button data-mode="reroll">재련</button>
+    </div>
+    <div id="anvil-style" class="styleswitch">
+      <button data-style="bold">과감</button>
+      <button data-style="careful">신중</button>
+    </div>
+    <p class="note" id="anvil-note"></p>
+    <h3 class="sect" id="anvil-cat-head">촉매</h3>
+    <div id="anvil-cats"></div>
+    <h3 class="sect">무엇을 두들길까</h3>
+    <div id="anvil-list"></div>
+  </div>
+</section>
+
+<!-- ══ the ? room ══ -->
+<section id="sc-event" class="screen" hidden>
+  <header class="bar"><h2 id="event-name">?</h2></header>
+  <div class="scroll">
+    <p class="note" id="event-text"></p>
+    <div id="event-list"></div>
+  </div>
+</section>
+
+<!-- ══ the fork ══ -->
+<section id="sc-stairs" class="screen" hidden>
+  <header class="bar"><h2>내려가는 길</h2><span class="chip depth" id="stairs-depth">2층</span></header>
+  <div class="scroll">
+    <p class="note">계단이 갈라진다. 어느 쪽이든 내려가는 길이지만, 같은 층은 아니다.<br>
+      한 번 고르면 돌아올 수 없다.</p>
+    <p class="note stairswarn" id="stairs-warn" hidden></p>
+    <div id="stairs-list"></div>
+  </div>
+</section>
+
+<!-- ══ relic swap ══ -->
+<section id="sc-relic" class="screen" hidden>
+  <header class="bar"><h2>유물</h2></header>
+  <div class="scroll">
+    <p class="note" id="relic-lead"></p>
+    <p class="note" id="relic-sub"></p>
+    <div id="relic-list"></div>
+    <button class="mini" id="relic-skip">그대로 둔다</button>
+  </div>
+</section>
+
+<!-- ══ altar ══ -->
+<section id="sc-altar" class="screen" hidden>
+  <header class="bar"><h2>제단</h2><span class="chip depth" id="altar-depth">1층</span></header>
+  <div class="scroll">
+    <p class="note">돌 위에 무언가를 올려놓으라는 듯한 홈이 파여 있다.<br>
+      바친 것은 돌아오지 않고, 제단은 한 번만 응답한다.</p>
+    <div id="altar-list"></div>
+    <div id="altar-spin" hidden>
+      <div class="wheel"><div id="altar-wheel" class="altodds"></div><i id="altar-mark"></i></div>
+      <p class="wheelresult" id="altar-result"></p>
+    </div>
+    <button class="mini" id="altar-leave">물러난다</button>
+  </div>
 </section>
 
 <!-- ══ help ══ -->
 <section id="sc-help" class="screen" hidden>
   <header class="bar"><h2>조작법</h2><button class="mini" data-back>닫기</button></header>
   <div class="scroll">
+    <h3 class="sect">지도 · 구르기</h3>
     <table class="keys">
-      <tr><td>지도 스와이프</td><td>8방향 이동</td></tr>
-      <tr><td>지도 탭</td><td>그 방향으로 한 걸음</td></tr>
-      <tr><td>D-pad 가운데</td><td>한 턴 대기</td></tr>
-      <tr><td>상점 문(1~6)</td><td>밟으면 자동으로 들어감</td></tr>
+      <tr><td>미니맵</td><td>지도 <b>오른쪽 위 모서리</b>에 있습니다. <b>탭하면 크게 → 숨김 → 작게</b>로 바뀝니다(키보드는 Tab).<br>
+        가본 곳이 전부 그려지고, 계단(주황) · 모닥불(주황) · 제단(보라) · ? 표지(파랑) · 상자(금) · 유물(보라) ·
+        보이는 몬스터(빨강, 정예는 주황, 이름 있는 것은 밝은 빨강) · 표시된 공격 범위가 함께 뜹니다.</td></tr>
+      <tr><td><b>구르기</b></td><td><b>같은 방향을 빠르게 두 번.</b> 두 칸을 굴러 빠져나가고 <b>기력 2</b>를 씁니다.<br>
+        구른 턴에는 <b>근접·원거리·바닥 공격이 전부 빗나갑니다.</b> 거미줄도 풀립니다.</td></tr>
+      <tr><td>기력</td><td>HP 아래 초록 막대. 최대치는 <b>3 + 레벨/6 + 민첩 보정</b>이고 <b>두 턴에 1씩</b> 찹니다.
+        구르기 말고는 쓰지 않습니다 — 답이 하나뿐이어야 답이 됩니다.</td></tr>
+    </table>
+
+    <h3 class="sect">무기 여섯 종류</h3>
+    <table class="keys">
+      <tr><td>단검류</td><td>한 턴에 <b>두 번</b> 찌릅니다(각 62%). 치명타 +8%p. 처형·흡혈과 붙으면 굴림이 두 배가 됩니다.</td></tr>
+      <tr><td>검류</td><td>기준. 규칙이 없는 만큼 약점도 없습니다.</td></tr>
+      <tr><td>도끼류</td><td>벤 자리 <b>양옆까지</b> 함께 벱니다(70%). 셋이 일직선에 서게 만드는 것이 요령입니다.</td></tr>
+      <tr><td>창류</td><td><b>두 칸 거리에서</b> 찌릅니다. 빈 칸으로 들어가려 하면 그 너머의 적을 찌릅니다 —
+        팔을 당기는 정예에게 붙지 않고 싸우는 방법입니다.</td></tr>
+      <tr><td>둔기류</td><td>30%로 <b>휘청이게</b> 만듭니다. 그 적은 다음 턴을 통째로 잃습니다.</td></tr>
+      <tr><td>대검류</td><td>피해 +45%, 명중 −12%. <b>치명타가 터지면 인접한 전부</b>를 벱니다.</td></tr>
+      <tr><td>활류</td><td><b>화살을 먹고 멀리서 쏩니다.</b> 활을 들면 화면에 <b>쏘기</b> 단추가 생기고,
+        사거리 안에 사선이 트인 것 중 가장 가까운 것을 겨눕니다. 한 발에 화살 하나와 턴 하나.<br>
+        멀수록 조금씩 약해지고(칸당 −4.5%), <b>붙으면 활대로 때리는 셈이라 절반만</b> 아픕니다.
+        거리를 버는 값으로 근접을 내주는 무기입니다.</td></tr>
+    </table>
+
+    <h3 class="sect">화살 — 무엇을 메기느냐</h3>
+    <p class="note">활은 두 번째 자원을 먹습니다. 그게 거래입니다 — 닿는 대신 떨어집니다.
+      잡화점은 평범한 화살만, <b>무기점은 네 종류를 전부</b> 팝니다.</p>
+    <table class="keys">
+      <tr><td>화살</td><td>기준. 싸고 어디에나 있습니다.</td></tr>
+      <tr><td>무거운 화살</td><td>피해 <b>+55%</b>, 명중 −8. 두껍고 느린 것에게.</td></tr>
+      <tr><td>독화살</td><td>맞은 것이 중독됩니다. 독은 <b>상대 최대 체력의 비율</b>로 들어가므로
+        <b>큰 것일수록 아픕니다.</b> 늑대 한 마리를 여섯 턴 쏘면 평범한 화살 66, 독화살 119.</td></tr>
+      <tr><td>불화살</td><td><b>죽은 자리가 터집니다.</b> 마무리에 쓰는 화살이라 무리 한가운데에서만 값을 합니다.</td></tr>
+      <tr><td>레인저</td><td><b>짧은 활과 화살 24발</b>을 들고 시작합니다. 사거리가 정체성인 직업이
+        활을 상점에서 구해 오기를 기다릴 이유가 없어서요.</td></tr>
+    </table>
+
+    <h3 class="sect">잠긴 것 — 세 가지 답, 세 가지 값</h3>
+    <p class="note">전에는 잠긴 문 앞에서 방향키를 계속 누르면 <b>언젠가 반드시</b> 열렸습니다.
+      실패에 아무 대가가 없었으니 열쇠는 시간을 아끼는 물건일 뿐이었습니다. 이제 셋은 서로 다른 값을 냅니다.</p>
+    <table class="keys">
+      <tr><td>열쇠</td><td><b>조용하고, 확실하고, 한 턴.</b> 그리고 사라집니다.
+        전보다 덜 나옵니다 — 값이 생겼으니까요.</td></tr>
+      <tr><td>자물쇠 갈고리</td><td><b>조용합니다.</b> 실패해도 하나가 닳습니다(한 벌에 세 번).
+        <b>도적</b>은 남들보다 훨씬 잘 엽니다.</td></tr>
+      <tr><td>어깨로 밀기</td><td>언제나 할 수 있지만 <b>기력을 먹고, 기력이 없으면 몸이 대신 받습니다.</b>
+        그리고 밀 때마다 소리가 더 멀리 갑니다 — 두 번째보다 세 번째가 시끄럽습니다.
+        <b>싸우는 중에 문을 미는 것은 이제 실수입니다.</b></td></tr>
+      <tr><td>잠긴 상자</td><td>못 열면 <b>지렛대</b>를 겁니다. 열리기는 하지만 금화가 20% 줄고
+        <b>안에 든 것 하나가 절반의 확률로 부서집니다.</b> 층을 막아 버리는 일은 없되, 값은 확실히 치릅니다.</td></tr>
+    </table>
+
+    <h3 class="sect">직업이 세상과 부딪히는 방식</h3>
+    <table class="keys">
+      <tr><td>레인저 — 발이 가볍다</td><td>덫을 <b>네 칸 밖</b>에서 봅니다(도적 세 칸, 나머지 두 칸).
+        12턴 서 있으면 주변 덫의 <b>82%</b>를 찾아냅니다 — 전사는 35%.<br>
+        그리고 모르고 밟아도 <b>절반 넘게는 발을 뗍니다</b>(터지는 비율 44%, 나머지 직업은 98~100%).
+        층에 먼저 들어가는 직업인 이유입니다.</td></tr>
+      <tr><td>도적 — 손이 가볍다</td><td>잠긴 문과 상자를 <b>훨씬 잘 엽니다.</b> 갈고리를 들면 거의 실패하지 않습니다.</td></tr>
+    </table>
+
+    <h3 class="sect">레인저의 기예 — 전부 「거리」에 대한 답</h3>
+    <p class="note">레인저는 마법사와 <b>똑같은 주문 다섯 개</b>를 지능 −2로 쓰고 있었습니다.
+      마법사보다 주문이 약하고 도적보다 손이 느리니 <b>1등인 축이 하나도 없었습니다.</b>
+      주문서를 걷어내고, 대신 아무도 갖지 못한 축을 줍니다.</p>
+    <table class="keys">
+      <tr><td>조준 사격<br><span class="fine">Lv1 · 2기력 · 화살 1</span></td>
+        <td><b>빗나가지 않습니다.</b> 그리고 활의 거리 감쇠가 <b>뒤집혀</b> 멀수록 아픕니다.<br>
+        2칸 ×1.76 · 4칸 ×2.01 · <b>6칸 ×2.66.</b> 방 저쪽 끝에서 쏘는 것이 최선인 유일한 공격입니다.</td></tr>
+      <tr><td>관통 사격<br><span class="fine">Lv4 · 3기력 · 화살 1</span></td>
+        <td>화살이 <b>일직선 위의 모든 것</b>을 뚫습니다(넘어갈 때마다 85%).<br>
+        혼자 ×1.31 · 셋 일렬 ×3.38 · <b>다섯 일렬 ×5.07.</b> 통로를 원하게 만드는 기술입니다.</td></tr>
+      <tr><td>덫 놓기<br><span class="fine">Lv8 · 3기력</span></td>
+        <td>발밑에 묻습니다. <b>물러선 뒤</b>에야 쓸모가 있습니다 — 내가 서 있는 칸은 아무도 밟을 수 없으니까요.
+        쫓아오던 것이 밟으면 두 턴을 잃습니다.</td></tr>
+      <tr><td>빗발<br><span class="fine">Lv12 · 5기력 · 화살 3</span></td>
+        <td>보이는 <b>모든 것</b>에게 한 발씩, 각각 절반.<br>
+        혼자 <b>×0.52(손해)</b> · 넷 ×1.85 · 일곱 ×3.44. 방을 상대하는 기술이지 몸을 상대하는 기술이 아닙니다.</td></tr>
+    </table>
+
+    <h3 class="sect">바닥에 그려지는 공격</h3>
+    <table class="keys">
+      <tr><td>읽는 법</td><td>정예 위쪽과 이름 있는 적은 <b>공격할 칸을 미리 색칠</b>하고 가운데에 <b>남은 턴 수</b>를 적습니다.
+        숫자가 1이 되면 색이 빠르게 깜빡입니다.</td></tr>
+      <tr><td>베기</td><td>시전자를 지나는 <b>가로 또는 세로 한 줄</b>. 1턴 뒤. 축에서 벗어나면 그만입니다.</td></tr>
+      <tr><td>십자</td><td><b>네 방향 전부</b>. 2턴 뒤. 벽이 막아 줍니다.</td></tr>
+      <tr><td>낙하</td><td><b>당신이 서 있던 자리</b>를 중심으로 한 원. 2턴 뒤 — 걸어 나가도 되고 굴러도 됩니다.</td></tr>
+      <tr><td>불길</td><td>시전자에서 <b>고리 모양으로 퍼져 나갑니다.</b> 매 턴 한 칸씩, 네 번. 안쪽으로 파고드는 것이 정답일 때가 있습니다.</td></tr>
+      <tr><td>진동</td><td>시전자를 둘러싼 <b>고리</b>. 붙어 있으면 안 맞습니다.</td></tr>
+      <tr><td><b>같이 맞는다</b></td><td>표시된 칸의 <b>몬스터도 함께 맞습니다.</b> 대군주는 자기 부하를 태웁니다 —
+        방을 상대로 싸우지 말고 방을 이용해서 싸우세요.</td></tr>
+      <tr><td>이름 있는 것</td><td><b>6층 뼈를 씹는 자</b>(진동·낙하) · <b>10층 재 속의 사제</b>(십자·불길) ·
+        <b>13층 화로를 감은 것</b>(베기·불길·진동) · <b>15층 잿불의 대군주</b>(넷 전부).
+        계단 화면에서 미리 알려 줍니다. 잡으면 <b>유물이 확정으로</b> 남습니다.</td></tr>
+      <tr><td><b>자기 자리를 지킨다</b></td><td>대군주를 뺀 셋은 <b>계단 방에 없고, 자기 자리를 떠나지 않습니다.</b>
+        먼저 건드리지 않으면 층 끝까지 따라오지 않습니다 — <b>싸울지 지나칠지가 당신 결정</b>이라는 뜻입니다.
+        다만 한 번 때리면 그때부터는 끝까지 쫓아옵니다.</td></tr>
+      <tr><td>대군주의 세 단계</td><td>체력 <b>66%</b>와 <b>33%</b>에서 달라집니다. 두 번째에는 <b>상처가 더는 아물지 않고</b>
+        바닥 공격이 두 배로 잦아지며 부하가 들어옵니다. 세 번째에는 <b>막는 것을 그만둡니다</b> —
+        방어가 내려가고 피해가 오릅니다. 넘어가는 순간 <b>발밑이 한 번 터집니다.</b>
+        마지막 3분의 1은 부하 없이 둘만 남습니다. 탭하면 지금 몇 단계인지 읽을 수 있습니다.</td></tr>
+    </table>
+
+    <h3 class="sect">몬스터 머리 위의 표시</h3>
+    <p class="note">깨어 있는 적은 <b>다음 턴에 무엇을 할지</b>를 머리 위에 내겁니다.
+      붉은 별은 크게 내리치기 직전이라는 뜻입니다 — 그 턴에 물러서면 헛손질을 시키고,
+      버티고 때리면 2.5배를 맞습니다. 고르는 것은 당신입니다.</p>
+    <div id="intent-legend"></div>
+    <h3 class="sect">조작</h3>
+    <table class="keys">
+      <tr><td>D-pad 꾹 누르기</td><td>그 방향으로 계속 이동</td></tr>
+      <tr><td>지도 스와이프 유지</td><td>손가락 방향으로 계속 이동</td></tr>
+      <tr><td>가본 곳 탭</td><td>거기까지 자동으로 걸어감</td></tr>
+      <tr><td>D-pad 가운데 꾹</td><td>제자리에서 휴식</td></tr>
+      <tr><td>자동 이동 중단</td><td>피격 · 새 몬스터 발견 · 아이템 습득 시 자동 정지</td></tr>
+      <tr><td>상점</td><td>가게마다 <b>팻말</b>에 취급 품목이 그려져 있고 <b>상인</b>이 서 있습니다. 문을 밟으면 들어갑니다.</td></tr>
+      <tr><td>구매 · 판매</td><td>확인을 받고 진행합니다. <b>Y</b>는 예, <b>N</b>이나 Esc는 아니오.</td></tr>
       <tr><td>아이템</td><td>밟으면 자동으로 주움</td></tr>
       <tr><td>몬스터</td><td>부딪치면 공격</td></tr>
-      <tr><td>키보드</td><td>방향키 · hjkl · yubn</td></tr>
-      <tr><td></td><td>. 대기 · &gt; 하강 · &lt; 상승 · i 배낭 · m 주문</td></tr>
+      <tr><td>키보드</td><td>방향키 · hjkl · yubn (누르고 있으면 연속 이동)</td></tr>
+      <tr><td>빠른 칸 3개</td><td>d-pad 오른쪽 맨 윗줄. <b>회복 · 강화 · 탈출</b> 역할이 배낭에서 자동으로 채워집니다.
+        한 번 누르면 바로 씁니다. 미확인 물건은 자동으로 올라오지 않습니다 — 도박은 당신이 해야 합니다.</td></tr>
+      <tr><td>주문 줄</td><td>빠른 칸 바로 아래. <b>다섯 칸이 늘 같은 자리</b>에 있고, 아직 못 배운 주문은 레벨만 적힌 빈 칸으로 남습니다.
+        한 번 누르면 바로 시전합니다. 어두우면 마나가 모자라거나 <b>쏠 대상이 없다</b>는 뜻입니다 —
+        대상이 없을 때는 눌러도 마나가 나가지 않습니다.</td></tr>
+      <tr><td>저장</td><td>층을 옮길 때마다, 그리고 40턴마다 <b>자동</b>으로 저장됩니다. 저장 버튼은 없습니다.<br>
+        죽으면 슬롯이 비워집니다 — 퍼머데스는 그대로입니다.</td></tr>
+      <tr><td></td><td>. 대기 · &gt; 하강 · &lt; 상승 · i 배낭 · m 주문서 · Esc 정지<br>
+        <b>1~5</b> 주문 시전 · <b>q w e</b> 빠른 칸</td></tr>
     </table>
+
+    <h3 class="sect">주문 아이콘</h3>
+    <div id="spell-legend"></div>
+
+    <h3 class="sect">전투</h3>
+    <table class="keys">
+      <tr><td>치명타</td><td>민첩이 높을수록 자주 터집니다. 도적이 가장 잘 냅니다.</td></tr>
+      <tr><td>기습</td><td>아직 자지 않고 있는 적은 없습니다 — <b>잠든 적</b>을 치면 무조건 치명타에, 배수까지 얹힙니다. 멀리 돌아가서라도 먼저 치세요.</td></tr>
+      <tr><td>연격</td><td>연달아 처치하면 피해가 쌓입니다. 최대 +70%. 14턴 안에 다음을 잡지 못하면 끊기고, 맞으면 절반이 날아갑니다.</td></tr>
+    </table>
+
+    <h3 class="sect">몬스터</h3>
+    <table class="keys">
+      <tr><td>속도</td><td>늑대·박쥐·거미는 당신보다 빠릅니다. 오우거·미라는 느립니다. 도망칠 수 있는 상대와 없는 상대가 갈립니다.</td></tr>
+      <tr><td>원거리</td><td>투석꾼·궁수·용은 멀리서 쏩니다. 가까이 붙으면 물러나며 계속 쏘니, <b>시야를 끊거나</b> 단숨에 붙으세요.</td></tr>
+      <tr><td>무리</td><td>코볼드·오크·늑대는 떼로 나옵니다. 넓은 방에서 둘러싸이면 끝입니다. 좁은 곳으로 끌어들이세요.</td></tr>
+      <tr><td>도주</td><td>들개는 피를 흘리면 달아납니다. 놓아줄지 쫓을지는 당신 선택입니다.</td></tr>
+      <tr><td>상태이상</td><td>중독·실명·공포·둔화·마비. <b>노움은 마비되지 않고, 드워프는 눈이 멀지 않으며, 엘프와 하프트롤은 겁먹지 않습니다.</b></td></tr>
+    </table>
+
+    <h3 class="sect">문 · 함정 · 바닥</h3>
+    <table class="keys">
+      <tr><td>닫힌 문</td><td>부딪치면 열립니다. 시야를 완전히 막습니다.</td></tr>
+      <tr><td>문 닫기 (c)</td><td>곁에 열린 문이 있을 때만 나타납니다. <b>추격을 끊는 가장 확실한 수단</b> — 오크와 흡혈귀는 열고, 오우거와 트롤은 부수지만, 나머지는 막힙니다.</td></tr>
+      <tr><td>잠긴 문</td><td>열쇠로 열거나 힘으로 부숩니다. 부수는 소리는 멀리까지 갑니다.</td></tr>
+      <tr><td>함정</td><td>화살·독침·구덩이·전이·경보. 밟기 전에는 보이지 않지만, <b>지혜가 높거나 도적이면</b> 미리 발견합니다. 발견한 함정은 자동 이동이 알아서 피해 갑니다.</td></tr>
+      <tr><td>구덩이</td><td>함정 중 가장 드뭅니다(약 5%). 밟아도 <b>민첩으로 가장자리를 붙잡습니다</b> — 민첩 높은 도적은 90%, 둔한 전사는 40%. 놓치면 한 층 떨어집니다.</td></tr>
+      <tr><td>거미줄</td><td>걸리면 힘으로 뜯어내야 합니다. 거미는 그냥 지나갑니다.</td></tr>
+      <tr><td>얕은 물</td><td>건너도 다치지 않지만 <b>소리가 크게 납니다.</b> 은신이 거의 사라집니다.</td></tr>
+    </table>
+
+    <h3 class="sect">상자</h3>
+    <table class="keys">
+      <tr><td>상자</td><td>밟으면 열립니다. 잠긴 상자는 더 많이 들었고, 도적이나 열쇠가 있으면 엽니다.</td></tr>
+      <tr><td>함정 상자</td><td>뚜껑에 무언가 걸려 있을 수 있습니다.</td></tr>
+      <tr><td>미믹</td><td>상자처럼 생긴 것이 전부 상자는 아닙니다. 깊이 내려갈수록 흔해집니다.
+        건드리면 먼저 뭅니다. 다만 <b>미믹은 숨을 쉽니다</b> — 가만히 보면 아주 조금 위아래로 움직입니다. 생명 탐지 주문은 한 번에 벗겨냅니다.</td></tr>
+    </table>
+
+    <h3 class="sect">미확인 물약 · 두루마리</h3>
+    <table class="keys">
+      <tr><td>외형</td><td>물약과 두루마리는 <b>판마다 외형이 뒤섞입니다.</b> "맑은 물약"이 이번 판엔 치유약이고 다음 판엔 독일 수 있습니다.</td></tr>
+      <tr><td>판별</td><td><b>써 보는 것이 유일한 방법</b>입니다. 한 번 쓰면 그 판 내내 이름이 보입니다. 시작 배낭에 든 것은 처음부터 압니다.</td></tr>
+      <tr><td>바닥에만</td><td>격노·무쇠·독·혼탁의 물약, 제련·저주의 두루마리는 <b>상점에 없습니다.</b> 주워서 마셔 봐야 압니다.</td></tr>
+    </table>
+
+    <h3 class="sect">층 성격</h3>
+    <table class="keys">
+      <tr><td>여섯 가지</td><td>보통 · <b>좁은 굴</b>(작은 방 20개) · <b>큰 방</b>(넓은 방 6개) · <b>빛이 없는 층</b>(밝은 방 0) · <b>물에 잠긴 층</b>(물 5배) · <b>소굴</b>(거미줄과 몬스터 다수)</td></tr>
+      <tr><td>알림</td><td>층에 들어서면 무슨 층인지 알려 줍니다. 물은 은신을 죽이고 어둠은 시야를 죽이니, 층에 맞춰 다르게 움직이세요.</td></tr>
+    </table>
+
+    <h3 class="sect">제단 — 확률이 보이는 도박</h3>
+    <table class="keys">
+      <tr><td>어디에</td><td>2층부터 약 30%의 층. 입장하면 지도에 보라색으로 표시됩니다. <b>한 번만 응답합니다.</b></td></tr>
+      <tr><td>무엇을</td><td><b>피</b>(현재 체력 40%) · <b>금화</b>(절반) · <b>장비</b>(착용 중 하나). 바친 것은 돌아오지 않습니다.</td></tr>
+      <tr><td>확률</td><td>고르기 <b>전에</b> 막대로 보여 줍니다. 장비를 바치면 대성공이 30%로 가장 높고, 피는 재앙이 12%로 가장 높습니다.</td></tr>
+      <tr><td>대성공</td><td>유물급 장비 · <b>능력치 영구 +1</b> · 재료 무더기 중 하나.</td></tr>
+      <tr><td>재앙</td><td>장비에 저주 · 층 전체 각성 · 상태이상 중 하나.</td></tr>
+    </table>
+
+    <h3 class="sect">유물 — 규칙을 바꾸는 물건</h3>
+    <table class="keys">
+      <tr><td>무엇이 다른가</td><td>속성은 숫자를 키우고, <b>유물은 게임이 하는 일을 바꿉니다</b>. 그래서 다섯 개가 +1 검 쉰 자루보다 많은 경우의 수를 만듭니다.</td></tr>
+      <tr><td>자리는 늘어난다</td><td><b>4칸으로 시작</b>해 4층 · 8층 · 12층에 도달할 때마다 하나씩 늘어 <b>최대 7칸</b>입니다.
+        초반은 빡빡하고, 조합이 실제로 조립되는 건 후반입니다. 꽉 찬 뒤에 주우면 <b>하나를 버려야 합니다</b>.</td></tr>
+      <tr><td>몇 종류</td><td><b>26종.</b> 한 판에 최대 7개니, 두 판이 같은 손을 들 일은 없습니다.</td></tr>
+      <tr><td>어디서</td><td>정예 처치 시 약 22%, 제단 <b>대성공</b>의 절반, <b>? 사건</b>, 그리고 <b>정예의 소굴 · 저주받은 층</b>은 하나를 확정으로 깔아 둡니다.</td></tr>
+      <tr><td>전부 거래</td><td>공짜는 하나도 없습니다. <b>피의 계약</b>은 최대 체력의 4분의 1을 받고 치명타를 주고, <b>침묵의 서약</b>은 주문 전부를 받고 근접 피해를 줍니다.</td></tr>
+      <tr><td>말도 안 되는 조합</td><td><b>메아리의 종</b>(연격 6 이상이면 한 번 더)에 <b>연쇄의</b> + <b>작열하는</b> 무기를 물리면,
+        한 번 두드릴 때 두 번 휘둘러 네 마리가 맞고 죽은 것들이 연쇄로 터집니다.
+        <b>저울추</b>(체력 30% 아래에서 피해 +60%)와 <b>거울 방패</b>(받은 피해 35% 반사)는
+        "죽기 직전이 가장 강한" 빌드가 됩니다.</td></tr>
+    </table>
+
+    <h3 class="sect">내려가는 길 — 갈림길</h3>
+    <table class="keys">
+      <tr><td>세 갈래</td><td>2층부터 계단이 갈라집니다. <b>주는 것과 가져가는 것이 미리 다 적혀 있습니다.</b> 고른 뒤에야 알게 되는 조건은 없습니다.</td></tr>
+      <tr><td>평범한 계단</td><td>항상 있습니다. 안전한 길이 없는 갈림길은 선택이 아니라 통행료입니다.</td></tr>
+      <tr><td>정예의 소굴</td><td>정예 2.4배. 대신 유물 하나 확정.</td></tr>
+      <tr><td>묻힌 보물고</td><td>전리품 +80%, 상자 두 배. 몬스터도 30% 더.</td></tr>
+      <tr><td>고요한 층</td><td>몬스터 40% 감소. 전리품도 상자도 <b>모닥불도</b> 없습니다. 도망칠 때 쓰는 길입니다.</td></tr>
+      <tr><td>마른 층</td><td>기름을 두 배로 태웁니다. 금화 두 배.</td></tr>
+      <tr><td>저주받은 층</td><td><b>전원 정예.</b> 제단 확정 + 유물 하나.</td></tr>
+      <tr><td>무너진 굴</td><td>함정 두 배, 시야가 좁습니다. 분해 재료 두 배.</td></tr>
+      <tr><td>무너지는 층</td><td>여유 시간 절반. 경험치 두 배.</td></tr>
+    </table>
+
+    <h3 class="sect">층의 시계 — 오래 머물 수 없습니다</h3>
+    <table class="keys">
+      <tr><td>여유</td><td>층마다 턴 예산이 있습니다(1층 312턴, 깊어질수록 줄어듭니다). 남은 양이 3분의 1 아래로 떨어지면 위쪽에 <b>여유</b> 칩이 뜹니다.</td></tr>
+      <tr><td>다 쓰면</td><td>"심연이 눈을 뜬다" — 이후 <b>16턴마다</b> 몬스터가 깨어난 채로, 당신 위치를 알고 나타납니다. 파도마다 능력치가 13%씩 붙습니다.</td></tr>
+      <tr><td>왜 있는가</td><td>시계가 없으면 참을성 있는 플레이어는 모든 실수를 휴식으로 지울 수 있습니다. 힘이 압박보다 빨리 자라야 한다 — 그게 이 게임의 속도입니다.</td></tr>
+      <tr><td>대처</td><td>습격이 시작되면 <b>정리를 포기하고 계단으로 가는 것이 정답</b>입니다. 층을 다 비우는 것은 시계 안에서만 가능한 사치입니다.</td></tr>
+    </table>
+
+    <h3 class="sect">? 사건 — 27가지</h3>
+    <table class="keys">
+      <tr><td>어디에</td><td>층의 <b>약 48%</b>에 하나. 파란 물음표 표지로, 들어서면 지도에 미리 표시됩니다.</td></tr>
+      <tr><td>무엇을</td><td>짧은 글과 두세 개의 선택지. <b>결과가 버튼에 적혀 있습니다.</b> 고르면 표지는 사라집니다.</td></tr>
+      <tr><td>당신을 읽는다</td><td>절반은 <b>당신이 무엇을 들고 있는지에 따라서만 나타납니다.</b>
+        흡혈 무기가 있으면 식지 않은 피 웅덩이가, 거울 방패가 있으면 마주 선 거울이,
+        불씨 항아리가 있으면 식은 화로가, 연격 8을 찍어 봤으면 훈련장이 열립니다.</td></tr>
+      <tr><td>영구 보상</td><td>불빛 반경 · 은신 · 방어 · 피해 · 흡혈 · 연쇄 · 최대 마나 · 연격 배수는
+        <b>장비에 붙지 않는 영구 수치</b>입니다. 장비를 바꿔도 사라지지 않습니다.</td></tr>
+      <tr><td>평판</td><td>취한 광부를 털면 상점 가격이 오르고, 상인의 장부를 갚으면 내려갑니다. 남은 판 내내 유지됩니다.</td></tr>
+      <tr><td><b>확률형 선택지</b></td><td>다섯 사건에는 <b>버튼에 확률이 적힌</b> 선택지가 있습니다.
+        빨간 테두리에 <b>%</b>가 크게 적히고, 그 아래 <b>실패하면 무엇을 잃는지</b>가 붉은 글씨로 함께 적힙니다.
+        <b>적힌 숫자가 실제로 굴리는 숫자입니다.</b> 어느 쪽이 나올지가 놀라움이지, 걸린 것이 무엇인지는 놀라움이 아닙니다.</td></tr>
+      <tr><td><b>지면 에워싸입니다</b></td><td>제단은 <b>물건</b>을 걸지만 확률형 선택지는 <b>당신이 서 있는 자리</b>를 겁니다.
+        지면 셋에서 여섯이 <b>당신 바로 둘레에</b> 일어섭니다 — 물러설 복도도, 닫을 문도 없습니다.
+        다만 <b>첫 턴은 일어서는 데에 씁니다.</b> 방향을 고르고, 구르고, 마시는 한 턴은 당신 것입니다.</td></tr>
+      <tr><td>다섯 가지</td><td><b>재로 그린 원</b>(55% 유물) · <b>끊어진 계단</b>(60% 다음 층 전리품 두 배) ·
+        <b>도박꾼의 뼈</b>(50% 금화 두 배 / 14% 다섯 배와 유물) · <b>배고픈 문</b>(40% 깊은 장비 둘) ·
+        <b>재 속의 약속</b>(35% 최대 체력 영구 +22와 무기 +2).</td></tr>
+    </table>
+
+    <h3 class="sect">공명 — 손에 든 것들이 서로를 알아볼 때</h3>
+    <p class="note">이 게임의 모든 보너스는 <b>더해집니다.</b> 피해 +28%와 방어 +5와 흡혈 12%가 한 자루에 모여도
+      합계가 조금 클 뿐, 어디에서도 <b>불어나지 않습니다.</b> 실제로 81판을 재보니
+      가장 센 빌드가 중앙값의 <b>2.56배</b>였습니다 — 그건 로또가 아니라 잘 풀린 판입니다.<br>
+      <b>공명</b>은 그 답입니다. 특정한 것들이 한꺼번에 손에 있으면 <b>숫자가 아니라 규칙이 바뀝니다.</b>
+      한 번 켜지면 판이 끝날 때까지 꺼지지 않고, HUD에 남고, 판 요약에 적힙니다.</p>
+    <table class="keys">
+      <tr><td>피의 톱니</td><td><b>흡혈</b>과 <b>연쇄</b>를 한 손에 들면 켜집니다. 접두 · 접미 · 각인 어디서 와도 상관없습니다.<br>
+        <b>연쇄가 더는 확률이 아닙니다.</b> 닿는 몸이 있는 한 계속 옮겨 붙고(최대 6번), 옮길 때마다 피를 가져옵니다.<br>
+        무리 한가운데서 한 번 휘두르면 <b>피해 2.8배 · 회복 네 배.</b> 대신 <b>혼자 있는 것에게는 아무것도 하지 않습니다</b> —
+        연쇄는 두 번째 몸이 있어야 하니까요. 군중을 먹이로 바꾸는 무기지, 보스를 녹이는 무기가 아닙니다.</td></tr>
+      <tr><td>화약고</td><td><b>작열</b>과 <b>관통</b>을 한 자루에. 시체가 <b>죽인 일격의 무게를 싣고</b> 터지고,
+        그 폭발이 다음 시체를 터뜨립니다(4번까지). 터지는 무리 한가운데서 <b>피해 2.2배.</b><br>
+        <b>약점</b> — 무언가를 죽여야 시작됩니다. 지고 있을 때는 한 번도 켜지지 않습니다.</td></tr>
+      <tr><td>처형인의 셈</td><td><b>처형 문턱이 30% 위</b>면 켜집니다(접미 + 각인을 겹치면 닿습니다).
+        처형할 때마다 이 층의 문턱이 <b>1%p씩</b> 오릅니다. 한 층을 쓸다 보면 셈이 100을 넘고,
+        그때는 반쯤 남은 것도 그냥 쓰러집니다.<br>
+        <b>약점</b> — 층을 내려가면 셈이 <b>0으로</b> 돌아갑니다. 대군주에게는 처형이 통하지 않습니다.</td></tr>
+      <tr><td>메아리의 방</td><td><b>메아리치는 주문</b>(또는 <b>울림의 은총</b>)과 <b>마나를 넓히는 것</b>(정신)을 함께.
+        메아리가 다시 메아리쳐 <b>네 곳</b>에 닿고, 옮겨 가도 거의 약해지지 않습니다. 무리에 쏘면 <b>2.1배.</b><br>
+        <b>약점</b> — 번져 나간 만큼 <b>마나를 더 뭅니다.</b> 마르면 그냥 메아리로 돌아갑니다.</td></tr>
+      <tr><td>가시밭</td><td><b>되돌려주는 것</b>(가시의 각인 또는 거울 방패)과 <b>반석의 각인</b>을 함께 두르면 켜집니다.
+        <b>막아낸 만큼이 그대로 되돌아가고</b>, 반사는 상대 방어를 무시합니다. 되돌리는 양이 <b>여섯 배.</b><br>
+        <b>약점</b> — 맞지 않으면 아무 일도 없습니다. 때리기만 하는 판에서는 없는 것과 같습니다.</td></tr>
+      <tr><td>굶주린 무리</td><td><b>굶주린 칼날</b>(유물)과 <b>흡혈</b>을 함께.
+        처치 회복이 <b>연격 배수만큼 곱해집니다.</b> 끊지 않고 넷을 이어 죽이면 회복이 <b>3.3배.</b><br>
+        <b>약점</b> — 한 대만 맞아도 연격이 꺾입니다. 서서 맞는 빌드로는 켤 수 없습니다.</td></tr>
+      <tr><td>그림자 걸음</td><td><b>은신 20% 이상</b>에 <b>치명타</b>(또는 도적)를 얹으면 켜집니다.
+        잠든 것을 잡아도 <b>층이 깨지지 않습니다</b> — 방 하나를 한 마리씩 지울 수 있습니다.<br>
+        <b>약점</b> — <b>사슬 갑주</b>와 얕은 물이 은신을 지웁니다. 한 번 깨어난 방에서는 소용없습니다.</td></tr>
+      <tr><td>여명의 맹세</td><td><b>층에 들어설 때 회복하는 것</b>(여명의 각인 · <b>아침</b> 접미)과 <b>스스로 아무는 것</b>(살아있는 · 재생의)을 함께.
+        층에 들어설 때의 회복이 <b>최대치까지</b> 가고, 숨 고르기의 천장이 사라집니다.<br>
+        <b>약점</b> — 때리는 것은 하나도 늘지 않습니다. 오래 버틸 뿐 이기지는 못합니다.</td></tr>
+      <tr><td>어디서 보나</td><td><b>기록 · 공명</b>에 무엇이 있고 무엇이 필요한지, 그리고 <b>무엇을 못 하는지</b>가
+        적혀 있습니다. 볼 수 없는 로또는 추격이 아니라 그냥 놀라움이니까요.</td></tr>
+      <tr><td>왜 약점을 적나</td><td>어디서나 강한 것은 빌드가 아니라 파워 인플레입니다.
+        여덟 개 전부 <b>못 하는 일이 하나씩</b> 있고, 그래서 무엇을 켜느냐가 <b>어떻게 싸우느냐</b>가 됩니다.</td></tr>
+    </table>
+
+    <h3 class="sect">숨 고르기 — 상처는 남습니다</h3>
+    <table class="keys">
+      <tr><td>언제</td><td><b>10턴 동안 맞지 않아야</b> 몸이 상처를 닫기 시작합니다. 싸우는 중에는 아무것도 아물지 않습니다.</td></tr>
+      <tr><td>어디까지</td><td><b>최대 체력의 절반 남짓</b>까지만. 그 위로는 걸어서 갈 수 없습니다 —
+        물약 · 모닥불 · 치유 주문이 그 자리에 있는 이유입니다.<br>
+        <b>체질</b>이 그 선을 올리고, 아무는 주기도 당깁니다. 체질을 버린 몸은 나쁜 싸움을 오래 안고 다닙니다.</td></tr>
+      <tr><td>사제만</td><td><b>응답</b>은 남들이 멈추는 선을 넘어갑니다. 두 배로 자주 아물고, 끝까지 아뭅니다. 그게 이 직업입니다.</td></tr>
+      <tr><td>왜</td><td>예전에는 100턴을 걸으면 최대 체력의 <b>40~50%</b>가 돌아왔습니다. 한 층이 100~200턴이니
+        <b>층 하나 치우면 공짜 완치</b>였고, 그래서 소모전이라는 것이 게임에서 사라져 있었습니다.
+        숫자를 줄이는 대신 <b>성격</b>을 바꿨습니다 — 이건 약이 아니라 숨을 고르는 것입니다.</td></tr>
+    </table>
+
+    <h3 class="sect">위험 미리보기</h3>
+    <p class="note">발밑 여덟 칸에 <b>깨어 있는 것 몇이 그 칸에 손을 댈 수 있는지</b>가 숫자로 뜹니다.
+      근접은 인접, 궁수는 사거리와 <b>트인 시야</b>까지 계산합니다 — 몬스터가 실제로 쓰는 것과 같은 두 가지 판정이라,
+      바닥의 표시가 규칙이 하지 않을 일을 약속하지 않습니다.<br>
+      자비가 아니라 <b>정보</b>입니다. 피할 수 있었던 죽음은 대부분 "저 칸에 몇이 닿는지 몰랐다"이고,
+      답은 늘 화면에 있었습니다 — 스프라이트 여덟 개와 사거리 수치와 눈으로 따라가야 하는 벽에 흩어진 채로.
+      그 산수는 재미있는 결정이 아닙니다. <b>그걸 알고 무엇을 하느냐</b>가 결정입니다.</p>
+
+    <h3 class="sect">양피지 — 읽는 자리</h3>
+    <table class="keys">
+      <tr><td>기록</td><td>화면 아래 <b>로그 줄을 누르면</b> 이 판에 있었던 일이 전부 펼쳐집니다.
+        층이 소제목이 되고 <b>한 턴이 한 문단</b>이 됩니다. 두 줄짜리 창에 흘려보낸 것은 하나도 없습니다.</td></tr>
+      <tr><td>처음인 것</td><td>어떤 종을 <b>처음 보거나</b>, 유물을 처음 들거나, 각인이 돋거나,
+        새 지역에 들어서면 <b>양피지 한 장</b>이 내려옵니다. 막지 않고, 스스로 물러가고, 눌러서 먼저 덮을 수도 있습니다.<br>
+        같은 내용이 <b>도감에 그대로 철해지므로</b> 나중에 다시 읽을 수 있습니다.</td></tr>
+      <tr><td>이번 턴</td><td>체력이 깎이면 지도 아래 가장자리에 <b>무엇이 얼마나</b> 깎았는지가 그림으로 뜹니다.
+        같은 상대는 한 줄로 합쳐지고(늑대 −25 ×2), 둘 이상이면 <b>이번 턴 합계</b>가 붙습니다.
+        글이 아니라 그림인 이유는 <b>싸우는 중에 흘끗 보는 정보</b>이기 때문입니다 — 읽는 것과는 다른 일이라 로그에 넣으면 안 됩니다.</td></tr>
+      <tr><td>왜 요약하지 않는가</td><td>한 턴에 일어난 일을 한 줄로 줄이면 읽을 것이 사라집니다.
+        이 게임에서 층과 층 사이의 이야기는 <b>전부 로그에서 일어납니다</b> — 스프라이트는 여덟 픽셀이니까요.
+        그래서 줄이는 대신 <b>읽는 자리를 따로 냈습니다.</b></td></tr>
+    </table>
+
+    <h3 class="sect">도감 — 잡아 본 것만 아는 것</h3>
+    <table class="keys">
+      <tr><td>어디에</td><td>제목 화면의 <b>도감</b>. 몬스터 · 유물 · 소모품 · 사건 · 장소가 각각 몇 종인지 위에 적혀 있습니다.</td></tr>
+      <tr><td>버릇</td><td>같은 몬스터를 <b>다섯 마리</b> 잡으면 그 종의 <b>버릇</b>이 열립니다 — 느린지 빠른지, 문을 여는지 부수는지,
+        떼로 오는지, 팔을 당기는지, 어떤 바닥 공격을 그리는지.<br>
+        한 번 열린 버릇은 <b>도감과 살펴보기 카드에 영원히</b> 남습니다. 다음 판에도, 그다음 판에도.</td></tr>
+      <tr><td>왜</td><td>이 게임의 다회차는 <b>세지는 것이 아니라 아는 것</b>입니다. 다섯 번째 판은 첫 판보다 세게 때리지 않습니다 —
+        무엇이 앞에 서 있는지 알고 있을 뿐입니다.</td></tr>
+    </table>
+
+    <h3 class="sect">기억과 심연</h3>
+    <p class="note">죽으면 판은 사라지지만 <b>기억</b>은 남습니다. 어느 것도 능력치를 주지 않습니다 —
+      전부 <b>이미 벌어 놓은 것</b>을 다음 판에 넘겨주는 것뿐입니다. 제목 화면에 진행도가 뜹니다.</p>
+    <table class="keys">
+      <tr><td>연금술사의 기억</td><td>소모품 8종을 판별하면, 그 뒤로 <b>물약과 두루마리가 처음부터 판별</b>되어 있습니다.
+        한 번 알아낸 것을 매 판 다시 알아낼 이유는 없습니다.</td></tr>
+      <tr><td>행상인의 기억</td><td>유물 8종을 발견하면 <b>마을 잡화점이 발견한 유물 하나를 팝니다</b>(1400닢).
+        판이 첫 유물을 <b>고를</b> 수 있는 유일한 길입니다.</td></tr>
+      <tr><td>장인의 기억</td><td>누적 30단계를 강화하면 <b>시작 장비가 +2</b>로 시작합니다.</td></tr>
+      <tr><td>도굴꾼의 기억</td><td>누적 상자 50개를 열면 <b>시작 금화 +300.</b></td></tr>
+      <tr><td>세공사의 기억</td><td>각인 5개를 새기면 <b>모루 성공률 +6%p</b> — 각인이 붙는 한 방에도 적용됩니다.</td></tr>
+      <tr><td>잿불의 기억</td><td>대군주를 잡으면 <b>심연</b>이 열립니다.</td></tr>
+      <tr><td>서기의 기억</td><td>도감 40종을 등재하면 몬스터의 버릇이 <b>다섯 마리가 아니라 세 마리</b>에 열립니다.</td></tr>
+      <tr><td>파수꾼의 기억</td><td>이름 있는 것 3종을 잡으면 <b>계단 화면이 아래에서 기다리는 것의 버릇을 미리 적어</b> 줍니다.</td></tr>
+      <tr><td>길잡이의 기억</td><td>다섯 장소를 전부 밟으면 <b>11층부터 도착하는 순간 그 층의 지도</b>를 압니다.
+        무엇이 있는지는 여전히 모릅니다 — 벽만입니다.</td></tr>
+      <tr><td>화부의 기억</td><td>누적 150층을 내려가면 <b>잿불 아래(11~14층)에 모닥불이 반드시 하나</b> 있습니다.
+        걸어가는 것은 당신 몫입니다.</td></tr>
+    </table>
+
+    <h3 class="sect">심연 — 여덟 개의 족쇄</h3>
+    <p class="note">대군주를 잡으면 열립니다. 예전에는 <b>0~5의 배율 다이얼</b>이었습니다 —
+      같은 판을 더 큰 숫자를 상대로 하는 것이라 어렵기만 하고 다르지는 않았고,
+      첫 승리에 곧바로 5로 올릴 수 있어 <b>오를 것이 없었습니다.</b><br>
+      이제는 <b>층계</b>입니다. <b>N단계를 이겨야 N+1단계가 열리고</b>,
+      윗단은 아랫단을 <b>전부 껴안습니다</b> — 7단계는 족쇄 일곱 개를 동시에 찬 채로 내려갑니다.
+      여덟 중 <b>둘만</b>이 숫자를 건드립니다. 나머지 여섯은 <b>규칙</b>을 바꿉니다.</p>
+    <table class="keys">
+      <tr><td>1 굶주린 불</td><td>등불이 <b>30% 빨리</b> 탑니다. 어둠이 더 빨리 옵니다.</td></tr>
+      <tr><td>2 마른 샘</td><td>모닥불 휴식이 <b>절반만</b> 아뭅니다.</td></tr>
+      <tr><td>3 깨어 있는 것들</td><td>층에 들어설 때 <b>절반이 이미 눈을 뜨고</b> 있습니다. 기습이 사라집니다.</td></tr>
+      <tr><td>4 식은 모루</td><td>강화 성공률 <b>−8%p</b>, 모루와 모닥불 값 <b>+40%</b>.</td></tr>
+      <tr><td>5 무거운 것들</td><td>적의 <b>체력과 공격 +22%.</b></td></tr>
+      <tr><td>6 닫힌 장부</td><td>상점 <b>재고 절반</b>, <b>값 1.5배.</b></td></tr>
+      <tr><td>7 긴 그림자</td><td><b>이름 있는 것이 자기 자리를 지키지 않습니다.</b>
+        계단 화면의 "피해서 내려갈 수 있다"가 사라지고, 층 끝까지 따라옵니다.</td></tr>
+      <tr><td>8 재의 무게</td><td><b>최대 체력 −15%.</b></td></tr>
+      <tr><td>전리품</td><td>1단계 ×1.15에서 8단계 <b>×3.30</b>까지. 족쇄를 찬 만큼 금화가 붙습니다.</td></tr>
+    </table>
+
+    <h3 class="sect">방 안의 것들</h3>
+    <p class="note">방마다 네댓 개가 서 있습니다. <b>부딪치면 상호작용</b>합니다 — 따로 쓰는 키는 없습니다.
+      탭해서 살펴보면 무엇인지, 무엇이 나올 확률인지 적혀 있습니다.</p>
+    <table class="keys">
+      <tr><td>낡은 통</td><td>부수면 <b>45%</b>가 전리품, <b>19%</b>는 안에 든 것이 <b>이빨</b>을 갖고 있습니다.</td></tr>
+      <tr><td>화로</td><td>불을 옮기면 <b>기름 260턴어치</b>가 아껴집니다. 대신 <b>주변 네 칸이 전부 깨어납니다.</b>
+        불이 붙은 화로는 지나갈 수 없습니다.</td></tr>
+      <tr><td>무너진 기둥</td><td>길을 막습니다. 부술 수 있지만 <b>소리가 아홉 칸을 건넙니다.</b></td></tr>
+      <tr><td>뼈 무더기</td><td><b>셋에 하나</b>는 아래에 무언가가 자고 있습니다. 나머지는 전리품이거나 그냥 뼈입니다.</td></tr>
+      <tr><td>봉인된 항아리</td><td>순수한 도박입니다. <b>다섯에 하나</b>는 터지고 독을 남기고,
+        <b>절반쯤</b>은 이 층보다 좋은 물건이 나옵니다.</td></tr>
+      <tr><td>부수는 힘</td><td>한 번에 <b>1 + 힘 보정</b>만큼 부숩니다 — 힘이 센 인물은 한 번에, 약한 인물은 세 번에.</td></tr>
+    </table>
+
+    <h3 class="sect">깊은 곳</h3>
+    <p class="note">열다섯 층은 <b>다섯 곳</b>입니다. 처음 들어설 때 한 번 이름이 불립니다.</p>
+    <table class="keys">
+      <tr><td>1~3층 · 무너진 성채</td><td>사람이 지은 마지막 층들. 계단은 넓고 문에는 아직 경첩이 남아 있습니다.
+        여기까지는 지도가 있었습니다.</td></tr>
+      <tr><td>4~7층 · 드워프 갱도</td><td>성채 아래를 파고 들어간 갱도. <b>다듬은 돌이 끝나고 파낸 흙이 시작됩니다.</b></td></tr>
+      <tr><td>8~10층 · 잊힌 성소</td><td>갱도가 뚫고 들어간 것. 누구를 모시던 곳인지는 <b>벽에서 긁어내져</b> 있습니다.
+        이름 없는 제단이 여기 있습니다.</td></tr>
+      <tr><td>11~14층 · 잿불 아래</td><td>돌이 따뜻합니다. 이 아래에서 무언가가 아주 오래 타고 있습니다.</td></tr>
+      <tr><td>15층 · 대군주의 화로</td><td>타고 있는 것의 한가운데. <b>잿불의 대군주</b>가 기다립니다.</td></tr>
+      <tr><td>층의 얼굴</td><td>같은 층수라도 <b>좁은 굴 · 큰 방 · 빛이 없는 층 · 물에 잠긴 층 · 소굴</b> 중 하나로 나옵니다.
+        벽과 바닥의 돌이 그때마다 다르게 쌓여 있으니, 내려서면 글자를 읽기 전에 눈으로 먼저 압니다.</td></tr>
+    </table>
+
+    <h3 class="sect">능력치</h3>
+    <p class="note">여섯 능력치는 전부 하는 일이 있고, <b>낮으면 낮은 대로 아픕니다.</b>
+      능력치는 <b>종족×직업마다 정해진 띠 안에서만</b> 굴려집니다 — 다시 굴려도 띠 밖으로 나가지 않습니다.
+      합계 범위는 51~82이고, 예전 4d6 방식(47~93)보다 좁습니다.</p>
+    <table class="keys">
+      <tr><td>힘</td><td>근접 피해 +2/보정, 명중. <b>양손 무기는 힘 15, 큰 무기와 사슬 갑옷은 12, 판금은 15를 요구합니다.</b>
+        모자란 만큼 <b>명중이 3씩 깎입니다</b> — 힘 7로 대검을 들면 명중이 −24입니다. HUD에 <b>부담</b>으로 뜹니다.</td></tr>
+      <tr><td>지능</td><td>비전 주문의 위력. 그리고 <b>주운 물건을 그 자리에서 읽어낼 확률</b> — 보정×12%, 지능 18이면 48%입니다.</td></tr>
+      <tr><td>지혜</td><td>신성 주문과 치유. 함정 탐지. <b>걸린 상태이상의 지속이 보정마다 9%씩 짧아집니다</b> —
+        지혜 18이면 ×0.64, 지혜 4면 ×1.27로 <b>길어집니다.</b></td></tr>
+      <tr><td>민첩</td><td>방어 · 명중 · 치명타 · 은신 · 기력. 가장 많은 일을 합니다.</td></tr>
+      <tr><td>체질</td><td>최대 체력. 그리고 <b>회복 주기</b> — 체질 18은 4턴마다, 10은 8턴마다, 5는 11턴마다 아뭅니다.</td></tr>
+      <tr><td>매력</td><td>사고파는 값. 그리고 <b>바닥에 떨어지는 물건에 속성이 붙을 확률</b> — 5층 기준 매력 5면 9%, 18이면 23%입니다.</td></tr>
+      <tr><td>유물로 바꾸기</td><td>능력치는 유물로 다시 쓸 수 있습니다. <b>거인의 손아귀</b>(힘 20, 민첩 6) ·
+        <b>현자의 안경</b>(지능·지혜 중 높은 쪽으로 통일) · <b>곡예사의 신</b>(민첩 +6, 힘 −4) ·
+        <b>황소의 심장</b>(체질 +6, 매력 −6) · <b>웃는 가면</b>(매력 18, 나머지 −1) ·
+        <b>균형추</b>(가장 낮은 것이 가장 높은 것과 같아짐, 최대 체력 −25%).</td></tr>
+    </table>
+
+    <h3 class="sect">직업 특성</h3>
+    <p class="note">직업은 능력치 수정치가 아니라 <b>규칙</b>입니다. 하나씩 갖고 있고, 채워지는 동안 HUD에 칸이 뜹니다.</p>
+    <table class="keys">
+      <tr><td>전사 · 세 번째 손</td><td>같은 적을 연달아 맞히면 <b>세 번째 타격은 무조건 치명타</b>. 빗나가거나 대상을 바꾸면 처음부터.</td></tr>
+      <tr><td>마법사 · 이중 시전</td><td>주문을 넷 쓸 때마다 <b>다음 하나는 마나 없이 두 번</b> 나갑니다. 마나가 0이어도 나갑니다.</td></tr>
+      <tr><td>사제 · 응답</td><td>체력이 <b>절반 아래</b>일 때 물약·주문 가릴 것 없이 <b>모든 회복이 60% 더</b> 듭니다. 여섯 턴마다 저절로 아뭅니다.</td></tr>
+      <tr><td>도적 · 그림자 걸음</td><td>구르기가 기력을 <b>하나만</b> 씁니다(남들은 둘). 구른 <b>바로 다음 공격은 무조건 치명타</b>.</td></tr>
+      <tr><td>레인저 · 표적</td><td>같은 적을 때릴 때마다 그 적에게 주는 피해가 <b>9%씩 누적</b>(최대 +45%). 대상을 바꾸면 사라집니다.</td></tr>
+      <tr><td>팔라딘 · 맹세</td><td>맞을 때마다 <b>방어 +1</b>이 쌓입니다(최대 +8, 층마다 초기화). 처치하면 하나 돌려줍니다 — <b>지고 있을 때 가장 단단합니다.</b></td></tr>
+    </table>
+
+    <h3 class="sect">모루</h3>
+    <table class="keys">
+      <tr><td>닳지 않습니다</td><td>모닥불과 달리 <b>횟수 제한이 없습니다.</b> 재료가 남아 있는 만큼 계속 두들길 수 있습니다 —
+        전 재산을 태울 수도, 확실히 강해질 수도 있습니다. 층의 절반쯤에 있습니다.</td></tr>
+      <tr><td>세 가지</td><td><b>강화 · 인챈트 · 재련</b>이 전부 여기로 옮겨 왔습니다. 모닥불은 이제 <b>휴식 · 판돈 · 유물 융합</b>의 자리입니다.</td></tr>
+      <tr><td>촉매</td><td>드물게 떨어지고 연금술사·떠돌이 상인이 팝니다. 한 번 쓰면 사라지고, <b>그 한 방의 규칙을 바꿉니다.</b><br>
+        <b>정련의 촉매</b>(실패해도 안 깎임) · <b>수호의 못</b>(안 부서짐) · <b>폭주의 불씨</b>(성공하면 두 단계) ·
+        <b>심연의 핵</b>(반드시 성공) · <b>봉인의 밀랍</b>(저주 없음) · <b>분광석</b>(접두·접미 동시에).</td></tr>
+      <tr><td>값</td><td>장비의 <b>판매가와 분해 수율은 같은 값</b>에서 나옵니다 — +1마다 42%, 속성마다 55%씩 오릅니다.
+        좋은 물건은 비싸게 팔리고 재료도 많이 나옵니다.</td></tr>
+    </table>
+
+    <h3 class="sect">등급</h3>
+    <table class="keys">
+      <tr><td>다섯 등급</td><td><b>평범</b>(흰색) · <b>마법</b>(파랑) · <b>희귀</b>(금색) · <b>유물</b>(보라) · <b>초월</b>(흰빛).
+        저주받은 물건은 <b>붉게</b> 표시됩니다.</td></tr>
+      <tr><td>바닥에서</td><td>마법 이상은 <b>빛기둥</b>이 섭니다. 희귀 이상은 <b>한 번 본 곳이면 어둠 속에서도</b> 계속 보입니다.</td></tr>
+      <tr><td>유물</td><td>정예가 떨구는 물건 중 일부만 이 등급에 닿습니다. 전체 드롭의 2% 정도입니다.</td></tr>
+      <tr><td><b>초월</b></td><td>강화로도 속성으로도 닿을 수 없습니다. <b>떨어지는 순간에 정해지고</b>, 그 뒤로는 바뀌지 않습니다.
+        1층에서 0.6%, 15층에서 3%. 여러 판을 해도 못 볼 수 있습니다.<br>
+        모든 초월 장비는 <b>은총</b>을 하나 갖습니다 — 숫자가 아니라 규칙입니다.
+        <b>파멸의</b>(치명타가 최대 체력 8%를 함께 태움) · <b>불괴의</b>(부서지지도 부식하지도 않음) ·
+        <b>만금의</b>(금화·재료 +60%) · <b>울림의</b>(주문이 늘 두 번째 대상에게 번짐) ·
+        <b>역류의</b>(층마다 한 번, 죽을 때 절반으로 부활) · <b>진노의</b>(정예·이름 있는 것에게 +35%).</td></tr>
+    </table>
+
+    <h3 class="sect">드물게 벌어지는 일</h3>
+    <table class="keys">
+      <tr><td><b>절단</b></td><td>치명타 마흔 번에 한 번, 피해가 <b>3.2배</b>가 됩니다. 보스에게는 터지지 않습니다.
+        노리고 낼 수 있는 것이 아니라 <b>치명타를 자주 내는 인물에게 자주 오는</b> 것입니다.</td></tr>
+      <tr><td><b>부식</b></td><td>곰팡이 · 젤리 · 미라 · 망령의 공격이 <b>3%</b> 확률로 착용 장비의 강화를 <b>한 단계</b> 갉아먹습니다.
+        장비를 부수지는 않습니다. <b>불괴의</b> 은총은 이것도 막습니다.</td></tr>
+      <tr><td><b>파괴</b></td><td>모닥불에서 <b>+6 이상</b>을 과감하게 두들기다 실패하면 장비가 부서질 수 있습니다.
+        이 게임에서 물건이 영영 사라지는 유일한 길입니다.</td></tr>
+    </table>
+
+    <h3 class="sect">판돈 · 도둑 · 살펴보기</h3>
+    <table class="keys">
+      <tr><td><b>판돈</b></td><td>모닥불에서 <b>쉬지 않고</b> 층을 내려갈 때마다 불어납니다(최대 6층치).
+        모닥불에서 <b>챙길 수 있고</b>, 쉬면 타 버리고, <b>죽으면 전부 잃습니다.</b><br>
+        한 층 더 갈 것인가 여기서 챙길 것인가 — 그게 전부입니다.</td></tr>
+      <tr><td><b>금빛 도둑</b></td><td>2층부터 가끔. <b>보자마자 달아나고</b> 걸어서는 못 잡습니다 —
+        구르거나, 주문을 쓰거나, 전이 두루마리를 쓰거나, 막다른 곳으로 몰거나.
+        잡으면 금화와 재료가 한꺼번에 쏟아집니다. <b>쫓는 턴은 전부 층의 시계가 가져갑니다.</b></td></tr>
+      <tr><td><b>살펴보기</b></td><td>지도 위 아무것이나 <b>길게 누르면</b> 그것이 무엇인지 나옵니다 —
+        몬스터의 체력·속도·상태이상·바닥 공격, 무기 계열 규칙, 유물 효과, 표시된 공격의 남은 턴.
+        턴은 지나가지 않습니다.</td></tr>
+      <tr><td>제단</td><td>바친 뒤 <b>바늘이 돌아갑니다.</b> 지나가는 칸이 당신이 놓친 결과입니다.</td></tr>
+      <tr><td>소리</td><td>배낭 화면의 <b>소리</b> 버튼으로 끄고 켭니다. 음원 파일은 없습니다 — 전부 코드로 만듭니다.</td></tr>
+      <tr><td>기록</td><td>죽거나 이기면 <b>그 판의 기록과 발견 목록</b>이 나옵니다. 도감은 판을 넘어 남습니다.</td></tr>
+    </table>
+
+    <h3 class="sect">성장 곡선</h3>
+    <table class="keys">
+      <tr><td>레벨</td><td>보스까지 <b>대략 Lv 20~30</b>입니다. 예전에는 12층에서 상한 50에 닿아
+        최대 체력 554로 몬스터(최대 143)를 한 대에 잡았습니다 — 그게 "너무 쉽다"의 정체였습니다.</td></tr>
+      <tr><td>몬스터</td><td>도감 수치에 더해 <b>층 깊이에 비례해</b> 체력·공격·방어가 함께 오릅니다.
+        같은 오크라도 3층과 12층에서 다른 상대입니다.</td></tr>
+      <tr><td>수는 적게</td><td>층당 <b>5~13마리</b>. 물량이 아니라 개별 전투가 무게를 갖도록 줄였습니다.</td></tr>
+      <tr><td>자연 회복</td><td><b>8턴마다 1 + 레벨/4.</b> 이게 층을 정리하고도 버틸 수 있게 하는 유일한 축입니다 —
+        그래서 <b>층의 시계</b>가 그 값을 매깁니다. 두 장치가 서로를 견제합니다.</td></tr>
+    </table>
+
+    <h3 class="sect">기름 — 유일한 소모 자원</h3>
+    <table class="keys">
+      <tr><td>식량은 없앴습니다</td><td>식량과 횃불은 같은 카운트다운을 두 개로 나눠 놓은 것이었고, 15층에서는 둘 다 바닥나지 않았습니다.
+        <b>아무것도 결정하지 않는 숫자 두 개</b>를 지켜보는 일이었습니다.</td></tr>
+      <tr><td>기름은 남깁니다</td><td>기름은 <b>공간</b>을 바꿉니다 — 얼마나 멀리 보는지가 무엇과 싸울 수 있는지를 바꿉니다. 그래서 시계와 겹치지 않습니다.</td></tr>
+      <tr><td>줄어드는 방식</td><td>1100에서 시작, 매 턴 1. <b>300 아래 5칸 · 80 아래 3칸 · 0에서 2칸</b>으로 시야가 단계적으로 좁아집니다. 꺼져도 죽지는 않습니다.</td></tr>
+      <tr><td>보충</td><td>횃불 하나가 900. 잡화점·마법상·떠돌이 상인이 팝니다. <b>마른 층</b>은 두 배로 태우고, <b>꺼지지 않는 등</b>은 아예 태우지 않습니다.</td></tr>
+    </table>
+
+    <h3 class="sect">재료와 경제</h3>
+    <table class="keys">
+      <tr><td>분해</td><td>배낭의 무기·갑옷을 <b>분해</b>해 재료로 바꿉니다. 등급·강화수치·속성 수에 따라 수율이 다릅니다.</td></tr>
+      <tr><td>재료 3종</td><td><b>쇳조각</b>(강화) · <b>마력 가루</b>(인챈트) · <b>정수</b>(재련). 정수는 좋은 물건에서만 나옵니다.</td></tr>
+      <tr><td>팔까 부술까</td><td>같은 장비를 <b>상인에게 팔면 금화</b>, <b>분해하면 재료</b>입니다. 둘 다는 안 됩니다.</td></tr>
+      <tr><td>떠돌이 상인</td><td>2층부터 <b>약 30%의 층</b>에 나타납니다. 소모품과 재료를 팔고 잡템을 삽니다. 입장하면 지도에 미리 표시됩니다.</td></tr>
+    </table>
+
+    <h3 class="sect">모닥불 — 한 번의 선택</h3>
+    <table class="keys">
+      <tr><td>찾기</td><td>층에 들어서면 "멀리서 불빛이 흔들린다"는 말과 함께 <b>지도에 미리 표시</b>됩니다. 다만 <b>모든 층에 있지는 않습니다</b>(약 60%).</td></tr>
+      <tr><td>휴식</td><td>최대 체력의 30% 회복 · 마나 전부 · 모든 상태이상 해제. 안전하지만 남는 게 없습니다.</td></tr>
+      <tr><td>강화</td><td>장비 +1 또는 주문 연마. <b>쇳조각과 금화</b>가 듭니다. 값은 +1마다 오릅니다.
+        장비는 <b>+8</b>, 주문은 <b>+5</b>가 상한입니다.</td></tr>
+      <tr><td><b>각인</b></td><td><b>+4</b>와 <b>+7</b>에 도달하는 그 한 방에 <b>각인</b>이 새겨집니다.
+        접두·접미와는 다른 <b>규칙</b>입니다 — 관통·수확·폭풍·사냥·결전·갈증(무기),
+        반석·가시·여명·재생·인내·닻(갑옷).<br>
+        <b>그 두 번의 강화는 성공률이 18%p 낮습니다.</b> 한 방에 두 가지 일을 하기 때문입니다 —
+        +3→+4는 80%가 아니라 62%, +6→+7은 40%가 아니라 22%입니다.
+        각인이 붙은 장비는 값도 분해 수율도 크게 뜁니다.</td></tr>
+      <tr><td>강화 실패</td><td><b>+2부터 실패합니다.</b> 성공률은 칸마다 숫자로 적혀 있습니다.<br>
+        <b>과감</b> — 값은 그대로. 여덟에 하나는 <b>두 단계</b>가 오릅니다. 대신 <b>+4부터 실패하면 한 단계 깎이고</b>,
+        <b>+6부터는 그중 30%가 장비를 부숩니다.</b> 부서진 장비는 돌아오지 않습니다.<br>
+        <b>신중</b> — 값은 두 배, 성공률 +18%p. 실패해도 깎이지 않고 부서지지도 않습니다. 잃는 것은 값뿐입니다.</td></tr>
+      <tr><td>인챈트</td><td>무작위 속성. <b>마력 가루 4 + 130금.</b> 다섯에 하나는 저주고, 이미 붙은 성질을 밀어냅니다.</td></tr>
+      <tr><td>재련</td><td>붙어 있는 속성을 다시 굴립니다. <b>정수 1 + 가루 2 + 220금.</b> <b>저주는 절대 붙지 않고, 저주가 있으면 그것부터 지웁니다.</b></td></tr>
+      <tr><td>융합</td><td>유물 <b>둘</b>을 불에 넣습니다. <b>가루 3 + 180금</b>, 그리고 넣은 둘은 돌아오지 않습니다.
+        대부분의 짝은 확률표를 굴립니다 — <b>새 유물 52% · 정련 34% · 잿더미 14%</b>. 확률은 화면에 막대로 그려집니다.<br>
+        다만 <b>서로를 알아보는 짝</b>이 여섯 있습니다. 그 둘을 나란히 고르면 확률표가 무시되고,
+        <b>떨어지지도 팔지도 않는 초월 유물</b>이 나옵니다. 어떤 짝인지는 어디에도 적혀 있지 않습니다 —
+        <b>유물 설명의 마지막 문장이 서로를 가리킵니다.</b> 스물여섯 개를 다시 읽어 보세요.<br>
+        찾아낸 조합은 끝 화면의 <b>발견 · 조합</b> 칸에 남습니다.</td></tr>
+      <tr><td>물러나기</td><td>아무것도 고르지 않고 <b>불을 남겨둔 채 나갈 수 있습니다</b>. 나중에 쓸모가 생기면 돌아오세요.</td></tr>
+      <tr><td></td><td><b>하나만</b> 고를 수 있고, 고르면 불은 꺼집니다. 체력이 가득할 때 휴식은 낭비고, 20%일 때 강화는 자살입니다.</td></tr>
+    </table>
+
+    <h3 class="sect">접두 · 접미 속성</h3>
+    <table class="keys">
+      <tr><td>어디에</td><td>주운 장비, 정예가 떨어뜨린 전리품, 모닥불 인챈트, 그리고 <b>주문</b>에도 붙습니다.</td></tr>
+      <tr><td>겹치기</td><td>같은 무기에 접두 하나 + 접미 하나. 배낭 화면에서 실제 수치를 볼 수 있습니다.</td></tr>
+      <tr><td>시너지</td><td><b>연쇄의</b>(45%로 옆 적에게 파급) + <b>작열하는</b>(처치 시 폭발) + <b>갈증</b>(흡혈)을 한 무기에 모으면,
+        한 번 휘두를 때 두 마리가 맞고, 죽은 쪽이 터지고, 그 피해가 당신을 회복시킵니다. 셋 중 어느 것도 나머지 둘을 알지 못합니다.</td></tr>
+      <tr><td>그 외</td><td>꿰뚫는(방어 관통) · 처형(체력 22% 이하 즉사) · 예리한(치명타) · 분노(피해 배수) ·
+        룬이 새겨진(상태이상 면역) · 등불의(시야 +3) · 그림자(은신).</td></tr>
+      <tr><td>저주</td><td>무딘 · 시끄러운 · 삭은 · 짐 · 부패. 인챈트 도박에서만 나옵니다. 이름이 <b>보라색</b>으로 표시됩니다.</td></tr>
+    </table>
+
+    <h3 class="sect">정예</h3>
+    <table class="keys">
+      <tr><td>정예 몬스터</td><td>이름 앞에 접두가 붙고 <b>주황색 고리</b>가 돕니다(두 개면 보라색). 재빠른 · 거대한 · 강철의 · 맹독의 · 광폭한 · 흡혈하는.</td></tr>
+      <tr><td>보상</td><td>경험치가 약 두 배고, 죽으면 <b>반드시 속성이 붙은 장비</b>(또는 22%로 <b>유물</b>)를 떨어뜨립니다. 싸울지 피할지가 선택입니다.</td></tr>
+      <tr><td>내리치기</td><td>정예는 <b>한 턴 팔을 당긴 뒤</b> 2.5배로 내리칩니다. 머리 위 <b>붉은 별</b>이 그 신호입니다.<br>
+        그 턴에 한 칸 물러나면 헛손질이 되고 처음부터 다시 당겨야 합니다 — 대신 당신도 그 턴을 씁니다. 물러설지 맞고 때릴지가 매번 선택입니다.</td></tr>
+    </table>
+
     <p class="note">
-      던전에서는 매 턴 식량과 횃불이 줄어듭니다. 횃불이 꺼지면 시야가 두 칸으로 좁아집니다.
+      던전에서는 매 턴 기름이 줄어듭니다. 줄어들수록 보이는 반경이 좁아지고, 다 쓰면 두 칸까지 좁아집니다.
       마을 잡화점에서 미리 채워 두세요.
     </p>
   </div>
@@ -169,10 +950,49 @@
   <div class="col">
     <h1 id="end-title" class="endtitle"></h1>
     <p class="tag" id="end-sub"></p>
-    <p class="blurb" id="end-body"></p>
-    <button class="big" onclick="location.reload()">다시 내려가기</button>
+    <div class="blurb" id="end-body"></div>
+    <button class="big" id="btn-again">다시 내려가기</button>
+    <!-- The run is over but the ledger is not. Without this the
+         only way back to the codex, the memories and the shackle
+         ladder was to close the tab. -->
+    <div class="titlerow">
+      <button class="mini" id="btn-totitle">첫 화면으로</button>
+      <button class="mini" id="btn-endcodex">기록 보기</button>
+    </div>
   </div>
 </section>
+
+<!-- ══ look at it ══ -->
+<div id="look" class="modal" hidden>
+  <div class="askbox lookbox">
+    <div class="camphead">
+      <span class="campname" id="look-name"></span>
+      <span class="camptag" id="look-sub"></span>
+    </div>
+    <div id="look-rows"></div>
+    <div class="askbtns"><button id="look-close">닫기</button></div>
+  </div>
+</div>
+
+<!-- ══ a lesson, once ══ -->
+<div id="lesson" class="modal" hidden>
+  <div class="askbox lessonbox">
+    <p id="lesson-text"></p>
+    <div class="askbtns"><button id="lesson-ok">알겠다</button></div>
+  </div>
+</div>
+
+<!-- ══ confirm ══ -->
+<div id="ask" class="modal" hidden>
+  <div class="askbox">
+    <p id="ask-text"></p>
+    <p id="ask-sub" class="asksub"></p>
+    <div class="askbtns">
+      <button id="ask-no">아니오 <b>N</b></button>
+      <button id="ask-yes">예 <b>Y</b></button>
+    </div>
+  </div>
+</div>
 
 <script type="module" src="src/main.js"></script>
 </body>

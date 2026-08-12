@@ -1,17 +1,18 @@
 /* ═══════════════════════════════════════════════════════════
    styles.css — the chrome. Palette matches src/pixels.js so
-   the DOM panels and the pixel map share one 16-colour world.
+   the DOM panels and the pixel map share one console world:
+   true black, midnight indigo, and 8-step DAC primaries.
    ═══════════════════════════════════════════════════════════ */
 
 :root {
-  --k:#0a0c12; --d:#1b2130; --g:#333c52; --G:#59657f;
-  --w:#d8d5c8; --W:#f2efe4;
-  --r:#8f2f28; --R:#d95a4a; --o:#d98a3c; --y:#e8c76a;
-  --n:#5c3f28; --N:#8f6b3f;
-  --e:#357a4c; --E:#6fb87a;
-  --b:#2b5288; --B:#5b9bd5;
-  --p:#6b3f85; --P:#b57ad0;
-  --s:#7d8596;
+  --k:#000000; --d:#181830; --g:#484878; --G:#9090c0;
+  --w:#d8d8c0; --W:#f8f8f8;
+  --r:#a81020; --R:#f84038; --o:#f87c20; --y:#f8d020;
+  --n:#805020; --N:#c89050;
+  --e:#089840; --E:#58e068;
+  --b:#2048c8; --B:#48a8f8;
+  --p:#8028a8; --P:#c868f8;
+  --s:#98a0b8;
 
   --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas,
           "Apple SD Gothic Neo", "Noto Sans KR", monospace;
@@ -19,12 +20,30 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* Any author rule that sets `display` outranks the browser's
+   `[hidden] { display: none }`, so a styled element stays on
+   screen after JS hides it. The game toggles `hidden` everywhere
+   — screens, chips, buttons — and one leak is a stray widget. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0; height: 100%; overflow: hidden;
   background: var(--k); color: var(--w);
   font-family: var(--mono); font-size: 14px;
   overscroll-behavior: none; touch-action: manipulation;
   -webkit-font-smoothing: none;
+}
+
+/* ── the tube ─────────────────────────────────────────────
+   A faint scanline wash over everything, DOM and canvas alike.
+   It is the cheapest possible CRT: one repeating gradient, no
+   blend modes, pointer-events off. Kept near-invisible — the
+   look is meant to register, not to be noticed. */
+body::after {
+  content: ''; position: fixed; inset: 0; z-index: 999;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom, rgba(0,0,0,.12) 0 1px, transparent 1px 3px);
 }
 
 .screen {
@@ -37,6 +56,19 @@ html, body {
 .screen.center { align-items: center; justify-content: center; padding: 28px; }
 .col { max-width: 380px; text-align: center; }
 
+/* The ending's summary runs to 575px on its own, so on a 667px
+   phone anything below it was simply off the screen — which is
+   how the way back to the title came to not exist. The summary
+   scrolls inside itself now and the two ways out stay put. */
+#sc-end .col {
+  display: flex; flex-direction: column; align-items: center;
+  max-height: 100%; width: 100%;
+}
+#sc-end .col > * { flex: 0 0 auto; width: 100%; }
+#sc-end #end-body { flex: 0 1 auto; min-height: 0; overflow-y: auto; margin-bottom: 18px; }
+#sc-end #btn-again { width: min(300px, 82vw); }
+#sc-end .titlerow { justify-content: center; margin-top: 8px; width: auto; }
+
 /* ── title ── */
 .logo {
   font-family: var(--mono); font-size: 12px; line-height: 1.25;
@@ -48,12 +80,39 @@ html, body {
 .blurb b { color: var(--w); }
 .fine { color: var(--g); font-size: 10.5px; margin: 18px 0 0; }
 
+/* ── what survives you ── */
+.memories { margin: 22px 0 0; text-align: left; }
+.memrow { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; font-size: 10.5px; }
+.memrow .memn { flex: 0 0 auto; color: var(--g); }
+.memrow.on .memn { color: var(--y); }
+.memrow .memt { flex: 1 1 auto; color: var(--g); font-size: 9.5px; text-align: right; }
+.memrow.on .memt { color: var(--G); }
+.membar { height: 3px; background: var(--d); border: 0; flex: 1 1 auto; }
+.membar i { display: block; height: 100%; background: var(--g); }
+.memrow.on .membar i { background: var(--y); }
+
+.abysspick { margin: 18px 0 0; }
+.abysslabel { font-size: 10.5px; color: var(--G); letter-spacing: .2em; }
+.abyssrow { display: flex; gap: 4px; justify-content: center; margin: 6px 0 0; }
+.abyssrow button { width: 34px; padding: 7px 0; font-size: 12px; }
+.abyssrow button.on { border-color: var(--R); color: var(--R); background: #301018; }
+#abyss-note { text-align: center; margin-top: 6px; }
+
+/* Every button is a console tile: hard corners and a one-pixel
+   bevel painted with inset shadows, so pressing one visibly
+   pushes it into the panel. Insets cost no layout, which is why
+   the d-pad and the quick slots can share the treatment. */
 button {
   font-family: var(--mono); cursor: pointer;
   background: var(--d); color: var(--w);
-  border: 1px solid var(--g);
+  border: 1px solid var(--g); border-radius: 0;
+  box-shadow: inset -2px -2px 0 rgba(0,0,0,.5),
+              inset 2px 2px 0 rgba(255,255,255,.07);
 }
-button:active { background: var(--o); color: var(--k); border-color: var(--o); }
+button:active {
+  background: var(--o); color: var(--k); border-color: var(--o);
+  box-shadow: inset 2px 2px 0 rgba(0,0,0,.4);
+}
 button:focus-visible { outline: 2px solid var(--y); outline-offset: 2px; }
 
 .big {
@@ -61,6 +120,12 @@ button:focus-visible { outline: 2px solid var(--y); outline-offset: 2px; }
   border: 1px solid var(--o); color: var(--o); background: transparent;
 }
 .mini { padding: 6px 12px; font-size: 11px; }
+/* The hero being built, composited from the two layers, sitting
+   in the title bar where both pickers can be seen at once. */
+.heropv {
+  width: 48px; height: 48px; image-rendering: pixelated;
+  border: 1px solid var(--g); background: var(--k);
+}
 
 /* ── bars and scroll regions ── */
 .bar {
@@ -88,7 +153,7 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   display: flex; flex-direction: column; gap: 3px; align-items: flex-start;
   padding: 9px 10px; text-align: left;
 }
-.pickbtn.on { border-color: var(--o); background: #241d16; }
+.pickbtn.on { border-color: var(--o); background: #302010; }
 .pickbtn .pname { font-size: 13px; color: var(--w); }
 .pickbtn.on .pname { color: var(--o); }
 .pickbtn .pmod { font-size: 10px; color: var(--G); }
@@ -97,21 +162,102 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 .statrow { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
 .statrow .sname { width: 34px; font-size: 12px; color: var(--G); }
 .statrow .sval  { width: 26px; font-size: 13px; color: var(--w); text-align: right; }
-.sbar { flex: 1 1 auto; height: 6px; background: var(--d); border: 1px solid var(--g); }
-.sbar i { display: block; height: 100%; background: var(--B); }
+.sbar { position: relative; flex: 1 1 auto; height: 8px; background: var(--d); border: 1px solid var(--g); }
+/* The band this race and class can ever roll inside. */
+.sbar u { position: absolute; inset: 0 auto; top: 0; height: 100%; background: var(--g); }
+.sbar i { position: relative; display: block; height: 100%; background: var(--B); }
+.statrow .srange { width: 44px; font-size: 9.5px; color: var(--G); text-align: right; }
 
 /* ── play HUD ── */
 #hud { flex: 0 0 auto; padding: 8px 12px 6px; background: var(--d); border-bottom: 2px solid var(--g); }
-.hudtop { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
-.who { flex: 1 1 auto; font-size: 12px; color: var(--w); white-space: nowrap; }
+/* Two rows, always — reserved whether or not the chips need
+   them. The row wraps as chips come and go (materials, keys, a
+   kill streak, the floor clock), and every wrap moved the map
+   underneath by a whole line. Reserving the space costs 27px
+   once; not reserving it costs a jump mid-fight. */
+/* One row now, not two.
+   Reserving two rows cost 48px of a 844px screen so the chips
+   could wrap without moving the map. But measuring where the
+   screen actually goes said 15% to numbers that barely change and
+   7% to the log — the only channel that says what just happened.
+   A single row that scrolls sideways cannot reflow either, and it
+   hands 24px back to the reading. */
+.hudtop {
+  display: flex; align-items: center;
+  gap: 6px; flex-wrap: nowrap;
+  height: 24px; margin-bottom: 6px;
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.hudtop::-webkit-scrollbar { display: none; }
+.hudtop .chip { flex: 0 0 auto; }
+.who { flex: 0 0 auto; font-size: 10px; color: var(--w); white-space: nowrap; }
+/* Fixed height, not padding around a line box. The combo chip
+   holds 13px text next to the others' 10.5px, and baseline
+   alignment made its line box a pixel taller — so the HUD grew
+   the moment a streak began and the map underneath was re-fitted
+   mid-fight. A flex box of a stated height cannot do that, no
+   matter what a future chip puts inside it. */
 .chip {
-  font-size: 10.5px; padding: 2px 6px; border: 1px solid var(--g);
+  display: inline-flex; align-items: center;
+  height: 21px; padding: 0 6px;
+  font-size: 10.5px; line-height: 1;
+  border: 1px solid var(--g);
   color: var(--G); white-space: nowrap;
 }
 .chip b { color: var(--w); }
-.chip.gold { color: var(--y); border-color: #4a3f22; } .chip.gold b { color: var(--y); }
-.chip.mana { color: var(--B); border-color: #23364f; } .chip.mana b { color: var(--B); }
-.chip.depth { color: var(--o); border-color: #4a331a; }
+.chip.gold { color: var(--y); border-color: #605018; } .chip.gold b { color: var(--y); }
+.chip.mana { color: var(--B); border-color: #204068; } .chip.mana b { color: var(--B); }
+.chip.depth { color: var(--o); border-color: #603010; }
+.chip.relics { color: var(--P); border-color: #502078; } .chip.relics b { color: var(--P); }
+/* The class counter. Dim while it fills, lit the turn it pays. */
+.chip.trait { color: var(--G); border-color: var(--g); }
+.chip.trait b { color: var(--G); font-weight: 400; }
+.chip.trait.on { color: var(--o); border-color: var(--o); background: rgba(248, 124, 32, .14); }
+.chip.trait.on b { color: var(--o); }
+
+/* The pile on the table. It glows brighter as it grows, which
+   is the entire persuasion — the number is supposed to be hard
+   to walk past. */
+.chip.wager { color: var(--y); border-color: #806810; }
+.chip.wager b { color: var(--y); }
+.chip.wager.hot {
+  color: var(--o); border-color: var(--o);
+  background: rgba(248, 208, 32, .14);
+  animation: comboPulse 1.4s ease-in-out infinite;
+}
+.campopt.wager { border-color: var(--y); background: #302810; }
+
+/* The floor's patience. Quiet while there is room to breathe,
+   orange when it is nearly gone, red once the floor is feeding. */
+.chip.clock { color: var(--G); border-color: var(--g); }
+.chip.clock b { color: var(--w); }
+.chip.clock.warn { color: var(--o); border-color: #603010; }
+.chip.clock.warn b { color: var(--o); }
+.chip.clock.bad { color: var(--R); border-color: var(--r); background: rgba(168, 16, 32, .22); }
+.chip.clock.bad b { color: var(--R); }
+
+/* The kill chain. --heat runs 0..1 with the streak, so the
+   chip literally warms up as it grows. */
+.chip.combo {
+  --heat: 0;
+  color: var(--y); border-color: #806810;
+  background: rgba(248, 208, 32, calc(var(--heat) * .16));
+  transform-origin: center;
+}
+.chip.combo b { color: var(--W); font-size: 13px; }
+.chip.combo.hot {
+  color: var(--o); border-color: var(--o);
+  box-shadow: 0 0 calc(var(--heat) * 12px) rgba(248, 124, 32, .55);
+  animation: comboPulse .9s ease-in-out infinite;
+}
+.chip.combo.pop { animation: comboPop .28s cubic-bezier(.2, 1.7, .4, 1); }
+.chip.combo.hot.pop { animation: comboPop .28s cubic-bezier(.2, 1.7, .4, 1), comboPulse .9s ease-in-out .28s infinite; }
+@keyframes comboPop  { 0% { transform: scale(1.55); } 100% { transform: scale(1); } }
+@keyframes comboPulse { 0%, 100% { opacity: 1; } 50% { opacity: .72; } }
+@media (prefers-reduced-motion: reduce) {
+  .chip.combo, .chip.combo.hot, .chip.combo.pop, .chip.combo.hot.pop { animation: none; }
+}
 
 .gauge { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .glabel { font-size: 9.5px; color: var(--G); width: 18px; }
@@ -120,6 +266,7 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 .track i { display: block; height: 100%; transition: width .16s linear; }
 .track i.hp { background: var(--R); }
 .track i.mp { background: var(--B); }
+.track i.st { background: var(--E); }
 
 .hudbot { display: flex; align-items: center; gap: 10px; font-size: 10px; color: var(--G); }
 .hudbot .xp b { color: var(--w); }
@@ -128,11 +275,25 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 
 /* ── map ── */
 #stage { flex: 1 1 auto; position: relative; min-height: 0; background: var(--k); }
-#map { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+#map { display: block; width: 100%; height: 100%; image-rendering: pixelated;
+       touch-action: none; user-select: none; -webkit-user-select: none; }
+
+/* The whole floor at a glance, in the corner. One pixel per
+   tile is unreadable and a full-screen overlay hides the fight,
+   so it sits over the map at a few pixels a tile and gets out of
+   the way on a tap. */
+#mini {
+  position: absolute; top: 6px; right: 6px;
+  image-rendering: pixelated;
+  border: 1px solid var(--g);
+  background: rgba(0, 0, 0, .78);
+  touch-action: none; cursor: pointer;
+}
+#mini.off { display: none; }
 
 /* ── log ── */
 #log {
-  flex: 0 0 auto; height: 5.4em; padding: 6px 12px;
+  flex: 0 0 auto; height: 8.2em; padding: 6px 12px;
   font-size: 11px; line-height: 1.45;
   background: var(--d); border-top: 2px solid var(--g);
   display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden;
@@ -145,21 +306,143 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 #log p.level { color: var(--y); }
 
 /* ── controls ── */
+/* Grid rather than flex, and both tracks allowed to shrink. As a
+   flex row the action column could refuse to give ground (flex
+   items default to min-width:auto) and the d-pad ended up drawn
+   over it on narrow or zoomed screens. A grid with an explicit
+   first track and min-width:0 on the second cannot overlap. */
 #controls {
-  flex: 0 0 auto; display: flex; gap: 12px;
+  flex: 0 0 auto;
+  display: grid; grid-template-columns: min(150px, 40vw) minmax(0, 1fr);
+  gap: 12px; align-items: start;
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
   background: var(--d); border-top: 2px solid var(--g);
+  overflow: hidden;
 }
-#dpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 150px; flex: 0 0 auto; }
-#dpad button { aspect-ratio: 1; font-size: 15px; color: var(--G); display: grid; place-items: center; }
+/* The pad is a square of its own, with explicit rows. Before, it
+   was a flex item that stretched to whatever height the action
+   column happened to be — so showing "문 닫기" made the buttons
+   taller than wide and the arrows, sized in percent, grew with
+   them. Its size must not depend on its neighbour at all. */
+#dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  aspect-ratio: 1;
+  gap: 4px;
+  width: 100%; min-width: 0;
+  align-self: start;
+}
+/* No aspect-ratio here: the grid above already hands every cell a
+   square, and a second constraint would just fight it. */
+#dpad button { color: var(--G); display: grid; place-items: center;
+               padding: 0; min-width: 0; min-height: 0;
+               touch-action: none; user-select: none; -webkit-user-select: none; }
+
+/* Eight shapes, no transforms. Rotating one triangle made the
+   diagonals read as larger — a 45° turn grows the bounding box
+   by √2 even though the element box is unchanged — so each
+   direction is drawn at its own angle instead, with the
+   diagonals shortened to carry equal visual weight. */
+/* One reach, one width, eight angles — identical ink for all. */
+#dpad svg { width: 62%; height: 62%; aspect-ratio: 1;
+            fill: currentColor; display: block; }
+#dpad button.wait svg { width: 30%; height: 30%; }
+#dpad button:active { background: var(--g); color: var(--W); }
 #dpad button.wait { color: var(--g); }
 
-#acts { flex: 1 1 auto; display: flex; flex-direction: column; gap: 5px; }
-#acts button { padding: 9px 8px; font-size: 11px; text-align: left; }
+#acts { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+#acts button { padding: 9px 8px; font-size: 11px; text-align: left;
+               min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #acts .pair { display: flex; gap: 5px; }
+/* Three fixed roles, always the same width and always in the
+   same place, so the muscle memory holds even as the contents
+   change. An empty role stays as a dead frame rather than
+   collapsing — a row that reflows is a row you misfire on. */
+/* Icon and count side by side, not stacked: the row has to earn
+   its height back from the map, and the role is already carried
+   by the position and the icon. */
+#acts .quick button {
+  position: relative;
+  flex: 1 1 0; display: flex; align-items: center; justify-content: center;
+  gap: 3px; padding: 3px 2px; font-size: 9px; line-height: 1;
+  text-align: center; overflow: hidden;
+}
+#acts .quick canvas { width: 16px; height: 16px; image-rendering: pixelated; flex: 0 0 auto; }
+#acts .quick .qn { white-space: nowrap; overflow: hidden; min-width: 0; }
+/* Out of the flow, so a narrow button clips the word and never
+   the number. The number is the part that decides whether you
+   press it. */
+#acts .quick .qty {
+  position: absolute; top: 1px; right: 2px;
+  font-size: 10px; color: var(--y); line-height: 1;
+  text-shadow: 0 0 3px var(--k), 0 0 3px var(--k);
+}
+#acts .quick button:disabled { opacity: .3; }
+#acts .quick button:disabled .qty { color: var(--G); }
 #acts .pair button { flex: 1 1 0; text-align: center; padding: 9px 4px; font-size: 10.5px; }
+/* Five frames, one per spell, in book order and never in any
+   other. A locked slot is a dead frame rather than a gap, so the
+   position of 서리 폭발 is the same at level 1 as at level 30.
+   Declared after `.pair button` on purpose — same specificity,
+   so the later rule is the one that lands. */
+#acts .spells button {
+  flex: 1 1 0; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 1px; padding: 3px 1px;
+  font-size: 8.5px; line-height: 1; text-align: center; overflow: hidden;
+}
+#acts .spells canvas { width: 15px; height: 15px; flex: 0 0 auto; }
+#acts .spells .sn { white-space: nowrap; overflow: hidden; }
+#acts .spells b { color: var(--B); font-size: 8.5px; margin-left: 2px; }
+/* Three shades of "no": not learned, learned but cold (no mana
+   or nothing to aim at), and live. */
+#acts .spells button.locked { opacity: .22; }
+#acts .spells button.cold { opacity: .45; }
+#acts .spells button.cold b { color: var(--G); }
+/* An art spends breath, and the pip wears the stamina bar's
+   colour so the row says which pool it is draining without a
+   word of text. The frame is warmer too — a hand, not a book. */
+#acts .spells button.artslot b { color: var(--E); }
+#acts .spells button.artslot { border-color: var(--o); }
+#acts .spells button.artslot.cold b { color: var(--g); }
+.itemrow.artrow .iact { color: var(--E); }
 #acts .ghost { color: var(--g); border-color: var(--d); }
 #acts button[hidden] { display: none; }
+/* Dead rather than gone — see refresh() in ui.js. It has to keep
+   occupying its row so the map above never changes height. */
+#acts button:disabled { opacity: .38; cursor: default; }
+#acts button:disabled:active { background: var(--d); color: var(--w); border-color: var(--g); }
+
+/* A phone on its side has ~400px of height to spend and the
+   panels were sized for 900. Without this the map collapsed to
+   under 80px — technically correct and completely unplayable.
+   Trim the chrome rather than redesign the layout: the game is
+   meant to be held upright. */
+@media (max-height: 560px) {
+  #hud { padding: 4px 10px 3px; }
+  .hudtop { min-height: 0; margin-bottom: 3px; }
+  .gauge { margin-bottom: 2px; }
+  #log { height: 5.2em; padding: 3px 12px; }
+  #controls { padding: 6px 10px calc(6px + env(safe-area-inset-bottom)); gap: 8px;
+              grid-template-columns: min(112px, 26vw) minmax(0, 1fr); }
+  #acts button { padding: 5px 8px; font-size: 10.5px; }
+  #acts { gap: 3px; }
+}
+
+/* ── the ending ── */
+.endrow { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 12px; }
+.endlabel { flex: 0 0 92px; color: var(--G); font-size: 10.5px; text-align: left; }
+.endval { flex: 1 1 auto; color: var(--w); text-align: left; }
+.endtail {
+  margin: 14px 0 0; padding: 10px 12px;
+  border-left: 2px solid var(--g); background: var(--d); text-align: left;
+}
+.endtail p { margin: 0 0 3px; font-size: 11px; color: var(--G); line-height: 1.6; }
+.endtail p:last-child { color: var(--w); margin: 0; }
+.ledger { margin-top: 20px; text-align: left; }
+.ledbar { flex: 1 1 auto; height: 6px; background: var(--k); border: 1px solid var(--g); }
+.ledbar i { display: block; height: 100%; }
+.ledger .endval { flex: 0 0 46px; text-align: right; font-size: 11px; }
 
 /* ── item rows ── */
 .itemrow {
@@ -183,11 +466,393 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 .eqname  { flex: 1 1 auto; font-size: 12px; }
 .eqname.dim { color: var(--g); }
 .eqstat  { font-size: 10.5px; color: var(--y); }
+.eqstat.dim { color: var(--G); }
+/* The weapon's rule, under the row it belongs to. A family whose
+   behaviour is only in a help table is a family nobody uses. */
+.wtype {
+  font-size: 10.5px; line-height: 1.6; color: var(--G);
+  margin: -3px 0 8px; padding: 0 10px 0 52px;
+}
+.wtype b { color: var(--o); }
 
 /* ── help ── */
-.keys { width: 100%; border-collapse: collapse; font-size: 11.5px; }
-.keys td { padding: 6px 4px; vertical-align: top; border-bottom: 1px solid var(--d); }
-.keys td:first-child { width: 40%; color: var(--G); }
+/* Scoped to the element: `.keys` is also a HUD chip modifier,
+   and an unscoped width:100% stretched that chip across the
+   whole row, which pushed everything after it onto a new line. */
+table.keys { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+table.keys td { padding: 6px 4px; vertical-align: top; border-bottom: 1px solid var(--d); }
+table.keys td:first-child { width: 40%; color: var(--G); }
 
-@media (max-width: 340px) { #dpad { width: 126px; } }
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* ── affixes ── */
+.iname.magic, .eqname.magic  { color: var(--y); }
+.iname.cursed, .eqname.cursed { color: var(--P); }
+
+/* ── the fire ── */
+.campopt {
+  display: flex; flex-direction: column; gap: 5px; align-items: stretch;
+  width: 100%; padding: 13px 14px; margin-bottom: 8px; text-align: left;
+  border: 1px solid var(--g); background: var(--d);
+}
+.campopt:active { background: var(--o); }
+.camphead { display: flex; align-items: baseline; gap: 10px; }
+.campname { font-size: 15px; color: var(--o); letter-spacing: .06em; }
+.camptag  { flex: 1 1 auto; text-align: right; font-size: 10px; color: var(--G); }
+.campdesc { font-size: 11.5px; line-height: 1.65; color: var(--w); }
+.campopt:active .campname, .campopt:active .camptag, .campopt:active .campdesc { color: var(--k); }
+#camp-back { margin-top: 12px; }
+
+/* A wager reads differently from a choice. The percentage is the
+   loudest thing on the button and the losing cost sits under it,
+   so nobody gambles without having seen both numbers. */
+.campopt.wager { border-color: var(--r); }
+.camptag.odds  { font-size: 13px; color: var(--y); letter-spacing: .04em; }
+.campdesc.risk { display: block; margin-top: 5px; font-size: 11px; color: var(--r); }
+.campopt:active .campdesc.risk, .campopt:active .camptag.odds { color: var(--k); }
+
+/* Fusion. The chosen two glow; the odds bar reads the same way
+   the altar's does, because it is the same kind of bet. */
+.relicrow.chosen { border-color: var(--o); background: #302010; }
+.relicrow.chosen .iact { color: var(--o); }
+#fuse-odds { margin: 14px 0 4px; transition: opacity .18s; }
+.oddrow { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.oddname { flex: 0 0 56px; font-size: 11px; color: var(--G); }
+.oddbar { flex: 1 1 auto; height: 8px; background: var(--k); border: 1px solid var(--g); }
+.oddbar i { display: block; height: 100%; }
+.oddpct { flex: 0 0 34px; text-align: right; font-size: 10.5px; color: var(--w); }
+#fuse-note { margin: 6px 0 14px; }
+#fuse-note b { color: var(--o); }
+#fuse-go { width: 100%; }
+
+/* How hard to swing at the anvil. Two states, one lit — the
+   choice is meant to be read at a glance and then forgotten,
+   because it sticks across fires. */
+.styleswitch { display: flex; gap: 6px; margin-bottom: 8px; }
+.styleswitch button {
+  flex: 1 1 0; padding: 8px 6px; font-size: 12px;
+  border: 1px solid var(--g); background: var(--d); color: var(--G);
+}
+.styleswitch button.on { border-color: var(--o); background: #302010; color: var(--o); }
+#camp-style-note { margin: 0 0 10px; }
+.stairswarn { border-left: 2px solid var(--o); padding: 8px 10px; background: var(--d); }
+.stairswarn b { color: var(--o); }
+.stairswarn b.danger { color: var(--R); }
+/* The price of a miss, written where the price of a hit is. */
+.idesc.plus { color: var(--y); }
+/* The strike that changes what the thing is. */
+.idesc.mark { color: var(--P); }
+.idesc.bet { color: var(--G); }
+.idesc.bet.danger { color: var(--R); }
+
+/* ── save slots ── */
+.slotrow {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 12px 13px; margin-bottom: 8px; text-align: left;
+  border: 1px solid var(--g); background: var(--d);
+}
+.slotrow.empty { border-style: dashed; }
+.slotnum { width: 26px; font-size: 15px; color: var(--o); }
+.slotmid { flex: 1 1 auto; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.slotwho  { font-size: 13px; color: var(--w); }
+.slotmeta { font-size: 10.5px; color: var(--G); }
+.slotrow.empty .slotwho { color: var(--g); }
+.slotdel {
+  flex: 0 0 auto; padding: 7px 10px; font-size: 10.5px;
+  color: var(--R); border-color: #601018; background: transparent;
+}
+.slotrow:active .slotwho, .slotrow:active .slotmeta, .slotrow:active .slotnum { color: var(--k); }
+
+/* ── confirm ── */
+.modal {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; background: rgba(0, 0, 0, .82);
+}
+.modal[hidden] { display: none; }
+/* Every card in the game is the same leaf now. A blue-bordered
+   dialog next to a torn sheet reads as two games sharing a
+   screen — and the paper was already the nicest thing here. */
+.askbox {
+  width: 100%; max-width: 340px;
+  border: 0; background: transparent;
+  filter: drop-shadow(0 4px 0 rgba(0,0,0,.55));
+}
+.askbox > .deck { display: block; width: 100%; height: 8px; image-rendering: pixelated; }
+.askbox > .sheet, .askbox.sheeted {
+  background-repeat: repeat; image-rendering: pixelated;
+  box-shadow: inset 0 0 34px rgba(120,92,50,.42), inset 0 0 100px rgba(150,120,70,.22);
+  padding: 16px 18px 14px;
+}
+.askbox p { margin: 0 0 6px; font-size: 13px; line-height: 1.7; color: var(--ink); }
+.askbox b { color: #7a4a10; }
+.askbox .asksub { font-size: 11px; color: var(--inkDim); margin-bottom: 16px; }
+.askbox .asksub:empty { display: none; }
+.askbtns { display: flex; gap: 8px; }
+.askbtns button {
+  flex: 1 1 0; padding: 12px 8px; font-size: 12.5px;
+  background: transparent; border-color: rgba(90,70,40,.55); color: var(--ink);
+}
+.askbtns button:active { background: var(--ink); color: #d8c8a0; border-color: var(--ink); }
+.askbtns b { color: #7a4a10; margin-left: 4px; }
+/* A lesson, not a question: one button, and the prose gets room
+   to breathe because it is being read rather than answered. */
+.lessonbox p { font-size: 12.5px; line-height: 1.85; margin-bottom: 16px; }
+/* The look-at card. Reached by holding a finger on the map, so
+   it has to be dismissable by tapping anywhere. */
+.lookbox { max-width: 320px; }
+.lookbox .camphead { margin-bottom: 10px; }
+.lookbox .endrow { padding: 3px 0; }
+.lookbox .endlabel { flex: 0 0 74px; }
+.lookbox .endval { font-size: 11.5px; line-height: 1.55; }
+#look-rows { margin-bottom: 14px; }
+#look-close { border-color: var(--o); color: var(--o); }
+/* 예 still reads as the committing answer, but in ink rather
+   than in the old orange — the sheet has its own palette. */
+#ask-yes { border-color: #7a4a10; color: #6a3d0c; font-weight: 600; }
+#ask-yes:active, #ask-no:active { background: var(--ink); color: #d8c8a0; }
+#ask-yes:active b, #ask-no:active b { color: #d8c8a0; }
+
+/* A rare name should catch the eye in a list of twenty. */
+.shine { text-shadow: 0 0 8px currentColor; }
+/* 초월 does not sit still. Most players will go whole runs
+   without seeing this rule fire. */
+.transcend {
+  text-shadow: 0 0 6px #fff, 0 0 14px var(--y);
+  animation: transPulse 2.2s ease-in-out infinite;
+}
+@keyframes transPulse {
+  0%, 100% { text-shadow: 0 0 5px #fff, 0 0 12px var(--y); }
+  50%      { text-shadow: 0 0 11px #fff, 0 0 24px var(--o); }
+}
+
+/* ── altar ── */
+.altopt {
+  display: flex; flex-direction: column; gap: 6px; align-items: stretch;
+  width: 100%; padding: 13px 14px; margin-bottom: 8px; text-align: left;
+  border: 1px solid var(--p); background: var(--d);
+}
+.altopt.poor { border-color: var(--g); opacity: .5; }
+.altname { font-size: 15px; color: var(--P); letter-spacing: .06em; }
+.altcost { font-size: 11.5px; color: var(--o); }
+.altodds { display: flex; gap: 3px; margin-top: 3px; }
+.altodds i {
+  height: 16px; font-style: normal; font-size: 9px; line-height: 16px;
+  text-align: center; color: var(--k); overflow: hidden; white-space: nowrap;
+}
+.altodds i.great { background: var(--y); }
+.altodds i.good  { background: var(--E); }
+.altodds i.none  { background: var(--g); color: var(--G); }
+.altodds i.doom  { background: var(--R); }
+.altopt:active { background: var(--p); }
+#altar-leave { margin-top: 10px; }
+
+/* The wheel. Same bar as the printed odds, with a marker on top
+   — so what sweeps past is literally the thing the player was
+   just reading. */
+.wheel { position: relative; margin: 22px 0 10px; }
+.wheel .altodds i { height: 26px; line-height: 26px; font-size: 11px; }
+#altar-mark {
+  position: absolute; top: -7px; bottom: -7px; left: 0;
+  width: 3px; margin-left: -1px;
+  background: var(--W); box-shadow: 0 0 8px var(--W);
+}
+.wheelresult {
+  margin: 4px 0 0; text-align: center;
+  font-size: 20px; letter-spacing: .12em; min-height: 26px;
+}
+
+/* Codex. The tabs carry their own progress, so the page states
+   what is left before anything is scrolled. */
+.codextabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
+#inv-tabs { flex: 0 0 auto; margin: 10px 14px 0; }
+#inv-tabs .codextab { flex: 1 1 0; padding: 9px 0; font-size: 12px; }
+.codextab {
+  padding: 7px 10px; font-size: 11px; letter-spacing: .04em;
+  border: 1px solid var(--g); background: var(--d); color: var(--G);
+}
+.codextab.on { border-color: var(--o); color: var(--o); }
+.codexrow {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 9px 4px; border-bottom: 1px solid var(--d);
+}
+.codexrow.unknown .iname { color: var(--g); }
+.codexrow.unknown .idesc { color: var(--g); }
+.codextext { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+/* Tells are the payout, so they read like the payout: whitespace
+   preserved, one line per habit, in the colour the game uses for
+   things it is telling you rather than showing you. */
+.codextells {
+  white-space: pre-line; font-size: 11px; line-height: 1.6; color: var(--y);
+}
+/* The first line of a codex entry is the page that arrived on the
+   parchment, so it is set as prose rather than as a habit. */
+.codextells::first-line { color: var(--w); }
+/* What a resonance cannot do, in the colour the game uses for the
+   things that will kill you. Set apart from the tells on purpose:
+   the payout and the price should not read as one paragraph. */
+.codexweak {
+  font-size: 11px; line-height: 1.6; color: var(--r);
+  border-left: 1px solid var(--r); padding-left: 7px; margin-top: 2px;
+}
+/* 파수꾼의 기억 speaks on the stairs screen, in the same colour
+   the codex uses for a habit — so the two read as one voice. */
+.tellline { display: block; margin-top: 6px; color: var(--y); font-size: 11px; line-height: 1.7; }
+/* A rung you have not earned stays visible and unpressable —
+   seeing the top of the ladder is most of why anyone climbs. */
+.abyssrow button.locked { opacity: .32; border-color: var(--d); cursor: default; }
+.abyssrow button.locked:active { background: var(--d); color: var(--w); border-color: var(--d); }
+#abyss-note { text-align: left; }
+#abyss-note b { color: var(--R); }
+#abyss-note .dim { color: var(--g); font-size: 10.5px; }
+
+/* ── 양피지 ──────────────────────────────────────────────
+   The one surface meant to be read rather than watched. Paper is
+   generated in pixels.js and set as a background here, so the
+   sheet and the dungeon come out of the same 16 colours.
+
+   Neither of these is a screen: both float over the map, so the
+   run is never interrupted by something you are only reading. */
+:root { --ink:#3b2d18; --inkDim:#6d5a3a; }
+
+#lorecard, #scroll { position: fixed; z-index: 40; filter: drop-shadow(0 4px 0 rgba(0,0,0,.55)); }
+#lorecard .sheet, #scroll .sheet {
+  background-repeat: repeat; image-rendering: pixelated;
+  box-shadow: inset 0 0 34px rgba(120,92,50,.42), inset 0 0 100px rgba(150,120,70,.22);
+  color: var(--ink);
+}
+#lorecard .deck, #scroll .deck { display: block; width: 100%; height: 8px; image-rendering: pixelated; }
+
+/* The card. Slides down from under the HUD, leaves on its own. */
+#lorecard { left: 5%; right: 5%; top: 0; animation: dropin .32s ease-out; }
+/* Tones inside a paragraph, so one turn can be two colours. */
+.scrollturn .hit  { color: #7a2b20; }
+.scrollturn .good { color: #2f5c34; }
+.scrollturn .level{ color: #8a5a12; }
+.scrollturn .warn { color: #6a4a12; }
+#lorecard.out { animation: dropout .28s ease-in forwards; }
+@keyframes dropin  { from { transform: translateY(-110%); } to { transform: none; } }
+@keyframes dropout { from { transform: none; } to { transform: translateY(-115%); } }
+#lorecard .sheet { padding: 12px 14px 14px; }
+.lorehead { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; }
+.loreicon { width: 30px; height: 30px; image-rendering: pixelated; }
+.lorekind { display: block; font-size: 9.5px; letter-spacing: .22em; color: var(--inkDim); }
+.lorename { display: block; font-size: 14px; color: var(--ink); letter-spacing: .04em; }
+.loretext { margin: 0; font-size: 12px; line-height: 1.85; color: var(--ink); }
+
+/* The scroll. Everything said this run, as paragraphs. */
+#scroll { inset: 22px 12px; display: flex; flex-direction: column; }
+#scroll .sheet { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; padding: 0 0 4px; }
+.scrollbar {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-bottom: 1px solid rgba(90,70,40,.35);
+}
+.scrollbar b { flex: 1 1 auto; font-size: 12px; letter-spacing: .2em; color: var(--ink); }
+.scrollbar .mini { background: transparent; border-color: rgba(90,70,40,.5); color: var(--ink); }
+.scrollbar .mini:active { background: var(--ink); color: #d8c8a0; }
+.scrolltext { flex: 1 1 auto; overflow-y: auto; padding: 10px 14px 16px; -webkit-overflow-scrolling: touch; }
+/* A floor is a chapter and a turn is a paragraph. Nothing is
+   dropped — the grouping is typographic, not lossy. */
+.scrollfloor {
+  margin: 16px 0 8px; font-size: 10px; letter-spacing: .24em; color: var(--inkDim);
+  border-bottom: 1px solid rgba(90,70,40,.3); padding-bottom: 4px;
+}
+.scrollfloor:first-child { margin-top: 0; }
+.scrollturn { margin: 0 0 9px; font-size: 12px; line-height: 1.9; color: var(--ink); }
+.scrollturn.hit  { color: #7a2b20; }
+.scrollturn.good { color: #2f5c34; }
+.scrollturn.level{ color: #8a5a12; }
+.scrollturn.warn { color: #6a4a12; }
+/* Tapping the strip opens the record, so the strip has to look
+   like it can be tapped. */
+#log { cursor: pointer; }
+
+/* ── 이번 턴 ──────────────────────────────────────────────
+   The tactical readout, taken out of the log entirely. "What hit
+   me and for how much" has to survive a glance; the prose does
+   not have to carry it, and the moment it stopped trying, the
+   writing was free to get longer instead of shorter.
+
+   Sits on the map's bottom edge so it costs no layout height, and
+   fades on its own once the turn is old. */
+#tally {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 12;
+  display: flex; flex-wrap: wrap; gap: 4px; justify-content: center;
+  padding: 5px 8px; pointer-events: none;
+  background: linear-gradient(to top, rgba(0,0,0,.92), rgba(0,0,0,0));
+  transition: opacity .3s;
+}
+#tally.fade { opacity: 0; }
+.tallyone {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 5px 2px 2px;
+  background: rgba(27,33,48,.94); border: 1px solid var(--r);
+}
+.tallyone canvas { width: 18px; height: 18px; image-rendering: pixelated; }
+.tallyone b { font-size: 12px; color: var(--R); line-height: 1; }
+.tallytotal {
+  display: inline-flex; align-items: center; padding: 2px 7px;
+  background: var(--r); color: var(--W); font-size: 12px; line-height: 1.5;
+}
+
+/* ── 시트 ─────────────────────────────────────────────────
+   A fire, an altar, a ? room and the stairs are things that
+   happen *on a floor*, and deciding what to do about them needs
+   the floor. Replacing the map with a full screen took away the
+   two facts the decision runs on — what is left up there, and
+   where you are standing.
+
+   So they rise from the bottom and leave the map above them. The
+   map stops animating while a sheet is up, which reads correctly:
+   the world is waiting for you. */
+.screen.assheet {
+  top: auto; bottom: 0; height: min(64%, 560px);
+  border-top: 2px solid var(--o);
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, .85);
+  animation: sheetup .22s ease-out;
+}
+@keyframes sheetup { from { transform: translateY(24px); opacity: .4; } to { transform: none; opacity: 1; } }
+.screen.assheet > .bar { padding: 9px 14px; }
+.screen.assheet > .bar h2 { font-size: 12px; }
+/* The map behind a sheet is context, not a target. */
+#sc-play:has(~ .screen.assheet) #controls { opacity: .35; pointer-events: none; }
+
+/* ── 첫 화면 ─────────────────────────────────────────────
+   837px of stacked rows in a 568px phone, with the shackle
+   ladder below the fold and unreachable. It is a place and four
+   buttons now; the lists moved behind 기록. */
+#sc-title { display: block; padding: 0; overflow: hidden; }
+#title-scene {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  display: block; image-rendering: pixelated;
+}
+.titleface {
+  position: absolute; left: 0; right: 0; top: 12%;
+  text-align: center; pointer-events: none;
+}
+.gamename {
+  margin: 0; font-size: clamp(30px, 11vw, 46px); letter-spacing: .22em;
+  color: var(--W); font-weight: 600;
+  text-shadow: 0 0 18px rgba(248,124,32,.55), 0 3px 0 var(--k);
+}
+.gamesub {
+  margin: 4px 0 0; font-size: clamp(9px, 2.6vw, 11px); letter-spacing: .5em;
+  color: var(--o); padding-left: .5em;
+}
+.tag { margin: 14px 0 0; color: var(--y); font-size: clamp(10.5px, 3vw, 12.5px); letter-spacing: .04em; }
+.titleacts {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
+  padding: 0 22px calc(18px + env(safe-area-inset-bottom));
+}
+.titleacts .big { width: min(300px, 82vw); }
+.titlerow { display: flex; gap: 6px; margin-top: 2px; }
+.titlerow .mini { padding: 8px 14px; }
+.titleacts .fine { margin: 4px 0 0; text-align: center; line-height: 1.7; }
+#title-stat { color: var(--G); }
+/* A resonance is a turning point, not a stat — so it is the one
+   chip that reads as an event and stays for the rest of the run. */
+.chip.reso { color: var(--W); border-color: var(--y); background: #302810; }
+.chip.reso b { color: var(--y); }
+.codextext .idesc.lit { color: var(--y); }

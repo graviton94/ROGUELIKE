@@ -622,19 +622,6 @@ export function pump(queue, player) {
         break;
       }
 
-      // 버티기 — nothing flies. A mark on the ground under the
-      // feet, because the art is about *not* moving.
-      case 'brace': {
-        ring(e.x, e.y, 1.15, PALETTE.y, 520);
-        ring(e.x, e.y, 0.75, PALETTE.s, 620);
-        number(e.x, e.y - 0.5, '버틴다', PALETTE.y, 1.1);
-        buzz([20, 30, 20]);
-        sfx.heal();
-        break;
-      }
-
-      // Each blow the stance turns away: a short spark back down
-      // the line it came from. Quiet on purpose — it happens a lot.
       /* ── the ranger's four ─────────────────────────────
          The warrior's arts happen at arm's length and are drawn
          at the hero. These happen across the room and are drawn
@@ -703,11 +690,6 @@ export function pump(queue, player) {
         sfx.crit();
         break;
       }
-
-      case 'braceHit':
-        beams.push({ fx: e.x, fy: e.y, tx: e.from.x, ty: e.from.y,
-                     color: PALETTE.y, life: 160, age: 0, thin: true });
-        break;
 
       // 마무리 — a column. Shards go straight up and the flash
       // comes straight down, and the whole thing scales with how

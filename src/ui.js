@@ -743,7 +743,7 @@ const SPELL_ICONS = {
   volley:   [(c, x, y, r) => rain(c, x, y, r),        'y'],
   shove:    [palm,                                    'W'],
   cleave:   [sweep,                                   'o'],
-  brace:    [planted,                                 'y'],
+  flurry:   [(c, x, y, r) => rain(c, x, y, r),        'R'],
   finisher: [wedge,                                   'R'],
   bolt:   [arrow,                                     'P'],
   blink:  [zigzag,                                    'B'],

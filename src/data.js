@@ -916,8 +916,19 @@ export const ARTS = {
       desc:'앞의 것을 두 칸 밀어낸다. 벽에 부딪히면 한 턴 무너진다.' },
     { id:'cleave',   name:'휩쓸기',   short:'휩쓺', lv:3,  stam:3,
       desc:'인접한 모든 것을 한 번에 벤다.' },
-    { id:'brace',    name:'버티기',   short:'버팀', lv:7,  stam:3,
-      desc:'네 턴 동안 받는 피해가 크게 줄고, 때린 쪽이 되받는다.' },
+    /* 버티기 stood here: four turns of taking less and handing
+       some back. Measured, the bot pressed it 10.2 times a run at
+       level twelve — more than the other three arts put together
+       — because standing still and absorbing is always available
+       and never wrong. That is the opposite of what every other
+       verb in this game asks for, which is a decision about
+       *where to be*. An art nobody has to think about is the one
+       that gets pressed most, and it made the warrior read as the
+       class that waits.
+       연타 is the same slot spent forwards: the reward is for
+       landing, not for enduring, and a miss ends it. */
+    { id:'flurry',   name:'연타',     short:'연타', lv:7,  stam:2,
+      desc:'한 호흡에 잇달아 친다. 맞을 때마다 다음 한 대가 무거워지고, 빗나가면 거기서 끝난다.' },
     { id:'finisher', name:'마무리',   short:'마무', lv:11, stam:4,
       desc:'상대가 잃은 피만큼 무거워지는 한 방.' },
   ],
@@ -991,9 +1002,13 @@ export const VOLLEY_SHARE = 0.5;
 export const SHOVE_DIST   = 2;     // tiles pushed
 export const SHOVE_WALL   = 0.5;   // extra damage, as a share of a normal blow, on impact
 export const CLEAVE_SHARE = 0.8;   // what each adjacent body takes, vs one clean swing
-export const BRACE_TURNS  = 4;
-export const BRACE_CUT    = 0.4;   // damage taken, reduced by this share
-export const BRACE_THORNS = 0.5;   // what the blocker hands back, of what it stopped
+/* 연타. Four is the ceiling because the fourth blow is already
+   worth two of the first, and the extra stamina each swing costs
+   is what stops the pool being dumped into one turn for free —
+   the warrior's rhythm stays spend-and-wait. */
+export const FLURRY_MAX  = 4;
+export const FLURRY_STEP = 0.35;   // what each landed blow adds to the next
+export const FLURRY_STAM = 1;      // extra breath per blow after the first
 export const FINISH_MAX   = 2.5;   // the blow at the target's last sliver
 
 /* A chest is a monster you have not identified yet. Its profile

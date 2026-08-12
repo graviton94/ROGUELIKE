@@ -30,7 +30,7 @@ import {
   AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE,
   AMMO, ammoById, BOW_MELEE, BOW_FALLOFF, AMMO_BUNDLE,
   FORCE_STAM, FORCE_HURT, FORCE_NOISE, PICK_USES, CHEST_RUIN, RANGER_FOOTING,
-  BRACE_TURNS, BRACE_CUT, BRACE_THORNS, FINISH_MAX,
+  FLURRY_MAX, FLURRY_STEP, FLURRY_STAM, FINISH_MAX,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
   strikeLine, takenLine, pickLine, MISS_BY, MISS_AT, FELLED,
@@ -1165,16 +1165,35 @@ export function useArt(id) {
       for (const m of [...hit]) if (G.monsters.includes(m)) swing(m, CLEAVE_SHARE);
       break;
     }
-    case 'brace': {
-      /* The answer to the things a warrior cannot chase: archers,
-         casters, and the wind-up. Standing still stops being the
-         losing move for four turns. */
-      /* One extra, because the turn this is cast on is itself
-         spent — without it the stance is three turns long and the
-         tooltip says four. */
-      p.brace = BRACE_TURNS + 1;
-      fx({ t:'brace', x:p.x, y:p.y, turns:BRACE_TURNS });
-      say('발을 딛고 어깨를 낮췄다. 네 턴은 버틴다.', 'good');
+    case 'flurry': {
+      /* The whole art is one loop, and every exit from it is a
+         thing the player did: the breath ran out, the body fell,
+         or a blow missed. Nothing here is on a timer.
+
+         It rides swing() rather than rolling its own damage, so
+         the third blow of a flurry feeds 세 번째 손 exactly as
+         three ordinary swings would — the trait and the art are
+         the same idea at two speeds, which is why the warrior
+         wants both on the same target. */
+      const m = near.sort((x, y) => y.hp - x.hp)[0];
+      let landed = 0, blows = 0;
+      for (let i = 0; i < FLURRY_MAX; i++) {
+        if (!G.monsters.includes(m) || !G.running) break;
+        // The first blow is paid for by the art's own cost; each
+        // one after it is bought on the spot.
+        if (i > 0) {
+          if (p.stam < FLURRY_STAM) { say('숨이 끊겼다.', 'warn'); break; }
+          p.stam -= FLURRY_STAM;
+        }
+        blows++;
+        fx({ t:'lunge', who:'player', x:p.x, y:p.y, kind:weaponType(p),
+             dx: Math.sign(m.x - p.x), dy: Math.sign(m.y - p.y) });
+        if (!swing(m, 1 + landed * FLURRY_STEP)) break;   // a miss ends it
+        landed++;
+      }
+      if (landed >= 3) say(`${landed}연타 — 마지막 한 대가 처음의 ${(1 + (landed - 1) * FLURRY_STEP).toFixed(2)}배였다.`, 'level');
+      else if (landed) say(`${landed}대를 이어 붙였다.`, 'level');
+      else say('첫 대부터 빗나갔다.', 'warn');
       break;
     }
     case 'finisher': {
@@ -1343,25 +1362,6 @@ export function useArt(id) {
     }
   }
   if (G.running) endTurn();
-}
-
-/* 버티기, in one place because two paths land blows on the player
-   and the art has to answer both — the first version hooked only
-   melee, which meant the stance did nothing against the archers
-   it exists to answer.
-
-   The shoulder turns damage away wherever it comes from; it only
-   hands it *back* to something in reach. An arrow has nobody
-   standing there to hand it to, and that is the honest limit of
-   the art rather than an oversight. */
-function braceSoak(m, dmg, melee) {
-  const p = G.player;
-  if (!(p.brace > 0)) return dmg;
-  const stopped = Math.max(1, Math.round(dmg * BRACE_CUT));
-  fx({ t:'braceHit', x:p.x, y:p.y, from:{ x:m.x, y:m.y } });
-  if (melee)
-    hurtMonster(m, Math.max(1, Math.round(stopped * BRACE_THORNS)), '버틴 어깨', { pierce: true });
-  return Math.max(1, dmg - stopped);
 }
 
 /* What one clean blow is worth right now, before the target's
@@ -2821,7 +2821,7 @@ function swing(m, scale, opt = {}) {
     say('상자가 이빨을 드러냈다.', 'warn');
     fx({ t:'reveal', x:m.x, y:m.y });
     monsterMelee(m);
-    if (!G.running) return;
+    if (!G.running) return false;
   }
 
   const asleep = !m.awake;
@@ -2841,7 +2841,7 @@ function swing(m, scale, opt = {}) {
     say(pickLine(MISS_AT, m.n, nextLine()));
     fx({ t:'miss', x:m.x, y:m.y });
     p.chain3 = 0;              // 세 번째 손: a miss resets the count
-    return;
+    return false;
   }
 
   /* 세 번째 손 (전사). Three landed blows on the same body and
@@ -2971,7 +2971,7 @@ function swing(m, scale, opt = {}) {
       fx({ t:'snared', x:m.x, y:m.y });
     }
   }
-  if (!G.running) return;
+  if (!G.running) return true;
 
   drainLife(dmg * (crit ? 0.6 : 1));
   if (g.on) poisonMonster(m, g.on);
@@ -2995,6 +2995,7 @@ function swing(m, scale, opt = {}) {
     playerAttack(m);
     p.echoing = false;
   }
+  return true;
 }
 
 /* 뱃사공의 동전 doubles it, 서기의 깃펜 shaves it. One funnel so
@@ -3396,7 +3397,6 @@ export function endTurn(skipMonsters = false) {
   if (p.blessed > 0) p.blessed--;
   if (p.might > 0 && --p.might === 0) say('끓던 피가 식는다.');
   if (p.iron > 0 && --p.iron === 0) say('굳었던 살갗이 풀린다.');
-  if (p.brace > 0 && --p.brace === 0) say('어깨를 폈다.');
   if (G.detectPulse > 0) G.detectPulse--;
 
   if (G.comboT > 0 && --G.comboT === 0) breakCombo(true);
@@ -3749,7 +3749,6 @@ function monsterMelee(m) {
   let dmg = Math.max(1, Math.round(
     (roll(2, Math.max(3, Math.floor(m.atk * 0.72))) - Math.floor(ac / 5))
     * (heavy ? 2.5 : 1) * (1 + (p.perm?.takeMore || 0))) - gearBonus(p).flatDR);
-  dmg = braceSoak(m, dmg, true);
   p.hp -= Math.max(1, dmg);
   breakCombo(false); tookHit();
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
@@ -3821,8 +3820,8 @@ function monsterShoot(m) {
     fx({ t:'miss', x:p.x, y:p.y });
     return;
   }
-  const dmg = braceSoak(m, Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.6)))
-    - Math.floor(ac / 6) - gearBonus(p).flatDR), false);
+  const dmg = Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.6)))
+    - Math.floor(ac / 6) - gearBonus(p).flatDR);
   p.hp -= dmg;
   breakCombo(false); tookHit();
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },

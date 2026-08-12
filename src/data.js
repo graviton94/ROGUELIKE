@@ -281,60 +281,46 @@ export const TRAITS = {
   /* 이중 시전 was a discount: every fourth spell free and doubled.
      A discount is not an axis — it made the mage cast the same
      spell it was already casting, slightly more often. The class
-     had a list and no grammar.
-     잔향 is the grammar. Nothing here costs or saves mana; what
-     changes is that the spell you cast *before* this one decides
-     what this one does, so a mage plays sentences rather than
-     words. */
+     had a list and no grammar. 잔향 is the grammar. */
   mage:    { n:'잔향', max:1,
     t:'주문마다 다른 잔향이 남는다. 다음 주문 하나가 그 잔향에 따라 변한다 — 마나가 아니라 순서가 위력이다.' },
   priest:  { n:'응답', max:0,
     t:'체력이 절반 아래일 때 모든 회복이 60% 더 든다. 여섯 턴마다 저절로 아문다.' },
   /* It used to be a light that was on or off — p.shadow was 0 or
      1 and a swing spent it. A switch is not a resource: there is
-     nothing to save up and nothing to decide. Now it fills to
-     five, and the four arts below are the only things that empty
-     it. */
+     nothing to save up and nothing to decide. */
   rogue:   { n:'그림자', max:5,
     t:'들키지 않은 채 다섯 턴을 보내거나, 모르는 것을 찌르거나, 구를 때마다 하나씩 쌓인다. 기예 넷이 이걸 태운다.' },
   ranger:  { n:'표적', max:5,
-    t:'같은 적을 때릴 때마다 그 적에게 주는 피해가 9%씩 쌓인다(최대 45%). 대상을 바꾸면 사라진다.' },
-  paladin: { n:'맹세', max:8,
-    t:'맞을 때마다 방어 +1이 쌓인다(층마다 초기화, 최대 +8). 처치하면 하나 풀린다. 기예 넷이 이 벽을 태운다 — 방어가 곧 탄약이다.' },
+    t:'같은 적을 때릴 때마다 그 적에게 주는 피해가 9%씩 쌓인다(최대 45%). 대상을 바꾸면 사라진다.\n'
+    + '그리고 두 칸 밖에서 잡으면 숨이 돌아온다 — 기력 2와 최대 체력의 4.5%. 붙어서 잡으면 아무것도 없다.' },
+  paladin: { n:'맹세', max:10,
+    t:'맞으면 +1, 죽이면 +1(층마다 초기화, 최대 10). 둘마다 방어 +1.\n'
+    + '쌓아 두는 벽이 아니라 계속 죽이기 위한 연료다 — 네 기예가 전부 이것을 먹는다.' },
 };
 
 /* No `mod` here. Each entry used to carry one — 팔라딘 str+2,
    전사 str+3 — and createHero stopped reading it when the roll
    bands took over ("the bands already encode what a class is").
-   Nothing has read it since, and it lied convincingly: the entry
-   said 팔라딘 힘 +2 while CLASS_BAND rolled it 힘 11.8 against the
-   warrior's 14.8. What a class rolls lives in CLASS_BAND, and now
-   that is the only place it lives. */
+   Nothing has read it since, and it lied convincingly. What a
+   class rolls lives in CLASS_BAND, and only there. */
 export const CLASSES = {
   warrior: { name:'전사',     hd:9, bth:5.0, realm:null,     note:'주문 없이, 오직 무기로.' },
   mage:    { name:'마법사',   hd:0, bth:2.0, realm:'arcane', note:'지능이 곧 힘. 맞으면 죽는다.' },
-  priest:  { name:'사제',     hd:2, bth:3.0, realm:'divine', note:'스스로를 고치며 나아간다.' },
+  priest:  { name:'사제',     hd:3, bth:3.4, realm:'divine', note:'맞을수록 강해진다. 신앙은 편할 때 차지 않는다.' },
   /* No realm, for the same reason the ranger lost one: casting
      the mage's five spells with the mage's stat minus two is not
-     a class, it is a worse mage holding a knife. Measured, the
-     bot cast 마력 화살 27.6 times a run as a rogue — the class's
-     most-used button belonged to someone else.
-     Its axis is 그림자: ammunition you gather by not being seen
-     and burn in one of four ways. */
+     a class, it is a worse mage holding a knife. Measured, a
+     headless bot cast 마력 화살 27.6 times a run as a rogue — the
+     class's most-used button belonged to someone else.
+     Its axis is 그림자: ammunition gathered by not being seen. */
   rogue:   { name:'도적',     hd:6, bth:4.0, realm:null,     note:'보이지 않는 동안 모으고, 한 번에 태운다.' },
   /* No realm. Casting the mage's book with the mage's stat minus
      two was the whole reason this class read as an in-between —
      it was a worse mage holding a worse dagger. Its five buttons
      are arrows now, and nobody else has those. */
-  ranger:  { name:'레인저',   hd:5, bth:4.8, realm:null,     note:'활이 곧 직업. 거리를 지운 쪽이 진다.' },
-  /* The last class holding someone else's list. 사제 and 팔라딘
-     shared all five divine spells — measured, 5/5 identical — so
-     what separated them was one trait line and a stat spread.
-     The priest keeps the book, because 응답 (heal harder the
-     worse it goes) *is* a book of heals. The paladin's axis was
-     never a caster's: 맹세 is a wall built out of being hit, and
-     the four arts below are the only things that spend it. */
-  paladin: { name:'팔라딘',   hd:6, bth:4.5, realm:null,     note:'맞아서 쌓고, 그 벽을 태워 되갚는다.' },
+  ranger:  { name:'레인저',   hd:5, bth:4.8, realm:null,     note:'활이 곧 직업. 거리를 두고 잡아야 숨이 돌아온다.' },
+  paladin: { name:'팔라딘',   hd:6, bth:4.5, realm:'divine', note:'맞아서 시작하고, 죽여서 굴러간다.' },
 };
 for (const [k, c] of Object.entries(CLASSES)) c.trait = TRAITS[k];
 
@@ -351,42 +337,11 @@ export const SPELLS = {
   divine: [
     { id:'cure',   name:'경상 치유',   short:'치유', lv:1,  cost:1,  desc:'상처를 닫는다.' },
     { id:'bless',  name:'축복',        short:'축복', lv:3,  cost:2,  desc:'잠시 명중과 방어가 오른다.' },
-    /* 응징 and 감지 have swapped rungs. Counted by kind, the divine
-       book was four utilities and one attack, and that attack sat
-       at level nine — which no measured run of any class has ever
-       reached. The arcane book is three attacks starting at one.
-       So the priest was not a class with a weak verb; it was a
-       class with no verb, and it shows in the fight table: it wins
-       40 of 40 against a four-body pack and takes 38 turns doing
-       it, the slowest in the game by a factor of two.
-       Detection moves late instead. It is the one utility that
-       gets *better* deep — a mimic on floor eleven is worth
-       unmasking, one on floor three is worth a dagger. */
-    { id:'smite',  name:'응징의 빛',   short:'응징', lv:5,  cost:5,  desc:'시야의 적 하나를 빛으로 태운다.' },
-    { id:'detect', name:'악 감지',     short:'감지', lv:9,  cost:3,  desc:'층의 모든 몬스터 위치를 읽는다.' },
+    { id:'detect', name:'악 감지',     short:'감지', lv:5,  cost:3,  desc:'층의 모든 몬스터 위치를 읽는다.' },
+    { id:'smite',  name:'응징의 빛',   short:'응징', lv:9,  cost:5,  desc:'시야의 적 하나를 빛으로 태운다.' },
     { id:'heal',   name:'중상 치유',   short:'회복', lv:13, cost:8,  desc:'깊은 상처까지 되돌린다.' },
   ],
 };
-
-/* ── 잔향 ─────────────────────────────────────────────────
-   What each spell leaves behind for the next one. Five spells,
-   five afterimages, and every spell reads every afterimage — so
-   the mage's kit is twenty-five sentences rather than five words,
-   without a single extra button on the row.
-
-   Deliberately none of these is "cheaper". A caster that plays
-   for discounts plays the same spell more often; a caster that
-   plays for order plays a different spell on purpose. */
-export const ECHOES = {
-  bolt:   { id:'spark', n:'불씨', t:'다음 주문의 위력이 크게 오른다' },
-  blink:  { id:'haste', n:'자취', t:'다음 주문은 턴을 쓰지 않는다' },
-  detect: { id:'eye',   n:'눈',   t:'다음 주문이 보이는 나머지 전부에게도 절반으로 간다' },
-  frost:  { id:'rime',  n:'서리', t:'다음 주문에 맞은 것은 한 턴을 잃는다' },
-  map:    { id:'reach', n:'지형', t:'다음 주문이 층 전체를 방으로 삼는다' },
-};
-export const ECHO_TURNS = 4;     // how long an afterimage lingers
-export const ECHO_POWER = 0.6;   // 불씨
-export const ECHO_SPLASH = 0.5;  // 눈
 
 /* ── status effects ───────────────────────────────────────
    Everything a monster can leave on you. `dur` is turns; the
@@ -757,11 +712,15 @@ export const RESONANCE = [
     say:'아침은 매번 온다. 그것만으로도 대부분은 충분하다.' },
 ];
 
+/* Every place that walks the worn gear reads this, so adding a
+   slot is one edit rather than a dozen that can drift apart. */
+export const GEAR_SLOTS = ['weapon', 'body', 'shield', 'quiver'];
+
 /* Read off the finished build rather than off the item that
    supplied it, same rule as `need` — a boon and a spell affix are
    different pockets and both should count. */
 const hasBoonId = (p, id) =>
-  ['weapon', 'body', 'shield'].some(k => p?.equip?.[k]?.boon === id);
+  GEAR_SLOTS.some(k => p?.equip?.[k]?.boon === id);
 const hasSpellEcho = p =>
   !!p?.spellAffix && Object.values(p.spellAffix).includes('echo');
 export const resonanceById = id => RESONANCE.find(r => r.id === id);
@@ -942,44 +901,29 @@ export const ARTS = {
     { id:'cleave',   name:'휩쓸기',   short:'휩쓺', lv:3,  stam:3,
       desc:'인접한 모든 것을 한 번에 벤다.' },
     /* 버티기 stood here: four turns of taking less and handing
-       some back. Measured, the bot pressed it 10.2 times a run at
-       level twelve — more than the other three arts put together
-       — because standing still and absorbing is always available
-       and never wrong. That is the opposite of what every other
-       verb in this game asks for, which is a decision about
-       *where to be*. An art nobody has to think about is the one
-       that gets pressed most, and it made the warrior read as the
-       class that waits.
-       연타 is the same slot spent forwards: the reward is for
-       landing, not for enduring, and a miss ends it. */
+       some back. Measured, a bot pressed it 10.2 times a run at
+       level twelve — more than the other three arts put together —
+       because standing still and absorbing is always available and
+       never wrong. That is the opposite of what every other verb
+       in this game asks for, which is a decision about *where to
+       be*. 연타 is the same slot spent forwards. */
     { id:'flurry',   name:'연타',     short:'연타', lv:7,  stam:2,
       desc:'한 호흡에 잇달아 친다. 맞을 때마다 다음 한 대가 무거워지고, 빗나가면 거기서 끝난다.' },
     { id:'finisher', name:'마무리',   short:'마무', lv:11, stam:4,
       desc:'상대가 잃은 피만큼 무거워지는 한 방.' },
   ],
 
-  /* The ranger cast the mage's five spells with worse intelligence
-     and swung worse than the rogue — best at nothing, which is
-     what "어중간" means. Its axis is the one the game never had:
-     the space between you and the thing.
-
-     So its arts spend arrows rather than mana, and every one of
-     them is a different answer to distance. Where the warrior's
-     four ask "what is next to me", these four ask "where is
-     everything standing". */
-  /* The rogue's four spend 그림자 rather than breath alone, and
-     the brief they were written to is narrow on purpose: "unseen
-     I am strong, seen I am naked" is a class that simply dies to
-     a pack and to an archer, because neither lets you choose when
-     to be seen. So two of these four are answers to exactly that
-     — 그림자 도약 deletes the distance an archer needs, 칼부채
-     answers a room rather than a body — and only the other two
-     are the assassin's fantasy.
-
-     They are also the reason the resource can refill mid-fight:
-     어둠 되감기 makes the things around you lose you, which turns
-     the next blow into an ambush, which pays a shade back. That
-     loop is the class. */
+  /* ── 도적의 넷 ────────────────────────────────────────
+     The brief these were written to is narrow on purpose: "unseen
+     I am strong, seen I am naked" is a class that simply dies to a
+     pack and to an archer, because neither lets you choose when to
+     be seen. So two of the four answer exactly that — 그림자 도약
+     deletes the distance an archer needs, 칼부채 answers a room
+     rather than a body — and only the other two are the assassin's
+     fantasy.
+     They are also why the resource refills mid-fight: 어둠 되감기
+     makes the things around you lose you, which turns the next
+     blow into an ambush, which pays a shade back. */
   rogue: [
     { id:'shadowstep', name:'그림자 도약', short:'도약', lv:1,  stam:1, shade:1,
       desc:'보이는 적의 등 뒤로 건너뛰어 친다. 그 한 대는 기습이다. (그림자 1)' },
@@ -991,135 +935,169 @@ export const ARTS = {
       desc:'모은 것을 한 번에 태운다. 갑옷을 지나가는 한 방. (그림자 3)' },
   ],
 
-  /* 속죄 leads, and that ordering was measured rather than
-     chosen. Taking the divine book away took the paladin's only
-     healing with it, and with 속죄 sitting at level 11 the class
-     fell from 2.4층 to 1.3층 — it was dying on floor one to
-     굶은 들쥐 with nothing to close a wound. The heal has to be
-     the first thing it learns, because it is the only thing it
-     has that a potion is not.
-     Both 'all' arts empty the same pouch, which is the decision
-     the class is built on: the wall you saved is either the blow
-     or the bandage, never both. */
+  /* The ranger cast the mage's five spells with worse intelligence
+     and swung worse than the rogue — best at nothing, which is
+     what "어중간" means. Its axis is the one the game never had:
+     the space between you and the thing.
+
+     So its arts spend arrows rather than mana, and every one of
+     them is a different answer to distance. Where the warrior's
+     four ask "what is next to me", these four ask "where is
+     everything standing". */
+  /* 사제. Spent from 신앙 rather than mana or breath, so the
+     priest's four are the only things in the game that get easier
+     the worse the fight is going. */
+  priest: [
+    { id:'sanctum',  name:'성역',   short:'성역', lv:1,  faith:3,
+      desc:'선 자리를 축성한다. 그 안에서는 받는 피해가 절반 아래로 떨어지고, 죽지 않는 것은 붙지 못한다.' },
+    { id:'anathema', name:'파문',   short:'파문', lv:4,  faith:4,
+      desc:'하나를 지목한다. 그것은 더는 아물지 않고, 모두에게 더 아프다.' },
+    { id:'judge',    name:'심판',   short:'심판', lv:8,  faith:6,
+      desc:'보이는 죽지 않는 것 전부가 크게 다치고 달아난다.' },
+    { id:'martyr',   name:'순교',   short:'순교', lv:12, faith:9,
+      desc:'다섯 턴 동안 쓰러지지 않는다. 끝나면 피한 것이 한꺼번에 온다.' },
+  ],
+
+  /* ── 팔라딘의 넷 ───────────────────────────────────
+     The warrior's arts ask what is next to you, the ranger's ask
+     where everything is standing, the priest's ask what the
+     ground and the dead are doing. These ask which single thing
+     in the room is the worst one — and then how to get to it,
+     through it, and on to the next. */
   paladin: [
-    { id:'atone',   name:'속죄',       short:'속죄', lv:1,  stam:2, oath:'all', oathMax:3,
-      desc:'견딘 만큼 아문다. 맹세를 최대 셋까지 태우고 상처와 병을 함께 닫는다. (맹세 1~3)' },
-    { id:'call',    name:'선언',       short:'선언', lv:4,  stam:2, oath:2,
-      desc:'이름을 부른다. 보이는 것들이 두 칸 끌려오고, 전부 깨어난다. (맹세 2)' },
-    { id:'ring',    name:'심판의 고리', short:'고리', lv:7,  stam:2, oath:3,
-      desc:'둘러싼 것들을 한 바퀴에 친다. 맹세가 높을수록 무겁다. (맹세 3)' },
-    { id:'requite', name:'응보',       short:'응보', lv:11, stam:1, oath:'all',
-      desc:'쌓인 맹세를 전부 태워 내리친다. 많이 맞았을수록 무겁다. (맹세 전부)' },
+    { id:'charge',  name:'돌진',        short:'돌진', lv:1,  oath:2,
+      desc:'네 칸까지 직선으로 달려가 첫 번째 것을 들이받는다. 벽에 처박히면 두 턴을 잃는다.' },
+    { id:'judgest', name:'심판의 일격',  short:'일격', lv:4,  oath:3,
+      desc:'방어를 완전히 무시한다. 그리고 상대의 최대 체력이 클수록 더 아프다.' },
+    { id:'storm',   name:'성스러운 폭풍', short:'폭풍', lv:8,  oath:4,
+      desc:'주위 여덟 칸 전부. 여기서 죽은 것마다 맹세가 하나씩 돌아온다.' },
+    { id:'crusade', name:'성전',        short:'성전', lv:12, oath:8,
+      desc:'가장 가까운 것을 벤다. 죽으면 다음으로 걸어가 또 벤다. 죽지 않는 순간 끝난다.' },
   ],
 
   ranger: [
-    /* Breath, not arrows. Measured at level twelve the ranger died
-       holding 14.5 arrows with its lungs empty, so the cost moved
-       off the binding resource — but charging two arrows instead
-       was measured too, and it cost the *early* ranger 0.4 of a
-       floor: a level-three hunter with 24 arrows and no shop in
-       reach is exactly where the quiver does bind. So: cheaper in
-       breath, unchanged in arrows. */
-    { id:'aimed',   name:'조준 사격', short:'조준', lv:1,  stam:1, ammo:1,
+    { id:'aimed',   name:'조준 사격', short:'조준', lv:1,  stam:2,
       desc:'빗나가지 않는다. 그리고 멀수록 아프다 — 활의 감쇠가 뒤집힌다.' },
-    { id:'pierce',  name:'관통 사격', short:'관통', lv:4,  stam:3, ammo:1,
+    { id:'pierce',  name:'관통 사격', short:'관통', lv:4,  stam:3,
       desc:'화살이 일직선 위의 모든 것을 뚫고 지나간다.' },
     { id:'snare',   name:'덫 놓기',   short:'덫',   lv:8,  stam:3,
-      desc:'발밑에 덫을 묻고 물러선다. 따라온 것은 두 턴을 잃는다.' },
-    { id:'volley',  name:'빗발',      short:'빗발', lv:12, stam:3, ammo:3,
+      desc:'발밑에 덫을 묻는다. 밟은 것은 두 턴을 잃는다.' },
+    { id:'volley',  name:'빗발',      short:'빗발', lv:12, stam:5,
       desc:'보이는 모든 것에게 한 발씩. 각각은 절반만 아프다.' },
   ],
 };
 
+/* ── the priest ───────────────────────────────────────────
+   Four of its five spells did not hurt anything, its one attack
+   arrived at level nine, and its trait was more healing. The
+   whole class was "do not die", which in a game with no other
+   people in it is the definition of doing nothing — you lose
+   more slowly. It measured fifth of six.
+
+   The fix is not another heal. It is a resource that runs the
+   other way from everyone else's: 신앙 fills when you are hit and
+   when you put down something that should already be still. A
+   mage is strongest with a full pool, which is at the start of a
+   fight; a priest is strongest at the end of a bad one. That
+   inversion is the class, and none of the four arts below is a
+   heal. */
+export const FAITH_MAX     = 12;
+export const FAITH_PER_HURT = 1;    // per blow taken, not per point
+export const FAITH_PER_UNDEAD = 2;
+/* A hard blow is worth two. At one per hit the bar filled about
+   as fast as 성역 and 파문 emptied it, so 순교 — nine of twelve —
+   was a button nobody could reach: it fired zero times in twelve
+   measured runs. Weighting the heavy hits means the bar fills
+   fastest exactly when the floor is trying to kill you, which is
+   the only moment the art is for. */
+export const FAITH_HARD_HIT = 0.15; // share of maximum health that counts as hard
+export const FAITH_PER_HARD = 2;
+export const SANCTUM_TURNS = 6;
+export const SANCTUM_CUT   = 0.55;  // damage taken inside, reduced by this share
+export const ANATHEMA_MORE = 0.35;  // what a marked thing takes on top
+export const JUDGE_HURT    = 0.42;  // share of an undead's maximum, in one word
+export const MARTYR_TURNS  = 5;
+
 /* ── 그림자 ───────────────────────────────────────────────
-   The rogue's ammunition. Five is the cap because the most
-   expensive art costs three: a full pouch is one 급소 and a
-   도약, or two 칼부채 — enough that a full pouch is a plan, few
-   enough that it is never a rotation. */
+   Five is the cap because the most expensive art costs three: a
+   full pouch is one 급소 and a 도약, or two 칼부채 — enough that a
+   full pouch is a plan, few enough that it is never a rotation. */
 export const SHADOW_MAX  = 5;
 export const SHADOW_TICK = 5;     // turns unseen that earn one
 export const FAN_RANGE   = 4;
 export const FAN_ARC     = 0.35;  // dot-product floor: a touch wider than 90°
-export const FAN_SHARE   = 0.7;   // what each body in the arc takes of one swing
-/* Three, not two: the turn the art is used on is itself spent,
-   so two reads as one on the bench. This is the same off-by-one
-   the warrior's 버티기 has a comment about. */
-export const VANISH_HUSH = 3;     // turns nothing can notice you afterwards
+export const FAN_SHARE   = 0.7;
+export const VANISH_HUSH = 3;     // the turn it is used on is itself spent
 export const VITALS_MULT = 2.6;
 
-/* ── 팔라딘의 넷 ──────────────────────────────────────────
-   The rogue gathers by not being seen; this one gathers by being
-   hit. Same grammar — ammunition you save and burn — and the
-   opposite instruction, so the two can never be the same class.
+/* ── 잔향 ─────────────────────────────────────────────────
+   What each spell leaves behind for the next one. Five spells,
+   five afterimages, and every spell reads every afterimage — so
+   the mage's kit is twenty-five sentences rather than five words,
+   without a single extra button on the row. Deliberately none of
+   these is "cheaper": a caster that plays for discounts plays the
+   same spell more often. */
+export const ECHOES = {
+  bolt:   { id:'spark', n:'불씨', t:'다음 주문의 위력이 크게 오른다' },
+  blink:  { id:'haste', n:'자취', t:'다음 주문은 턴을 쓰지 않는다' },
+  detect: { id:'eye',   n:'눈',   t:'다음 주문이 보이는 나머지 전부에게도 절반으로 간다' },
+  frost:  { id:'rime',  n:'서리', t:'다음 주문에 맞은 것은 한 턴을 잃는다' },
+  map:    { id:'reach', n:'지형', t:'다음 주문이 층 전체를 방으로 삼는다' },
+};
+export const ECHO_TURNS = 4;
+export const ECHO_POWER = 0.6;
+export const ECHO_SPLASH = 0.5;
 
-   The tension is the whole design: 맹세 *is* the armour class.
-   Spending it is taking the wall down to swing it, which means
-   every one of these four asks "am I finished being hit yet?"
+/* ── 연타 ─────────────────────────────────────────────────
+   Four is the ceiling because the fourth blow is already worth
+   two of the first, and the extra breath each swing costs is what
+   stops the pool being dumped into one turn for free. */
+export const FLURRY_MAX  = 4;
+export const FLURRY_STEP = 0.35;
+export const FLURRY_STAM = 1;
 
-   Two of the four answer what a slow, heavy class otherwise
-   cannot reach: 선언 drags the archers into arm's length instead
-   of chasing them, and 심판의 고리 answers a ring rather than a
-   body. And 속죄 is the class's only healing now — earned by
-   having been hurt, which is where a paladin's healing should
-   come from rather than from a spell list it borrowed. */
-export const OATH_BLOW  = 0.30;   // 응보: damage per oath burned
-export const CALL_PULL  = 2;      // 선언: tiles dragged
-export const CALL_COST  = 2;
-export const RING_COST  = 3;
-export const RING_BASE  = 0.60;   // 심판의 고리: share of a swing, before oath
-export const RING_STEP  = 0.10;   // …and per point of oath held
-/* 속죄 pays a floor plus a slope. The slope alone made the art
-   worthless exactly when the class needed it — a level-two
-   paladin holds one or two oath, and 7% of a small health bar is
-   not a decision, it is a wasted turn. The floor is what a
-   potion-less class needs to survive floor one; the slope is
-   what makes holding the wall worth it. */
-export const ATONE_BASE = 0.08;
-export const ATONE_HEAL = 0.06;
-export const ATONE_CAP  = 0.55;
-/* Health returned per point of oath still held, on a kill. One
-   was measured against 0.5 and 1.5 — 0.5 left the class on floor
-   1.7, 1.5 bought nothing over 1.0 (both 1.9). */
-export const KILL_MEND  = 1;
-
-/* 표적. The numbers the trait text has always promised — 9% a
-   stack, five stacks, 45% at the top. They were written inline in
-   one branch of one function, which is how the whole trait came
-   to be true of a bow used as a club and false of a bow used as a
-   bow. */
+/* ── 표적 ─────────────────────────────────────────────────
+   The numbers the trait text has always promised. They were
+   written inline in one branch of one function, which is how the
+   whole trait came to be true of a bow used as a club and false of
+   a bow used as a bow. */
 export const MARK_STEP = 0.09;
 export const MARK_MAX  = 5;
 
 export const AIMED_GAIN  = 0.09;   // damage per tile, instead of the usual loss
 export const PIERCE_KEEP = 0.85;   // what the arrow carries to the next body
 export const SNARE_TURNS = 2;
-/* How far the ranger steps back after burying it. The art always
-   said the ground should do the catching, and then left him
-   standing on his own trap — which against four bodies at once is
-   a turn spent doing nothing. Measured before this: the ranger
-   lost 40 of 40 pack fights, swinging a bow 13.8 times a fight
-   because nothing in its four arts reopens a gap. */
-export const SNARE_STEP = 2;
-/* 빗발 was strictly worse than 휩쓸기, a level-three art: it cost
-   five breath and three arrows to hit each body for half, where
-   the warrior pays three breath to hit each adjacent body for
-   0.8. Against the four-body swarm both reach the same four. A
-   level-twelve capstone that loses to a level-three art in the
-   situation it was written for is not a balance question, it is a
-   typo with a long life. */
-export const VOLLEY_SHARE = 0.65;
+export const VOLLEY_SHARE = 0.5;
 
 export const SHOVE_DIST   = 2;     // tiles pushed
 export const SHOVE_WALL   = 0.5;   // extra damage, as a share of a normal blow, on impact
 export const CLEAVE_SHARE = 0.8;   // what each adjacent body takes, vs one clean swing
-/* 연타. Four is the ceiling because the fourth blow is already
-   worth two of the first, and the extra stamina each swing costs
-   is what stops the pool being dumped into one turn for free —
-   the warrior's rhythm stays spend-and-wait. */
-export const FLURRY_MAX  = 4;
-export const FLURRY_STEP = 0.35;   // what each landed blow adds to the next
-export const FLURRY_STAM = 1;      // extra breath per blow after the first
+export const BRACE_TURNS  = 4;
+export const BRACE_CUT    = 0.4;   // damage taken, reduced by this share
+export const BRACE_THORNS = 0.5;   // what the blocker hands back, of what it stopped
 export const FINISH_MAX   = 2.5;   // the blow at the target's last sliver
+
+/* ── 맹세 ─────────────────────────────────────────────────
+   It used to be a number that leaked. +1 defence for every blow
+   taken, one given back on every kill — so the better the fight
+   went the less the paladin had, and the whole class was "stand
+   there and be hard to move". A wall is not a fantasy in a game
+   where the interesting thing is walking into a room and taking
+   it apart, and the class it produced was a warrior with more
+   health and no verbs.
+
+   It runs the other way now: filled by being hit AND by killing,
+   spent on four ways of killing. Which means the paladin
+   accelerates — a good swing pays for the next one, and the room
+   gets worse for it rather than better. */
+export const OATH_MAX     = 10;
+export const OATH_PER_HIT = 1;
+export const OATH_PER_KILL = 1;
+export const CHARGE_DIST  = 4;     // tiles crossed to reach the first body
+export const CHARGE_SLAM  = 2;     // turns lost by something driven into a wall
+export const JUDGE_STRIKE = 0.12;  // share of the target's maximum, on top of the swing
+export const STORM_SHARE  = 0.9;   // what each surrounding body takes, vs one clean swing
+export const CRUSADE_MAX  = 6;     // how many times the chain may continue
 
 /* A chest is a monster you have not identified yet. Its profile
    is derived from the floor rather than fixed, because a chest
@@ -1179,10 +1157,11 @@ export const WEAPON_TYPES = {
    trade: it reaches, and it runs out. Melee with one in hand is
    half a blow, so carrying a bow is a commitment rather than a
    free extra button. */
+export const SMOKE_RADIUS = 3;   // tiles; what loses your trail
+export const SMOKE_TURNS  = 4;   // how long the tile stays blind
+
 export const BOW_MELEE = 0.5;      // what a bow swings for up close
 export const BOW_FALLOFF = 0.045;  // damage lost per tile, so range is not free
-export const QUIVER_MAX = 40;
-export const AMMO_BUNDLE = 12;   // arrows per purchase
 
 /* ── locks ────────────────────────────────────────────────
    A locked door used to cost nothing to force. Fail the roll and
@@ -1206,6 +1185,21 @@ export const CHEST_RUIN   = 0.5;  // odds a forced lid spoils something inside
    does not go off. Not immunity — a habit. */
 export const RANGER_FOOTING = 0.55;
 
+/* 사냥꾼의 몫. Taking the ranger's spell list away was right —
+   it was casting the mage's book at the mage's stat minus two,
+   which is the definition of an in-between. Replacing it with
+   four more ways to deal damage was not: the list was carrying
+   the class's *sustain*, and in this game floors are bought with
+   staying alive rather than with hurting things. It measured
+   8.2 floors with the book and 5.7 without it.
+   So the sustain comes back, but only to the hand that plays the
+   class properly — nothing recovers from a kill made at arm's
+   length. Stand off and put something down, and you get your
+   breath back. */
+export const QUARRY_RANGE = 2;      // tiles; closer than this and the kill is free of charge
+export const QUARRY_STAM  = 2;
+export const QUARRY_HEAL  = 0.045;  // share of maximum health per ranged kill
+
 /* ── whose hands ──────────────────────────────────────────
    Until now a longsword was a longsword whoever picked it up.
    Every item read the same for every one of the forty-eight
@@ -1226,8 +1220,8 @@ export const RANGER_FOOTING = 0.55;
        equipped
 
    Deliberately *not* balanced against each other. 마법사 × 지팡이
-   returning mana is small and constant; 레인저 × 활 recovering
-   arrows is enormous for that build and worthless for any other.
+   returning mana is small and constant; 레인저 × 활 swinging for
+   full is enormous for that build and worthless for any other.
    That asymmetry is the point — it is what makes the forty-eight
    pairs into forty-eight different games rather than one game
    with a stat screen. */
@@ -1240,10 +1234,15 @@ export const FITS = [
     when:(p, it) => p.cls === 'rogue' && fam(it, 'dagger'),
     t:'세 번째 손이 두 번째에 온다.',
     rule:'thirdAtTwo' },
+  /* Was "half your arrows come back", which stopped meaning
+     anything the moment arrows stopped being counted. It answers
+     the class's measured way of dying instead: the ranger dies
+     with something in its face, and a bow up close is half a
+     blow for everyone. Not for these hands. */
   { id:'archersHand', n:'궁수의 손', good:true,
     when:(p, it) => p.cls === 'ranger' && fam(it, 'bow'),
-    t:'쏜 화살의 절반은 주워 올 수 있다.',
-    rule:'recover' },
+    t:'활을 휘둘러도 온전한 한 대가 나간다.',
+    rule:'bowButt' },
   { id:'magesRod', n:'술사의 지팡이', good:true,
     when:(p, it) => p.cls === 'mage' && fam(it, 'wand'),
     t:'주문을 외울 때마다 마나 1이 돌아온다.',
@@ -1384,23 +1383,46 @@ export function oddityOf(p, it) {
   return fitsOf(p, it).some(f => f.id === o.needs) ? o : null;
 }
 export const fitRule = (p, rule) =>
-  ['weapon', 'body', 'shield'].some(k =>
+  GEAR_SLOTS.some(k =>
     fitsOf(p, p?.equip?.[k]).some(f => f.rule === rule));
 
-/* Ammunition. Ordinary arrows are cheap and everywhere; the other
-   three are a decision about which fight you are saving them for.
-   `dmg` is a multiplier on the bow's roll. */
-export const AMMO = [
-  { id:'arrow',  n:'화살',        spr:'spear', cost:3,  rar:14, d:0,  dmg:1.0,
-    desc:'평범한 화살. 쏘고 나면 사라진다.' },
-  { id:'heavy',  n:'무거운 화살',  spr:'spear', cost:9,  rar:7,  d:3,  dmg:1.55, hit:-8,
-    desc:'피해 +55%, 명중 −8. 두꺼운 것에게.' },
-  { id:'venom',  n:'독화살',      spr:'spear', cost:12, rar:6,  d:5,  dmg:0.9,  on:'poison',
-    desc:'맞은 것이 중독된다. 오래 끄는 싸움에.' },
-  { id:'ember',  n:'불화살',      spr:'spear', cost:16, rar:5,  d:8,  dmg:1.15, burst:0.35,
-    desc:'죽은 자리가 터진다. 무리 한가운데로.' },
+/* ── 화살통 ───────────────────────────────────────────────
+   Arrows used to be a counted consumable, and counting them was
+   the worst thing in the game: 57% of measured ranger runs ended
+   with an empty quiver, at which point the class holds a stick.
+   A bow that can stop working is not a build, it is a chore, and
+   the chore fell entirely on the one class that cannot put the
+   bow down.
+
+   So the count is gone and the arrows became gear. The quiver is
+   a slot of its own — you cannot hold a shield and a quiver, but
+   every bow is two-handed anyway, so what it really trades
+   against is nothing you were using. What it buys is the second
+   half of the weapon: the bow is the roll, the quiver is what
+   the roll turns into. Both halves take enhancement and
+   properties, so a bow build has two things to find instead of
+   one thing to refill. */
+export const QUIVERS = [
+  { id:'deer',   n:'사슴가죽 화살통', spr:'spear', slot:'quiver', cost:40,   rar:12, d:0,
+    dmg:1.0,
+    desc:'곧게 깎은 화살. 특별할 것은 없고, 떨어지지도 않는다.' },
+  { id:'heavy',  n:'무거운 화살촉',   spr:'spear', slot:'quiver', cost:260,  rar:8,  d:3,
+    dmg:1.40, hit:-3,
+    desc:'피해 +40%, 명중 −3. 두꺼운 것을 뚫으려고 무게를 실었다.' },
+  { id:'venom',  n:'독 바른 화살촉',  spr:'spear', slot:'quiver', cost:420,  rar:6,  d:5,
+    dmg:0.95, on:'poison',
+    desc:'맞은 것이 중독된다. 체력이 큰 것일수록 치명적이고, 작은 것에게는 거의 의미가 없다.' },
+  { id:'ember',  n:'불붙이는 화살촉', spr:'spear', slot:'quiver', cost:680,  rar:5,  d:8,
+    dmg:1.15, burst:0.35,
+    desc:'죽은 자리가 터진다. 무리 한가운데를 노려라.' },
+  { id:'barbed', n:'미늘 화살촉',     spr:'spear', slot:'quiver', cost:900,  rar:4,  d:10,
+    dmg:1.2, bleed:true,
+    desc:'뽑히지 않는다. 맞은 것은 걸음이 느려진다.' },
+  { id:'long',   n:'긴 깃 화살통',    spr:'spear', slot:'quiver', cost:1200, rar:3,  d:12,
+    dmg:1.1, rng:2, falloff:-0.02,
+    desc:'사거리 +2. 멀리서도 힘이 덜 죽는다.' },
 ];
-export const ammoById = id => AMMO.find(a => a.id === id);
+export const quiverById = id => QUIVERS.find(q => q.id === id);
 
 /* ── 문장 ─────────────────────────────────────────────────
    Every blow in this game used to read `${적}에게 ${n}의 피해.`
@@ -1584,6 +1606,13 @@ export const CONSUMABLES = [
      reaches for it by id. Three tries to a set. */
   { id:'picks',    spr:'ring',   n:'자물쇠 갈고리', d:1,  cost:55,  rar:9,  use:null,
     desc:'잠긴 문과 상자를 조용히 연다. 실패해도 하나가 닳는다' },
+  /* The answer to being closed on, and it is not damage. Every
+     class that dies with something in its face can buy one; the
+     ranger is simply the class that dies that way most, so it
+     starts with two. Breaking pursuit is a real verb in a game
+     where everything walks at your speed. */
+  { id:'smoke',    spr:'potion', n:'연막탄',        d:1,  cost:90,  rar:9,  use:'smoke',
+    desc:'터진 자리 둘레의 것들이 당신을 놓친다. 쫓아오던 걸음이 끊긴다' },
   { id:'scrMap',   spr:'scroll', n:'지도 두루마리',   d:2,  cost:70,  rar:8,  use:'map',
     desc:'이 층의 지형이 전부 드러난다' },
   { id:'scrTele',  spr:'scroll', n:'전이 두루마리',   d:3,  cost:80,  rar:8,  use:'teleport',
@@ -1617,18 +1646,36 @@ export const UNKNOWABLE = CONSUMABLES
 
 /* ── the town ─────────────────────────────────────────────
    Six shops, as on Moria's level 0.                        */
+/* ── the six carts ────────────────────────────────────────
+   There are no shops. The town they were in is a field of
+   roofless shells, and what is left is six traders who pulled
+   their carts into one cleared lane and stayed close enough to
+   hear each other shout. Nobody here lives here.
+
+   Every one of them used to sell 체력 물약 — four of six did,
+   which made the whole camp one merchant wearing six signs. Each
+   holds a monopoly now, and the priest, who had no reason to
+   exist at all, does the one thing in the game that is not a
+   purchase: he takes things *off* your gear. */
 export const SHOPS = [
-  { id:1, n:'잡화점',   spr:'torch',  stock:['torch','potHeal','scrMap'], ammo:['arrow'] },
-  { id:2, n:'방어구점', spr:'armor',  stock:'armour' },
-  { id:3, n:'무기점',   spr:'sword',  stock:'weapon', ammo:['arrow','heavy','venom','ember'] },
-  { id:4, n:'신전',     spr:'amulet', stock:['potHeal','potCure'] },
-  { id:5, n:'연금술사', spr:'potion', stock:['potHeal','potMana','potCure'], cats:true },
-  { id:6, n:'마법상',   spr:'wand',   stock:['scrMap','scrTele','scrFlee','potMana'] },
+  { id:1, n:'잡화 행상',   spr:'torch',  stock:['torch','picks','smoke','scrMap'],
+    t:'도구. 불, 갈고리, 연기 — 싸움 밖에서 쓰는 것들.' },
+  { id:2, n:'갑주 행상',   spr:'armor',  stock:'armour',
+    t:'입는 것 전부. 방패도 이 수레에만 있다.' },
+  { id:3, n:'무기 행상',   spr:'sword',  stock:'weapon', quivers:true,
+    t:'드는 것 전부. 활과 화살통을 거는 유일한 자리.' },
+  { id:4, n:'순회 사제',   spr:'amulet', temple:true, stock:['potCure'],
+    t:'파는 사람이 아니다. 붙은 것을 떼어 내 준다.' },
+  { id:5, n:'약장수',     spr:'potion', stock:['potHeal','potMana','potCure'], cats:true,
+    t:'물약과 촉매. 마시는 것은 여기서만 산다.' },
+  { id:6, n:'두루마리 장수', spr:'wand',  stock:['scrMap','scrTele','scrFlee'], rods:true,
+    t:'두루마리와 지팡이. 읽는 것과 외우는 것.' },
   /* Not in town. This one walks the dungeon, which is the only
      reason the gold in your purse means anything after floor 1. */
   { id:7, n:'떠돌이 상인', spr:'amulet', wander:true,
-    stock:['potHeal','potCure','potMana','scrTele','scrMap','scrFlee','torch'],
-    mats:['scrap','dust','essence'], cats:true },
+    stock:['potHeal','potCure','potMana','scrTele','scrMap','scrFlee','torch','smoke'],
+    mats:['scrap','dust','essence'], cats:true,
+    t:'층 안에서 만난다. 무엇이든 조금씩, 값은 비싸게.' },
 ];
 
 /* ── affixes ──────────────────────────────────────────────
@@ -1713,14 +1760,18 @@ export const ELITES = [
    you can see it before you can read it. */
 export const RARITY = [
   { n:'평범', tone:'w', glow:null },
-  { n:'마법', tone:'B', glow:'#5b9bd5' },
-  { n:'희귀', tone:'y', glow:'#e8c76a' },
-  { n:'유물', tone:'P', glow:'#b57ad0' },
+  { n:'마법', tone:'B', glow:'#48a8f8' },
+  { n:'희귀', tone:'y', glow:'#f8d020' },
+  { n:'유물', tone:'P', glow:'#c868f8' },
   /* 초월. Colourless on purpose — every other tier gets a hue,
      and the one above them all is simply too bright to have one. */
-  { n:'초월', tone:'W', glow:'#f2efe4' },
+  { n:'초월', tone:'W', glow:'#f8f8f8' },
 ];
 export const CURSED_TONE = 'R';
+/* What the temple charges to take a curse off, as a share of what
+   the item is worth. Priced so that cleansing a good find is
+   obviously right and cleansing a bad one is obviously a waste. */
+export const TEMPLE_SHARE = 0.45;
 
 /* ── 초월 ─────────────────────────────────────────────────
    The tier you cannot grind into. Rarity 0–3 is arithmetic on
@@ -2215,15 +2266,7 @@ export const CLASS_BAND = {
   priest:  { wis:'prime', con:'good',  chr:'good',  str:'fair', int:'fair',  dex:'weak' },
   rogue:   { dex:'prime', chr:'good',  int:'good',  str:'fair', con:'fair',  wis:'weak' },
   ranger:  { dex:'prime', con:'good',  str:'good',  int:'fair', wis:'fair',  chr:'weak' },
-  /* 매력이 prime이었다. 신성 주문을 지혜로 쓰던 시절에는 말이
-     됐다 — 그때 팔라딘은 갑옷 입은 사제였고, 지혜가 주문을,
-     매력이 값을 샀다. 주문책을 뗀 지금 그 배분이 남긴 것은,
-     최고 능력치가 상점 흥정인 근접 직업이다.
-     측정: 2레벨 팔라딘의 한 턴 기대 피해 1.6, 전사 4.6. 힘 11.8
-     대 14.8이고 명중치는 2.2 대 6.3이었다. 판금을 입고 사제만큼
-     때린다.
-     맹세는 맞아서 쌓고 휘둘러 쓴다. 밴드도 그걸로 맞춘다. */
-  paladin: { str:'prime', con:'good',  chr:'good',  wis:'fair', dex:'weak',  int:'weak' },
+  paladin: { str:'good',  chr:'prime', wis:'good',  con:'good', dex:'weak',  int:'weak' },
 };
 
 /* What a fresh hero of this race and class can come out as, after

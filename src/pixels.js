@@ -4,36 +4,43 @@
    indexes PALETTE. Bake once at boot, blit scaled thereafter.
    ═══════════════════════════════════════════════════════════ */
 
+/* ── the console palette ──────────────────────────────────
+   Redesigned from scratch around an 8-bit home-console look:
+   true black, deep indigo shadow, and saturated primaries with
+   every channel quantized to 8-step DAC values (#x8), the way
+   the old PPUs actually mixed colour. The keys are a contract —
+   sprites, juice.js, terrain and styles.css all speak them —
+   only the values changed. */
 export const PALETTE = {
   '.': null,          // transparent
-  k: '#0a0c12',       // void black
-  d: '#1b2130',       // dark slate
-  g: '#333c52',       // stone
-  G: '#59657f',       // lit stone
-  w: '#d8d5c8',       // bone
-  W: '#f2efe4',       // highlight
-  r: '#8f2f28',       // dark red
-  R: '#d95a4a',       // red
-  o: '#d98a3c',       // ember
-  y: '#e8c76a',       // gold
-  n: '#5c3f28',       // brown
-  N: '#8f6b3f',       // tan
-  e: '#357a4c',       // green
-  E: '#6fb87a',       // pale green
-  b: '#2b5288',       // blue
-  B: '#5b9bd5',       // sky
-  p: '#6b3f85',       // violet
-  P: '#b57ad0',       // orchid
-  c: '#3f8f8f',       // teal
-  s: '#7d8596',       // steel
+  k: '#000000',       // true black — outlines and the void
+  d: '#181830',       // midnight indigo — floors, panels
+  g: '#484878',       // slate blue — stone in shadow
+  G: '#9090c0',       // lit stone
+  w: '#d8d8c0',       // bone
+  W: '#f8f8f8',       // white flash
+  r: '#a81020',       // dried blood
+  R: '#f84038',       // arcade red
+  o: '#f87c20',       // ember orange
+  y: '#f8d020',       // coin gold
+  n: '#805020',       // leather brown
+  N: '#c89050',       // tan hide
+  e: '#089840',       // deep green
+  E: '#58e068',       // slime green
+  b: '#2048c8',       // deep water
+  B: '#48a8f8',       // sky blue
+  p: '#8028a8',       // royal violet
+  P: '#c868f8',       // bright orchid
+  c: '#10b8a8',       // teal
+  s: '#98a0b8',       // steel
 };
 
 /* ── the bestiary, drawn ─────────────────────────────────── */
 export const SPRITES = {
   /* player — recolored per class at bake time via tint keys */
   hero: [
-    '..wwww..',
-    '.wWWWWw.',
+    '..nnnn..',
+    '.nwwwwn.',
     '.wkwwkw.',
     '..wwww..',
     '.CCCCCC.',
@@ -66,20 +73,22 @@ export const SPRITES = {
     'g.g..g.g',
     '......gg',
   ],
+  /* Cave bat — violet, not grey: grey wings vanished into the
+     new indigo floors the moment the palette got darker. */
   bat: [
     '........',
-    'g......g',
-    'gg.gg.gg',
-    '.gggggg.',
-    '.gRggRg.',
-    '..gggg..',
-    '...gg...',
+    'p......p',
+    'pp.pp.pp',
+    '.pPPPPp.',
+    '.pRPPRp.',
+    '..pPPp..',
+    '...pp...',
     '........',
   ],
   snake: [
     '........',
     '..EEE...',
-    '.Ee.eE..',
+    '.Ek.kE..',
     '.EEEEE..',
     '..eEEEe.',
     '.EEe.eEE',
@@ -180,15 +189,17 @@ export const SPRITES = {
   ],
 
   /* undead & horrors */
+  /* Wraith — lifted a full shade: the old charcoal body was
+     invisible against a true-black void. */
   wraith: [
-    '..dddd..',
-    '.dGGGGd.',
-    '.dBddBd.',
-    '..dGGd..',
-    '.dGdddGd',
-    'd.dGGd.d',
-    '..d..d..',
-    '...d.d..',
+    '..gggg..',
+    '.gGGGGg.',
+    '.gBggBg.',
+    '..gGGg..',
+    '.gGgggGg',
+    'g.gGGg.g',
+    '..g..g..',
+    '...g.g..',
   ],
   mummy: [
     '..wwww..',
@@ -200,15 +211,17 @@ export const SPRITES = {
     '.w.ww.w.',
     '.ww..ww.',
   ],
+  /* Vampire — the cloak used to be pure black, which is now the
+     colour of nothing. Indigo cloak, blood lining, white face. */
   vampire: [
-    '..kkkk..',
-    '.kWWWWk.',
-    '.kRkkRk.',
-    '..kWWk..',
-    'rkkrrkkr',
-    'rrkrrkrr',
+    '..dddd..',
+    '.dWWWWd.',
+    '.dRddRd.',
+    '..dWWd..',
+    'rddrrddr',
+    'rrdrrdrr',
     '.rr..rr.',
-    '.kk..kk.',
+    '.dd..dd.',
   ],
   lich: [
     '..WWWW..',
@@ -568,8 +581,8 @@ export const SPRITES = {
      the hero uses for classes. Drawn as a torso behind a counter
      because he is standing in a shopfront, not walking about. */
   keeper: [
-    '..wwww..',
-    '.wWWWWw.',
+    '..nnnn..',
+    '.nwwwwn.',
     '.wkwwkw.',
     '..wwww..',
     '.CCCCCC.',
@@ -644,6 +657,16 @@ export const SPRITES = {
     '..ssss..',
     '.ssssss.',
   ],
+  brazierLit2: [
+    '....o...',
+    '.o.oyo..',
+    '.ooyWyo.',
+    '.ssssss.',
+    '..ssss..',
+    '...ss...',
+    '..ssss..',
+    '.ssssss.',
+  ],
   pillar: [
     '.GGGGGG.',
     '.GggggG.',
@@ -694,6 +717,18 @@ export const SPRITES = {
     '.nnnnn..',
     '........',
   ],
+  /* Frame two of the fire: the flame leans and sheds a spark.
+     Same logs, same footprint — only the light moves. */
+  camp2: [
+    '.....o..',
+    '....o...',
+    '...oyo..',
+    '..yWyo..',
+    '.oyyyo..',
+    'nnoyonn.',
+    '.nnnnn..',
+    '........',
+  ],
   campSpent: [
     '........',
     '........',
@@ -721,6 +756,18 @@ export const SPRITES = {
     'bbbbbbbb',
     'bBbbbbBb',
     'bbbbbbbb',
+    '.bbbbbb.',
+    '........',
+  ],
+  /* Frame two: the same pool with the glints shifted one over —
+     a palette-cycle wave, the oldest trick the PPU knew. */
+  water2: [
+    '........',
+    '..bbbb..',
+    '.bbBbbB.',
+    'bBbbbbbb',
+    'bbbbBbbb',
+    'bbBbbbBb',
     '.bbbbbb.',
     '........',
   ],
@@ -780,9 +827,11 @@ export const SPRITES = {
 
    Baked once per combination at boot: 48 tiny canvases. */
 export const RACE_BODY = {
+  // Human: brown hair over an ordinary face — the baseline the
+  // other seven deviate from.
   human: [
-    '..wwww..',
-    '.wWWWWw.',
+    '..nnnn..',
+    '.nwwwwn.',
     '.wkwwkw.',
     '..wwww..',
     '..CCCC..',
@@ -790,10 +839,10 @@ export const RACE_BODY = {
     '..C..C..',
     '..n..n..',
   ],
-  // Half-elf: a little of the point, a little of the height.
+  // Half-elf: fair hair, and a little of the ear's point.
   halfElf: [
-    '..wwww..',
-    '.wWWWWw.',
+    '..yyyy..',
+    '.ywwwwy.',
     'wwkwwkww',
     '..wwww..',
     '..CCCC..',
@@ -812,45 +861,45 @@ export const RACE_BODY = {
     '..C..C..',
     '..n..n..',
   ],
-  // Halfling: small, low, wide-footed. Sits a row lower.
+  // Halfling: small, low, a mop of curls. Sits a row lower.
   halfling: [
     '........',
-    '..NNNN..',
-    '.NwkkwN.',
-    '..NNNN..',
+    '..nnnn..',
+    '.nwkkwn.',
+    '..wwww..',
     '..CCCC..',
     '.CCCCCC.',
     '..C..C..',
     '.nn..nn.',
   ],
-  // Gnome: big head, small body, a shock of hair.
+  // Gnome: big head, small body, a shock of white hair.
   gnome: [
-    '.NNNNNN.',
-    'NNwwwwNN',
-    'NwkNNkwN',
-    '.NNwwNN.',
+    '.WWWWWW.',
+    'WWwwwwWW',
+    'WwkwwkwW',
+    '.WWwwWW.',
     '..CCCC..',
     '.C.CC.C.',
     '..C..C..',
     '..n..n..',
   ],
-  // Dwarf: broad, and the beard is most of the face.
+  // Dwarf: broad, and the fire-orange beard is most of the face.
   dwarf: [
-    '.NNNNNN.',
-    'NwwwwwwN',
-    'NwkwwkwN',
-    '.NNNNNN.',
-    '.NCCCCN.',
+    '.oooooo.',
+    'owwwwwwo',
+    'owkwwkwo',
+    '.oooooo.',
+    '.oCCCCo.',
     'CCCCCCCC',
     '.CC..CC.',
     '.nn..nn.',
   ],
-  // Half-orc: green, jawed, tusks up from the lip.
+  // Half-orc: green, red-eyed, tusks up from the lip.
   halfOrc: [
     '..eeee..',
     '.eEEEEe.',
-    '.eRwwRe.',
-    '.wewwew.',
+    '.eREERe.',
+    '.WeEEeW.',
     '.CCCCCC.',
     'CC.CC.CC',
     '.C.CC.C.',
@@ -873,9 +922,9 @@ export const RACE_BODY = {
    Each kit owns row 0 (what is on the head) and rows 4–6 (what
    is on the body), and deliberately never touches rows 1–3. */
 export const CLASS_KIT = {
-  // 전사: a browed helm and shoulder plates.
+  // 전사: a browed helm with a white glint, shoulder plates.
   warrior: [
-    '.ssssss.',
+    '.sWssss.',
     '........',
     '........',
     '........',
@@ -884,25 +933,25 @@ export const CLASS_KIT = {
     '........',
     '........',
   ],
-  // 마법사: pointed hat, long robe, staff down the right.
+  // 마법사: pointed hat, long robe, wooden staff with a lit tip.
   mage: [
-    '...bb..b',
-    '..bbb..b',
-    '.......b',
-    '.......b',
-    '..bbb.nb',
-    '.bbbbb.b',
+    '...bb..y',
+    '..bbb..n',
+    '.......n',
+    '.......n',
+    '..bbb.nn',
+    '.bbbbb.n',
     '.bbbbb..',
     '..bbb...',
   ],
-  // 사제: a hood and a pale mantle, with a mark at the throat.
+  // 사제: a hood, a pale mantle, and a gold cross on the chest.
   priest: [
     '.WWWWWW.',
     'W......W',
     'W......W',
     '...yy...',
     '.WWWWWW.',
-    'WWWWWWWW',
+    'WWWyyWWW',
     '.WWWWWW.',
     '..WW.WW.',
   ],
@@ -928,9 +977,9 @@ export const CLASS_KIT = {
     '..e..e..',
     '........',
   ],
-  // 팔라딘: a crested helm and a gilded breastplate.
+  // 팔라딘: a red-plumed helm and a gilded breastplate.
   paladin: [
-    '...yy...',
+    '...RR...',
     '.yyyyyy.',
     '........',
     '........',
@@ -1148,7 +1197,7 @@ export function parchmentTile() {
   const cv = document.createElement('canvas');
   cv.width = PARCH; cv.height = PARCH;
   const c = cv.getContext('2d');
-  c.fillStyle = '#d8cba6';                            // the leaf itself
+  c.fillStyle = '#d8c8a0';                            // the leaf itself
   c.fillRect(0, 0, PARCH, PARCH);
   /* Fibre: short horizontal strokes at two weights, wrapped so
      the tile meets itself on every edge. */

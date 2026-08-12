@@ -99,47 +99,152 @@ export class Level {
     return t === ROCK || t === SHOP || isShut(t);
   }
 
-  /* ── town: an open plaza ringed by six shopfronts ── */
+  /* ── town: a place people built, not a plan ─────────────
+     The old one was a rectangle of floor with six identical
+     shopfronts pinned to its rim at even spacing, a scatter of
+     rubble, and the stairs bare in the middle. It read as a
+     level-select screen with a floor texture.
+
+     This one is cut the way a settlement actually grows: a
+     street that wanders because the ground made it wander, side
+     lanes of whatever length they happened to reach, a market
+     that is a widening of the street rather than a courtyard,
+     buildings of assorted footprints crowded against the lanes
+     with their doors on the street, and the stair mouth at the
+     far end with the town turning its back on it.
+
+     Half the buildings are shut houses with no door at all. A
+     town where every single building is a shop you can enter is
+     a shopping mall, and the one thing this town is supposed to
+     say is that most of the people who lived here have gone. */
   buildTown() {
-    const x0 = 6, y0 = 5, w = MW - 12, h = MH - 10;
+    const x0 = 3, y0 = 3, w = MW - 6, h = MH - 6;
+    const inb = (x, y) => x > x0 && y > y0 && x < x0 + w - 1 && y < y0 + h - 1;
+    const at = (x, y) => (inb(x, y) ? this.tiles[idx(x, y)] : ROCK);
+
     for (let y = y0; y < y0 + h; y++)
       for (let x = x0; x < x0 + w; x++) this.tiles[idx(x, y)] = FLOOR;
 
-    // scatter a few rubble piles for texture
-    for (let i = 0; i < 40; i++) {
-      const x = x0 + rnd(w), y = y0 + rnd(h);
-      if (this.tiles[idx(x, y)] === FLOOR) this.tiles[idx(x, y)] = RUBBLE;
+    /* The traders camp in the middle of it, the way people who
+       have somewhere else to be always do — in a cleared lane,
+       facing each other, close enough to hear each other shout. */
+    const cx = x0 + 8 + rnd(w - 22), cy = y0 + (h >> 1) + rnd(5) - 2;
+    const gateX = (cx - x0 < w / 2) ? x0 + w - 7 : x0 + 6;
+    const gateY = Math.max(y0 + 5, Math.min(y0 + h - 6, cy + rnd(11) - 5));
+    const camp = (x, y) => Math.abs(x - cx) <= 7 && Math.abs(y - cy) <= 4;
+    const yard = (x, y) => Math.hypot(x - gateX, y - gateY) < 4.5;
+
+    /* Ruins, not houses. Nothing here is a building you go into —
+       the roofs are down, the walls are open on at least one
+       side, and what is inside is what fell off the walls. A dozen
+       of them, not thirty: the point is that the streets between
+       are empty, and thirty shells is a maze, not a graveyard. */
+    for (let t = 0; t < 900 && this.rooms.length < 9; t++) {
+      const bw = 6 + rnd(4), bh = 5 + rnd(3);
+      const bx = x0 + 2 + rnd(w - bw - 4), by = y0 + 2 + rnd(h - bh - 4);
+      let ok = true;
+      for (let y = by - 1; y <= by + bh && ok; y++)
+        for (let x = bx - 1; x <= bx + bw && ok; x++)
+          if (!inb(x, y) || at(x, y) !== FLOOR || camp(x, y) || yard(x, y)) ok = false;
+      if (!ok) continue;
+      /* One corner of every shell is simply gone, and the rest of
+         the wall has holes in it. Standing masonry reads as SHOP
+         (the renderer's wall); everything else is walkable, so a
+         ruin is something you can wander into rather than a solid
+         block you route around. */
+      const gx = Math.random() < 0.5 ? bx : bx + bw - 1;
+      const gy = Math.random() < 0.5 ? by : by + bh - 1;
+      for (let y = by; y < by + bh; y++)
+        for (let x = bx; x < bx + bw; x++) {
+          const edge = x === bx || x === bx + bw - 1 || y === by || y === by + bh - 1;
+          /* One corner is gone and the rest of the wall stands.
+             Punching random holes all along it turned every ruin
+             into a scatter of loose bricks that read as litter
+             rather than as a building. */
+          const collapsed = Math.abs(x - gx) + Math.abs(y - gy) <= 3;
+          this.tiles[idx(x, y)] = edge && !collapsed
+            ? SHOP
+            : (Math.random() < 0.28 ? RUBBLE : FLOOR);
+        }
+      this.rooms.push({ x: bx, y: by, w: bw, h: bh, lit: true, ruin: true });
     }
 
-    // shop buildings around the rim; the door tile carries the shop id
-    const spots = [
-      [x0 + 3,       y0 + 1],       [x0 + (w >> 1) - 2, y0 + 1],       [x0 + w - 6, y0 + 1],
-      [x0 + 3,       y0 + h - 4],   [x0 + (w >> 1) - 2, y0 + h - 4],   [x0 + w - 6, y0 + h - 4],
-    ];
-    // The wandering merchant has no storefront; he is placed in
-    // the dungeon instead, so he must not claim a town plot.
-    SHOPS.filter(s => !s.wander).forEach((shop, i) => {
-      const [sx, sy] = spots[i];
-      for (let y = sy; y < sy + 3; y++)
-        for (let x = sx; x < sx + 5; x++) this.tiles[idx(x, y)] = SHOP;
-      const dx = sx + 2, dy = (i < 3) ? sy + 3 : sy - 1;
-      this.tiles[idx(dx, dy)] = DOOR_OPEN;   // shopfronts are never shut
-      this.shopAt.set(idx(dx, dy), shop.id);
+    /* The camp itself: two facing rows of stalls with a lane
+       between them. The tile you step on to trade is the ground
+       in front of the stall, not a door — there are no doors
+       left in this town. */
+    const stallRow = (sy, ky, ids) => {
+      ids.forEach((id, k) => {
+        const sx = cx + (k - 1) * 4;
+        const shop = SHOPS.find(s2 => s2.id === id);
+        if (!shop || !inb(sx, sy)) return;
+        this.tiles[idx(sx, sy)] = PROP;
+        this.props.set(idx(sx, sy), { kind:'stall', hp: 8 });
+        this.signAt.set(idx(sx, sy), id);
+        this.keeperAt.set(idx(sx, ky), id);
+        this.shopAt.set(idx(sx, sy + Math.sign(cy - sy)), id);
+      });
+    };
+    stallRow(cy - 2, cy - 3, [3, 2, 1]);
+    stallRow(cy + 2, cy + 3, [5, 4, 6]);
 
-      /* A shopfront should say what it sells without the player
-         having to walk in and find out. The keeper stands in the
-         doorway on the building side; the sign hangs above him. */
-      const inward = (i < 3) ? -1 : 1;             // toward the building
-      this.keeperAt.set(idx(dx, dy + inward), shop.id);
-      this.signAt.set(idx(dx, dy + inward * 2), shop.id);
-    });
+    /* Furniture, checked against the same rule the dungeon uses:
+       never stand something where it could seal a way through. */
+    const place = (x, y, kind) => {
+      const i = idx(x, y);
+      if (!inb(x, y) || this.tiles[i] !== FLOOR) return false;
+      if (this.shopAt.has(i) || this.keeperAt.has(i) || this.signAt.has(i)) return false;
+      let free = 0;
+      for (const [ax, ay] of [[1,0],[-1,0],[0,1],[0,-1]])
+        if (at(x + ax, y + ay) === FLOOR) free++;
+      if (free < 3) return false;
+      this.tiles[i] = PROP;
+      this.props.set(i, { kind, hp: kind === 'well' ? 40 : 6, lit: kind === 'brazier' });
+      return true;
+    };
 
-    const cx = x0 + (w >> 1), cy = y0 + (h >> 1);
-    this.tiles[idx(cx, cy)] = DOWN;
-    this.entry = { x: cx, y: cy + 2 };
-    this.rooms.push({ x: x0, y: y0, w, h, lit: true });
+    // fires at both ends of the trading lane, and the well behind it
+    place(cx - 6, cy, 'brazier'); place(cx + 6, cy, 'brazier');
+    place(cx - 6, cy - 3, 'brazier'); place(cx + 6, cy + 3, 'brazier');
+    place(cx + 8, cy - 4, 'well') || place(cx - 8, cy + 4, 'well');
+    // two more where the way down is, so the last lit thing is the stair
+    place(gateX - 3, gateY - 2, 'brazier'); place(gateX + 3, gateY + 2, 'brazier');
+    // and a handful guttering out in the empty streets
+    let lamps = 0;
+    for (let t = 0; t < 90 && lamps < 4; t++)
+      if (place(x0 + 2 + rnd(w - 4), y0 + 2 + rnd(h - 4), 'brazier')) lamps++;
+    /* A few, not a field of them. Sixty barrels and skulls turned
+       the streets into a spot-the-difference puzzle. */
+    let junk = 0;
+    for (let t = 0; t < 80 && junk < 7; t++) {
+      const x = x0 + rnd(w), y = y0 + rnd(h);
+      if (camp(x, y) || yard(x, y)) continue;
+      if (place(x, y, Math.random() < 0.5 ? 'bones' : 'barrel')) junk++;
+    }
+
+    /* Rubble against the standing walls and along the edges —
+       what came off the buildings is still lying where it fell. */
+    for (let t = 0; t < 160; t++) {
+      const x = x0 + rnd(w), y = y0 + rnd(h);
+      if (at(x, y) !== FLOOR || camp(x, y) || yard(x, y)) continue;
+      let wall = 0;
+      for (const [ax, ay] of [[1,0],[-1,0],[0,1],[0,-1]]) if (at(x + ax, y + ay) === SHOP) wall++;
+      if (wall >= 1 && Math.random() < 0.4) this.tiles[idx(x, y)] = RUBBLE;
+    }
+
+    this.tiles[idx(gateX, gateY)] = DOWN;
+    this.entry = { x: gateX, y: gateY };
+    for (const [ex, ey] of [[gateX, gateY + 2], [gateX, gateY - 2], [gateX + 2, gateY], [gateX - 2, gateY]])
+      if (!this.solid(ex, ey)) { this.entry = { x: ex, y: ey }; break; }
+
+    /* One lit room over the whole settlement, so daylight reaches
+       the far end of the street instead of guttering out two
+       tiles from the hero the way torchlight does. It goes in
+       first so the ruins above keep their own indices. */
+    this.rooms.unshift({ x: x0, y: y0, w, h, lit: true, bright: true });
     for (let y = y0; y < y0 + h; y++)
       for (let x = x0; x < x0 + w; x++) this.roomOf[idx(x, y)] = 0;
+    this.theme = { id:'town' };
   }
 
   /* ── floor themes ─────────────────────────────────────────

@@ -1,0 +1,45 @@
+<!doctype html>
+<!-- 스프라이트 시트 프리뷰 — 모든 도트(몬스터·아이템·지형·종족×직업 48종)와
+     여섯 지형 테마를 한 장에 굽는다. 팔레트나 격자를 고칠 때
+     `python3 -m http.server 8080` 후 /preview.html 로 확인. 게임과 무관. -->
+<meta charset="utf-8">
+<body style="background:#181830;margin:0;padding:12px;font:10px monospace;color:#d8d8c0">
+<canvas id="cv"></canvas>
+<script type="module">
+import { bakeAll, sprite, SPRITES, RACE_BODY, CLASS_KIT, setTerrainTheme, wallTile, floorTile, TERRAIN, PALETTE } from './src/pixels.js';
+bakeAll();
+const S = 6, PAD = 14, LBL = 10;
+const names = Object.keys(SPRITES).filter(n => n !== 'hero' && n !== 'keeper');
+const heroes = [];
+for (const r of Object.keys(RACE_BODY)) for (const c of Object.keys(CLASS_KIT)) heroes.push(`hero:${r}:${c}`);
+const keepers = [1,2,3,4,5,6].map(i => `keeper:${i}`);
+const all = [...names, ...keepers, ...heroes];
+const COLS = 12;
+const cw = 8 * S + PAD, ch = 8 * S + PAD + LBL;
+const rows = Math.ceil(all.length / COLS);
+const themeRows = Object.keys(TERRAIN).length;
+const cv = document.getElementById('cv');
+cv.width = COLS * cw + 20; cv.height = rows * ch + 30 + themeRows * (8 * S + 8) + 40;
+const x = cv.getContext('2d');
+x.imageSmoothingEnabled = false;
+x.fillStyle = '#181830'; x.fillRect(0, 0, cv.width, cv.height);
+x.font = '9px monospace'; x.textBaseline = 'top';
+all.forEach((n, i) => {
+  const px = 10 + (i % COLS) * cw, py = 10 + ((i / COLS) | 0) * ch;
+  x.fillStyle = '#000'; x.fillRect(px, py, 8 * S, 8 * S);
+  x.drawImage(sprite(n), px, py, 8 * S, 8 * S);
+  x.fillStyle = '#9090c0';
+  x.fillText(n.replace('hero:', '').slice(0, 14), px, py + 8 * S + 2);
+});
+let ty = 10 + rows * ch + 20;
+for (const th of Object.keys(TERRAIN)) {
+  setTerrainTheme(th);
+  for (let i = 0; i < 8; i++) {
+    x.drawImage(wallTile(i, 3), 10 + i * 8 * S, ty, 8 * S, 8 * S);
+    x.drawImage(floorTile(i, 9), 10 + (i + 9) * 8 * S, ty, 8 * S, 8 * S);
+  }
+  x.fillStyle = '#d8d8c0'; x.fillText(th, 10 + 17.5 * 8 * S, ty + 16);
+  ty += 8 * S + 8;
+}
+document.title = 'ok';
+</script>

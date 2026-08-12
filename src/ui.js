@@ -15,7 +15,7 @@ import {
   BOSS, tellsOf, tellsNeeded, CONSUMABLES, RESONANCE,
   REGIONS, regionOf, MEMORIES, memoryEarned, SHACKLES, MAX_SHACKLE, josa,
   UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS, FUSE_ODDS, FUSE_COST,
-  xpToLevel, statBonus,
+  xpToLevel, statBonus, FAITH_MAX, OATH_MAX,
 } from './data.js';
 import { EVENTS } from './events.js';
 
@@ -62,11 +62,18 @@ export function resize() {
   if (w === cv.width && h === cv.height) return;   // nothing moved
 
   cv.width = w; cv.height = h;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  /* Device-pixel space, identity transform. The old dpr transform
+     put drawing in CSS pixels, so a sprite pixel covered
+     scale×dpr device pixels — fractional on most phones, and the
+     rounding fell differently on every column: the grid was made
+     of subtly unequal pixels. Working in device pixels with an
+     integer scale makes every sprite pixel the same square, which
+     is the whole contract of the art style. */
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.imageSmoothingEnabled = false;
 
-  viewW = box.width; viewH = box.height;
-  scale = clamp(Math.round(box.width / (CELL_SIZE * 17)), 2, 6);
+  viewW = w; viewH = h;
+  scale = clamp(Math.round(w / (CELL_SIZE * 17)), 2, 12);
   cols = Math.ceil(viewW / (CELL_SIZE * scale));
   rows = Math.ceil(viewH / (CELL_SIZE * scale));
   draw();
@@ -77,6 +84,7 @@ export function resize() {
    offsets in juice.js this is what turns a tile hop into a
    step. */
 let camX = 0, camY = 0, camReady = false;
+let heroFacing = 1, heroLastX = null;
 
 function cameraTarget() {
   const p = G.player;
@@ -116,6 +124,9 @@ export function draw() {
 
   const lightR = G.lightRadius || 7;
   const x0 = Math.floor(cx) - 1, y0 = Math.floor(cy) - 1;
+  /* Two-frame tiles: water laps, fire leans. One clock for all
+     of them so the floor breathes in unison. */
+  const flick = ((performance.now() / 420) | 0) & 1;
 
   for (let y = y0; y <= cy + rows + 1; y++) {
     for (let x = x0; x <= cx + cols + 1; x++) {
@@ -127,11 +138,19 @@ export function draw() {
       const tile = L.tiles[i];
       const lit = L.vis[i];
 
+      /* The fog is a smooth alpha fade — tried as ordered dither
+         once (v33) and walked back: the sprites are the pixels,
+         the light is allowed to be light. Hard dots, soft glow. */
       let alpha;
       if (lit) {
         const d = Math.hypot(x - p.x, y - p.y);
         const rid = L.roomOf[i];
-        const ambient = (rid >= 0 && L.rooms[rid].lit && rid === L.roomOf[idx(p.x, p.y)]) ? 0.55 : 0;
+        /* Daylight, not torchlight. A lit dungeon room still
+           falls off toward its corners; the town does not, or the
+           far end of the street reads as unexplored cave. */
+        const room = rid >= 0 ? L.rooms[rid] : null;
+        const ambient = room?.bright ? 1
+          : (room?.lit && rid === L.roomOf[idx(p.x, p.y)]) ? 0.55 : 0;
         alpha = clamp(0.30 + Math.max(ambient, 1 - d / (lightR + 1.5)) * 0.72, 0, 1);
       } else {
         alpha = 0.26;
@@ -150,11 +169,11 @@ export function draw() {
         if (tile === DOOR_LOCKED) ctx.drawImage(sprite('doorLocked'), px, py, t, t);
         if (tile === DOOR_BROKEN) ctx.drawImage(sprite('doorBroken'), px, py, t, t);
         if (tile === WEB)         ctx.drawImage(sprite('web'),        px, py, t, t);
-        if (tile === WATER)       ctx.drawImage(sprite('water'),      px, py, t, t);
+        if (tile === WATER)       ctx.drawImage(sprite(flick ? 'water2' : 'water'), px, py, t, t);
         if (tile === CAMP) {
           const prevA = ctx.globalAlpha;
           ctx.globalAlpha = Math.max(prevA, 0.55 + Math.sin(performance.now() / 300) * 0.12);
-          ctx.drawImage(sprite('camp'), px, py, t, t);
+          ctx.drawImage(sprite(flick ? 'camp2' : 'camp'), px, py, t, t);
           ctx.globalAlpha = prevA;
         }
         if (tile === ALTAR) {
@@ -181,8 +200,9 @@ export function draw() {
             // A lit brazier throws its own light, so it is drawn
             // at full brightness whatever the fog says.
             const prevA = ctx.globalAlpha;
-            if (o.kind === 'brazier' && o.lit) ctx.globalAlpha = 1;
-            ctx.drawImage(sprite(o.kind === 'brazier' && o.lit ? 'brazierLit' : o.kind),
+            const isLit = o.kind === 'brazier' && o.lit;
+            if (isLit) ctx.globalAlpha = 1;
+            ctx.drawImage(sprite(isLit ? (flick ? 'brazierLit2' : 'brazierLit') : o.kind),
                           px, py, t, t);
             ctx.globalAlpha = prevA;
           }
@@ -217,7 +237,7 @@ export function draw() {
       if (shopId && lit) {
         ctx.globalAlpha = 1;
         ctx.fillStyle = PALETTE.y;
-        ctx.font = `bold ${Math.floor(t * 0.42)}px ui-monospace, monospace`;
+        ctx.font = `bold ${Math.floor(t * 0.42)}px Galmuri11, ui-monospace, monospace`;
         ctx.textAlign = 'left'; ctx.textBaseline = 'top';
         ctx.fillText(String(shopId), px + t * 0.08, py + t * 0.06);
       }
@@ -308,6 +328,13 @@ export function draw() {
     ctx.globalAlpha = 1;
   }
 
+  /* The idle beat: a square wave, not a sine. Everything alive
+     drops exactly one sprite pixel on the off-beat, each at its
+     own phase — the cheapest possible two-frame animation, and
+     it reads as one because the step is quantized. */
+  const bobT = (performance.now() / 480) | 0;
+  const px1 = Math.max(1, Math.round(t / CELL_SIZE));   // one sprite pixel
+
   for (const m of G.monsters) {
     const seenNow = L.vis[idx(m.x, m.y)];
     if (!seenNow && !(G.detectPulse > 0)) continue;
@@ -319,21 +346,33 @@ export function draw() {
        like a chest looks, but it breathes — a slow half-pixel
        rise a patient player can catch and a hurried one can't. */
     if (m.disguise) my += Math.sin(performance.now() / 900 + m.x) * t * 0.045;
+    // Awake and undisguised: on the beat. Sleepers hold still.
+    else if (m.awake) my += ((bobT + m.x + m.y) & 1) ? px1 : 0;
 
-    /* An elite gets a ring so you can decide to walk away from
-       it before you are already in melee with it. */
+    /* A monster faces the way it last moved. Mirroring is free —
+       the same baked sprite, drawn through a flipped transform. */
+    if (m._lx != null && m.x !== m._lx) m._face = m.x > m._lx ? 1 : -1;
+    m._lx = m.x;
+
+    /* An elite gets a marker so you can decide to walk away from
+       it before you are already in melee with it. Corner brackets
+       out of whole pixels, not a stroked circle — the one shape
+       the tile grid can draw honestly. */
     if (m.elite?.length && seenNow) {
       ctx.save();
       ctx.globalAlpha = 0.55 + Math.sin(performance.now() / 420) * 0.18;
-      ctx.strokeStyle = m.elite.length > 1 ? PALETTE.P : PALETTE.o;
-      ctx.lineWidth = Math.max(1.5, t * 0.09);
-      ctx.beginPath();
-      ctx.arc(mx + t / 2, my + t / 2, t * 0.56, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.fillStyle = m.elite.length > 1 ? PALETTE.P : PALETTE.o;
+      const u = px1, arm = u * 3;
+      const bx0 = Math.round(mx) - u,  by0 = Math.round(my) - u;
+      const bx1 = Math.round(mx + t),  by1 = Math.round(my + t);
+      ctx.fillRect(bx0, by0, arm, u);           ctx.fillRect(bx0, by0, u, arm);
+      ctx.fillRect(bx1 + u - arm, by0, arm, u); ctx.fillRect(bx1, by0, u, arm);
+      ctx.fillRect(bx0, by1, arm, u);           ctx.fillRect(bx0, by1 + u - arm, u, arm);
+      ctx.fillRect(bx1 + u - arm, by1, arm, u); ctx.fillRect(bx1, by1 + u - arm, u, arm);
       ctx.restore();
     }
 
-    blitActor(sprite(m.spr), mx, my, t, o);
+    blitActor(sprite(m.spr), mx, my, t, o, m._face === -1);
     if (m.disguise) continue;     // no sleep marker, no health bar — it is furniture
 
     /* A sleeping target is a free critical, so say so plainly —
@@ -341,7 +380,7 @@ export function draw() {
     if (seenNow && !m.awake) {
       const zx = mx + t * 0.86;
       const zy = my - t * 0.06 + Math.sin(performance.now() / 500) * t * 0.09;
-      ctx.font = `900 ${Math.floor(t * 0.62)}px ui-monospace, monospace`;
+      ctx.font = `900 ${Math.floor(t * 0.62)}px Galmuri11, ui-monospace, monospace`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.lineWidth = Math.max(2, t * 0.16);
       ctx.strokeStyle = PALETTE.k;
@@ -366,11 +405,15 @@ export function draw() {
   const po = Juice.offsetOf(p);
   const hx = (p.x + po.x - cx) * t + t / 2, hy = (p.y + po.y - cy) * t + t / 2;
   const glow = ctx.createRadialGradient(hx, hy, t * 0.4, hx, hy, t * lightR);
-  glow.addColorStop(0, 'rgba(217,138,60,0.16)');
-  glow.addColorStop(1, 'rgba(217,138,60,0)');
+  glow.addColorStop(0, 'rgba(248,124,32,0.16)');
+  glow.addColorStop(1, 'rgba(248,124,32,0)');
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, viewW, viewH);
-  blitActor(heroSprite(p), hx - t / 2, hy - t / 2, t, po);
+  // The hero keeps the beat too, and faces the way he last walked.
+  if (heroLastX !== null && p.x !== heroLastX) heroFacing = p.x > heroLastX ? 1 : -1;
+  heroLastX = p.x;
+  const hbob = (bobT & 1) ? px1 : 0;
+  blitActor(heroSprite(p), hx - t / 2, hy - t / 2 + hbob, t, po, heroFacing === -1);
 
   /* The countdown goes on last. It used to be drawn with the
      tint, which put it underneath the hero sprite — and a disc
@@ -386,7 +429,7 @@ export function draw() {
     const urgent = h.left <= 1;
     const pop = urgent ? 1 + Math.abs(Math.sin(performance.now() / 130)) * 0.22 : 1;
     ctx.globalAlpha = 1;
-    ctx.font = `900 ${Math.floor(t * 0.78 * pop)}px ui-monospace, monospace`;
+    ctx.font = `900 ${Math.floor(t * 0.78 * pop)}px Galmuri11, ui-monospace, monospace`;
     ctx.lineWidth = Math.max(3, t * 0.24);
     ctx.strokeStyle = PALETTE.k;
     ctx.strokeText(String(h.left), mx2, my2);
@@ -411,7 +454,7 @@ export function draw() {
       ctx.fillStyle = n >= 3 ? PALETTE.r : n === 2 ? PALETTE.n : PALETTE.g;
       ctx.fillRect(px + t * 0.06, py + t * 0.06, t * 0.88, t * 0.88);
       ctx.globalAlpha = 1;
-      ctx.font = `700 ${Math.floor(t * 0.4)}px ui-monospace, monospace`;
+      ctx.font = `700 ${Math.floor(t * 0.4)}px Galmuri11, ui-monospace, monospace`;
       ctx.fillStyle = n >= 3 ? PALETTE.R : PALETTE.G;
       ctx.fillText(String(n), px + t * 0.82, py + t * 0.2);
     }
@@ -736,29 +779,86 @@ function rain(c, x, y, r) {
   }
 }
 
+/* 사제의 넷. 셋은 원이 아니라 표시다 — 땅에 그은 것, 이름 위에
+   그은 것, 방 전체에 그은 것. 마법사의 도형과 닮으면 안 된다. */
+function slab(c, x, y, r) {                 // 성역
+  c.moveTo(x - r, y + r * 0.2); c.lineTo(x, y - r * 0.55);
+  c.lineTo(x + r, y + r * 0.2); c.lineTo(x, y + r * 0.95); c.closePath();
+  c.moveTo(x - r * 0.42, y + r * 0.2); c.lineTo(x, y - r * 0.12);
+  c.lineTo(x + r * 0.42, y + r * 0.2); c.lineTo(x, y + r * 0.52); c.closePath();
+}
+function strikeOut(c, x, y, r) {            // 파문
+  c.moveTo(x + r * 0.72, y - r); c.arc(x, y, r, -Math.PI / 4, Math.PI * 7 / 4, false);
+  const w = r * 0.19;
+  c.moveTo(x - r * 1.1 - w, y - w); c.lineTo(x + r * 1.1, y - r * 1.1 - w);
+  c.lineTo(x + r * 1.1 + w, y - r * 1.1 + w); c.lineTo(x - r * 1.1 + w, y + w); c.closePath();
+}
+function rays(c, x, y, r) {                 // 심판
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2, w = 0.12;
+    c.moveTo(x + Math.cos(a - w) * r * 0.3, y + Math.sin(a - w) * r * 0.3);
+    c.lineTo(x + Math.cos(a) * r * 1.15,    y + Math.sin(a) * r * 1.15);
+    c.lineTo(x + Math.cos(a + w) * r * 0.3, y + Math.sin(a + w) * r * 0.3);
+    c.closePath();
+  }
+  c.moveTo(x + r * 0.34, y); c.arc(x, y, r * 0.34, 0, Math.PI * 2, false);
+}
+function kneel(c, x, y, r) {                // 순교
+  c.moveTo(x - r * 0.16, y - r); c.lineTo(x + r * 0.16, y - r);
+  c.lineTo(x + r * 0.16, y + r * 0.28); c.lineTo(x + r, y + r * 0.28);
+  c.lineTo(x + r, y + r * 0.6); c.lineTo(x - r, y + r * 0.6);
+  c.lineTo(x - r, y + r * 0.28); c.lineTo(x - r * 0.16, y + r * 0.28); c.closePath();
+}
+
+/* ── 팔라딘의 넷 ─────────────────────────────────────────
+   An arrow with a body behind it (돌진), a hammer coming down
+   (심판의 일격), a ring of blades (성스러운 폭풍), and a line of
+   marks continuing off the edge (성전). */
+function dash(c, x, y, r) {                 // 돌진
+  c.moveTo(x - r, y); c.lineTo(x + r * 0.4, y);
+  c.moveTo(x + r * 0.4, y - r * 0.5); c.lineTo(x + r, y); c.lineTo(x + r * 0.4, y + r * 0.5);
+  c.moveTo(x - r * 0.9, y - r * 0.45); c.lineTo(x - r * 0.2, y - r * 0.45);
+  c.moveTo(x - r * 0.9, y + r * 0.45); c.lineTo(x - r * 0.2, y + r * 0.45);
+}
+function maul(c, x, y, r) {                 // 심판의 일격
+  c.moveTo(x, y + r); c.lineTo(x, y - r * 0.2);
+  c.moveTo(x - r * 0.75, y - r * 0.2); c.lineTo(x + r * 0.75, y - r * 0.2);
+  c.lineTo(x + r * 0.75, y - r * 0.85); c.lineTo(x - r * 0.75, y - r * 0.85); c.closePath();
+}
+function bladering(c, x, y, r) {            // 성스러운 폭풍
+  for (let i = 0; i < 6; i++) {
+    const a = i * Math.PI / 3;
+    c.moveTo(x + Math.cos(a) * r * 0.42, y + Math.sin(a) * r * 0.42);
+    c.lineTo(x + Math.cos(a + 0.5) * r, y + Math.sin(a + 0.5) * r);
+  }
+}
+function march(c, x, y, r) {                // 성전
+  for (let i = 0; i < 3; i++) {
+    const px = x - r + i * r * 0.85;
+    c.moveTo(px, y + r * 0.6); c.lineTo(px + r * 0.42, y - r * 0.6);
+  }
+  c.moveTo(x + r * 0.72, y); c.lineTo(x + r, y);
+}
+
 const SPELL_ICONS = {
+  charge:   [dash,                                    'y'],
+  judgest:  [maul,                                    'W'],
+  storm:    [bladering,                               'y'],
+  crusade:  [march,                                   'W'],
+  sanctum:  [slab,                                    'W'],
+  anathema: [strikeOut,                               'p'],
+  judge:    [rays,                                    'y'],
+  martyr:   [kneel,                                   'R'],
   aimed:    [(c, x, y, r) => crosshair(c, x, y, r),   'E'],
   pierce:   [(c, x, y, r) => throughLine(c, x, y, r), 'B'],
   snare:    [(c, x, y, r) => jaws(c, x, y, r),        'n'],
   volley:   [(c, x, y, r) => rain(c, x, y, r),        'y'],
   shove:    [palm,                                    'W'],
   cleave:   [sweep,                                   'o'],
-  flurry:   [(c, x, y, r) => rain(c, x, y, r),        'R'],
-  /* The rogue's four reuse shapes that are already here rather
-     than adding drawings: a jump reads as the blink zigzag, a fan
-     of knives as the sweep, vanishing as the star closing, and
-     급소 as the wedge. No new pixels, and the row is never blank —
-     drawSpellInto returns silently on an id it does not know, so
-     a missing line here is four buttons with nothing on them. */
-  /* The paladin's four, on the same rule as the rogue's: shapes
-     that are already in this file. A blow paid for in wall reads
-     as the wedge, the shout as the ring of the sweep, the circle
-     as the four-point star, and 속죄 as the cross everything else
-     that heals uses. */
-  requite:    [wedge,                               'y'],
-  call:       [(c, x, y, r) => rain(c, x, y, r),    'o'],
-  ring:       [sweep,                               'y'],
-  atone:      [(c, x, y, r) => plus(c, x, y, r),    'W'],
+  /* 연타 and the rogue's four reuse shapes already defined here —
+     drawSpellInto returns silently on an id it does not know, so a
+     missing line is a blank button and no error. */
+  flurry:     [(c, x, y, r) => rain(c, x, y, r),    'R'],
   shadowstep: [zigzag,                              'P'],
   fan:        [sweep,                               'B'],
   vanish:     [(c, x, y, r) => star4(c, x, y, r),   'g'],
@@ -824,8 +924,16 @@ export const heroSprite = p =>
   sprite(`hero:${p.race}:${p.cls}`) || sprite(`hero:${p.cls}`);
 
 /* One sprite, plus a squash-punch on impact and an additive
-   pass that whitens it for a few frames when it takes a hit. */
-function blitActor(img, px, py, t, o) {
+   pass that whitens it for a few frames when it takes a hit.
+   `flip` mirrors around the sprite's own centre line — the same
+   baked canvas serves both directions. */
+function blitActor(img, px, py, t, o, flip = false) {
+  if (flip) {
+    ctx.save();
+    ctx.translate(px + t / 2, 0);
+    ctx.scale(-1, 1);
+    ctx.translate(-(px + t / 2), 0);
+  }
   const s = o.squash || 0;
   if (s > 0) {
     const g = 1 + s * 0.35;
@@ -842,6 +950,7 @@ function blitActor(img, px, py, t, o) {
     ctx.globalCompositeOperation = prev;
     ctx.globalAlpha = a;
   }
+  if (flip) ctx.restore();
 }
 
 /* ── the frame loop ─────────────────────────────────────────
@@ -1024,10 +1133,10 @@ export function refresh() {
   for (const line of G.log.slice(-6)) logBox.appendChild(el('p', line.tone, line.text));
 
   $('btn-cast').hidden = !Game.spellSlots().length;
-  /* 쏘기 only exists while a bow is held. It carries the arrow
-     count because running dry mid-fight is the thing a bow build
-     has to see coming, and greys out rather than vanishing when
-     there is no line — a control that moves is a control you
+  /* 쏘기 only exists while a bow is held. It names what is
+     nocked, because the quiver is half of what a bow
+     hits for now, and greys out rather than vanishing when there
+     is no line — a control that moves is a control you
      misfire. */
   const bowed = Game.weaponType(G.player) === 'bow';
   const q = Game.quiver();
@@ -1035,10 +1144,9 @@ export function refresh() {
   shootBtn.hidden = !bowed;
   if (bowed) {
     shootBtn.disabled = !Game.canShoot();
-    $('shoot-n').textContent = q ? `${q.ammo?.n === '화살' ? '' : q.ammo.n + ' '}${q.qty}` : '없음';
-    shootBtn.title = !q ? '화살이 떨어졌다'
-                   : !Game.shotTarget() ? '사선이 막혔거나 사거리 밖이다'
-                   : `${q.ammo.n} ${q.qty}발`;
+    $('shoot-n').textContent = q ? (q.n.length > 6 ? q.n.slice(0, 5) + '…' : q.n) : '맨 화살';
+    shootBtn.title = !Game.shotTarget() ? '사선이 막혔거나 사거리 밖이다'
+                   : q ? `${q.n} · ${q.desc}` : '화살통이 없다 — 평범한 화살이 나간다';
   }
   renderQuick();
   renderSpellRow();
@@ -1184,19 +1292,10 @@ function renderSpellRow() {
     } else {
       label.appendChild(document.createTextNode(s.short));
       label.appendChild(el('b', '', String(s.cost)));
-      /* The pip prints whichever resource actually gates the art.
-         For the rogue that is 그림자 — the breath is one or two and
-         never the thing stopping you, and a tooltip that says
-         "1기력" over a button held shut by an empty shadow pouch
-         is the row lying in a quieter way. */
-      /* Whichever pool the rules say gates this button — 그림자 for
-         the rogue, 맹세 for the paladin, breath for everyone else. */
-      const price = s.pool ? `${s.pool} ${s.cost} · 기력 ${s.stam}`
-                           : `${s.cost}${s.art ? '기력' : 'mp'}`;
       b.title = s.silent ? `${s.name} — 침묵의 서약으로 봉인됨`
-              : s.noTarget ? (s.art ? `${s.name} — 조건이 아직 아니다`
+              : s.noTarget ? (s.art ? `${s.name} — 손이 닿는 곳에 아무것도 없다`
                                     : `${s.name} — 시야에 적이 없다`)
-              : `${s.name} · ${price}`;
+              : `${s.name} · ${s.cost}${s.art ? (s.faith ? '신앙' : s.oath ? '맹세' : '기력') : 'mp'}`;
     }
     /* An art spends breath, not mana, and the row has to say so
        without a word — the cost pip carries the stamina colour. */
@@ -2084,7 +2183,7 @@ function renderInventory() {
   for (const sec of document.querySelectorAll('#sc-inv [data-inv]'))
     sec.hidden = sec.dataset.inv !== invTab;
   const eq = $('equip-list'); eq.innerHTML = '';
-  const slots = [['weapon', '무기'], ['body', '갑옷'], ['shield', '방패']];
+  const slots = [['weapon', '무기'], ['body', '갑옷'], ['shield', '방패'], ['quiver', '화살통']];
   for (const [key, label] of slots) {
     const it = p.equip[key];
     const row = el('div', 'eqrow');
@@ -2169,6 +2268,7 @@ function renderInventory() {
     mid.appendChild(el('span', 'idesc',
       it.kind === 'weapon' ? `${grade ? `[${RARITY[grade].n}] ` : ''}${WEAPON_TYPES[it.t]?.n || ''} ${it.dice[0]}d${it.dice[1]}${it.hands === 2 ? ' · 양손' : ''}${reqText(it)}${affixBlurb(it)}`
       : it.kind === 'armour' ? `${grade ? `[${RARITY[grade].n}] ` : ''}방어 +${it.ac}${reqText(it)}${affixBlurb(it)}`
+      : it.kind === 'quiver' ? `${grade ? `[${RARITY[grade].n}] ` : ''}화살통 · ${quiverLine(it)}${affixBlurb(it)}`
       : it.kind === 'cat' ? `촉매 · ${it.t}`
       : Game.isKnown(it.id) ? (it.desc || '사용 가능') : '마셔 보기 전에는 알 수 없다'));
     const pt = plusText(it);
@@ -2226,6 +2326,37 @@ function renderShop() {
   $('shop-gold').textContent = p.gold;
 
   const buyList = $('shop-buy'); buyList.innerHTML = '';
+  /* Each door says what only it does, right above the shelf.
+     Six signs that all read "물약 있음" is the same as no signs. */
+  if (shop.t) buyList.appendChild(el('p', 'empty shopline', shop.t));
+
+  /* The temple sells almost nothing and does one thing, so the
+     one thing goes at the top of its shelf rather than below a
+     row of flasks. */
+  if (shop.temple) {
+    const offers = Game.templeOffers();
+    if (!offers.length)
+      buyList.appendChild(el('p', 'empty', '떼어 낼 것이 없다. 붙은 물건을 들고 오시오.'));
+    for (const off of offers) {
+      const cost = Game.templeCost(off.item);
+      const row = el('button', 'itemrow' + (p.gold < cost ? ' poor' : ''));
+      const ic = el('canvas', 'icon'); paintIcon(ic, off.item.spr);
+      row.appendChild(ic);
+      const mid = el('div', 'imid');
+      mid.appendChild(nameEl(off.item));
+      mid.appendChild(el('span', 'idesc',
+        `${off.where === 'equip' ? '착용 중' : '배낭'} · 붙은 것을 떼어 냅니다${affixBlurb(off.item)}`));
+      row.appendChild(mid);
+      row.appendChild(el('span', 'iact', `${cost}g`));
+      row.onclick = () => {
+        if (p.gold < cost) { Game.say('금화가 모자란다.', 'warn'); refresh(); return; }
+        ask(`${affixName(off.item)}에서 저주를 떼어 낼까요?`,
+            `저주만 떨어집니다. 좋은 속성과 강화는 그대로 남습니다.\n가진 금화 ${p.gold} → ${p.gold - cost}`,
+            () => { Game.cleanse(off); renderShop(); refresh(); });
+      };
+      buyList.appendChild(row);
+    }
+  }
   for (const item of Game.shopStock(shop)) {
     const cost = Game.priceOf(item, true);
     const row = el('button', 'itemrow' + (p.gold < cost ? ' poor' : ''));
@@ -2236,6 +2367,7 @@ function renderShop() {
     mid.appendChild(el('span', 'idesc',
       item.kind === 'weapon' ? `${WEAPON_TYPES[item.t]?.n || ''} ${item.dice[0]}d${item.dice[1]}${item.hands === 2 ? ' · 양손' : ''}`
       : item.kind === 'armour' ? `방어 +${item.ac}`
+      : item.kind === 'quiver' ? `화살통 · ${quiverLine(item)}`
       : (item.desc || '')));
     row.appendChild(mid);
     row.appendChild(el('span', 'iact', `${cost}g`));
@@ -2281,11 +2413,18 @@ function renderSpells() {
   /* A class with arts reads its breath here, not its mana — the
      header has to name the resource the buttons below spend, and
      a warrior's page is not called 주문. */
-  $('spell-title').textContent = arts.length ? (spells.length ? '무술과 주문' : '무술') : '주문';
+  $('spell-title').textContent = !arts.length ? '주문'
+    : arts.some(a => a.faith) ? (spells.length ? '기도와 주문' : '기도')
+    : arts.some(a => a.oath) ? (spells.length ? '맹세와 주문' : '맹세')
+    : (spells.length ? '무술과 주문' : '무술');
   $('spell-chip').firstChild.textContent = arts.length ? '' : '✦ ';
-  $('spell-mana').textContent = arts.length
-    ? `기력 ${p.stam}/${p.maxStam}` + (p.maxmana ? ` · ✦ ${p.mana}/${p.maxmana}` : '')
-    : `${p.mana}/${p.maxmana}`;
+  const usesFaith = arts.some(a => a.faith);
+  const usesOath = arts.some(a => a.oath);
+  $('spell-mana').textContent = !arts.length ? `${p.mana}/${p.maxmana}`
+    : (usesFaith ? `신앙 ${p.faith || 0}/${FAITH_MAX}`
+     : usesOath ? `맹세 ${p.oath || 0}/${OATH_MAX}`
+     : `기력 ${p.stam}/${p.maxStam}`)
+      + (p.maxmana ? ` · ✦ ${p.mana}/${p.maxmana}` : '');
   for (const a of arts) {
     const row = el('button', 'itemrow artrow' + (p.stam < a.stam ? ' poor' : ''));
     const mid = el('div', 'imid');
@@ -2294,7 +2433,8 @@ function renderSpells() {
     mid.appendChild(nm);
     mid.appendChild(el('span', 'idesc', a.desc));
     row.appendChild(mid);
-    row.appendChild(el('span', 'iact', `${a.stam}기력`));
+    row.appendChild(el('span', 'iact',
+      a.faith ? `${a.faith}신앙` : a.oath ? `${a.oath}맹세` : `${a.stam}기력`));
     row.onclick = () => { Game.cast(a.id); setScreen('play'); refresh(); };
     list.appendChild(row);
   }
@@ -2402,6 +2542,20 @@ function affixBlurb(it) {
    Also names the next milestone, because the whole reason to
    push past +3 is the engraving waiting at +4. */
 /* What this piece asks of your arms, if it asks anything. */
+/* A quiver has no armour value and no dice of its own — it is a
+   multiplier on someone else's roll, so it needs its own line
+   rather than borrowing the armour one. */
+function quiverLine(it) {
+  const bits = [];
+  if (it.dmg && it.dmg !== 1) bits.push(`피해 ${it.dmg > 1 ? '+' : '−'}${Math.round(Math.abs(it.dmg - 1) * 100)}%`);
+  if (it.hit) bits.push(`명중 ${it.hit > 0 ? '+' : '−'}${Math.abs(it.hit)}`);
+  if (it.rng) bits.push(`사거리 +${it.rng}`);
+  if (it.on === 'poison') bits.push('중독');
+  if (it.burst) bits.push('죽은 자리가 터진다');
+  if (it.bleed) bits.push('맞은 것이 느려진다');
+  return bits.join(' · ') || '평범한 화살';
+}
+
 function reqText(it) {
   const need = it.hands === 2 ? 15
              : it.kind === 'weapon' && (it.dice?.[1] || 0) >= 8 ? 12
@@ -2856,6 +3010,11 @@ export function inspect(x, y) {
       sub = '방어구';
       rows.push(['방어', `+${it.ac}`]);
       if (affixBlurb(it)) rows.push(['속성', affixBlurb(it).replace(/^ · /, '')]);
+    } else if (it.kind === 'quiver') {
+      sub = '화살통';
+      rows.push(['화살', quiverLine(it)]);
+      rows.push(['', '활을 들었을 때만 값을 합니다. 떨어지지 않습니다.']);
+      if (affixBlurb(it)) rows.push(['속성', affixBlurb(it).replace(/^ · /, '')]);
     } else if (it.kind === 'chest') {
       sub = '상자'; rows.push(['', it.locked ? '잠겨 있다 — 열쇠나 완력이 필요하다' : '열려 있다']);
     } else if (it.kind === 'use') {
@@ -2879,13 +3038,15 @@ export function inspect(x, y) {
       sub = '오브젝트 — 부딪치면 상호작용';
       rows.push(['', {
         barrel:'부수면 안에 든 것이 나온다. 가끔 안에 든 것이 이빨을 갖고 있다.',
+        well: '깊은 곳이 열리기 전에도 여기 있었다. 물은 아직 맑다. 길어 갈 사람이 없을 뿐이다.',
+        stall: '수레 한 대. 여기까지 끌고 와서, 여기서 더 가지 않기로 한 것이다.',
         brazier: prop.lit ? '이미 타고 있다.'
                           : '불을 옮기면 기름이 260턴어치 아껴진다. 대신 주변 일곱 칸이 전부 깨어난다.',
         pillar:'길을 막는다. 부술 수 있지만 소리가 아홉 칸을 건넌다.',
         bones:'셋에 하나는 아래에 무언가가 자고 있다.',
         urn:'다섯에 하나는 터지고 독을 남긴다. 절반쯤은 값어치가 있다.',
       }[prop.kind]]);
-      if (prop.kind !== 'brazier') rows.push(['남은 내구', `${prop.hp}`]);
+      if (prop.kind !== 'brazier' && prop.kind !== 'well') rows.push(['남은 내구', `${prop.hp}`]);
       const box0 = $('look-rows');
       box0.innerHTML = '';
       $('look-name').textContent = title;
@@ -3711,9 +3872,13 @@ function bindMapGestures() {
   const tileUnder = (clientX, clientY) => {
     const box = cv.getBoundingClientRect();
     const { cx, cy, t } = camera();
+    /* t is in device pixels now; the pointer arrives in CSS
+       pixels. Convert through the bitmap/box ratio rather than
+       devicePixelRatio, so a mid-transition box can't lie. */
+    const kx = cv.width / box.width, ky = cv.height / box.height;
     return {
-      x: Math.floor(cx + (clientX - box.left) / t),
-      y: Math.floor(cy + (clientY - box.top) / t),
+      x: Math.floor(cx + (clientX - box.left) * kx / t),
+      y: Math.floor(cy + (clientY - box.top) * ky / t),
     };
   };
 

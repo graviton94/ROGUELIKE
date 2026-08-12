@@ -3,12 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#0a0c12">
+<meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>깊은 곳 · Deepdelve</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preload" href="fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Galmuri11-Bold.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -34,7 +36,7 @@
       <button class="mini" id="btn-help">조작법</button>
       <button class="mini" id="btn-sound">소리 켜짐</button>
     </div>
-    <p class="fine"><span id="title-stat"></span><br>도트도 소리도 전부 코드로. 이미지·음원 파일 없음 · <span id="build">v31</span></p>
+    <p class="fine"><span id="title-stat"></span><br>도트도 소리도 전부 코드로. 파일은 픽셀 글꼴 하나 · <span id="build">v36</span></p>
   </div>
 </section>
 
@@ -808,15 +810,16 @@
         <b>불씨</b>(화살 뒤 — 위력 +60%) · <b>자취</b>(점멸 뒤 — 턴을 쓰지 않음) · <b>눈</b>(탐지 뒤 — 나머지 전부에게 절반) ·
         <b>서리</b>(서리 뒤 — 맞은 것이 한 턴을 잃음) · <b>지형</b>(지도 뒤 — 층 전체가 사정거리).<br>
         마나가 아니라 <b>순서</b>가 위력입니다.</td></tr>
-      <tr><td>사제 · 응답</td><td>체력이 <b>절반 아래</b>일 때 물약·주문 가릴 것 없이 <b>모든 회복이 60% 더</b> 듭니다. 여섯 턴마다 저절로 아뭅니다.</td></tr>
+      <tr><td>사제 · 응답</td><td>체력이 <b>절반 아래</b>일 때 물약·주문 가릴 것 없이 <b>모든 회복이 60% 더</b> 듭니다. 여섯 턴마다 저절로 아뭅니다.<br>
+        그리고 <b>신앙</b>은 맞아야 찹니다. 기도 넷이 그것을 씁니다 —
+        <b>성역</b>(3) · <b>파문</b>(4) · <b>심판</b>(6) · <b>순교</b>(9).</td></tr>
       <tr><td>도적 · 그림자</td><td>0에서 <b>5</b>까지 모이는 탄약입니다. 모르는 것을 찌르면 +1, 구르면 +1,
         들키지 않은 채 다섯 턴을 보내면 +1. 구르기는 여전히 기력을 <b>하나만</b> 씁니다.<br>
         태우는 곳은 기예 넷뿐입니다 — <b>그림자 도약</b>(1) · <b>칼부채</b>(2) · <b>어둠 되감기</b>(1) · <b>급소</b>(3).</td></tr>
       <tr><td>레인저 · 표적</td><td>같은 적을 때릴 때마다 그 적에게 주는 피해가 <b>9%씩 누적</b>(최대 +45%). 대상을 바꾸면 사라집니다.</td></tr>
-      <tr><td>팔라딘 · 맹세</td><td>맞을 때마다 <b>방어 +1</b>이 쌓입니다(최대 +8, 층마다 초기화). 처치하면 하나 풀립니다 — <b>지고 있을 때 가장 단단합니다.</b><br>
-        그리고 그 벽이 곧 탄약입니다. <b>응보</b>(쌓인 전부를 태워 한 방) · <b>선언</b>(2 — 보이는 것들을 두 칸 끌어온다) ·
-        <b>심판의 고리</b>(3 — 둘러싼 것을 한 바퀴에) · <b>속죄</b>(4 — 견딘 만큼 아문다).<br>
-        태울 때마다 방어가 그만큼 내려갑니다. <b>아직 더 맞아도 되는가</b>가 이 직업의 질문입니다.</td></tr>
+      <tr><td>팔라딘 · 맹세</td><td>맞으면 +1, <b>죽여도 +1</b>(최대 10, 층마다 초기화). 둘마다 <b>방어 +1</b>.<br>
+        쌓아 두는 벽이 아니라 <b>계속 죽이기 위한 연료</b>입니다 — 기예 넷이 전부 이것을 먹습니다.
+        <b>돌진</b>(2) · <b>심판의 일격</b>(3) · <b>성스러운 폭풍</b>(4) · <b>성전</b>(8).</td></tr>
     </table>
 
     <h3 class="sect">모루</h3>

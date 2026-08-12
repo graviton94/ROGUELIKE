@@ -85,8 +85,8 @@ function number(x, y, text, color, size, drift) {
   });
 }
 
-function ring(x, y, maxr, color, life) {
-  rings.push({ x: x + 0.5, y: y + 0.5, maxr, color, life: life || 380, age: 0 });
+function ring(x, y, maxr, color, life, shrink) {
+  rings.push({ x: x + 0.5, y: y + 0.5, maxr, color, life: life || 380, age: 0, shrink });
 }
 
 const buzz = ms => { try { navigator.vibrate?.(ms); } catch { /* not supported */ } };
@@ -287,7 +287,7 @@ export function pump(queue, player) {
          bone line; yours is thicker, tinted by what is nocked, and
          leaves a puff at the string. */
       case 'loose': {
-        const tone = { arrow:'W', heavy:'s', venom:'e', ember:'o' }[e.ammo] || 'W';
+        const tone = { deer:'W', heavy:'s', venom:'e', ember:'o', barbed:'N', long:'B' }[e.ammo] || 'W';
         beams.push({ fx: e.fx, fy: e.fy, tx: e.tx, ty: e.ty,
                      color: PALETTE[tone], life: 240, age: 0 });
         const dx = e.tx - e.fx, dy = e.ty - e.fy;
@@ -622,6 +622,69 @@ export function pump(queue, player) {
         break;
       }
 
+      // 버티기 — nothing flies. A mark on the ground under the
+      // feet, because the art is about *not* moving.
+      case 'brace': {
+        ring(e.x, e.y, 1.15, PALETTE.y, 520);
+        ring(e.x, e.y, 0.75, PALETTE.s, 620);
+        number(e.x, e.y - 0.5, '버틴다', PALETTE.y, 1.1);
+        buzz([20, 30, 20]);
+        sfx.heal();
+        break;
+      }
+
+      // Each blow the stance turns away: a short spark back down
+      // the line it came from. Quiet on purpose — it happens a lot.
+      /* ── the priest's four ─────────────────────────────
+         The mage throws things; the priest marks them. Three of
+         these are lines drawn on something rather than objects
+         travelling through the air. */
+      case 'sanctum':
+        ring(e.x, e.y, 1.6, PALETTE.W, 700);
+        ring(e.x, e.y, 1.0, PALETTE.y, 820);
+        number(e.x, e.y - 0.6, '성역', PALETTE.W, 1.15);
+        buzz([20, 40, 20]);
+        sfx.heal();
+        break;
+      case 'sanctumHit':
+        ring(e.x, e.y, 0.85, PALETTE.W, 220);
+        break;
+      case 'anathema':
+        ring(e.x, e.y, 2.0, PALETTE.p, 520, true);
+        burstShards(e.x, e.y, [PALETTE.p, PALETTE.P], 14, 1.2);
+        number(e.x, e.y - 0.7, '파문', PALETTE.P, 1.2);
+        shake = Math.max(shake, 0.3);
+        buzz([30, 20, 40]);
+        sfx.warn();
+        break;
+      case 'judge': {
+        for (let i = 0; i < 14 && shards.length < MAX_SHARDS; i++) {
+          const a2 = (i / 14) * Math.PI * 2;
+          shards.push({ x: e.x + 0.5, y: e.y + 0.5,
+                        vx: Math.cos(a2) * 6.5, vy: Math.sin(a2) * 6.5,
+                        life: 380, age: 0, size: 2, color: PALETTE.y });
+        }
+        ring(e.x, e.y, 7, PALETTE.y, 620);
+        flashScreen = Math.max(flashScreen, 0.4); flashHue = 'y';
+        freeze = Math.max(freeze, 90);
+        shake = Math.max(shake, 0.6);
+        buzz([60, 40, 80]);
+        sfx.levelup();
+        break;
+      }
+      case 'martyr':
+        ring(e.x, e.y, 1.4, PALETTE.R, 640);
+        number(e.x, e.y - 0.7, '순교', PALETTE.R, 1.25);
+        flashScreen = Math.max(flashScreen, 0.25); flashHue = 'r';
+        buzz([80, 40, 80]);
+        sfx.warn();
+        break;
+      case 'martyrHold':
+        ring(e.x, e.y, 1.1, PALETTE.R, 260);
+        number(e.x, e.y - 0.5, '버틴다', PALETTE.R, 1.05);
+        shake = Math.max(shake, 0.4);
+        break;
+
       /* ── the ranger's four ─────────────────────────────
          The warrior's arts happen at arm's length and are drawn
          at the hero. These happen across the room and are drawn
@@ -674,6 +737,88 @@ export function pump(queue, player) {
         sfx.blast();
         break;
 
+      /* ── 팔라딘의 넷 ───────────────────────────────
+         The warrior's arts land at arm's length and the ranger's
+         land across the room. These travel: the charge draws a
+         line the hero actually moved along, and the crusade draws
+         one per body it walked to. */
+      case 'charge': {
+        beams.push({ fx:e.x + 0.5, fy:e.y + 0.5, tx:e.tx + 0.5, ty:e.ty + 0.5,
+                     color:PALETTE.y, age:0, life:280 });
+        ring(e.tx, e.ty, 1.5, PALETTE.y, 320);
+        shake = Math.max(shake, 0.5);
+        buzz([16, 8, 22]); sfx.crit();
+        break;
+      }
+      case 'slam':
+        ring(e.x, e.y, 1.7, PALETTE.W, 300);
+        burstShards(e.x, e.y, [PALETTE.G, PALETTE.w], 16, 1.4);
+        number(e.x, e.y - 0.6, '처박혔다', PALETTE.W, 1.1);
+        shake = Math.max(shake, 0.55);
+        break;
+
+      case 'judgest':
+        ring(e.tx, e.ty, 1.9, PALETTE.y, 380);
+        beams.push({ fx:e.x + 0.5, fy:e.y - 1.2, tx:e.tx + 0.5, ty:e.ty + 0.5,
+                     color:PALETTE.W, age:0, life:260 });
+        flashScreen = Math.max(flashScreen, 0.3); flashHue = 'y';
+        freeze = 80;
+        shake = Math.max(shake, 0.6);
+        buzz(36); sfx.crit();
+        break;
+
+      case 'storm':
+        for (let i = 0; i < 3; i++) ring(e.x, e.y, 1.2 + i * 0.5, PALETTE.y, 300 + i * 90);
+        burstShards(e.x, e.y, [PALETTE.y, PALETTE.W], 22, 1.3);
+        shake = Math.max(shake, 0.5);
+        buzz([20, 10, 20]); sfx.blast();
+        break;
+
+      case 'oathback':
+        number(e.x, e.y - 1.1, `맹세 +${e.n}`, PALETTE.y, 1.15);
+        ring(e.x, e.y, 0.9, PALETTE.y, 260);
+        break;
+
+      case 'crusade':
+        ring(e.x, e.y, 2.2, PALETTE.W, 460);
+        flashScreen = Math.max(flashScreen, 0.24); flashHue = 'W';
+        break;
+
+      case 'crusadeCut':
+        beams.push({ fx:e.x + 0.5, fy:e.y + 0.5, tx:e.tx + 0.5, ty:e.ty + 0.5,
+                     color:PALETTE.W, age:0, life:220, thin:true });
+        ring(e.tx, e.ty, 1.1, PALETTE.y, 240);
+        shake = Math.max(shake, 0.28 + e.n * 0.06);
+        buzz(14);
+        break;
+
+      /* 신전에서 떨어져 나가는 것. Upward and pale — the one
+         effect in the game that is a subtraction. */
+      case 'cleanse':
+        ring(e.x, e.y, 1.4, PALETTE.W, 460);
+        burstShards(e.x, e.y, [PALETTE.W, PALETTE.y], 18, 1.2);
+        number(e.x, e.y - 0.8, '떨어졌다', PALETTE.W, 1.1);
+        break;
+
+      /* 연막탄. Grey, low and wide — it has to read as cover
+         rather than as a blast, because nothing in it took any
+         damage. */
+      case 'smoke': {
+        for (let i = 0; i < 3; i++) ring(e.x, e.y, e.r * (0.5 + i * 0.3), PALETTE.g, 520 + i * 160);
+        burstShards(e.x, e.y, [PALETTE.g, PALETTE.G, PALETTE.d], 26, 0.8);
+        if (e.n) number(e.x, e.y - 0.7, `놓쳤다 ${e.n}`, PALETTE.G, 1.0);
+        sfx.blast();
+        break;
+      }
+
+      /* 사냥꾼의 몫. Quiet on purpose — it fires on most kills a
+         ranger makes, so it gets a breath of green and nothing
+         that competes with the kill it is riding on. */
+      case 'quarry':
+        if (e.hp > 0) number(e.x, e.y - 0.9, `+${e.hp}`, PALETTE.E, 0.85);
+        ring(e.x, e.y, 0.7, PALETTE.E, 200);
+        break;
+
       // 빗발 — many, from above, at once.
       case 'volley': {
         for (let i = 0; i < 10 && shards.length < MAX_SHARDS; i++) {
@@ -690,6 +835,11 @@ export function pump(queue, player) {
         sfx.crit();
         break;
       }
+
+      case 'braceHit':
+        beams.push({ fx: e.x, fy: e.y, tx: e.from.x, ty: e.from.y,
+                     color: PALETTE.y, life: 160, age: 0, thin: true });
+        break;
 
       // 마무리 — a column. Shards go straight up and the flash
       // comes straight down, and the whole thing scales with how
@@ -921,7 +1071,7 @@ export function drawEffects(ctx, camX, camY, t) {
     ctx.globalAlpha = k > 0.65 ? (1 - k) / 0.35 : 1;
     const pop = k < 0.12 ? 1 + (0.12 - k) * 3 : 1;      // snap outward on birth
     const size = Math.max(11, t * 0.42 * n.size * pop);
-    ctx.font = `900 ${size}px ui-monospace, monospace`;
+    ctx.font = `900 ${size}px Galmuri11, ui-monospace, monospace`;
     ctx.lineWidth = Math.max(2, size * 0.22);
     ctx.strokeStyle = PALETTE.k;
     ctx.strokeText(n.text, X(n.x), Y(n.y));

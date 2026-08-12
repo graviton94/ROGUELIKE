@@ -124,6 +124,8 @@ export function snapshot() {
     tally: G.tally || 0, hushUntil: G.hushUntil ?? -1,
     snares: [...(G.snares || [])],
     uniques: { ...(G.uniques || {}) }, ashCount: G.ashCount || 0,
+    sanctum: G.sanctum || null,
+    smoke: G.smoke || null,
     relicShelf: G.relicShelf ?? null,
     nextMods: G.nextMods || null,
     /* The two trait counters that point at a live monster are
@@ -176,6 +178,8 @@ export function apply(data) {
   G.snares = data.snares || [];
   G.uniques = data.uniques || {};
   G.ashCount = data.ashCount || 0;
+  G.sanctum = data.sanctum || null;
+  G.smoke = data.smoke || null;
   G.hushUntil = data.hushUntil ?? -1;
   /* Derived, never stored: a save from before the ladder existed
      still resolves to the right set of rules, and the rung's
@@ -218,6 +222,9 @@ export function apply(data) {
   p.iframe = p.iframe || 0;
   p.brace = p.brace || 0;          // 버티기, mid-stance across a save
   p.stillFor = p.stillFor || 0;
+  p.faith = p.faith || 0;
+  p.martyr = p.martyr || 0;
+  p.martyrDebt = p.martyrDebt || 0;
   if (p.stam == null) p.stam = 0;
 
   refreshFov();

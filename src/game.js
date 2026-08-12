@@ -12,7 +12,7 @@ import {
   upgradeOdds, upgradeRisk, UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS,
   BOONS, boonById, transChance,
   FUSIONS, fusionOf, FUSE_ODDS, FUSE_COST,
-  ALTAR_OFFERS, rarityOf, isCursed,
+  ALTAR_OFFERS, rarityOf, isCursed, TEMPLE_SHARE,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   RELICS, RELIC_SLOTS, relicSlots, relicById, BRANCHES,
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH, REGIONS, regionOf,
@@ -25,14 +25,18 @@ import {
   ECHO_ROOM_HOPS, ECHO_ROOM_TOLL, ECHO_ROOM_KEEP,
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   ARTS, SHOVE_DIST, SHOVE_WALL, CLEAVE_SHARE,
-  ECHOES, ECHO_TURNS, ECHO_POWER, ECHO_SPLASH,
-  OATH_BLOW, CALL_PULL, CALL_COST, RING_COST, RING_BASE, RING_STEP,
-  ATONE_BASE, ATONE_HEAL, ATONE_CAP, KILL_MEND,
   SHADOW_MAX, SHADOW_TICK, FAN_RANGE, FAN_ARC, FAN_SHARE, VANISH_HUSH, VITALS_MULT,
-  AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, SNARE_STEP, VOLLEY_SHARE, MARK_STEP, MARK_MAX,
-  AMMO, ammoById, BOW_MELEE, BOW_FALLOFF, AMMO_BUNDLE,
+  ECHOES, ECHO_TURNS, ECHO_POWER, ECHO_SPLASH,
+  FLURRY_MAX, FLURRY_STEP, FLURRY_STAM, MARK_STEP, MARK_MAX,
+  AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE, SMOKE_RADIUS, SMOKE_TURNS,
+  QUIVERS, quiverById, BOW_MELEE, BOW_FALLOFF, GEAR_SLOTS,
   FORCE_STAM, FORCE_HURT, FORCE_NOISE, PICK_USES, CHEST_RUIN, RANGER_FOOTING,
-  FLURRY_MAX, FLURRY_STEP, FLURRY_STAM, FINISH_MAX,
+  FAITH_MAX, FAITH_PER_HURT, FAITH_PER_UNDEAD, SANCTUM_TURNS, SANCTUM_CUT,
+  ANATHEMA_MORE, JUDGE_HURT, MARTYR_TURNS, FAITH_HARD_HIT, FAITH_PER_HARD,
+  QUARRY_RANGE, QUARRY_STAM, QUARRY_HEAL,
+  FINISH_MAX,
+  OATH_MAX, OATH_PER_HIT, OATH_PER_KILL, CHARGE_DIST, CHARGE_SLAM,
+  JUDGE_STRIKE, STORM_SHARE, CRUSADE_MAX,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
   strikeLine, takenLine, pickLine, MISS_BY, MISS_AT, FELLED,
@@ -40,7 +44,7 @@ import {
 import {
   Level, computeFov, lineClear, idx, rnd, roll, clamp, MW, MH,
   FLOOR, DOWN, UP, DOOR, RUBBLE, DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN,
-  WEB, WATER, CAMP, ALTAR, EVENT, ANVIL, PROP, propAt, isDoor, isShut,
+  WEB, WATER, CAMP, ALTAR, EVENT, ANVIL, PROP, propAt, isDoor, isShut, walkable,
 } from './world.js';
 import { EVENTS } from './events.js';
 import * as Meta from './meta.js';
@@ -209,7 +213,17 @@ export function createHero(raceKey, classKey, base) {
      bow; the ranger *is* one. */
   if (classKey === 'ranger') {
     p.equip.weapon = { kind:'weapon', ...WEAPONS.find(w => w.n === '짧은 활') };
-    addItem(p, makeAmmo('arrow'), 24);
+    p.equip.quiver = makeQuiver('deer');
+    /* And two ways out. The class dies with something in its face
+       more than any other, and until this patch it had no verb
+       for that at all. */
+    addItem(p, makeConsumable('smoke'), 2);
+    /* And the knife stays on the belt. Handing the ranger a bow
+       *instead of* a weapon left it as the only class in the game
+       with nothing to swing when something closed — a bow up
+       close is half a blow, and an empty quiver is a stick. It
+       measured 5.3 floors that way and 6.1 with the knife. */
+    addItem(p, { kind:'weapon', ...WEAPONS[0] }, 1);
   }
   return p;
 }
@@ -236,16 +250,10 @@ export function recalc(p, init) {
     const b = statBonus(p.stats[key]);
     // Mana moves on the odd levels only, twice as far each time.
     /* 1.7 made the pool a number that goes up rather than a
-       resource. Measured at that value: a level-15 mage could cast
-       마력 화살 61 times in a row, the pool sat at 97% of maximum
-       across a run and was full on 82% of turns, and in forty runs
-       the caster stood in front of something it could not afford
-       to answer exactly zero times.
-       At 1.2 that last figure is 1.3 times a run — about one
-       casting opportunity in twenty-five — and the reach barely
-       moves (2.9층 → 2.8층). The pool is a budget again, and the
-       three places that refill it in full (a level, a fire, and
-       the 시간 도둑) are worth something. */
+       resource: a level-15 mage could cast 마력 화살 61 times in a
+       row, and the pool sat at 97% of maximum across a run. At 1.2
+       the caster runs dry about one casting opportunity in
+       twenty-five and the reach barely moves. */
     p.maxmana = Math.max(0, Math.floor((b + 1) * Math.ceil(p.lv / 2) * 1.2));
   } else p.maxmana = 0;
   const g = gearBonus(p);
@@ -314,7 +322,7 @@ const EMPTY_BONUS = {
 export function gearBonus(p) {
   const b = { ...EMPTY_BONUS };
   if (!p) return b;
-  for (const slot of ['weapon', 'body', 'shield']) {
+  for (const slot of GEAR_SLOTS) {
     const it = p.equip[slot];
     if (!it) continue;
 
@@ -436,7 +444,7 @@ export const armourClass = p =>
   gearBonus(p).ac
   + statB(p, 'dex') + Math.floor(p.lv / 4)
   + (p.blessed > 0 ? 4 : 0) + (p.iron > 0 ? 10 : 0)
-  + (p.cls === 'paladin' ? (p.oath || 0) : 0);   // 맹세
+  + (p.cls === 'paladin' ? Math.floor((p.oath || 0) / 2) : 0);   // 맹세
 
 /* 힘의 아래쪽. Heavy gear asks for a number, and a hero who does
    not have it swings badly rather than being refused — a refusal
@@ -557,6 +565,127 @@ function bumpCombo(x, y) {
 /* 앙심 counts the hits you have taken on this floor. Every path
    that costs you health goes through here, so a relic that pays
    for being hit can never disagree with what "being hit" means. */
+/* 신앙. It fills where a mage's pool empties — one point per blow
+   landed on you, and two for every undead put back down. There is
+   no way to build it standing safely in a corridor, which is the
+   whole design: the priest's buttons light up during the fight it
+   is losing, not before it starts. */
+/* One funnel for 맹세, so being hit, killing and the storm's
+   refund can never disagree about the ceiling. */
+export function oathGain(n) {
+  const p = G.player;
+  if (p?.cls !== 'paladin') return;
+  p.oath = Math.min(OATH_MAX, (p.oath || 0) + n);
+}
+
+/* ── 잔향 ─────────────────────────────────────────────────
+   The mage's axis. One place it is written, one place it is read,
+   one place it is spent. It lives on the player rather than on G
+   because it is the caster's, not the floor's. */
+export function liveEcho(p = G.player) {
+  if (!p || p.cls !== 'mage' || !p.echo) return null;
+  if (G.turn > p.echo.until) return null;
+  const spec = ECHOES[p.echo.from];
+  return spec ? { ...spec, from: p.echo.from } : null;
+}
+function leaveEcho(p, spellId) {
+  if (p.cls !== 'mage' || !ECHOES[spellId]) return;
+  p.echo = { from: spellId, until: G.turn + ECHO_TURNS };
+  fx({ t:'echoLeft', x:p.x, y:p.y, id: ECHOES[spellId].id });
+}
+function takeEcho(p) {
+  const e = liveEcho(p);
+  if (e) { p.echo = null; say(`잔향 — ${e.n}. ${e.t}.`, 'level'); }
+  return e;
+}
+
+/* ── 그림자 ───────────────────────────────────────────────
+   The rogue's ammunition, in the same shape 신앙 and 맹세 use: one
+   funnel in, and only useArt out. */
+export function gainShadow(n = 1, why = '') {
+  const p = G.player;
+  if (!p || p.cls !== 'rogue' || !(n > 0)) return 0;
+  const was = p.shadow || 0;
+  p.shadow = Math.min(SHADOW_MAX, was + n);
+  const got = p.shadow - was;
+  if (got) {
+    fx({ t:'shadowGain', x:p.x, y:p.y, at:p.shadow, why });
+    if (p.shadow === SHADOW_MAX && was < SHADOW_MAX) say('그림자가 가득 찼다.', 'good');
+  }
+  return got;
+}
+/* Is anything awake looking at you right now? The quiet tick is
+   paid for standing outside every awake thing's line — the same
+   test the monsters themselves run. */
+function unseenByAll() {
+  const p = G.player, L = G.level;
+  if (!L) return false;
+  return !G.monsters.some(m =>
+    m.awake && !m.disguise
+    && Math.hypot(m.x - p.x, m.y - p.y) <= 9
+    && lineClear(L, m.x, m.y, p.x, p.y));
+}
+
+/* ── 표적 (레인저) ────────────────────────────────────────
+   One funnel, called by every landed blow whichever hand threw
+   it. It used to be two inline fragments inside swing(): the
+   stack counter in one branch and the multiplier eighty lines
+   below. loose() — the arrow path, which is the entire class —
+   touched neither, so a level-12 ranger shooting a single target
+   held 표적 0.00 out of 5 for the whole fight and the 45% the
+   tooltip promises did not exist. */
+function markTarget(m) {
+  const p = G.player;
+  if (p.cls !== 'ranger') return;
+  p.markN = p.markOn === m ? Math.min(MARK_MAX, (p.markN || 0) + 1) : 0;
+  p.markOn = m;
+}
+const markMult = () => {
+  const p = G.player;
+  return (p?.cls === 'ranger' && p.markN) ? 1 + p.markN * MARK_STEP : 1;
+};
+
+export function faithGain(n) {
+  const p = G.player;
+  if (p?.cls !== 'priest') return;
+  const was = p.faith || 0;
+  p.faith = Math.min(FAITH_MAX, was + n);
+  if (was < FAITH_MAX && p.faith === FAITH_MAX) say('신앙이 가득 찼다.', 'level');
+}
+
+/* One funnel for every blow that lands on the player, so the two
+   paths that hit a hero — a body in reach and something loosed
+   across the room — cannot drift apart the way 버티기 did. A hard
+   blow is worth two: at a flat one per hit the bar filled about
+   as fast as 성역 and 파문 emptied it, and 순교 at nine never came
+   up once in twelve measured runs. */
+function faithForBlow(dmg) {
+  const p = G.player;
+  faithGain(dmg >= (p.maxhp || 1) * FAITH_HARD_HIT ? FAITH_PER_HARD : FAITH_PER_HURT);
+}
+
+/* 사냥꾼의 몫 (레인저). The class lost its spell list this patch,
+   which was the right call — it was casting the mage's book two
+   points of intelligence short — but the list was quietly the
+   only sustain the ranger had, and four more ways to deal damage
+   did not replace it. It measured 8.2 floors with the book and
+   5.7 without.
+   So the breath comes back, and only to the hand that earns it:
+   a kill made at arm's length pays nothing. That keeps the answer
+   inside the class's own instruction — keep the gap — instead of
+   handing back a worse mage. */
+function quarry(m) {
+  const p = G.player;
+  if (p.cls !== 'ranger') return;
+  if (Math.hypot(m.x - p.x, m.y - p.y) < QUARRY_RANGE) return;
+  const heal = Math.max(1, Math.round(p.maxhp * QUARRY_HEAL));
+  const before = p.hp, beforeStam = p.stam;
+  p.hp = Math.min(p.maxhp, p.hp + heal);
+  p.stam = Math.min(p.maxStam, p.stam + QUARRY_STAM);
+  if (p.hp > before || p.stam > beforeStam)
+    fx({ t:'quarry', x:p.x, y:p.y, hp: p.hp - before });
+}
+
 function tookHit() {
   const p = G.player;
   /* You cannot catch your breath while something is hitting you.
@@ -569,8 +698,7 @@ function tookHit() {
      an arrow the same as an axe. */
   // 맹세의 방패: a paladin behind a shield swears twice as fast,
   // which is the whole reason to give up the second weapon.
-  if (p.cls === 'paladin')
-    p.oath = Math.min(8, (p.oath || 0) + (fitRule(p, 'twiceSworn') ? 2 : 1));
+  if (p.cls === 'paladin') oathGain(OATH_PER_HIT * (fitRule(p, 'twiceSworn') ? 2 : 1));
 }
 
 /* How long after a blow before the body starts closing again,
@@ -643,73 +771,17 @@ export function traitState() {
     }
     case 'ranger':  return { ...spec, at: p.markN || 0, ready: (p.markN || 0) >= 5,
                              note: p.markN ? `+${Math.round((p.markN) * 9)}%` : '' };
-    case 'paladin': return { ...spec, at: p.oath || 0, ready: (p.oath || 0) >= 8,
-                             note: p.oath ? `방어 +${p.oath}` : '' };
+    case 'paladin': return { ...spec, at: p.oath || 0, max: OATH_MAX,
+                             ready: (p.oath || 0) >= 2,
+                             note: p.oath ? `맹세 ${p.oath}` : '' };
     case 'rogue':   return { ...spec, at: p.shadow || 0, max: SHADOW_MAX,
                              ready: (p.shadow || 0) >= 1,
                              note: p.shadow ? `그림자 ${p.shadow}` : '' };
-    case 'priest':  return { ...spec, at: 0, max: 0, ready: p.hp < p.maxhp * 0.5 };
+    case 'priest':  return { ...spec, at: p.faith || 0, max: FAITH_MAX,
+                             ready: (p.faith || 0) >= 3,
+                             note: p.faith ? `신앙 ${p.faith}` : '' };
   }
   return spec;
-}
-
-/* ── 잔향 ─────────────────────────────────────────────────
-   The mage's axis, and the same shape as every other resource
-   here: one place it is written, one place it is read, one place
-   it is spent. It lives on the player rather than on G because it
-   is the caster's, not the floor's — it survives a staircase the
-   way a held shade does. */
-export function liveEcho(p = G.player) {
-  if (!p || p.cls !== 'mage' || !p.echo) return null;
-  if (G.turn > p.echo.until) return null;
-  const spec = ECHOES[p.echo.from];
-  return spec ? { ...spec, from: p.echo.from } : null;
-}
-
-function leaveEcho(p, spellId) {
-  if (p.cls !== 'mage' || !ECHOES[spellId]) return;
-  p.echo = { from: spellId, until: G.turn + ECHO_TURNS };
-  fx({ t:'echoLeft', x:p.x, y:p.y, id: ECHOES[spellId].id });
-}
-
-function takeEcho(p) {
-  const e = liveEcho(p);
-  if (e) { p.echo = null; say(`잔향 — ${e.n}. ${e.t}.`, 'level'); }
-  return e;
-}
-
-/* ── 그림자 ───────────────────────────────────────────────
-   One funnel in and one out, for the same reason every other
-   resource here has one: a shade earned in the ambush path and
-   a shade earned on the roll must be the same shade, or the
-   gauge in the HUD is describing two different things.
-
-   Nothing but this adds to it, and nothing but useArt spends it. */
-export function gainShadow(n = 1, why = '') {
-  const p = G.player;
-  if (!p || p.cls !== 'rogue' || !(n > 0)) return 0;
-  const was = p.shadow || 0;
-  p.shadow = Math.min(SHADOW_MAX, was + n);
-  const got = p.shadow - was;
-  if (got) {
-    fx({ t:'shadowGain', x:p.x, y:p.y, at:p.shadow, why });
-    if (p.shadow === SHADOW_MAX && was < SHADOW_MAX)
-      say('그림자가 가득 찼다.', 'good');
-  }
-  return got;
-}
-
-/* Is anything awake looking at you right now? The quiet tick
-   below is paid for standing outside every awake thing's line,
-   which is the same test the monsters themselves run — so the
-   gauge cannot fill while something is watching. */
-function unseenByAll() {
-  const p = G.player, L = G.level;
-  if (!L) return false;
-  return !G.monsters.some(m =>
-    m.awake && !m.disguise
-    && Math.hypot(m.x - p.x, m.y - p.y) <= 9
-    && lineClear(L, m.x, m.y, p.x, p.y));
 }
 
 /* 응답: the priest heals harder the worse it is going. Every
@@ -751,38 +823,33 @@ export function spellSlots() {
   /* Arts come first in the row, because a class that has them
      leads with them. 침묵의 서약 takes spells, not hands — an art
      is not spoken. */
-  /* The row has to grey out on exactly the tests useArt refuses
-     on, or the button lies. It only knew about the arts that need
-     a body, so the ranger's three shooting arts read as live with
-     no bow and no clear line — useArt then declined and, costing
-     no turn, handed anything looping on the row an infinite loop.
-     The measured shape of that: the bot spun on 조준 사격 within
-     14 turns of every ranger run. Both lists are consulted here
-     now, and the ammo test with them. */
   const arts = (ARTS[p.cls] || []).map(a => {
     const locked = a.lv > p.lv;
     const near = G.level && adjacentMonsters(p).length > 0;
+    /* The row has to grey out on exactly the tests useArt refuses
+       on, or the button lies. It only knew about the arts that
+       need a body, so the three shooting arts read as live with no
+       bow and no clear line — useArt then declined and, costing no
+       turn, handed anything looping on the row an infinite loop.
+       Measured on a headless bot: every ranger run stalled inside
+       14 turns, pressing 조준 사격 301.6 times a run. */
     const noTarget = (ART_NEEDS_BODY.includes(a.id) && !near)
                   || (ART_NEEDS_SHOT.includes(a.id) && !(G.level && shotTarget()))
                   || (ART_NEEDS_SIGHT.includes(a.id) && !(G.level && visibleMonsters().length))
                   || (ART_NEEDS_WATCHER.includes(a.id) && !(G.level && awakeWatchers().length))
                   || (!!a.ammo && (quiver(p)?.qty || 0) < a.ammo);
-    /* 그림자 is the cost the row has to print for the rogue: the
-       breath is one or two and never the thing that stops you,
-       and a button whose real price is invisible is a button the
-       player learns by being disappointed. */
-    const price = artPrice(p, a);
     return {
       id: a.id, name: a.name, short: a.short || a.name.slice(0, 2),
-      lv: a.lv, stam: a.stam,
-      /* The pip shows the resource that actually gates the button.
-         For 응보 that is however much is in the pouch right now,
-         because the art empties it. */
-      cost: price ? (a[price.key] === 'all' ? price.held : price.spend) : a.stam,
-      pool: price?.n || null, shade: a.shade || 0,
-      art: true, locked, silent: false, noTarget,
+      lv: a.lv, cost: a.faith || a.oath || a.shade || a.stam, art: true,
+      faith: !!a.faith, oath: !!a.oath, shade: !!a.shade, stam: a.stam || 0,
+      locked, silent: false, noTarget,
       plus: 0, affix: null,
-      ready: !locked && !noTarget && !price?.short && p.stam >= a.stam,
+      ready: !locked && !noTarget
+             && (a.faith ? (p.faith || 0) >= a.faith
+               : a.oath ? (p.oath || 0) >= a.oath
+               : a.shade ? (p.shadow || 0) >= a.shade
+               : true)
+             && p.stam >= (a.stam || 0),
     };
   });
   if (!realm) return arts;
@@ -806,12 +873,12 @@ export function spellSlots() {
 export const makeConsumable = id => ({ kind:'use', ...CONSUMABLES.find(c => c.id === id) });
 /* Ammunition stacks the way flasks do — one line in the pack that
    counts down, not twenty arrows taking twenty slots. */
-export const makeAmmo = id => ({ kind:'ammo', ...ammoById(id) });
+export const makeQuiver = id => ({ kind:'quiver', slot:'quiver', ...quiverById(id) });
 
 export function addItem(p, item, qty = 1) {
   // Catalysts stack the same way flasks do — you carry three
   // 정련의 촉매, not three separate lines in the pack.
-  if (item.kind === 'use' || item.kind === 'cat' || item.kind === 'ammo') {
+  if (item.kind === 'use' || item.kind === 'cat') {
     const slot = p.pack.find(s => s.item.id === item.id);
     if (slot) { slot.qty += qty; return; }
   }
@@ -842,7 +909,7 @@ export function equip(slotIdx) {
     // the player picked up.
     if (it.t) Meta.see('weapons', it.t);
     say(`${nameOf(it)}을(를) 들었다.`, 'good');
-  } else if (it.kind === 'armour') {
+  } else if (it.kind === 'armour' || it.kind === 'quiver') {
     const key = it.slot;
     if (key === 'shield' && p.equip.weapon?.hands === 2) { say('양손 무기를 든 채로는 방패를 들 수 없다.', 'warn'); return; }
     const old = p.equip[key];
@@ -1004,6 +1071,35 @@ export function useItem(slotIdx) {
       break;
     case 'torch': p.lightTurns = Math.min(2600, p.lightTurns + 900); say('새 횃불에 불을 붙였다.', 'good'); break;
 
+    /* 연막탄. The one verb this game did not have: breaking
+       pursuit. Everything walks at your speed here, so once a
+       thing is on you the only exits were killing it or dying to
+       it — which is why every class dies the same way, with one
+       or two bodies in its face. This puts a third door in that
+       room. It deals nothing; it takes the room's attention off
+       you and holds the tile blind while you spend the turns you
+       just bought. */
+    case 'smoke': {
+      const caught = G.monsters.filter(m =>
+        Math.hypot(m.x - p.x, m.y - p.y) <= SMOKE_RADIUS);
+      G.smoke = { x:p.x, y:p.y, left: SMOKE_TURNS, r: SMOKE_RADIUS };
+      for (const m of caught) {
+        if (m.named) continue;     // a guardian does not lose its own doorway
+        m.awake = false;
+        m.provoked = false;
+      }
+      /* And nothing re-acquires you while it hangs. This is the
+         same gate 그림자 걸음 opens, on purpose: one funnel for
+         "nothing notices you", so the smoke cannot be right in
+         one place and wrong in the other. */
+      G.hushUntil = Math.max(G.hushUntil || 0, G.turn + SMOKE_TURNS);
+      fx({ t:'smoke', x:p.x, y:p.y, r: SMOKE_RADIUS, n: caught.length });
+      say(caught.length
+        ? `연기가 터진다. ${caught.length}이(가) 당신을 놓쳤다.`
+        : '연기가 터진다. 놓칠 것이 아무것도 없다.', caught.length ? 'good' : 'warn');
+      break;
+    }
+
     /* The unknown half. Three of these are worth drinking and
        three are not, so an unidentified flask is a real bet. */
     case 'might':
@@ -1023,7 +1119,7 @@ export function useItem(slotIdx) {
     }
     case 'murk': afflict(p, 'blind', 22); break;
     case 'forge': {
-      const slots = ['weapon', 'body', 'shield'].filter(k => p.equip[k]);
+      const slots = GEAR_SLOTS.filter(k => p.equip[k]);
       if (!slots.length) { say('벼릴 것이 없다.', 'warn'); break; }
       const it2 = p.equip[slots[rnd(slots.length)]];
       it2.plus = Math.min(MAX_PLUS, (it2.plus || 0) + 1);
@@ -1033,7 +1129,7 @@ export function useItem(slotIdx) {
       break;
     }
     case 'hex': {
-      const slots = ['weapon', 'body', 'shield'].filter(k => p.equip[k]);
+      const slots = GEAR_SLOTS.filter(k => p.equip[k]);
       if (!slots.length) { say('아무 일도 일어나지 않았다.'); break; }
       const it2 = p.equip[slots[rnd(slots.length)]];
       const table = Math.random() < 0.5 ? PREFIXES : SUFFIXES;
@@ -1061,53 +1157,25 @@ function teleport() {
 /* ── spells ─────────────────────────────────────────────── */
 /* Arts that are pointless with nothing in reach, so the row can
    grey them out the way it greys out a bolt with no target. */
-const ART_NEEDS_BODY = ['shove', 'cleave', 'finisher', 'vitals', 'requite', 'ring'];
+const ART_NEEDS_BODY = ['shove', 'cleave', 'finisher', 'vitals', 'judgest', 'storm'];
 /* And the ones that need something down a clear line instead —
    the ranger's row greys out on the same reading of the room that
    the 쏘기 button uses. */
 const ART_NEEDS_SHOT = ['aimed', 'pierce', 'volley'];
 /* The rogue's two that only need to *see* something — no bow, no
    reach, just a body in the light. */
-const ART_NEEDS_SIGHT = ['shadowstep', 'fan', 'call'];
+const ART_NEEDS_SIGHT = ['shadowstep', 'fan'];
 /* And the one that needs something to lose you: vanishing in an
    empty room is a wasted shade, so the row says so. */
 const ART_NEEDS_WATCHER = ['vanish'];
-
-/* ── what an art spends besides breath ───────────────────
-   Two classes now hold ammunition of their own, and a third will
-   read wrong the day someone adds a fourth unless there is one
-   place that answers "what does this button cost, and have I got
-   it". `all` means the art empties the pouch rather than taking a
-   fixed bite — 응보 is priced off what it burns. */
-const ART_POOLS = {
-  shade: { field: 'shadow', n: '그림자', cls: 'rogue' },
-  oath:  { field: 'oath',   n: '맹세',   cls: 'paladin' },
-};
-export function artPrice(p, a) {
-  for (const [key, pool] of Object.entries(ART_POOLS)) {
-    if (!a[key]) continue;
-    const held = p?.[pool.field] || 0;
-    const want = a[key] === 'all' ? 1 : a[key];
-    /* `all` may carry a ceiling. 속죄 without one emptied the
-       pouch every time it was pressed, and measured at depth that
-       left 응보 at 0.4 and 심판의 고리 at 0.1 uses a run — two of
-       the four arts existed only on paper because the heal had
-       always already spent them. A ceiling keeps the art usable
-       at one point of oath, which is what floor one needs, while
-       leaving something in the pouch to swing with. */
-    const cap = a[key] === 'all' ? Math.min(held, a[`${key}Max`] ?? held) : a[key];
-    return { ...pool, key, held, want, spend: cap, short: held < want };
-  }
-  return null;
-}
 
 /* The eight neighbours, in the order a landing spot should be
    tried: straight behind first, then around. */
 const dirs8 = [[0,-1],[0,1],[-1,0],[1,0],[-1,-1],[1,-1],[-1,1],[1,1]];
 
-/* Everything the rogue sees right now, nearest first. One reader,
-   because three arts and the row all have to agree on what "적이
-   보인다" means. */
+/* Everything the hero sees right now, nearest first. One reader,
+   because three arts and the row all have to agree on what
+   "보인다" means. */
 function visibleMonsters() {
   const p = G.player, L = G.level;
   if (!L) return [];
@@ -1140,7 +1208,9 @@ export function useArt(id) {
   }
   // These two are mis-taps rather than lost turns, so they cost
   // nothing — the same way a spell with no mana costs nothing.
-  if (p.stam < a.stam) { say('숨이 차다.', 'warn'); return; }
+  if (a.stam && p.stam < a.stam) { say('숨이 차다.', 'warn'); return; }
+  if (a.oath && (p.oath || 0) < a.oath) { say('맹세가 모자라다.', 'warn'); return; }
+  if (a.shade && (p.shadow || 0) < a.shade) { say('그림자가 모자란다.', 'warn'); return; }
 
   const near = adjacentMonsters(p);
   if (ART_NEEDS_BODY.includes(id) && !near.length) {
@@ -1156,19 +1226,13 @@ export function useArt(id) {
   if (ART_NEEDS_WATCHER.includes(id) && !awakeWatchers().length) {
     say('너를 보고 있는 것이 없다.', 'warn'); return;
   }
-  // 그림자 and 맹세 are spent here and nowhere else.
-  const price = artPrice(p, a);
-  if (price?.short) { say(`${price.n}이(가) 모자란다.`, 'warn'); return; }
-  // An art that flies costs arrows on top of breath, and refuses
-  // rather than half-firing when the quiver cannot cover it.
   if (a.ammo && (quiver()?.qty || 0) < a.ammo) { say('화살이 모자란다.', 'warn'); return; }
-  p.stam -= a.stam;
+  if (a.faith && (p.faith || 0) < a.faith) { say('신앙이 모자란다.', 'warn'); return; }
+  p.stam -= a.stam || 0;
   if (a.ammo) spendArrows(a.ammo);
-  /* Held for the arts that are priced off what they burned —
-     the spend happens before the switch so nothing can read the
-     pouch twice. */
-  const burned = price ? price.spend : 0;
-  if (price) p[price.field] = Math.max(0, price.held - burned);
+  if (a.faith) p.faith -= a.faith;
+  if (a.oath) p.oath -= a.oath;
+  if (a.shade) p.shadow = Math.max(0, (p.shadow || 0) - a.shade);
 
   switch (id) {
     case 'shove': {
@@ -1216,131 +1280,16 @@ export function useArt(id) {
       for (const m of [...hit]) if (G.monsters.includes(m)) swing(m, CLEAVE_SHARE);
       break;
     }
-    case 'flurry': {
-      /* The whole art is one loop, and every exit from it is a
-         thing the player did: the breath ran out, the body fell,
-         or a blow missed. Nothing here is on a timer.
-
-         It rides swing() rather than rolling its own damage, so
-         the third blow of a flurry feeds 세 번째 손 exactly as
-         three ordinary swings would — the trait and the art are
-         the same idea at two speeds, which is why the warrior
-         wants both on the same target. */
-      const m = near.sort((x, y) => y.hp - x.hp)[0];
-      let landed = 0, blows = 0;
-      for (let i = 0; i < FLURRY_MAX; i++) {
-        if (!G.monsters.includes(m) || !G.running) break;
-        // The first blow is paid for by the art's own cost; each
-        // one after it is bought on the spot.
-        if (i > 0) {
-          if (p.stam < FLURRY_STAM) { say('숨이 끊겼다.', 'warn'); break; }
-          p.stam -= FLURRY_STAM;
-        }
-        blows++;
-        fx({ t:'lunge', who:'player', x:p.x, y:p.y, kind:weaponType(p),
-             dx: Math.sign(m.x - p.x), dy: Math.sign(m.y - p.y) });
-        if (!swing(m, 1 + landed * FLURRY_STEP)) break;   // a miss ends it
-        landed++;
-      }
-      if (landed >= 3) say(`${landed}연타 — 마지막 한 대가 처음의 ${(1 + (landed - 1) * FLURRY_STEP).toFixed(2)}배였다.`, 'level');
-      else if (landed) say(`${landed}대를 이어 붙였다.`, 'level');
-      else say('첫 대부터 빗나갔다.', 'warn');
-      break;
-    }
-    case 'finisher': {
-      /* The answer to a thing that is nearly done. Priced off what
-         the target has *lost*, so it is worthless as an opener and
-         decisive as a closer — the opposite curve from 처형, which
-         is a threshold rather than a slope. */
-      const m = near.sort((x, y) => (x.hp / x.maxhp) - (y.hp / y.maxhp))[0];
-      const gone = 1 - m.hp / Math.max(1, m.maxhp);
-      fx({ t:'finisher', x:p.x, y:p.y, tx:m.x, ty:m.y, power:gone });
-      say(`숨을 모아 내리친다.`, 'level');
-      swing(m, 1 + gone * (FINISH_MAX - 1));
-      break;
-    }
-
-    /* ── 팔라딘의 넷 ───────────────────────────────────
-       Every one of these takes the wall down to swing it. That is
-       the decision the class did not have while it was casting
-       the priest's book: a heal cost mana, and mana was not
-       keeping him alive. */
-    case 'requite': {
-      /* The converter. Priced off what it burned rather than off
-         the target, so it is the mirror of the warrior's 마무리 —
-         that one asks how hurt *it* is, this asks how hurt *you*
-         are. */
-      const m = near.sort((x, y) => y.hp - x.hp)[0];
-      fx({ t:'finisher', x:p.x, y:p.y, tx:m.x, ty:m.y, power: burned / 8 });
-      say(burned >= 5 ? `여덟 번 맞은 값을 한 번에 돌려준다.` : '맹세를 태워 내리친다.', 'level');
-      swing(m, 1 + burned * OATH_BLOW);
-      break;
-    }
-    case 'call': {
-      /* The answer a slow class can actually use. A paladin does
-         not catch an archer; it makes the archer come. Everything
-         in sight is dragged two tiles and wakes up — waking the
-         room is the price, and for this class that is not much of
-         a price, which is the joke. */
-      const seen = visibleMonsters();
-      let moved = 0;
-      for (const m of seen) {
-        m.awake = true; m.provoked = true;
-        const dx = Math.sign(p.x - m.x), dy = Math.sign(p.y - m.y);
-        for (let i = 0; i < CALL_PULL; i++) {
-          const nx = m.x + dx, ny = m.y + dy;
-          if ((nx === p.x && ny === p.y) || G.level.solid(nx, ny) || monsterAt(nx, ny)) break;
-          m.x = nx; m.y = ny; moved++;
-        }
-      }
-      fx({ t:'burst', x:p.x, y:p.y, r:4, color:'y' });
-      say(seen.length ? `이름을 불렀다 — ${seen.length}이(가) 끌려온다.`
-                      : '부를 것이 없다.', seen.length ? 'level' : 'warn');
-      refreshFov();
-      break;
-    }
-    case 'ring': {
-      /* The ring answer. Weight comes from the oath still held
-         after the toll, so a paladin who has been beaten on all
-         floor swings a heavier circle than one who has not. */
-      const share = RING_BASE + (p.oath || 0) * RING_STEP;
-      const hit = adjacentMonsters(p);
-      fx({ t:'cleave', x:p.x, y:p.y, n:hit.length, wide:false });
-      say(hit.length > 2 ? '한 바퀴가 전부를 지나갔다.' : '고리를 그렸다.', 'level');
-      for (const m of [...hit]) if (G.monsters.includes(m)) swing(m, share);
-      break;
-    }
-    case 'atone': {
-      /* The class's only healing, and it is paid for in wall
-         rather than in mana. Deliberately not routed through
-         healScale — that multiplier is the priest's trait, and
-         the two classes have just been separated. */
-      const share = Math.min(ATONE_CAP, ATONE_BASE + ATONE_HEAL * burned);
-      const h = Math.min(p.maxhp - p.hp, Math.round(p.maxhp * share));
-      p.hp += h;
-      const cured = ailList(p);
-      p.ail = {}; p.stuck = 0;
-      fx({ t:'heal', x:p.x, y:p.y, amt:h });
-      say(`견딘 것이 되돌아온다. 체력 +${h}.`, 'good');
-      if (cured.length) say(`${cured.map(k => AILMENTS[k].n).join(' · ')}이(가) 가셨다.`, 'good');
-      break;
-    }
-
-    /* ── the rogue's four ──────────────────────────────
+    /* ── 도적의 넷 ─────────────────────────────────────
        Two answers to being outnumbered or outranged, and two
        assassin's blows. In that order, because the first two are
        what make the other two survivable. */
     case 'shadowstep': {
       /* The archer answer. An archer beats you by keeping a gap;
-         this spends a shade to delete the gap entirely and arrive
-         on the blind side. The blow lands as an ambush whether or
-         not the thing was awake — which is what "등 뒤" means. */
+         this spends a shade to delete the gap and arrive on the
+         blind side. */
       const t = visibleMonsters()[0];
       const dx = Math.sign(t.x - p.x), dy = Math.sign(t.y - p.y);
-      /* Behind it, from where you stand. If the far side is a
-         wall, take any free tile touching it rather than refusing
-         — a shade is already spent and an art that eats the
-         resource and does nothing is the worst thing here. */
       const spots = [[t.x + dx, t.y + dy],
                      ...dirs8.map(([ax, ay]) => [t.x + ax, t.y + ay])];
       const to = spots.find(([x, y]) =>
@@ -1355,7 +1304,7 @@ export function useArt(id) {
       say(`${t.n}의 등 뒤에 섰다.`, 'level');
       /* Unaware is how this game already spells "ambush", so the
          art borrows that rather than inventing a second kind of
-         guaranteed crit. Waking it again is the monster's job. */
+         guaranteed crit. */
       const wasAwake = t.awake;
       t.awake = false;
       swing(t, 1, { noShade: true });
@@ -1363,10 +1312,8 @@ export function useArt(id) {
       break;
     }
     case 'fan': {
-      /* The pack answer, and the reason a rogue does not simply
-         die to four kobolds in a wide room. A cone rather than a
-         ring: it is thrown, so it answers the half of the room
-         you are facing and not the thing behind you. */
+      /* The pack answer. A cone rather than a ring: it is thrown,
+         so it answers the half of the room you are facing. */
       const t = visibleMonsters()[0];
       const len = Math.max(1e-6, Math.hypot(t.x - p.x, t.y - p.y));
       const ax = (t.x - p.x) / len, ay = (t.y - p.y) / len;
@@ -1383,15 +1330,11 @@ export function useArt(id) {
       break;
     }
     case 'vanish': {
-      /* Stealth as something you can re-enter, rather than a
-         state you only ever lose once. Everything awake that can
-         see you loses you — which makes your next blow an ambush
-         by the ordinary rule, which hands a shade back. That loop
-         is the class, and it is why this one costs only one.
-
-         A boss does not lose you. Neither does a named thing you
-         have already picked a fight with: those two are the
-         encounters the game promises you cannot walk out of. */
+      /* Stealth as something you can re-enter. Everything awake
+         that can see you loses you — which makes your next blow an
+         ambush by the ordinary rule, which hands a shade back.
+         A boss does not lose you, and neither does a named thing
+         you have already picked a fight with. */
       const lost = awakeWatchers().filter(m => !(m.named && m.provoked));
       for (const m of lost) m.awake = false;
       G.hushUntil = G.turn + VANISH_HUSH;
@@ -1402,12 +1345,215 @@ export function useArt(id) {
     case 'vitals': {
       /* The one shot. Priced off nothing but the three shades it
          costs, so unlike 마무리 it is worth the same on a full
-         health bar as on a sliver — the assassin's blow is the
-         one that does not care how the fight was going. */
+         health bar as on a sliver. */
       const m = near.sort((x, y) => y.hp - x.hp)[0];
       fx({ t:'finisher', x:p.x, y:p.y, tx:m.x, ty:m.y, power:1 });
       say('칼끝이 갑옷 사이를 찾았다.', 'level');
       swing(m, VITALS_MULT, { pierce: true });
+      break;
+    }
+
+    case 'flurry': {
+      /* Every exit from this loop is a thing the player did: the
+         breath ran out, the body fell, or a blow missed. It rides
+         swing(), so the third blow feeds 세 번째 손 exactly as
+         three ordinary swings would. */
+      const m = near.sort((x, y) => y.hp - x.hp)[0];
+      let landed = 0;
+      for (let i = 0; i < FLURRY_MAX; i++) {
+        if (!G.monsters.includes(m) || !G.running) break;
+        if (i > 0) {
+          if (p.stam < FLURRY_STAM) { say('숨이 끊겼다.', 'warn'); break; }
+          p.stam -= FLURRY_STAM;
+        }
+        fx({ t:'lunge', who:'player', x:p.x, y:p.y, kind:weaponType(p),
+             dx: Math.sign(m.x - p.x), dy: Math.sign(m.y - p.y) });
+        if (!swing(m, 1 + landed * FLURRY_STEP)) break;
+        landed++;
+      }
+      if (landed >= 3) say(`${landed}연타 — 마지막 한 대가 처음의 ${(1 + (landed - 1) * FLURRY_STEP).toFixed(2)}배였다.`, 'level');
+      else if (landed) say(`${landed}대를 이어 붙였다.`, 'level');
+      else say('첫 대부터 빗나갔다.', 'warn');
+      break;
+    }
+
+    case 'finisher': {
+      /* The answer to a thing that is nearly done. Priced off what
+         the target has *lost*, so it is worthless as an opener and
+         decisive as a closer — the opposite curve from 처형, which
+         is a threshold rather than a slope. */
+      const m = near.sort((x, y) => (x.hp / x.maxhp) - (y.hp / y.maxhp))[0];
+      const gone = 1 - m.hp / Math.max(1, m.maxhp);
+      fx({ t:'finisher', x:p.x, y:p.y, tx:m.x, ty:m.y, power:gone });
+      say(`숨을 모아 내리친다.`, 'level');
+      swing(m, 1 + gone * (FINISH_MAX - 1));
+      break;
+    }
+
+    /* ── 팔라딘의 넷 ───────────────────────────────────
+       The old paladin was a defence number that leaked, and the
+       first attempt at fixing it was another defence number that
+       asked him to stand still — which is nothing in a game whose
+       whole texture is walking into a room and taking it apart.
+       All four of these kill something. What differs is the
+       shape: how you reach it, how you get through it, how you
+       take a crowd, and how you keep going. */
+    case 'charge': {
+      /* Nobody in the game has a gap-closer, and the paladin is
+         the class that most needs one — dexterity −2 makes him
+         the slowest thing on the floor, so anything that wants to
+         keep away from him simply does. */
+      const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+      let best = null;
+      for (const [dx, dy] of dirs) {
+        for (let d = 1; d <= CHARGE_DIST; d++) {
+          const tx = p.x + dx * d, ty = p.y + dy * d;
+          if (!walkable(G.level, tx, ty)) break;
+          const hit = G.monsters.find(o => !o.disguise && o.x === tx && o.y === ty);
+          if (hit) {
+            if (!best || d < best.d) best = { m: hit, dx, dy, d };
+            break;
+          }
+        }
+      }
+      if (!best) { say('달려들 곳이 없다.', 'warn'); break; }
+      const lx = best.m.x - best.dx, ly = best.m.y - best.dy;
+      const from = { x: p.x, y: p.y };
+      if (walkable(G.level, lx, ly) && !G.monsters.some(o => o.x === lx && o.y === ly)) {
+        p.x = lx; p.y = ly;
+      }
+      fx({ t:'charge', x:from.x, y:from.y, tx:p.x, ty:p.y, dx:best.dx, dy:best.dy });
+      say('땅을 밟고 달려든다.', 'level');
+      /* Driven into a wall it loses its footing. The extra is not
+         damage — it is turns, which is worth more. */
+      const bx = best.m.x + best.dx, by = best.m.y + best.dy;
+      const pinned = !walkable(G.level, bx, by);
+      swing(best.m, 1.35);
+      if (pinned && G.monsters.includes(best.m)) {
+        best.m.energy = -CHARGE_SLAM;
+        best.m.awake = true;
+        fx({ t:'slam', x:best.m.x, y:best.m.y });
+        say(`${best.m.n}이(가) 벽에 처박혔다.`, 'good');
+      }
+      break;
+    }
+    case 'judgest': {
+      /* The warrior's 마무리 is priced off what the target has
+         lost, so it closes fights. This one is priced off how big
+         the target is to begin with, so it opens them — and it
+         goes through armour entirely, which is what makes the
+         thickest thing in the room the right thing to use it on. */
+      const m = near.sort((x, y) => (y.maxhp || 0) - (x.maxhp || 0))[0];
+      fx({ t:'judgest', x:p.x, y:p.y, tx:m.x, ty:m.y });
+      say('내리치는 것은 무기가 아니라 판결이다.', 'level');
+      /* The whole blow goes through armour, so it is priced and
+         delivered by hand rather than through swing() — which
+         rolls the target's plate in on every hit and has no way
+         to be told not to. */
+      const heft = Math.round(baseSwing(p) + (m.maxhp || 10) * JUDGE_STRIKE);
+      fx({ t:'lunge', who:'player', x:p.x, y:p.y, kind:weaponType(p),
+           dx: Math.sign(m.x - p.x), dy: Math.sign(m.y - p.y) });
+      m.awake = true;
+      hurtMonster(m, Math.max(3, heft), '심판의 일격', { pierce: true });
+      break;
+    }
+    case 'storm': {
+      /* The reason to walk into the middle of a crowd rather than
+         hold a doorway. Everything around him, and every kill
+         hands the oath back — three bodies down is three oath
+         returned, which is another storm or most of a 성전. This
+         is the engine: the class accelerates on a good swing
+         instead of running dry on one. */
+      if (!near.length) { say('휘두를 것이 없다.', 'warn'); break; }
+      fx({ t:'storm', x:p.x, y:p.y, n:near.length });
+      say(`${near.length}을(를) 한 바퀴에 쓸어버린다.`, 'level');
+      let felled = 0;
+      for (const m of [...near]) {
+        if (!G.monsters.includes(m)) continue;
+        swing(m, STORM_SHARE);
+        if (!G.monsters.includes(m)) felled++;
+      }
+      if (felled) {
+        oathGain(felled);
+        fx({ t:'oathback', x:p.x, y:p.y, n:felled });
+        say(`쓰러진 만큼 맹세가 돌아온다. (+${felled})`, 'good');
+      }
+      break;
+    }
+    case 'crusade': {
+      /* The whole bar, and it only pays if the room is already
+         nearly down — which is what 성스러운 폭풍 is for. Cut the
+         nearest thing; if it falls, walk to the next and cut that
+         one; stop the moment something does not fall. A paladin
+         who set the room up right clears it in one action, and one
+         who did not gets a single swing for eight oath. */
+      let cuts = 0;
+      fx({ t:'crusade', x:p.x, y:p.y });
+      say('한 번 시작한 것은 끝날 때까지 멈추지 않는다.', 'level');
+      while (cuts < CRUSADE_MAX) {
+        const alive = G.monsters.filter(o => !o.disguise && G.level.vis[idx(o.x, o.y)]);
+        if (!alive.length) break;
+        const m = alive.sort((x, y) =>
+          Math.hypot(x.x - p.x, x.y - p.y) - Math.hypot(y.x - p.x, y.y - p.y))[0];
+        const d = Math.hypot(m.x - p.x, m.y - p.y);
+        // step to it if it is not already in reach
+        if (d > 1.5) {
+          const sx = p.x + Math.sign(m.x - p.x), sy = p.y + Math.sign(m.y - p.y);
+          if (!walkable(G.level, sx, sy) || G.monsters.some(o => o.x === sx && o.y === sy)) break;
+          p.x = sx; p.y = sy;
+          if (Math.hypot(m.x - p.x, m.y - p.y) > 1.5) { cuts++; continue; }
+        }
+        fx({ t:'crusadeCut', x:p.x, y:p.y, tx:m.x, ty:m.y, n:cuts });
+        swing(m, 1.15);
+        cuts++;
+        if (G.monsters.includes(m)) break;    // it did not fall; the march is over
+      }
+      break;
+    }
+
+    /* ── the priest's four ─────────────────────────────
+       None of them is a heal. Three answer things the game
+       already had no answer to — a room you cannot leave, a thing
+       that keeps aning, a floor full of the undead — and the
+       fourth is a bet rather than a cure. */
+    case 'sanctum': {
+      G.sanctum = { x:p.x, y:p.y, left: SANCTUM_TURNS };
+      fx({ t:'sanctum', x:p.x, y:p.y, turns:SANCTUM_TURNS });
+      say('발밑의 돌이 밝아진다. 여기서는 물러서지 않는다.', 'good');
+      break;
+    }
+    case 'anathema': {
+      /* The answer to everything that keeps closing its own
+         wounds — the troll, the vampire, 잿물 먹는 것. There was
+         no way to switch that off before. */
+      const near2 = G.monsters.filter(o => !o.disguise && G.level.vis[idx(o.x, o.y)]);
+      if (!near2.length) { say('지목할 것이 없다.', 'warn'); break; }
+      const m2 = near2.sort((x, y) => (y.maxhp || 0) - (x.maxhp || 0))[0];
+      m2.cursed = true; m2.awake = true;
+      fx({ t:'anathema', x:m2.x, y:m2.y });
+      say(`${m2.n}을(를) 파문했다. 더는 아물지 않는다.`, 'level');
+      break;
+    }
+    case 'judge': {
+      const dead = G.monsters.filter(o => !o.disguise && UNDEAD.includes(o.spr)
+                                       && G.level.vis[idx(o.x, o.y)]);
+      if (!dead.length) { say('심판할 것이 없다.', 'warn'); break; }
+      fx({ t:'judge', x:p.x, y:p.y, n:dead.length });
+      say(`${dead.length}에게 이름을 되돌려주었다.`, 'level');
+      for (const o of [...dead]) {
+        if (!G.monsters.includes(o)) continue;
+        hurtMonster(o, Math.max(3, Math.round((o.maxhp || 10) * JUDGE_HURT)), '심판', { pierce:true });
+        if (G.monsters.includes(o)) { o.fleeing = true; o.awake = true; }
+      }
+      break;
+    }
+    case 'martyr': {
+      /* Not a heal — a debt. Everything turned aside arrives at
+         once when it ends, so the five turns have to be spent
+         finishing the fight rather than surviving it. */
+      p.martyr = MARTYR_TURNS; p.martyrDebt = 0;
+      fx({ t:'martyr', x:p.x, y:p.y, turns:MARTYR_TURNS });
+      say('무릎을 꿇지 않기로 했다. 다섯 턴 동안은.', 'level');
       break;
     }
 
@@ -1447,42 +1593,45 @@ export function useArt(id) {
       break;
     }
     case 'snare': {
-      /* The one art here that is not an attack. A ranger who has
-         been caught wants the ground to do the catching next
-         time, and it turns a corridor into a decision for the
-         thing chasing you. */
-      /* Its own list, not G.hazards — that one is the telegraphed
-         floor patterns, keyed on PATTERNS and ticked by `left`,
-         and a snare pushed into it would tick NaN and take the
-         whole floor's telegraphs down with it. */
-      G.snares = G.snares || [];
-      if (!G.snares.some(s2 => s2.x === p.x && s2.y === p.y))
-        G.snares.push({ x:p.x, y:p.y });
-      fx({ t:'snare', x:p.x, y:p.y });
-      /* …and then he gets off it. Burying a trap and standing on
-         it was the art describing something it did not do: the
-         thing chasing you never reaches the tile, because you are
-         still in the way. Stepping back is what turns this from a
-         corridor trick into the class's only answer to being
-         reached — and the ranger is the one class whose weapon
-         stops working at arm's length. */
-      const from = visibleMonsters()[0];
-      let back = 0;
+      /* Was: bury a trap under your own feet, which only paid off
+         if you were already leaving — so it fired eight times in
+         twelve measured runs and never at the moment it was
+         wanted. It is one action now: give ground and leave the
+         trap in the ground you gave. That answers the ranger's
+         actual way of dying, which is something standing in its
+         face with nowhere to go.
+
+         The snares get their own list rather than G.hazards —
+         that one is the telegraphed floor patterns, keyed on
+         PATTERNS and ticked by `left`, and a snare pushed into it
+         would tick NaN and take every telegraph on the floor
+         down with it. */
+      const from = near.sort((a, b) =>
+        Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
+      const ox = p.x, oy = p.y;
       if (from) {
-        const dx = Math.sign(p.x - from.x) || (rnd(2) ? 1 : -1);
-        const dy = Math.sign(p.y - from.y);
-        for (let i = 0; i < SNARE_STEP; i++) {
+        const bx = Math.sign(p.x - from.x), by = Math.sign(p.y - from.y);
+        /* Straight back first, then either shoulder — a ranger
+           against a wall still gets the trap, just not the step. */
+        for (const [dx, dy] of [[bx, by], [bx, 0], [0, by], [-by, bx], [by, -bx]]) {
+          if (!dx && !dy) continue;
           const nx = p.x + dx, ny = p.y + dy;
-          if (G.level.solid(nx, ny) || monsterAt(nx, ny)) break;
-          const t = G.level.tiles[idx(nx, ny)];
-          if (t === CAMP || t === ALTAR || t === EVENT || t === ANVIL
-              || G.level.shopAt.has(idx(nx, ny))) break;
-          p.x = nx; p.y = ny; back++;
+          if (!walkable(G.level, nx, ny)) continue;
+          if (G.monsters.some(o => o.x === nx && o.y === ny)) continue;
+          p.x = nx; p.y = ny;
+          break;
         }
-        if (back) { refreshFov(); fx({ t:'roll', x:p.x, y:p.y, dx, dy, dist:back }); }
       }
-      say(back ? `발밑에 덫을 묻고 ${back}칸 물러섰다.`
-               : '발밑에 덫을 묻었다. 밟는 쪽이 손해다.', 'good');
+      G.snares = G.snares || [];
+      if (!G.snares.some(s2 => s2.x === ox && s2.y === oy))
+        G.snares.push({ x:ox, y:oy });
+      fx({ t:'snare', x:ox, y:oy });
+      if (p.x !== ox || p.y !== oy) {
+        fx({ t:'roll', x:p.x, y:p.y, dx: Math.sign(p.x - ox), dy: Math.sign(p.y - oy), dist:1 });
+        say('한 걸음 물러서며 발자국 자리에 덫을 묻었다.', 'good');
+      } else {
+        say('발밑에 덫을 묻었다. 밟는 쪽이 손해다.', 'good');
+      }
       break;
     }
     case 'volley': {
@@ -1503,6 +1652,18 @@ export function useArt(id) {
   }
   if (G.running) endTurn();
 }
+
+/* 성역. Only while you are standing in it — the moment you step
+   off the consecrated tile it is just a bright stone. That is what
+   makes it zone control rather than a buff: the priest has to
+   decide to hold a place, and the room has to be worth holding. */
+function sanctumSoak(dmg) {
+  const p = G.player, s2 = G.sanctum;
+  if (!s2 || s2.left <= 0 || p.x !== s2.x || p.y !== s2.y) return dmg;
+  fx({ t:'sanctumHit', x:p.x, y:p.y });
+  return Math.max(1, Math.round(dmg * (1 - SANCTUM_CUT)));
+}
+
 
 /* What one clean blow is worth right now, before the target's
    armour. Used by the arts that need to price something off the
@@ -1559,13 +1720,11 @@ export function cast(spellId) {
   const aff = SPELL_AFFIXES.find(a => a.id === p.spellAffix?.[sp.id]);
 
   /* 서리's afterimage: whatever this spell touches loses its next
-     move. Negative energy is the same lever 밀쳐내기 uses to spend
-     a monster's turn for it, so a new trait cannot invent a second
-     kind of "stunned". */
+     move. Negative energy is the same lever 밀쳐내기 uses, so a new
+     trait cannot invent a second kind of "stunned". */
   const rime = m => { if (echo?.id === 'rime' && G.monsters.includes(m)) m.energy = -1; };
-  /* 눈's afterimage: everything else in the room takes half. The
-     splash rolls off the damage the spell actually dealt, so every
-     multiplier already applied to the main target carries. */
+  /* 눈's afterimage: everything else in the room takes half, rolled
+     off the damage the spell actually dealt. */
   const splash = (from, dmg, label) => {
     if (echo?.id !== 'eye') return;
     let n = 0;
@@ -1652,8 +1811,8 @@ export function cast(spellId) {
     }
     case 'frost': {
       /* 지형's afterimage turns the burst into the floor. Frost is
-         the only spell in the book whose reach is a radius, so it
-         is the one that feels the difference. */
+         the only spell whose reach is a radius, so it is the one
+         that feels the difference. */
       let n = 0;
       const r = reach ? 999 : 5;
       fx({ t:'burst', x:p.x, y:p.y, r: reach ? 10 : 5, color:'B' });
@@ -1670,10 +1829,9 @@ export function cast(spellId) {
   }
   /* 자취: this cast was free of the clock, so it also leaves
      nothing behind. Without that the mage blinks, casts free,
-     leaves 자취 again, and never spends a turn at all — an
-     infinite free action dressed as a trait. The rule is one
-     sentence: a cast that did not cost a turn does not write the
-     next word. */
+     leaves 자취 again, and never spends a turn — an infinite free
+     action dressed as a trait. One sentence: a cast that did not
+     cost a turn does not write the next word. */
   const free = echo?.id === 'haste';
   if (!free) {
     leaveEcho(p, sp.id);
@@ -1722,7 +1880,7 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   G.items = [];
   G.floorTurn = 0;
   G.waves = 0;
-  G.hazards = []; G.snares = [];
+  G.hazards = []; G.snares = []; G.sanctum = null;
   G.campUses = 1 + (hasRelic('ember') ? 1 : 0);
   G.tideUsed = false;
 
@@ -2140,7 +2298,7 @@ function rollOddity(it) {
 export const hasUnique = id => G.player?.equip?.weapon?.unique === id;
 /* Awake oddities on the whole kit, for the rules to ask about. */
 export const oddAwake = id =>
-  ['weapon', 'body', 'shield'].some(k => oddityOf(G.player, G.player?.equip?.[k])?.id === id);
+  GEAR_SLOTS.some(k => oddityOf(G.player, G.player?.equip?.[k])?.id === id);
 
 const pickOne = pool => pool[rnd(pool.length)];
 
@@ -2198,7 +2356,7 @@ export function rollAffixes(item, depth, guaranteed) {
 export const hasBoon = id => {
   const p = G.player;
   if (!p) return false;
-  for (const slot of ['weapon', 'body', 'shield'])
+  for (const slot of GEAR_SLOTS)
     if (p.equip[slot]?.boon === id) return true;
   return false;
 };
@@ -2259,13 +2417,11 @@ export function step(dx, dy) {
   if (L.tiles[ni] === undefined) return;
 
   /* A body comes before a counter. The shop check used to sit
-     above this, which meant anything standing on a merchant's
-     tile could not be attacked at all — walking into it opened
-     the shop, spent no turn, and left the thing there. In town
-     that is harmless because nothing hostile walks there; the
-     travelling merchant put the same tile in the dungeon, where
-     things do. Measured: one warrior run in forty locked into
-     shop:leave → melee → shop:leave forever. */
+     above this, so anything standing on a merchant's tile could
+     not be attacked at all — walking into it opened the shop,
+     spent no turn, and left the thing there. Harmless in town,
+     where nothing hostile walks; the travelling merchant put the
+     same tile in the dungeon, where things do. */
   const onCounter = monsterAt(nx, ny);
   const shopId = L.shopAt.get(ni);
   if (shopId && !(onCounter && !onCounter.disguise)) {
@@ -2838,7 +2994,7 @@ function playerAttack(m) {
   // A bow up close is a stick. That is the price of reach, and it
   // is what stops a bow from being a free extra button on a build
   // that never wanted to stand back.
-  swing(m, weaponType(p) === 'bow' ? BOW_MELEE : 1);
+  swing(m, weaponType(p) === 'bow' && !fitRule(p, 'bowButt') ? BOW_MELEE : 1);
 }
 
 /* ── shooting ─────────────────────────────────────────────
@@ -2846,9 +3002,11 @@ function playerAttack(m) {
    A shot costs a turn and an arrow, falls off with distance, and
    needs a clear line — everything a monster's shot already costs
    it, read off the same helpers. */
+/* What is on the hip right now. Arrows stopped being a count
+   this patch: the quiver is a worn item and a bow with one is
+   simply a better bow, so nothing here can run out mid-floor. */
 export function quiver(p) {
-  const slot = (p || G.player)?.pack.find(s => s.item.kind === 'ammo');
-  return slot ? { slot, ammo: ammoById(slot.item.id), qty: slot.qty } : null;
+  return (p || G.player)?.equip?.quiver || null;
 }
 
 export function shotTarget() {
@@ -2865,9 +3023,9 @@ export function shotTarget() {
 /* How far this bow reaches in these hands. 긴 눈 is the only
    thing that moves it, and every reader goes through here. */
 export const bowRange = p =>
-  (p?.equip?.weapon?.rng || 5) + (fitRule(p, 'farEye') ? 2 : 0);
+  (p?.equip?.weapon?.rng || 5) + (quiver(p)?.rng || 0) + (fitRule(p, 'farEye') ? 2 : 0);
 
-export const canShoot = () => !!shotTarget() && !!quiver();
+export const canShoot = () => !!shotTarget();
 
 /* One arrow leaving the string, wherever it was told to go. Both
    the plain shot and every ranger art land here, so ammunition,
@@ -2876,8 +3034,7 @@ export const canShoot = () => !!shotTarget() && !!quiver();
    skips the roll for the arts that promise they cannot miss. */
 function loose(m, scale = 1, opt = {}) {
   const p = G.player;
-  const q = quiver();
-  const a = q?.ammo || AMMO[0];
+  const a = quiver(p) || QUIVERS[0];
   const dist = Math.hypot(m.x - p.x, m.y - p.y);
   const g = gearBonus(p);
   m.awake = true;
@@ -2903,89 +3060,41 @@ function loose(m, scale = 1, opt = {}) {
   // 부러뜨리는 손: the aim is still bad. What lands, lands twice.
   if (oddAwake('breakhand')) dmg *= 2;
   // Reach is not free — except where an art has bought it.
-  if (!opt.sure) dmg *= Math.max(0.55, 1 - dist * BOW_FALLOFF);
+  if (!opt.sure) dmg *= Math.max(0.55, 1 - dist * (BOW_FALLOFF + (a.falloff || 0)));
   dmg = Math.max(1, Math.round(dmg));
 
   // hurtMonster narrates off opt.weapon; saying it here too printed
   // every shot twice, once as an arrow and once as a shove.
   hurtMonster(m, dmg, null, { weapon:'arrow', shot:true, burst: a.burst || 0 });
   if (a.on && G.monsters.includes(m) && Math.random() < 0.6) poisonMonster(m, a.on);
+  /* 미늘 화살촉. Not poison and not damage — the head stays in,
+     and the thing wearing it arrives a turn later than it meant
+     to. The one quiver that answers being closed on. */
+  if (a.bleed && G.monsters.includes(m)) m.energy = (m.energy || 0) - 0.5;
   return true;
 }
 
 export function shoot() {
   const p = G.player;
   if (weaponType(p) !== 'bow') { say('활이 없다.', 'warn'); return; }
-  if (!quiver()) { say('화살이 떨어졌다.', 'warn'); return; }
   const m = shotTarget();
   if (!m) { say('겨눌 것이 없다.', 'warn'); return; }
   if (has(p, 'paralyze')) {
     say('몸이 굳어 말을 듣지 않는다.', 'warn');
     fx({ t:'struggle', x:p.x, y:p.y }); endTurn(); return;
   }
-  spendArrows(1);
   G.hushShot = true;
   loose(m, 1);
   /* 두 번 우는 활: a second arrow at half, out of the same nock.
      One arrow spent, two in the air. */
   if (hasUnique('twicewept') && G.monsters.includes(m)) loose(m, 0.5, { quietFx: true });
   G.hushShot = false;
-  recoverArrow();
   endTurn();
 }
 
-/* 궁수의 손. Half of what a ranger looses is walked back and
-   picked up — which is the difference between a bow being a
-   resource drain and being a weapon. Worth nothing at all to
-   anyone else holding the same bow. */
-function recoverArrow() {
-  const p = G.player;
-  if (!fitRule(p, 'recover') || Math.random() >= 0.5) return;
-  const q = quiver();
-  if (q) q.slot.qty++;
-  else addItem(p, makeAmmo('arrow'), 1);
-}
-
-/* Arrows leave the pack from one place, so an art and a plain
-   shot can never disagree about what a shot costs. */
-function spendArrows(n) {
-  const p = G.player;
-  for (let i = 0; i < n; i++) {
-    const q = quiver();
-    if (!q) return i;
-    removeItem(p, p.pack.indexOf(q.slot), 1);
-  }
-  return n;
-}
-
-/* ── 표적 (레인저) ────────────────────────────────────────
-   One funnel, called by every landed blow whichever hand threw
-   it. It used to be two inline fragments inside swing(): the
-   stack counter in one branch and the damage multiplier eighty
-   lines below it. loose() — the arrow path, which is the entire
-   class — touched neither.
-
-   So the one class whose whole design is the bow built its trait
-   only by clubbing things with the bow, and measured, a level-12
-   ranger shooting a single target held 표적 0.00 out of 5 for the
-   whole fight. The gauge in the HUD sat at zero forever and the
-   45% the tooltip promises did not exist. */
-function markTarget(m) {
-  const p = G.player;
-  if (p.cls !== 'ranger') return;
-  p.markN = p.markOn === m ? Math.min(MARK_MAX, (p.markN || 0) + 1) : 0;
-  p.markOn = m;
-}
-const markMult = () => {
-  const p = G.player;
-  return (p?.cls === 'ranger' && p.markN) ? 1 + p.markN * MARK_STEP : 1;
-};
-
 /* `opt` carries the handful of things an art needs the blow to do
-   differently — today only 급소's disregard for armour. It goes
-   through here rather than an art rolling its own damage, so
-   every affix, boon, relic and combo the swing knows about is
-   still true of the art. */
+   differently. It returns whether the blow landed — 연타 needs to
+   know, and nothing else in the file did until now. */
 function swing(m, scale, opt = {}) {
   const p = G.player;
 
@@ -3071,9 +3180,7 @@ function swing(m, scale, opt = {}) {
   /* The rogue used to be the second line here: a swing spent
      p.shadow for a guaranteed crit. That is what made the shade a
      blinking light rather than a resource — it was banked and
-     burned by the same button you press anyway, so there was
-     never a turn on which you held it. The shade is ammunition
-     now and only the four arts empty it. */
+     burned by the same button you press anyway. */
   const forced = (p.cls === 'warrior' && (p.chain3 || 0) >= 3);
   if (forced) { p.chain3 = 0; say('세 번째 손 — 급소가 열렸다.', 'level'); }
   const crit = asleep || forced
@@ -3097,15 +3204,11 @@ function swing(m, scale, opt = {}) {
   if (asleep) {
     say(`잠든 ${m.n}의 급소를 찔렀다.`, 'level');
     if (hasResonance('shadowstep')) G.hushUntil = G.turn + 1;
-    /* A throat opened quietly pays for the next one. This is the
-       loop 어둠 되감기 closes: vanish, strike unaware, get the
-       shade back that the vanish cost.
-
-       Not for an ambush the art manufactured itself, though.
-       그림자 도약 marks its target unaware for one blow, and
-       measured on the bench that refunded the shade it had just
-       spent — a free teleport-and-crit, once per turn, forever.
-       An art may borrow the ambush; it may not be paid for it. */
+    /* A throat opened quietly pays for the next one — the loop
+       어둠 되감기 closes. Not for an ambush the art manufactured
+       itself, though: 그림자 도약 marks its target unaware for one
+       blow, and on the bench that refunded the shade it had just
+       spent. An art may borrow the ambush; it may not be paid. */
     if (!opt.noShade) gainShadow(1, 'ambush');
   }
 
@@ -3185,26 +3288,13 @@ export const goldGain = n => Math.max(0, Math.round(
    뼈 목걸이 is the slow one, worth taking early or not at all. */
 function onKill(m) {
   const p = G.player;
-  /* 맹세 used to spend itself down as he won: the wall was
-     highest at the moment he was losing. That was right while the
-     oath was only armour. It is wrong now that four arts spend
-     it — the kill taxed the same pool the arts were paying from,
-     and measured, the oath sat at zero for 55% of turns, never
-     once filled, and peaked at five of eight in 25 runs. A
-     resource you cannot hold is not ammunition.
-     The wall now comes down only when he takes it down himself. */
-  /* …and the wall pays back through the body that built it. A
-     flat heal-on-kill was measured first and worked, but it was a
-     bandage bolted to the side of the class — it had nothing to
-     do with 맹세. This does: the debt is repaid in proportion to
-     how much of it he is still carrying, so the paladin who has
-     been beaten all floor mends hardest, and the one who spent
-     the wall on 응보 a moment ago mends least.
-     It does not consume the oath. Being paid for holding it is
-     the counterweight to four arts that all want it spent. */
-  if (p.cls === 'paladin' && p.hp < p.maxhp && (p.oath || 0) > 0)
-    p.hp = Math.min(p.maxhp, p.hp + Math.max(1, Math.round(p.oath * KILL_MEND * (1 + p.lv / 6))));
+  /* 맹세 used to spend itself down on every kill, which meant
+     the better the fight went the less he had — a class that
+     decelerates when it is winning. It fills on a kill now, so a
+     good swing pays for the next one. */
+  if (p.cls === 'paladin') oathGain(OATH_PER_KILL);
   if (hasUnique('ashcount')) G.ashCount = (G.ashCount || 0) + 1;
+  if (UNDEAD.includes(m.spr)) faithGain(FAITH_PER_UNDEAD);
   if ((hasRelic('hunger') || hasRelic('famine')) && p.hp < p.maxhp) {
     const base = hasRelic('famine') ? relicVal('famine') : relicVal('hunger');
     /* 굶주린 무리 multiplies the bite by the streak. Three in a
@@ -3347,6 +3437,8 @@ function enterPhase(m) {
 }
 
 export function hurtMonster(m, dmg, source, opt = {}) {
+  // 파문: a named thing stays named until it is down.
+  if (m.cursed) dmg = Math.round(dmg * (1 + ANATHEMA_MORE));
   m.awake = true;
   /* You started it. From here it follows.
 
@@ -3429,6 +3521,7 @@ export function hurtMonster(m, dmg, source, opt = {}) {
     }
     fx({ t:'kill', x:m.x, y:m.y, spr:m.spr, dmg, crit:!!opt.crit, over, boss:!!m.boss, combo:G.combo });
     G.kills = (G.kills || 0) + 1;
+    quarry(m);
     /* One more body in the ledger. The count is what buys the
        tells — a monster you have met is in the codex, a monster
        you have killed five of tells you how it fights. */
@@ -3588,6 +3681,18 @@ export function endTurn(skipMonsters = false) {
   if (p.blessed > 0) p.blessed--;
   if (p.might > 0 && --p.might === 0) say('끓던 피가 식는다.');
   if (p.iron > 0 && --p.iron === 0) say('굳었던 살갗이 풀린다.');
+  if (G.sanctum && --G.sanctum.left <= 0) { G.sanctum = null; say('빛이 스러졌다.'); }
+  if (G.smoke && --G.smoke.left <= 0) { G.smoke = null; say('연기가 걷힌다.'); }
+  if (p.martyr > 0 && --p.martyr === 0) {
+    const owed = Math.round(p.martyrDebt || 0);
+    p.martyrDebt = 0;
+    if (owed > 0) {
+      say(`빚이 한꺼번에 왔다. (−${owed})`, 'bad');
+      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg:owed, who:'순교', severe:true });
+      p.hp -= owed;
+      if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'스스로 진 빚' }); return; }
+    } else say('일어섰다. 빚은 없었다.', 'good');
+  }
   if (G.detectPulse > 0) G.detectPulse--;
 
   if (G.comboT > 0 && --G.comboT === 0) breakCombo(true);
@@ -3659,16 +3764,16 @@ export function endTurn(skipMonsters = false) {
   // and past the line everyone else stops at. That is the class.
   if (p.cls === 'priest' && rested && G.turn % 6 === 0 && p.hp < p.maxhp)
     p.hp = Math.min(p.maxhp, p.hp + Math.max(1, Math.round(regen * healScale())));
-  /* Every fifteen turns rather than every ten. The trickle is what
-     lets a caster walk a corridor and arrive full; slowing it is
-     what makes 휴식 at a fire mean something to a mage, since that
-     option's whole pitch is "마나 전부". */
+  /* Every fifteen turns rather than ten. The trickle is what let a
+     caster walk a corridor and arrive full, and it made 휴식 at a
+     fire worth nothing to a mage — that option's pitch is "마나
+     전부". Measured at ten: in forty runs the caster stood in
+     front of something it could not afford to answer zero times. */
   if (G.turn % 15 === 0 && p.mana < p.maxmana) p.mana = Math.min(p.maxmana, p.mana + 1);
 
-  /* 그림자, the third way: time spent with nothing awake looking
-     at you. It is deliberately the slow one — the two fast ways
-     (an ambush, a roll) are things you do, and this is what pays
-     the approach that the class's whole stealth stat exists for. */
+  /* 그림자, the slow way: time spent with nothing awake looking at
+     you. The two fast ways (an ambush, a roll) are things you do;
+     this is what pays the approach the stealth stat exists for. */
   if (p.cls === 'rogue' && G.turn % SHADOW_TICK === 0 && unseenByAll())
     gainShadow(1, 'quiet');
 
@@ -3817,7 +3922,8 @@ function monsterTurn(m) {
     hurtMonster(m, tick, '독', { quiet: true });
     if (!G.monsters.includes(m)) return;
   }
-  if (m.regen && m.hp < m.maxhp) m.hp = Math.min(m.maxhp, m.hp + m.regen);
+  // 파문: nothing mends. Regen, drain and the troll's whole idea.
+  if (m.regen && !m.cursed && m.hp < m.maxhp) m.hp = Math.min(m.maxhp, m.hp + m.regen);
 
   if (!m.awake) {
     if (!L.vis[idx(m.x, m.y)] || dist2 > 110) return;
@@ -3944,12 +4050,13 @@ function monsterMelee(m) {
   let dmg = Math.max(1, Math.round(
     (roll(2, Math.max(3, Math.floor(m.atk * 0.72))) - Math.floor(ac / 5))
     * (heavy ? 2.5 : 1) * (1 + (p.perm?.takeMore || 0))) - gearBonus(p).flatDR);
+  dmg = sanctumSoak(dmg);
   p.hp -= Math.max(1, dmg);
-  breakCombo(false); tookHit();
+  breakCombo(false); tookHit(); faithForBlow(dmg);
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        who:m.n, spr:m.spr, severe: dmg >= p.maxhp * 0.18 });
   say(`${heavy ? '당겼던 것이 떨어졌다. ' : ''}${takenLine(m.n, dmg, p.maxhp, nextLine())} (${dmg})`, 'hit');
-  if (m.drain) {                       // 흡혈하는: it heals off you
+  if (m.drain && !m.cursed) {          // 흡혈하는: it heals off you
     const back = Math.max(1, Math.round(dmg * m.drain));
     m.hp = Math.min(m.maxhp, m.hp + back);
   }
@@ -3970,7 +4077,7 @@ const CORRODERS = ['회색 곰팡이', '푸른 젤리', '미라', '망령'];
 function corrode(m) {
   const p = G.player;
   if (!CORRODERS.includes(m.n) || Math.random() >= CORRODE_CHANCE) return;
-  const worn = ['weapon', 'body', 'shield']
+  const worn = GEAR_SLOTS
     .map(k => p.equip[k]).filter(it => it && (it.plus || 0) > 0 && it.boon !== 'aegis');
   if (!worn.length) return;
   const it = worn[rnd(worn.length)];
@@ -4015,10 +4122,10 @@ function monsterShoot(m) {
     fx({ t:'miss', x:p.x, y:p.y });
     return;
   }
-  const dmg = Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.6)))
-    - Math.floor(ac / 6) - gearBonus(p).flatDR);
+  const dmg = sanctumSoak(Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.6)))
+    - Math.floor(ac / 6) - gearBonus(p).flatDR));
   p.hp -= dmg;
-  breakCombo(false); tookHit();
+  breakCombo(false); tookHit(); faithForBlow(dmg);
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        who:m.n, spr:m.spr, arrow:true, severe: dmg >= p.maxhp * 0.18 });
   say(`멀리서 날아왔다. ${takenLine(m.n, dmg, p.maxhp, nextLine())} (${dmg})`, 'hit');
@@ -4031,6 +4138,14 @@ function monsterShoot(m) {
    shut door: most things are simply stopped by one. */
 function advance(m, sx, sy) {
   const p = G.player, L = G.level;
+  /* 성역: the things that should already be still cannot come to
+     the stone. Everything else can — it is a ward, not a wall. */
+  const s2 = G.sanctum;
+  if (s2 && s2.left > 0 && UNDEAD.includes(m.spr)
+      && Math.max(Math.abs(s2.x - m.x), Math.abs(s2.y - m.y)) <= 1) {
+    const away = Math.hypot(m.x - s2.x, m.y - s2.y);
+    if (away <= 1.5) { m.energy = Math.min(m.energy, 0); return; }
+  }
 
   const go = (a, b) => {
     if (!a && !b) return false;
@@ -4620,7 +4735,7 @@ function pickWeighted(table) {
    point, and the player chose this. */
 function breakItem(it) {
   const p = G.player;
-  for (const slot of ['weapon', 'body', 'shield'])
+  for (const slot of GEAR_SLOTS)
     if (p.equip[slot] === it) p.equip[slot] = null;
   const i = p.pack.findIndex(s => s.item === it);
   if (i >= 0) p.pack.splice(i, 1);
@@ -4885,7 +5000,7 @@ function eventApi() {
       }
     },
     forge: (n, slot) => {
-      const slots = slot ? [slot] : ['weapon', 'body', 'shield'];
+      const slots = slot ? [slot] : GEAR_SLOTS;
       const pick = slots.filter(k => p.equip[k]);
       if (!pick.length) { say('벼릴 것이 없다.', 'warn'); return; }
       const it = p.equip[pick[rnd(pick.length)]];
@@ -5029,7 +5144,7 @@ export const altarOffers = () => {
           : '착용 중인 무기·갑옷·방패 하나가 사라진다',
     can: o.id === 'blood' ? p.hp > 6
        : o.id === 'gold'  ? p.gold >= 60
-       : !!(p.equip.weapon || p.equip.body || p.equip.shield),
+       : GEAR_SLOTS.some(k => p.equip[k]),
   }));
 };
 
@@ -5057,7 +5172,7 @@ export function altarOffer(id) {
     weight = clamp(pay / (250 + G.depth * 90), 0.4, 2.0);
     say(`금화 ${pay}닢이 사라진다.`, 'warn');
   } else {
-    const slots = ['weapon', 'body', 'shield'].filter(k => p.equip[k]);
+    const slots = GEAR_SLOTS.filter(k => p.equip[k]);
     const k = slots[rnd(slots.length)];
     const given = p.equip[k];
     weight = 1.1 + rarityOf(given) * 0.5 + (given.plus || 0) * 0.15;
@@ -5100,7 +5215,7 @@ function grantBoon(result, weight) {
   if (result === '재앙') {
     const roll3 = rnd(3);
     if (roll3 === 0) {
-      const slots = ['weapon', 'body', 'shield'].filter(k => p.equip[k]);
+      const slots = GEAR_SLOTS.filter(k => p.equip[k]);
       if (slots.length) {
         const it = p.equip[slots[rnd(slots.length)]];
         const table = Math.random() < 0.5 ? PREFIXES : SUFFIXES;
@@ -5176,25 +5291,76 @@ function grantBoon(result, weight) {
 }
 
 /* ── shops ──────────────────────────────────────────────── */
+/* ── 신전 ─────────────────────────────────────────────────
+   The one door in the plaza that does not sell you anything. It
+   was a strictly worse alchemist — two potions the alchemist also
+   had — which made it a sign hanging over nothing.
+
+   It takes things off instead. Every other counter in the game
+   adds: the anvil adds a plus, the fire adds a property, the
+   altar adds a gamble. Nothing anywhere could remove a curse, so
+   a cursed find was simply a dead find you carried to a merchant.
+   Now it is a decision with a price on it. */
+export const templeCost = it =>
+  Math.max(60, Math.round(priceOf(it, true) * TEMPLE_SHARE));
+
+export function templeOffers() {
+  const p = G.player;
+  const out = [];
+  for (const k of GEAR_SLOTS) {
+    const it = p.equip[k];
+    if (it && isCursed(it) && !it.unique) out.push({ where:'equip', key:k, item:it });
+  }
+  p.pack.forEach((slot, i) => {
+    if (isCursed(slot.item) && !slot.item.unique)
+      out.push({ where:'pack', key:i, item:slot.item });
+  });
+  return out;
+}
+
+export function cleanse(offer) {
+  const p = G.player;
+  const it = offer.item;
+  if (!isCursed(it)) { say('이미 깨끗하다.', 'warn'); return; }
+  const cost = templeCost(it);
+  if (p.gold < cost) { say('금화가 모자란다.', 'warn'); return; }
+  p.gold -= cost;
+  /* Only the cursed half comes off. A 저주받은 예리한 검 keeps
+     its edge — the temple is not a reroll, it is a subtraction. */
+  if (PREFIXES.find(a => a.id === it.pre)?.curse) it.pre = null;
+  if (SUFFIXES.find(a => a.id === it.suf)?.curse) it.suf = null;
+  recalc(p);
+  fx({ t:'cleanse', x:p.x, y:p.y });
+  say(`${nameOf(it)}에서 붙어 있던 것이 떨어져 나갔다. (-${cost})`, 'level');
+}
+
 export function shopStock(shop) {
-  if (shop.stock === 'weapon')
-    return WEAPONS.filter(w => w.d <= 12).map(w => ({ kind:'weapon', ...w }));
+  /* The weapon rack used to return here, which meant the quiver
+     rack hung below an early return and the one shop that sells
+     them never did. */
+  if (shop.stock === 'weapon') {
+    const out = WEAPONS.filter(w => w.d <= 12 && w.t !== 'wand')
+      .map(w => ({ kind:'weapon', ...w }));
+    if (shop.quivers)
+      for (const q of QUIVERS)
+        if (q.d <= Math.max(1, G.deepest || G.depth))
+          out.push({ kind:'quiver', slot:'quiver', ...q });
+    return out;
+  }
   if (shop.stock === 'armour')
     return ARMOURS.filter(a => a.d <= 12).map(a => ({ kind:'armour', ...a }));
   const out = shop.stock.map(id => makeConsumable(id));
+  /* Rods are read, not swung, so they hang with the scrolls
+     rather than on the weapon rack — the one shelf a caster has
+     any reason to walk to. */
+  if (shop.rods)
+    for (const w of WEAPONS)
+      if (w.t === 'wand' && w.d <= Math.max(1, G.deepest || G.depth))
+        out.push({ kind:'weapon', ...w });
   /* 닫힌 장부 halves the shelf. Deterministic on the shop id and
      the day's stock rather than random, so re-entering the door
      cannot reroll what is for sale. */
   if (hasShackle('ledger') && out.length > 1) out.length = Math.ceil(out.length / 2);
-  /* Arrows. The weapon shop carries the whole rack, the general
-     store carries the plain ones — a bow with nothing to feed it
-     is a stick, so the cheap kind has to be easy to reach. */
-  if (shop.ammo)
-    for (const id of shop.ammo) {
-      const a = ammoById(id);
-      if (a && a.d <= Math.max(1, G.deepest || G.depth))
-        out.push({ kind:'ammo', ...a, qty: 12 });
-    }
   /* The wandering merchant also deals in materials, which is what
      turns a purse of gold into a +1 you actually wanted. */
   if (shop.mats)
@@ -5268,18 +5434,6 @@ export function buy(item) {
   /* A merchant names what he sells. Buying it teaches you the
      appearance for the rest of the run — otherwise the shop was
      a way to launder identification without spending anything. */
-  /* Arrows are sold by the bundle. Nobody wants to tap a shelf
-     twenty-four times, and a quiver that fills one at a time is a
-     chore rather than a decision. The price is per arrow, so the
-     bundle costs what the bundle is worth. */
-  if (item.kind === 'ammo') {
-    const want = item.qty || AMMO_BUNDLE;
-    const can = Math.min(want, Math.floor((p.gold + cost) / Math.max(1, cost)));
-    if (can > 1) p.gold -= cost * (can - 1);
-    addItem(p, { ...item, qty: undefined }, can);
-    say(`${item.n} ${can}발을 샀다. (-${cost * can})`, 'good');
-    return;
-  }
   identify(item.id, true);
   addItem(p, { ...item });
   say(`${item.n}을(를) 샀다. (-${cost})`, 'good');
@@ -5363,6 +5517,19 @@ function death(killer) {
      that can reduce you to zero, so it cannot be missed at one of
      them. Once per floor, and the floor has to end before it comes
      back — otherwise it is not a rescue, it is a second health bar. */
+  /* 순교. Not a rescue and not a heal — a debt. Everything turned
+     aside is written down, and it all arrives the moment the five
+     turns end. The only way to win the bet is to finish the fight
+     inside it. Checked here for the same reason 역류의 is: eleven
+     things can bring you to zero and none of them should have to
+     know about this. */
+  if (p.martyr > 0) {
+    p.martyrDebt = (p.martyrDebt || 0) + (1 - p.hp);
+    p.hp = 1;
+    fx({ t:'martyrHold', x:p.x, y:p.y });
+    say('무릎이 꺾이지 않는다. 아직은.', 'warn');
+    return;
+  }
   if (hasBoon('tide') && !G.tideUsed) {
     G.tideUsed = true;
     p.hp = Math.max(1, Math.floor(p.maxhp * 0.5));
@@ -5431,7 +5598,7 @@ export function startGame(raceKey, classKey, base) {
   G.engraved = 0; G.memories = []; G.relicShelf = null;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
-  G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.snares = []; G.bank = 0;
+  G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.snares = []; G.sanctum = null; G.bank = 0;
   G.tally = 0; G.hushUntil = -1; G.resoFound = 0; G.forced = {}; G.uniques = {};
   G.pendingAltar = null;
   shuffleAppearances(G.player);
@@ -5450,7 +5617,7 @@ export function startGame(raceKey, classKey, base) {
     for (const id of Object.keys(meta.items || {})) G.known[id] = true;
   }
   if (G.memories.includes('smith')) {
-    for (const slot of ['weapon', 'body', 'shield']) {
+    for (const slot of GEAR_SLOTS) {
       const it = G.player.equip[slot];
       if (it) it.plus = Math.max(it.plus || 0, 2);
     }
@@ -5459,7 +5626,7 @@ export function startGame(raceKey, classKey, base) {
   if (G.memories.includes('digger')) G.player.gold += 300;
 
   enterDepth(0);
-  say('마을. 여섯 개의 문이 열려 있고, 광장 한가운데에 계단이 있다.', 'warn');
+  say('지붕이 남은 집이 없다. 수레 여섯 대가 한 골목에 모여 있고, 그 너머 폐허 끝에 내려가는 자리가 있다.', 'warn');
   if (G.memories.length)
     say(`기억이 남아 있다 — ${G.memories.map(id => MEMORIES.find(x => x.id === id).n).join(' · ')}.`, 'good');
   if (G.abyss)

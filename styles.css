@@ -377,6 +377,13 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 #acts .spells button.locked { opacity: .22; }
 #acts .spells button.cold { opacity: .45; }
 #acts .spells button.cold b { color: var(--G); }
+/* An art spends breath, and the pip wears the stamina bar's
+   colour so the row says which pool it is draining without a
+   word of text. The frame is warmer too — a hand, not a book. */
+#acts .spells button.artslot b { color: var(--E); }
+#acts .spells button.artslot { border-color: var(--o); }
+#acts .spells button.artslot.cold b { color: var(--g); }
+.itemrow.artrow .iact { color: var(--E); }
 #acts .ghost { color: var(--g); border-color: var(--d); }
 #acts button[hidden] { display: none; }
 /* Dead rather than gone — see refresh() in ui.js. It has to keep

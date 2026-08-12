@@ -546,6 +546,102 @@ export function pump(queue, player) {
         shake = Math.max(shake, 0.2);
         break;
 
+      /* ── the warrior's four ─────────────────────────────
+         Four arts that answer four different problems should not
+         look like each other, or the row becomes four buttons
+         that all mean "attack". Each takes a different primitive
+         as its spine: a line, a circle, a floor mark, a column. */
+
+      // 밀쳐내기 — everything travels one way. A shove is a
+      // direction before it is damage.
+      case 'shove': {
+        beams.push({ fx: e.x, fy: e.y, tx: e.tx, ty: e.ty,
+                     color: PALETTE.W, life: 200, age: 0, thin: true });
+        for (let i = 0; i < 14 && shards.length < MAX_SHARDS; i++) {
+          const spread = (Math.random() - 0.5) * 0.7;
+          shards.push({
+            x: e.x + 0.5 + e.dx * 0.6, y: e.y + 0.5 + e.dy * 0.6,
+            vx: (e.dx + spread * -e.dy) * (3.2 + Math.random() * 2.4),
+            vy: (e.dy + spread * e.dx) * (3.2 + Math.random() * 2.4) - 0.6,
+            life: 260 + Math.random() * 220, age: 0,
+            size: 1, color: PALETTE.s,
+          });
+        }
+        if (e.hit) {
+          // It met a wall. That is the payoff, so it gets the noise.
+          ring(e.tx, e.ty, 1.5, PALETTE.W, 300);
+          burstShards(e.tx, e.ty, [PALETTE.W, PALETTE.s, PALETTE.g], 20, 1.5);
+          number(e.tx, e.ty - 0.6, '벽!', PALETTE.W, 1.15);
+          shake = Math.max(shake, 0.7);
+          buzz([30, 40, 60]);
+          sfx.blast();
+        } else {
+          shake = Math.max(shake, 0.22);
+          sfx.step();
+        }
+        break;
+      }
+
+      // 휩쓸기 — a full circle, thrown outward from the middle.
+      // The only effect in the game that reads as "all around".
+      case 'cleave': {
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2;
+          slashes.push({ x: e.x + 0.5, y: e.y + 0.5, a, kind: 'great',
+                         age: -i * 8, life: 260 });
+        }
+        ring(e.x, e.y, 1.9, PALETTE.o, 340);
+        burstShards(e.x, e.y, [PALETTE.o, PALETTE.W], 8 + (e.n || 0) * 5, 1.7);
+        shake = Math.max(shake, 0.3 + (e.n || 0) * 0.06);
+        buzz(35);
+        sfx.crit();
+        break;
+      }
+
+      // 버티기 — nothing flies. A mark on the ground under the
+      // feet, because the art is about *not* moving.
+      case 'brace': {
+        ring(e.x, e.y, 1.15, PALETTE.y, 520);
+        ring(e.x, e.y, 0.75, PALETTE.s, 620);
+        number(e.x, e.y - 0.5, '버틴다', PALETTE.y, 1.1);
+        buzz([20, 30, 20]);
+        sfx.heal();
+        break;
+      }
+
+      // Each blow the stance turns away: a short spark back down
+      // the line it came from. Quiet on purpose — it happens a lot.
+      case 'braceHit':
+        beams.push({ fx: e.x, fy: e.y, tx: e.from.x, ty: e.from.y,
+                     color: PALETTE.y, life: 160, age: 0, thin: true });
+        break;
+
+      // 마무리 — a column. Shards go straight up and the flash
+      // comes straight down, and the whole thing scales with how
+      // little the target has left.
+      case 'finisher': {
+        const p = 0.4 + (e.power || 0) * 0.9;
+        for (let i = 0; i < 18 && shards.length < MAX_SHARDS; i++) {
+          shards.push({
+            x: e.tx + 0.5 + (Math.random() - 0.5) * 0.8, y: e.ty + 0.7,
+            vx: (Math.random() - 0.5) * 1.1,
+            vy: -(5.5 + Math.random() * 3.5) * p,
+            life: 420 + Math.random() * 260, age: 0,
+            size: Math.random() < 0.4 ? 2 : 1,
+            color: Math.random() < 0.5 ? PALETTE.W : PALETTE.o,
+          });
+        }
+        beams.push({ fx: e.tx, fy: e.ty - 4, tx: e.tx, ty: e.ty,
+                     color: PALETTE.W, life: 220, age: 0 });
+        ring(e.tx, e.ty, 1.2 + p, PALETTE.o, 380);
+        flashScreen = Math.max(flashScreen, 0.35 * p); flashHue = 'W';
+        freeze = Math.max(freeze, 70 * p);
+        shake = Math.max(shake, 0.5 + p * 0.5);
+        buzz([50, 30, 90]);
+        sfx.crit();
+        break;
+      }
+
       case 'drop':
         ring(e.x, e.y, 2.0, PALETTE.y, 620);
         number(e.x, e.y - 0.5, '전리품', PALETTE.y, 1.2);

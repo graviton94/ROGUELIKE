@@ -829,11 +829,50 @@ export const thiefPurse = depth => ({
    One resource, one use: the dodge roll. A telegraphed attack
    with no way to answer it is a tax; the roll is the answer,
    and stamina is what stops it from being the answer to
-   everything. */
+   everything.
+
+   And now a second use. The warrior was the only class with no
+   verbs at all — five of six cast five spells apiece, and it had
+   a passive that fires when you do not miss. Raising its numbers
+   would have kept it boring; what it needed was a resource it
+   already had and something to spend it on. */
 export const ROLL_COST = 2;
 export const ROLL_DIST = 2;
 export const staminaMax = p => 3 + Math.floor(p.lv / 6) + Math.max(0, statBonus(p.stats.dex));
 export const STAM_REGEN_EVERY = 2;
+
+/* ── the arts ─────────────────────────────────────────────
+   What a class *does*, as opposed to what it rolls. Six classes
+   were sharing two spell lists — 마법사, 도적 and 레인저 cast the
+   identical five, 사제 and 팔라딘 the identical five, and 전사 cast
+   nothing. That is why the ranger read as an in-between: it is
+   worse at int than the mage and worse at dex than the rogue,
+   casting the same book as both.
+
+   An art is spent from a class's own resource and answers a
+   situation the class is supposed to own. The warrior's four are
+   the scale everything else gets cut to, measured before the rest
+   are written — the same order that worked for the resonances. */
+export const ARTS = {
+  warrior: [
+    { id:'shove',    name:'밀쳐내기', short:'밀침', lv:1,  stam:2,
+      desc:'앞의 것을 두 칸 밀어낸다. 벽에 부딪히면 한 턴 무너진다.' },
+    { id:'cleave',   name:'휩쓸기',   short:'휩쓺', lv:3,  stam:3,
+      desc:'인접한 모든 것을 한 번에 벤다.' },
+    { id:'brace',    name:'버티기',   short:'버팀', lv:7,  stam:3,
+      desc:'네 턴 동안 받는 피해가 크게 줄고, 때린 쪽이 되받는다.' },
+    { id:'finisher', name:'마무리',   short:'마무', lv:11, stam:4,
+      desc:'상대가 잃은 피만큼 무거워지는 한 방.' },
+  ],
+};
+
+export const SHOVE_DIST   = 2;     // tiles pushed
+export const SHOVE_WALL   = 0.5;   // extra damage, as a share of a normal blow, on impact
+export const CLEAVE_SHARE = 0.8;   // what each adjacent body takes, vs one clean swing
+export const BRACE_TURNS  = 4;
+export const BRACE_CUT    = 0.4;   // damage taken, reduced by this share
+export const BRACE_THORNS = 0.5;   // what the blocker hands back, of what it stopped
+export const FINISH_MAX   = 2.5;   // the blow at the target's last sliver
 
 /* A chest is a monster you have not identified yet. Its profile
    is derived from the floor rather than fixed, because a chest

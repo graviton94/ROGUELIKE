@@ -651,7 +651,57 @@ function eye(c, x, y, r) {
   c.moveTo(x + r * 0.5, y); c.arc(x, y, r * 0.5, 0, Math.PI * 2, false);
 }
 
+/* ── the arts, drawn ──────────────────────────────────────
+   Same 8px budget as a spell glyph, and they have to be tellable
+   apart at a thumb's distance. Each is its verb as a shape: a
+   flat palm pushing, a ring of teeth, a shield planted in the
+   ground, a wedge coming down. */
+function palm(c, x, y, r) {                 // 밀쳐내기
+  c.moveTo(x - r * 0.9, y - r * 0.62);
+  c.lineTo(x + r * 0.1, y - r * 0.62);
+  c.lineTo(x + r * 0.1, y - r);
+  c.lineTo(x + r,       y);
+  c.lineTo(x + r * 0.1, y + r);
+  c.lineTo(x + r * 0.1, y + r * 0.62);
+  c.lineTo(x - r * 0.9, y + r * 0.62);
+  c.closePath();
+}
+function sweep(c, x, y, r) {                // 휩쓸기
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2, w = 0.34;
+    c.moveTo(x + Math.cos(a - w) * r * 0.44, y + Math.sin(a - w) * r * 0.44);
+    c.lineTo(x + Math.cos(a) * r,            y + Math.sin(a) * r);
+    c.lineTo(x + Math.cos(a + w) * r * 0.44, y + Math.sin(a + w) * r * 0.44);
+    c.closePath();
+  }
+}
+function planted(c, x, y, r) {              // 버티기
+  c.moveTo(x - r * 0.78, y - r);
+  c.lineTo(x + r * 0.78, y - r);
+  c.lineTo(x + r * 0.78, y + r * 0.1);
+  c.lineTo(x,            y + r * 0.72);
+  c.lineTo(x - r * 0.78, y + r * 0.1);
+  c.closePath();
+  c.moveTo(x - r, y + r * 0.82);            // the ground it is planted on
+  c.lineTo(x + r, y + r * 0.82);
+  c.lineTo(x + r, y + r);
+  c.lineTo(x - r, y + r);
+  c.closePath();
+}
+function wedge(c, x, y, r) {                // 마무리
+  c.moveTo(x - r * 0.52, y - r);
+  c.lineTo(x + r * 0.52, y - r);
+  c.lineTo(x + r * 0.18, y + r * 0.18);
+  c.lineTo(x,            y + r);
+  c.lineTo(x - r * 0.18, y + r * 0.18);
+  c.closePath();
+}
+
 const SPELL_ICONS = {
+  shove:    [palm,                                    'W'],
+  cleave:   [sweep,                                   'o'],
+  brace:    [planted,                                 'y'],
+  finisher: [wedge,                                   'R'],
   bolt:   [arrow,                                     'P'],
   blink:  [zigzag,                                    'B'],
   detect: [eye,                                       'y'],
@@ -1057,9 +1107,13 @@ function renderSpellRow() {
       label.appendChild(document.createTextNode(s.short));
       label.appendChild(el('b', '', String(s.cost)));
       b.title = s.silent ? `${s.name} — 침묵의 서약으로 봉인됨`
-              : s.noTarget ? `${s.name} — 시야에 적이 없다`
-              : `${s.name} · ${s.cost}mp`;
+              : s.noTarget ? (s.art ? `${s.name} — 손이 닿는 곳에 아무것도 없다`
+                                    : `${s.name} — 시야에 적이 없다`)
+              : `${s.name} · ${s.cost}${s.art ? '기력' : 'mp'}`;
     }
+    /* An art spends breath, not mana, and the row has to say so
+       without a word — the cost pip carries the stamina colour. */
+    b.classList.toggle('artslot', !!s.art);
     b.onclick = () => { stopAuto(); act(() => Game.cast(s.id)); };
   });
 }
@@ -1084,7 +1138,11 @@ export function setScreen(name) {
     box.hidden = (s !== name) && !(s === 'play' && sheeted);
     box.classList.toggle('assheet', s === name && sheeted);
   }
-  if (name === 'play') { resize(); refresh(); }
+  if (name === 'play') {
+    resize(); refresh();
+    // Back on the map: whatever was waiting can be read now.
+    if (loreQueue.length && $('lorecard').hidden) showLore();
+  }
   if (name === 'inv')  renderInventory();
   if (name === 'shop') renderShop();
   if (name === 'spell') renderSpells();
@@ -1647,7 +1705,14 @@ function closeLore() {
   if (box.hidden) return;
   clearTimeout(loreAt); loreAt = 0;
   box.classList.add('out');
-  setTimeout(() => { box.hidden = true; box.classList.remove('out'); if (loreQueue.length) showLore(); }, 260);
+  setTimeout(() => {
+    box.hidden = true; box.classList.remove('out');
+    /* Only the map advances the queue. The card floats above
+       everything, so popping the next one while a sheet is open
+       lands a page of lore on top of the fire, the pack, or the
+       list of arts — which is where it was landing. */
+    if (loreQueue.length && G.screen === 'play') showLore();
+  }, 260);
 }
 
 /* Leaving the map drops whatever pages were still waiting. The
@@ -2122,9 +2187,30 @@ function renderShop() {
 function renderSpells() {
   const p = G.player;
   const list = $('spell-list'); list.innerHTML = '';
+  const arts = Game.artList(p);
   const spells = Game.spellList(p);
-  if (!spells.length) list.appendChild(el('p', 'empty', '아직 익힌 주문이 없다.'));
-  $('spell-mana').textContent = `${p.mana}/${p.maxmana}`;
+  if (!arts.length && !spells.length)
+    list.appendChild(el('p', 'empty', '아직 익힌 것이 없다.'));
+  /* A class with arts reads its breath here, not its mana — the
+     header has to name the resource the buttons below spend, and
+     a warrior's page is not called 주문. */
+  $('spell-title').textContent = arts.length ? (spells.length ? '무술과 주문' : '무술') : '주문';
+  $('spell-chip').firstChild.textContent = arts.length ? '' : '✦ ';
+  $('spell-mana').textContent = arts.length
+    ? `기력 ${p.stam}/${p.maxStam}` + (p.maxmana ? ` · ✦ ${p.mana}/${p.maxmana}` : '')
+    : `${p.mana}/${p.maxmana}`;
+  for (const a of arts) {
+    const row = el('button', 'itemrow artrow' + (p.stam < a.stam ? ' poor' : ''));
+    const mid = el('div', 'imid');
+    const nm = el('span', 'iname', a.name);
+    nm.classList.add('magic');
+    mid.appendChild(nm);
+    mid.appendChild(el('span', 'idesc', a.desc));
+    row.appendChild(mid);
+    row.appendChild(el('span', 'iact', `${a.stam}기력`));
+    row.onclick = () => { Game.cast(a.id); setScreen('play'); refresh(); };
+    list.appendChild(row);
+  }
   for (const s of spells) {
     const cost = Game.spellCost(p, s);
     const plus = p.spellPlus?.[s.id] || 0;

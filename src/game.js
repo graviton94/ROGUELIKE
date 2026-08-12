@@ -22,6 +22,8 @@ import {
   CHAIN_KEEP, CHAIN_KEEP_RESO, POWDER_MAX, POWDER_BUDGET, BRAMBLE_BITE,
   ECHO_ROOM_HOPS, ECHO_ROOM_TOLL, ECHO_ROOM_KEEP,
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
+  ARTS, SHOVE_DIST, SHOVE_WALL, CLEAVE_SHARE,
+  BRACE_TURNS, BRACE_CUT, BRACE_THORNS, FINISH_MAX,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
   strikeLine, takenLine, pickLine, MISS_BY, MISS_AT, FELLED,
@@ -600,6 +602,13 @@ export const spellList = p => {
   return realm ? SPELLS[realm].filter(s => s.lv <= p.lv) : [];
 };
 
+/* The arts ride the same row, the same keys and the same tooltip
+   as spells — they differ in what they spend and in that they are
+   the class's own rather than a realm's. `artList` is the funnel;
+   nothing outside it should read ARTS directly. */
+export const artList = p => (ARTS[p?.cls] || []).filter(a => a.lv <= p.lv);
+export const artById = (p, id) => artList(p).find(a => a.id === id);
+
 /* Spells that do nothing at all without something in sight. */
 const TARGETED = ['bolt', 'smite'];
 
@@ -612,12 +621,28 @@ export function spellSlots() {
   const p = G.player;
   if (!p) return [];
   const realm = CLASSES[p.cls].realm;
-  if (!realm) return [];
-  const silent = hasRelic('vow');
   /* A bolt with nothing to shoot at stays dark. The row doubles
      as a read of the room that way. */
   const seen = G.level && G.monsters.some(m => G.level.vis[idx(m.x, m.y)]);
-  return SPELLS[realm].map(s => {
+
+  /* Arts come first in the row, because a class that has them
+     leads with them. 침묵의 서약 takes spells, not hands — an art
+     is not spoken. */
+  const arts = (ARTS[p.cls] || []).map(a => {
+    const locked = a.lv > p.lv;
+    const near = G.level && adjacentMonsters(p).length > 0;
+    const noTarget = ART_NEEDS_BODY.includes(a.id) && !near;
+    return {
+      id: a.id, name: a.name, short: a.short || a.name.slice(0, 2),
+      lv: a.lv, cost: a.stam, art: true, locked, silent: false, noTarget,
+      plus: 0, affix: null,
+      ready: !locked && !noTarget && p.stam >= a.stam,
+    };
+  });
+  if (!realm) return arts;
+
+  const silent = hasRelic('vow');
+  return arts.concat(SPELLS[realm].map(s => {
     const locked = s.lv > p.lv;
     const cost = spellCost(p, s);
     const noTarget = TARGETED.includes(s.id) && !seen;
@@ -628,7 +653,7 @@ export function spellSlots() {
       affix: p.spellAffix?.[s.id] || null,
       ready: !locked && !silent && !noTarget && p.mana >= cost,
     };
-  });
+  }));
 }
 
 /* ── inventory ──────────────────────────────────────────── */
@@ -881,8 +906,130 @@ function teleport() {
 }
 
 /* ── spells ─────────────────────────────────────────────── */
+/* Arts that are pointless with nothing in reach, so the row can
+   grey them out the way it greys out a bolt with no target. */
+const ART_NEEDS_BODY = ['shove', 'cleave', 'finisher'];
+
+/* ── the warrior's four ───────────────────────────────────
+   Each answers a situation the class is supposed to own and no
+   two answer the same one: surrounded, a pack, something that
+   telegraphs or shoots, and a thing that is nearly done. They
+   spend stamina, which regenerates on a timer rather than being
+   found in a flask — so the warrior's rhythm is spend-and-wait
+   rather than hoard-and-dump, which is the whole difference in
+   feel from a caster. */
+export function useArt(id) {
+  const p = G.player;
+  const a = artById(p, id);
+  if (!a) return;
+  if (has(p, 'paralyze')) { say('몸이 굳어 말을 듣지 않는다.', 'warn'); return; }
+  if (p.stam < a.stam) { say('숨이 차다.', 'warn'); return; }
+
+  const near = adjacentMonsters(p);
+  if (ART_NEEDS_BODY.includes(id) && !near.length) {
+    say('손이 닿는 곳에 아무것도 없다.', 'warn'); return;
+  }
+  p.stam -= a.stam;
+
+  switch (id) {
+    case 'shove': {
+      /* The answer to being surrounded. It does almost no damage
+         on its own — what it buys is a tile, and a wall turns
+         that tile into a stagger. */
+      const m = near.sort((x, y) => y.hp - x.hp)[0];
+      const dx = Math.sign(m.x - p.x), dy = Math.sign(m.y - p.y);
+      let moved = 0;
+      for (let i = 0; i < SHOVE_DIST; i++) {
+        const nx = m.x + dx, ny = m.y + dy;
+        if (G.level.solid(nx, ny) || monsterAt(nx, ny)) break;
+        m.x = nx; m.y = ny; moved++;
+      }
+      m.awake = true;
+      fx({ t:'shove', x:p.x, y:p.y, tx:m.x, ty:m.y, dx, dy, hit: moved < SHOVE_DIST });
+      if (moved < SHOVE_DIST) {
+        // It had nowhere to go. That is the good outcome.
+        const bump = Math.max(2, Math.round(baseSwing(p) * SHOVE_WALL));
+        hurtMonster(m, bump, '벽', {});
+        // Negative energy is how this game spends a monster's turn
+        // for it — the same lever the ambush ring uses to make the
+        // first turn a scramble rather than a swing.
+        if (G.monsters.includes(m)) m.energy = -1;
+        say(`${m.n}을(를) 벽으로 몰아붙였다. 무너진다.`, 'level');
+      } else {
+        say(`${m.n}을(를) ${moved}칸 밀어냈다.`);
+      }
+      break;
+    }
+    case 'cleave': {
+      /* The answer to a pack — and the reason 재의 사냥개 arriving
+         three at a time is a fight rather than a funeral. */
+      fx({ t:'cleave', x:p.x, y:p.y, n:near.length });
+      say(near.length > 2 ? '한 호를 그리며 전부를 지나갔다.' : '넓게 베었다.', 'level');
+      for (const m of [...near]) if (G.monsters.includes(m)) swing(m, CLEAVE_SHARE);
+      break;
+    }
+    case 'brace': {
+      /* The answer to the things a warrior cannot chase: archers,
+         casters, and the wind-up. Standing still stops being the
+         losing move for four turns. */
+      /* One extra, because the turn this is cast on is itself
+         spent — without it the stance is three turns long and the
+         tooltip says four. */
+      p.brace = BRACE_TURNS + 1;
+      fx({ t:'brace', x:p.x, y:p.y, turns:BRACE_TURNS });
+      say('발을 딛고 어깨를 낮췄다. 네 턴은 버틴다.', 'good');
+      break;
+    }
+    case 'finisher': {
+      /* The answer to a thing that is nearly done. Priced off what
+         the target has *lost*, so it is worthless as an opener and
+         decisive as a closer — the opposite curve from 처형, which
+         is a threshold rather than a slope. */
+      const m = near.sort((x, y) => (x.hp / x.maxhp) - (y.hp / y.maxhp))[0];
+      const gone = 1 - m.hp / Math.max(1, m.maxhp);
+      fx({ t:'finisher', x:p.x, y:p.y, tx:m.x, ty:m.y, power:gone });
+      say(`숨을 모아 내리친다.`, 'level');
+      swing(m, 1 + gone * (FINISH_MAX - 1));
+      break;
+    }
+  }
+  if (G.running) endTurn();
+}
+
+/* 버티기, in one place because two paths land blows on the player
+   and the art has to answer both — the first version hooked only
+   melee, which meant the stance did nothing against the archers
+   it exists to answer.
+
+   The shoulder turns damage away wherever it comes from; it only
+   hands it *back* to something in reach. An arrow has nobody
+   standing there to hand it to, and that is the honest limit of
+   the art rather than an oversight. */
+function braceSoak(m, dmg, melee) {
+  const p = G.player;
+  if (!(p.brace > 0)) return dmg;
+  const stopped = Math.max(1, Math.round(dmg * BRACE_CUT));
+  fx({ t:'braceHit', x:p.x, y:p.y, from:{ x:m.x, y:m.y } });
+  if (melee)
+    hurtMonster(m, Math.max(1, Math.round(stopped * BRACE_THORNS)), '버틴 어깨', { pierce: true });
+  return Math.max(1, dmg - stopped);
+}
+
+/* What one clean blow is worth right now, before the target's
+   armour. Used by the arts that need to price something off the
+   swing rather than roll a fresh one. */
+function baseSwing(p) {
+  const w = p.equip.weapon;
+  const d = w ? w.dice : [1, 3];
+  return (d[0] * (d[1] + 1)) / 2 + statB(p, 'str') * 2
+       + Math.floor(p.lv / 3) + gearBonus(p).dmg;
+}
+
 export function cast(spellId, echo = false) {
   const p = G.player;
+  // One entry point for the row, the keys and the tooltip: an art
+  // and a spell are the same gesture to the player.
+  if (artById(p, spellId)) { useArt(spellId); return; }
   const sp = spellList(p).find(s => s.id === spellId);
   if (!sp) return;
   // 침묵의 서약 trades the whole spellbook for a third more
@@ -2552,6 +2699,7 @@ export function endTurn(skipMonsters = false) {
   if (p.blessed > 0) p.blessed--;
   if (p.might > 0 && --p.might === 0) say('끓던 피가 식는다.');
   if (p.iron > 0 && --p.iron === 0) say('굳었던 살갗이 풀린다.');
+  if (p.brace > 0 && --p.brace === 0) say('어깨를 폈다.');
   if (G.detectPulse > 0) G.detectPulse--;
 
   if (G.comboT > 0 && --G.comboT === 0) breakCombo(true);
@@ -2879,9 +3027,10 @@ function monsterMelee(m) {
     fx({ t:'miss', x:p.x, y:p.y });
     return;
   }
-  const dmg = Math.max(1, Math.round(
+  let dmg = Math.max(1, Math.round(
     (roll(2, Math.max(3, Math.floor(m.atk * 0.72))) - Math.floor(ac / 5))
     * (heavy ? 2.5 : 1) * (1 + (p.perm?.takeMore || 0))) - gearBonus(p).flatDR);
+  dmg = braceSoak(m, dmg, true);
   p.hp -= Math.max(1, dmg);
   breakCombo(false); tookHit();
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
@@ -2953,8 +3102,8 @@ function monsterShoot(m) {
     fx({ t:'miss', x:p.x, y:p.y });
     return;
   }
-  const dmg = Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.6)))
-    - Math.floor(ac / 6) - gearBonus(p).flatDR);
+  const dmg = braceSoak(m, Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.6)))
+    - Math.floor(ac / 6) - gearBonus(p).flatDR), false);
   p.hp -= dmg;
   breakCombo(false); tookHit();
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },

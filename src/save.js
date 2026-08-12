@@ -211,6 +211,7 @@ export function apply(data) {
   p.markup = p.markup || 0;
   p.permHp = p.permHp || 0;
   p.iframe = p.iframe || 0;
+  p.brace = p.brace || 0;          // 버티기, mid-stance across a save
   if (p.stam == null) p.stam = 0;
 
   refreshFov();

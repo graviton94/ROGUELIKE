@@ -6,7 +6,7 @@
 
 import {
   sprite, wallTile, floorTile, shadowTile, dropShadow,
-  CELL_SIZE, PALETTE, setTerrainTheme, HAND, GRIP,
+  CELL_SIZE, PALETTE, setTerrainTheme, HAND, GRIP, WEAPON_W, WEAPON_H,
 } from './pixels.js';
 import * as Pix from './pixels.js';
 import {
@@ -444,13 +444,14 @@ export function draw() {
   const lx = hx - t / 2, ly = hy - t / 2;
   const body = sprite(`race:${p.race}:${heroFace}`) || heroSprite(p);
   const kit  = sprite(`kit:${p.cls}:${heroFace}`);
-  const held = p.equip?.weapon?.spr && sprite(p.equip.weapon.spr);
+  const w = p.equip?.weapon;
+  const held = w?.t && sprite(`weapon:${w.t}`);
   const grip = HAND[heroFace] || HAND.down;
 
-  if (held && grip.under) drawHeld(held, lx, ly, t, grip);
+  if (held && grip.under) drawHeld(held, lx, ly, t, grip, w);
   blitActor(body, lx, ly, t, po);
   if (kit) ctx.drawImage(kit, lx, ly, t, t);
-  if (held && !grip.under) drawHeld(held, lx, ly, t, grip);
+  if (held && !grip.under) drawHeld(held, lx, ly, t, grip, w);
 
   /* The countdown goes on last. It used to be drawn with the
      tint, which put it underneath the hero sprite — and a disc
@@ -887,16 +888,59 @@ export const heroSprite = p =>
 
 /* One sprite, plus a squash-punch on impact and an additive
    pass that whitens it for a few frames when it takes a hit. */
-/* 무기는 아이템 아이콘을 그대로 가져다 손 좌표에 얹습니다. 자루가 손에
-   오도록 스프라이트를 옮긴 뒤, 방향이 요구하면 90도 돌립니다. 90도
-   배수라 확대해도 픽셀이 뭉개지지 않습니다. */
-function drawHeld(img, px, py, t, grip) {
+/* ── 손에 든 무기 ────────────────────────────────────────
+   자루(그림 맨 아래 가운데)가 손 좌표에 오도록 옮긴 뒤, 방향이
+   요구하는 만큼 90도 단위로 돌려 찍습니다. 무기는 16×32라 칸보다
+   길고, 그래서 칸 밖으로 나갑니다 — 칸은 바닥의 단위지 그림의
+   경계가 아닙니다.
+
+   강화·인챈트·고유는 그림을 따로 그리지 않고 여기서 층으로 얹습니다.
+   등급이 오르면 그 등급의 빛으로 윤곽이 한 겹 번지고, 강화 수치가
+   붙으면 날을 타고 불티가 흐릅니다. 무기가 백 개로 늘어도 이펙트는
+   한 곳에서만 정해집니다.                                        */
+function drawHeld(img, px, py, t, grip, item) {
   const u = t / CELL_SIZE;                 // 픽셀 하나가 화면에서 차지하는 크기
+  const w = WEAPON_W * u, h = WEAPON_H * u;
   ctx.save();
   ctx.translate(px + grip.x * u, py + grip.y * u);
   if (grip.rot) ctx.rotate(grip.rot);
-  if (grip.flip) ctx.scale(-1, 1);
-  ctx.drawImage(img, -GRIP.x * u, -GRIP.y * u, t, t);
+  const ox = -GRIP.x * u, oy = -GRIP.y * u;
+
+  const grade = item ? rarityOf(item) : 0;
+  const glow = RARITY[grade]?.glow;
+  if (glow) {
+    /* 윤곽 번짐: 같은 그림을 사방으로 한 픽셀씩 밀어 등급 색으로
+       찍습니다. 실루엣을 따라가므로 무기 모양이 뭐든 맞습니다. */
+    const beat = 0.5 + Math.sin(performance.now() / 420) * 0.2;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = beat * (grade >= 3 ? 0.5 : 0.3);
+    ctx.fillStyle = glow;
+    for (const [dx, dy] of [[u, 0], [-u, 0], [0, u], [0, -u]]) {
+      ctx.drawImage(img, ox + dx, oy + dy, w, h);
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.fillRect(ox + dx, oy + dy, w, h);
+      ctx.globalCompositeOperation = 'lighter';
+    }
+    ctx.restore();
+  }
+
+  ctx.drawImage(img, ox, oy, w, h);
+
+  /* 강화 불티: 날을 따라 위로 흐릅니다. 수치가 높을수록 잦습니다. */
+  const plus = item?.plus | 0;
+  if (plus > 0) {
+    const n = Math.min(4, 1 + (plus >> 1));
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < n; i++) {
+      const k = ((performance.now() / 620) + i / n) % 1;
+      ctx.globalAlpha = (1 - k) * 0.85;
+      ctx.fillStyle = plus >= 7 ? PALETTE.W : PALETTE.Y;
+      ctx.fillRect(ox + w / 2 - u / 2, oy + h * (0.62 - k * 0.58), u, u);
+    }
+    ctx.restore();
+  }
   ctx.restore();
 }
 

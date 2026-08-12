@@ -431,17 +431,26 @@ export function draw() {
   glow.addColorStop(1, 'rgba(217,138,60,0)');
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, viewW, viewH);
-  /* 장착한 무기는 별도 층입니다. 직업 그림에 구워 넣으면 무기를
-     바꿔도 손에 든 것이 안 바뀌기 때문입니다.
+  /* ── 층 ──────────────────────────────────────────────
+     맨몸 → 직업장비 → 무기. 셋은 따로 구워져 있으므로 여기서
+     순서를 정합니다. 무기가 어느 쪽에 놓이느냐는 방향이 정합니다.
 
-     층 순서는 방향이 정합니다. 등을 보이고 있으면 손에 든 것은 몸
-     **뒤**에 있어야 하고, 그 외에는 앞에 있어야 합니다. 순서를 안
-     가르면 뒤를 보고 걸을 때 칼이 등을 뚫고 나옵니다. */
+       아래를 볼 때   무기가 맨 위 (몸 앞에 든다)
+       위를 볼 때     무기가 맨 밑 (등 뒤로 간다)
+       오른쪽         맨 위 — 손이 이쪽으로 나온다
+       왼쪽           맨 밑 — 손이 몸 반대편에 있다
+
+     예전에는 격자를 덮어쓰는 방식이라 이 순서를 못 바꿨습니다. */
+  const lx = hx - t / 2, ly = hy - t / 2;
+  const body = sprite(`race:${p.race}:${heroFace}`) || heroSprite(p);
+  const kit  = sprite(`kit:${p.cls}:${heroFace}`);
   const held = p.equip?.weapon?.t && sprite(`held:${p.equip.weapon.t}:${heroFace}`);
-  const behind = heroFace === 'up';
-  if (held && behind) ctx.drawImage(held, hx - t / 2, hy - t / 2, t, t);
-  blitActor(heroSprite(p), hx - t / 2, hy - t / 2, t, po);
-  if (held && !behind) ctx.drawImage(held, hx - t / 2, hy - t / 2, t, t);
+  const under = heroFace === 'up' || heroFace === 'left';
+
+  if (held && under) ctx.drawImage(held, lx, ly, t, t);
+  blitActor(body, lx, ly, t, po);
+  if (kit) ctx.drawImage(kit, lx, ly, t, t);
+  if (held && !under) ctx.drawImage(held, lx, ly, t, t);
 
   /* The countdown goes on last. It used to be drawn with the
      tint, which put it underneath the hero sprite — and a disc

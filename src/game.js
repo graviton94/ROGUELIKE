@@ -29,7 +29,8 @@ import {
   AMMO, ammoById, BOW_MELEE, BOW_FALLOFF, AMMO_BUNDLE,
   FORCE_STAM, FORCE_HURT, FORCE_NOISE, PICK_USES, CHEST_RUIN, RANGER_FOOTING,
   FAITH_MAX, FAITH_PER_HURT, FAITH_PER_UNDEAD, SANCTUM_TURNS, SANCTUM_CUT,
-  ANATHEMA_MORE, JUDGE_HURT, MARTYR_TURNS,
+  ANATHEMA_MORE, JUDGE_HURT, MARTYR_TURNS, FAITH_HARD_HIT, FAITH_PER_HARD,
+  QUARRY_RANGE, QUARRY_STAM, QUARRY_HEAL,
   BRACE_TURNS, BRACE_CUT, BRACE_THORNS, FINISH_MAX,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
@@ -560,6 +561,39 @@ export function faithGain(n) {
   const was = p.faith || 0;
   p.faith = Math.min(FAITH_MAX, was + n);
   if (was < FAITH_MAX && p.faith === FAITH_MAX) say('신앙이 가득 찼다.', 'level');
+}
+
+/* One funnel for every blow that lands on the player, so the two
+   paths that hit a hero — a body in reach and something loosed
+   across the room — cannot drift apart the way 버티기 did. A hard
+   blow is worth two: at a flat one per hit the bar filled about
+   as fast as 성역 and 파문 emptied it, and 순교 at nine never came
+   up once in twelve measured runs. */
+function faithForBlow(dmg) {
+  const p = G.player;
+  faithGain(dmg >= (p.maxhp || 1) * FAITH_HARD_HIT ? FAITH_PER_HARD : FAITH_PER_HURT);
+}
+
+/* 사냥꾼의 몫 (레인저). The class lost its spell list this patch,
+   which was the right call — it was casting the mage's book two
+   points of intelligence short — but the list was quietly the
+   only sustain the ranger had, and four more ways to deal damage
+   did not replace it. It measured 8.2 floors with the book and
+   5.7 without.
+   So the breath comes back, and only to the hand that earns it:
+   a kill made at arm's length pays nothing. That keeps the answer
+   inside the class's own instruction — keep the gap — instead of
+   handing back a worse mage. */
+function quarry(m) {
+  const p = G.player;
+  if (p.cls !== 'ranger') return;
+  if (Math.hypot(m.x - p.x, m.y - p.y) < QUARRY_RANGE) return;
+  const heal = Math.max(1, Math.round(p.maxhp * QUARRY_HEAL));
+  const before = p.hp, beforeStam = p.stam;
+  p.hp = Math.min(p.maxhp, p.hp + heal);
+  p.stam = Math.min(p.maxStam, p.stam + QUARRY_STAM);
+  if (p.hp > before || p.stam > beforeStam)
+    fx({ t:'quarry', x:p.x, y:p.y, hp: p.hp - before });
 }
 
 function tookHit() {
@@ -3067,6 +3101,7 @@ export function hurtMonster(m, dmg, source, opt = {}) {
     }
     fx({ t:'kill', x:m.x, y:m.y, spr:m.spr, dmg, crit:!!opt.crit, over, boss:!!m.boss, combo:G.combo });
     G.kills = (G.kills || 0) + 1;
+    quarry(m);
     /* One more body in the ledger. The count is what buys the
        tells — a monster you have met is in the codex, a monster
        you have killed five of tells you how it fights. */
@@ -3587,7 +3622,7 @@ function monsterMelee(m) {
   dmg = braceSoak(m, dmg, true);
   dmg = sanctumSoak(dmg);
   p.hp -= Math.max(1, dmg);
-  breakCombo(false); tookHit(); faithGain(FAITH_PER_HURT);
+  breakCombo(false); tookHit(); faithForBlow(dmg);
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        who:m.n, spr:m.spr, severe: dmg >= p.maxhp * 0.18 });
   say(`${heavy ? '당겼던 것이 떨어졌다. ' : ''}${takenLine(m.n, dmg, p.maxhp, nextLine())} (${dmg})`, 'hit');
@@ -3660,7 +3695,7 @@ function monsterShoot(m) {
   const dmg = sanctumSoak(braceSoak(m, Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.6)))
     - Math.floor(ac / 6) - gearBonus(p).flatDR), false));
   p.hp -= dmg;
-  breakCombo(false); tookHit(); faithGain(FAITH_PER_HURT);
+  breakCombo(false); tookHit(); faithForBlow(dmg);
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        who:m.n, spr:m.spr, arrow:true, severe: dmg >= p.maxhp * 0.18 });
   say(`멀리서 날아왔다. ${takenLine(m.n, dmg, p.maxhp, nextLine())} (${dmg})`, 'hit');

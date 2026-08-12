@@ -285,7 +285,8 @@ export const TRAITS = {
   rogue:   { n:'그림자 걸음', max:0,
     t:'구르기가 기력을 하나만 쓴다. 구른 바로 다음 공격은 무조건 치명타.' },
   ranger:  { n:'표적', max:5,
-    t:'같은 적을 때릴 때마다 그 적에게 주는 피해가 9%씩 쌓인다(최대 45%). 대상을 바꾸면 사라진다.' },
+    t:'같은 적을 때릴 때마다 그 적에게 주는 피해가 9%씩 쌓인다(최대 45%). 대상을 바꾸면 사라진다.\n'
+    + '그리고 두 칸 밖에서 잡으면 숨이 돌아온다 — 기력 2와 최대 체력의 4.5%. 붙어서 잡으면 아무것도 없다.' },
   paladin: { n:'맹세', max:8,
     t:'맞을 때마다 방어 +1이 쌓인다(층마다 초기화, 최대 +8). 처치하면 하나 되돌려준다.' },
 };
@@ -299,7 +300,7 @@ export const CLASSES = {
      two was the whole reason this class read as an in-between —
      it was a worse mage holding a worse dagger. Its five buttons
      are arrows now, and nobody else has those. */
-  ranger:  { name:'레인저',   mod:{ dex:+3, int:+1, con:+1 },         hd:5, bth:4.8, realm:null,     note:'활이 곧 직업. 거리를 지운 쪽이 진다.' },
+  ranger:  { name:'레인저',   mod:{ dex:+3, int:+1, con:+1 },         hd:5, bth:4.8, realm:null,     note:'활이 곧 직업. 거리를 두고 잡아야 숨이 돌아온다.' },
   paladin: { name:'팔라딘',   mod:{ str:+2, wis:+1, chr:+2, dex:-2 }, hd:6, bth:4.5, realm:'divine', note:'느리지만 무너지지 않는다.' },
 };
 for (const [k, c] of Object.entries(CLASSES)) c.trait = TRAITS[k];
@@ -934,6 +935,14 @@ export const ARTS = {
 export const FAITH_MAX     = 12;
 export const FAITH_PER_HURT = 1;    // per blow taken, not per point
 export const FAITH_PER_UNDEAD = 2;
+/* A hard blow is worth two. At one per hit the bar filled about
+   as fast as 성역 and 파문 emptied it, so 순교 — nine of twelve —
+   was a button nobody could reach: it fired zero times in twelve
+   measured runs. Weighting the heavy hits means the bar fills
+   fastest exactly when the floor is trying to kill you, which is
+   the only moment the art is for. */
+export const FAITH_HARD_HIT = 0.15; // share of maximum health that counts as hard
+export const FAITH_PER_HARD = 2;
 export const SANCTUM_TURNS = 6;
 export const SANCTUM_CUT   = 0.55;  // damage taken inside, reduced by this share
 export const ANATHEMA_MORE = 0.35;  // what a marked thing takes on top
@@ -1037,6 +1046,21 @@ export const CHEST_RUIN   = 0.5;  // odds a forced lid spoils something inside
 /* The ranger's footing: how often a trap under the boot simply
    does not go off. Not immunity — a habit. */
 export const RANGER_FOOTING = 0.55;
+
+/* 사냥꾼의 몫. Taking the ranger's spell list away was right —
+   it was casting the mage's book at the mage's stat minus two,
+   which is the definition of an in-between. Replacing it with
+   four more ways to deal damage was not: the list was carrying
+   the class's *sustain*, and in this game floors are bought with
+   staying alive rather than with hurting things. It measured
+   8.2 floors with the book and 5.7 without it.
+   So the sustain comes back, but only to the hand that plays the
+   class properly — nothing recovers from a kill made at arm's
+   length. Stand off and put something down, and you get your
+   breath back. */
+export const QUARRY_RANGE = 2;      // tiles; closer than this and the kill is free of charge
+export const QUARRY_STAM  = 2;
+export const QUARRY_HEAL  = 0.045;  // share of maximum health per ranged kill
 
 /* ── whose hands ──────────────────────────────────────────
    Until now a longsword was a longsword whoever picked it up.

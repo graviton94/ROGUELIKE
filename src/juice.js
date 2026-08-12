@@ -737,6 +737,14 @@ export function pump(queue, player) {
         sfx.blast();
         break;
 
+      /* 사냥꾼의 몫. Quiet on purpose — it fires on most kills a
+         ranger makes, so it gets a breath of green and nothing
+         that competes with the kill it is riding on. */
+      case 'quarry':
+        if (e.hp > 0) number(e.x, e.y - 0.9, `+${e.hp}`, PALETTE.E, 0.85);
+        ring(e.x, e.y, 0.7, PALETTE.E, 200);
+        break;
+
       // 빗발 — many, from above, at once.
       case 'volley': {
         for (let i = 0; i < 10 && shards.length < MAX_SHARDS; i++) {

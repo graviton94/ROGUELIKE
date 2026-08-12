@@ -9,6 +9,7 @@ const view = (s, v) => (Array.isArray(s) ? s : s[v] || s.down);
 
 /* WEAPON.art 를 16×32 격자로 편다 (아래 정렬) */
 const pad = art => Array(WH - art.length).fill('.'.repeat(WW)).concat(art);
+const gy = n => WH - 1 - (P.WEAPON[n].grip || 0);
 
 /* 캔버스 rotate(양수)=시계. 격자에서 같은 결과를 만든다. */
 function rot(g, cw) {
@@ -23,14 +24,14 @@ function rot(g, cw) {
 
 function scene(wname, face, v, race, cls) {
   const hand = P.HAND[face];
-  let w = pad(P.WEAPON[wname]);
-  let gx = P.GRIP.x, gy = P.GRIP.y;
+  let w = pad(P.WEAPON[wname].art);
+  let gx = P.GRIP.x, gyy = gy(wname);
   if (hand.rot) {
     const cw = hand.rot > 0;
     w = rot(w, cw);
-    if (cw) [gx, gy] = [WH - 1 - gy, gx]; else [gx, gy] = [gy, WW - 1 - gx];
+    if (cw) [gx, gyy] = [WH - 1 - gyy, gx]; else [gx, gyy] = [gyy, WW - 1 - gx];
   }
-  const ox = hand.x - gx + OFF, oy = hand.y - gy + OFF;
+  const ox = hand.x - gx + OFF, oy = hand.y - gyy + OFF;
   const g = Array.from({ length: M }, () => Array(M).fill('.'));
   const put = (src, sx, sy) => {
     for (let y = 0; y < src.length; y++) for (let x = 0; x < src[y].length; x++) {

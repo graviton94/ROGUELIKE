@@ -6,7 +6,7 @@
 
 import {
   sprite, wallTile, floorTile, shadowTile, dropShadow,
-  CELL_SIZE, PALETTE, setTerrainTheme, HAND, GRIP, WEAPON_W, WEAPON_H,
+  CELL_SIZE, PALETTE, setTerrainTheme, HAND, GRIP, gripY, WEAPON_W, WEAPON_H,
 } from './pixels.js';
 import * as Pix from './pixels.js';
 import {
@@ -448,10 +448,10 @@ export function draw() {
   const held = w?.t && sprite(`weapon:${w.t}`);
   const grip = HAND[heroFace] || HAND.down;
 
-  if (held && grip.under) drawHeld(held, lx, ly, t, grip, w);
+  if (held && grip.under) drawHeld(held, lx, ly, t, grip, w, gripY(w.t));
   blitActor(body, lx, ly, t, po);
   if (kit) ctx.drawImage(kit, lx, ly, t, t);
-  if (held && !grip.under) drawHeld(held, lx, ly, t, grip, w);
+  if (held && !grip.under) drawHeld(held, lx, ly, t, grip, w, gripY(w.t));
 
   /* The countdown goes on last. It used to be drawn with the
      tint, which put it underneath the hero sprite — and a disc
@@ -898,13 +898,13 @@ export const heroSprite = p =>
    등급이 오르면 그 등급의 빛으로 윤곽이 한 겹 번지고, 강화 수치가
    붙으면 날을 타고 불티가 흐릅니다. 무기가 백 개로 늘어도 이펙트는
    한 곳에서만 정해집니다.                                        */
-function drawHeld(img, px, py, t, grip, item) {
+function drawHeld(img, px, py, t, grip, item, gy) {
   const u = t / CELL_SIZE;                 // 픽셀 하나가 화면에서 차지하는 크기
   const w = WEAPON_W * u, h = WEAPON_H * u;
   ctx.save();
   ctx.translate(px + grip.x * u, py + grip.y * u);
   if (grip.rot) ctx.rotate(grip.rot);
-  const ox = -GRIP.x * u, oy = -GRIP.y * u;
+  const ox = -GRIP.x * u, oy = -gy * u;
 
   const grade = item ? rarityOf(item) : 0;
   const glow = RARITY[grade]?.glow;

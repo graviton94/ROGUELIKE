@@ -235,12 +235,16 @@ export const PRESETS = {
    내가 손으로 할 때 매번 틀린 자리 — 눈 둘이 붙어 한 줄이 되거나,
    좌우가 한 칸 어긋나거나 — 가 전부 이 넷 안에 있습니다.      */
 export function stampFace(grid, view = 'down', opt = {}) {
-  const { top = 1, headH = 8, hair = 5 } = opt;
+  const {
+    top = 1, headH = 8, hair = 5,
+    skin = RAMPS.skin, mane = RAMPS.hair,
+  } = opt;
   const N = grid.length;
   const g = grid.map(l => [...l]);
-  /* 덮어도 되는 것은 머리카락과 살뿐입니다. 투구·모자·두건은 그
-     직업의 정체성이므로 얼굴이 밀어내면 안 됩니다.            */
-  const SOFT = new Set(['1', 'n', 'N', 'M', '0', 'H', 'h', 'a']);
+  /* 덮어도 되는 것은 그 종족의 살과 머리카락뿐입니다. 투구·모자·두건은
+     그 직업의 정체성이므로 얼굴이 밀어내면 안 됩니다. 계단을 밖에서
+     받는 이유는 오크의 얼굴에 사람 살빛을 박으면 안 되기 때문입니다. */
+  const SOFT = new Set([...skin, ...mane]);
   const run = y => {
     let a = -1, b = -1;
     for (let x = 0; x < N; x++) if (SOFT.has(g[y][x])) { if (a < 0) a = x; b = x; }
@@ -251,14 +255,18 @@ export function stampFace(grid, view = 'down', opt = {}) {
   for (let y = top + hair; y < top + headH; y++) if (run(y)[0] >= 0) rows.push(y);
   if (!rows.length) return grid;
 
-  /* 얼굴 폭은 얼굴 줄이 아니라 **머리통 전체에서 가장 넓은 줄**을
-     따릅니다. 참고본은 턱으로 갈수록 좁아지는데 그 폭을 그대로 쓰면
-     16칸에서 눈 둘이 안 들어갑니다. 대두는 여기서 만들어집니다. */
+  /* 얼굴 폭은 얼굴 줄이 아니라 **머리통에서 가장 넓은 줄**을 따릅니다.
+     참고본은 턱으로 갈수록 좁아지는데 그 폭을 그대로 쓰면 16칸에서 눈
+     둘이 안 들어갑니다. 대두는 여기서 만들어집니다.
+
+     다만 재는 범위는 머리 지붕까지입니다 — 아래쪽 줄에는 어깨와 팔이
+     걸려 있어서, 거기까지 재면 얼굴이 어깨만큼 넓어집니다.       */
   let sa = 99, sb = -1;
-  for (let y = top; y < top + headH; y++) {
+  for (let y = top; y < top + hair; y++) {
     const [a, b] = run(y);
     if (a >= 0 && b - a > sb - sa) { sa = a; sb = b; }
   }
+  if (sb < 0) return grid;
 
   rows.forEach((y, i) => {
     const chin = i === rows.length - 1 ? 1 : 0;      // 턱은 한 칸 좁게
@@ -266,8 +274,8 @@ export function stampFace(grid, view = 'down', opt = {}) {
     for (let x = 0; x < N; x++) {
       if (!SOFT.has(g[y][x]) && !(x >= a && x <= b)) continue;
       if (x < a || x > b) { if (SOFT.has(g[y][x])) g[y][x] = '.'; continue; }
-      if (view === 'up') { g[y][x] = (x === a || x === b) ? '1' : 'N'; continue; }
-      g[y][x] = (x === a || x === b) ? '1' : 'h';    // 머리카락이 얼굴을 감싼다
+      if (view === 'up') { g[y][x] = (x === a || x === b) ? mane[0] : mane[2]; continue; }
+      g[y][x] = (x === a || x === b) ? mane[0] : skin[2];  // 머리카락이 얼굴을 감싼다
     }
   });
   if (view === 'up') return g.map(r => r.join(''));
@@ -283,12 +291,12 @@ export function stampFace(grid, view = 'down', opt = {}) {
   } else {
     // 옆모습 — 눈 하나가 앞쪽에 붙고 코가 한 칸 나온다
     g[eyeRow][sb - 1] = 'k'; g[eyeRow][sb - 2] = 'W';
-    if (eyeRow + 1 < N) g[eyeRow + 1][sb] = 'H';
+    if (eyeRow + 1 < N) g[eyeRow + 1][sb] = skin[1];
   }
   // 입은 눈 바로 아래 줄, 가운데 두 칸. 턱줄은 옷과 겹치므로 피합니다.
   const my = rows[1];
   if (my != null && view === 'down') {
-    g[my][Math.floor(mid)] = '0'; g[my][Math.ceil(mid)] = '0';
+    g[my][Math.floor(mid)] = skin[0]; g[my][Math.ceil(mid)] = skin[0];
   }
   return g.map(r => r.join(''));
 }

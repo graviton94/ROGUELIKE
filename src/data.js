@@ -354,9 +354,22 @@ export const MONSTERS = [
     lore:'과일은 오래전에 없어졌는데 이름만 남았다. 지금은 다른 걸 먹는다.' },
   { spr:'mold',    n:'회색 곰팡이',      d:1,  rar:5,  hp:14,  atk:5,  ac:1,  xp:5,   ai:'still',   on:'poison',
     lore:'벽이 아니라 벽에 기댄 것에서 자란다. 밟기 전에는 벽처럼 보인다.' },
+  /* The step between one and two. Measured, floor 1 threw 0.8
+     damage a turn and floor 2 threw 2.5 — three times as much,
+     across a single staircase, at a character who has gained
+     about one level. A fresh mage died to three kobolds in 71%
+     of tries; to three rats, never.
+
+     So: something that lives on both floors, comes alone, hits
+     for what a kobold hits for, and cannot follow you through a
+     door. It teaches the two habits floor 2 is about to demand —
+     that a single thing can hurt now, and that a doorway is a
+     tool — while it is still survivable to learn them. */
+  { spr:'lean',    n:'굶은 들쥐',        d:1,  rar:7,  hp:9,   atk:6,  ac:2,  xp:4,   ai:'hunt',    spd:1.15,
+    lore:'무리에서 밀려난 쪽이다. 혼자 다니는 것은 그만큼 굶었다는 뜻이고, 굶은 것이 더 문다.' },
   { spr:'snake',   n:'흰 큰뱀',          d:2,  rar:8,  hp:10,  atk:4,  ac:3,  xp:5,   ai:'hunt',    on:'poison',
     lore:'빛을 본 적 없는 비늘은 이렇게 하얗다. 눈이 퇴화한 대신 혀가 길다.' },
-  { spr:'kobold',  n:'코볼드',           d:2,  rar:10, hp:12,  atk:6,  ac:4,  xp:8,   ai:'hunt',    grp:[2,4], door:'open',
+  { spr:'kobold',  n:'코볼드',           d:2,  rar:8,  hp:12,  atk:6,  ac:4,  xp:8,   ai:'hunt',    grp:[2,3], door:'open',
     lore:'성채가 무너질 때 남은 것들의 후손. 아직도 사람 갑옷을 잘라 입는다.' },
   { spr:'kobold',  n:'코볼드 투석꾼',    d:2,  rar:7,  hp:9,   atk:5,  ac:3,  xp:11,  ai:'ranged',  rng:5, spd:0.65, grp:[1,2], door:'open',
     lore:'던질 것이 떨어지면 자기 이빨을 뽑아 던진다는 말이 있다. 확인한 사람은 없다.' },

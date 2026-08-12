@@ -53,6 +53,19 @@ export const SPRITES = {
     'nn.nn.nn',
     '......nn',
   ],
+  /* 굶은 들쥐 — the same animal after a bad month. Longer, greyer,
+     ribs showing, and one red eye, so a glance at the tile says
+     "not the one you have been killing" before the name does. */
+  lean: [
+    '........',
+    '.g....g.',
+    'ggGggGgg',
+    'GGkGGRGG',
+    '.GgGgGg.',
+    'gG.gg.Gg',
+    'g.g..g.g',
+    '......gg',
+  ],
   bat: [
     '........',
     'g......g',

@@ -6,7 +6,7 @@
 
 import {
   sprite, wallTile, floorTile, shadowTile, dropShadow,
-  CELL_SIZE, PALETTE, setTerrainTheme,
+  CELL_SIZE, PALETTE, setTerrainTheme, HAND, GRIP,
 } from './pixels.js';
 import * as Pix from './pixels.js';
 import {
@@ -444,13 +444,13 @@ export function draw() {
   const lx = hx - t / 2, ly = hy - t / 2;
   const body = sprite(`race:${p.race}:${heroFace}`) || heroSprite(p);
   const kit  = sprite(`kit:${p.cls}:${heroFace}`);
-  const held = p.equip?.weapon?.t && sprite(`held:${p.equip.weapon.t}:${heroFace}`);
-  const under = heroFace === 'up' || heroFace === 'left';
+  const held = p.equip?.weapon?.spr && sprite(p.equip.weapon.spr);
+  const grip = HAND[heroFace] || HAND.down;
 
-  if (held && under) ctx.drawImage(held, lx, ly, t, t);
+  if (held && grip.under) drawHeld(held, lx, ly, t, grip);
   blitActor(body, lx, ly, t, po);
   if (kit) ctx.drawImage(kit, lx, ly, t, t);
-  if (held && !under) ctx.drawImage(held, lx, ly, t, t);
+  if (held && !grip.under) drawHeld(held, lx, ly, t, grip);
 
   /* The countdown goes on last. It used to be drawn with the
      tint, which put it underneath the hero sprite — and a disc
@@ -887,6 +887,19 @@ export const heroSprite = p =>
 
 /* One sprite, plus a squash-punch on impact and an additive
    pass that whitens it for a few frames when it takes a hit. */
+/* 무기는 아이템 아이콘을 그대로 가져다 손 좌표에 얹습니다. 자루가 손에
+   오도록 스프라이트를 옮긴 뒤, 방향이 요구하면 90도 돌립니다. 90도
+   배수라 확대해도 픽셀이 뭉개지지 않습니다. */
+function drawHeld(img, px, py, t, grip) {
+  const u = t / CELL_SIZE;                 // 픽셀 하나가 화면에서 차지하는 크기
+  ctx.save();
+  ctx.translate(px + grip.x * u, py + grip.y * u);
+  if (grip.rot) ctx.rotate(grip.rot);
+  if (grip.flip) ctx.scale(-1, 1);
+  ctx.drawImage(img, -GRIP.x * u, -GRIP.y * u, t, t);
+  ctx.restore();
+}
+
 function blitActor(img, px, py, t, o) {
   /* A disc of shadow under the feet. Without it a sprite reads
      as pasted onto the floor rather than standing on it. */

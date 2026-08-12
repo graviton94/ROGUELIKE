@@ -1513,27 +1513,29 @@ export const UNKNOWABLE = CONSUMABLES
 
 /* ── the town ─────────────────────────────────────────────
    Six shops, as on Moria's level 0.                        */
-/* ── the six doors ────────────────────────────────────────
-   Every shop used to sell 체력 물약. Four of the six did, which
-   meant the plaza was one shop wearing six signs and the temple
-   was a strictly worse alchemist. A door is only worth walking
-   to if it is the *only* door to something.
+/* ── the six carts ────────────────────────────────────────
+   There are no shops. The town they were in is a field of
+   roofless shells, and what is left is six traders who pulled
+   their carts into one cleared lane and stayed close enough to
+   hear each other shout. Nobody here lives here.
 
-   So each one now holds a monopoly, and the temple — which had
-   no reason to exist at all — holds the one service in the game
-   that is not a purchase: it takes things *off* your gear. */
+   Every one of them used to sell 체력 물약 — four of six did,
+   which made the whole camp one merchant wearing six signs. Each
+   holds a monopoly now, and the priest, who had no reason to
+   exist at all, does the one thing in the game that is not a
+   purchase: he takes things *off* your gear. */
 export const SHOPS = [
-  { id:1, n:'잡화점',   spr:'torch',  stock:['torch','picks','smoke','scrMap'],
+  { id:1, n:'잡화 행상',   spr:'torch',  stock:['torch','picks','smoke','scrMap'],
     t:'도구. 불, 갈고리, 연기 — 싸움 밖에서 쓰는 것들.' },
-  { id:2, n:'방어구점', spr:'armor',  stock:'armour',
-    t:'입는 것 전부. 방패도 여기에만 있다.' },
-  { id:3, n:'무기점',   spr:'sword',  stock:'weapon', quivers:true,
+  { id:2, n:'갑주 행상',   spr:'armor',  stock:'armour',
+    t:'입는 것 전부. 방패도 이 수레에만 있다.' },
+  { id:3, n:'무기 행상',   spr:'sword',  stock:'weapon', quivers:true,
     t:'드는 것 전부. 활과 화살통을 거는 유일한 자리.' },
-  { id:4, n:'신전',     spr:'amulet', temple:true, stock:['potCure'],
-    t:'파는 곳이 아니다. 붙은 것을 떼어 내는 곳이다.' },
-  { id:5, n:'연금술사', spr:'potion', stock:['potHeal','potMana','potCure'], cats:true,
+  { id:4, n:'순회 사제',   spr:'amulet', temple:true, stock:['potCure'],
+    t:'파는 사람이 아니다. 붙은 것을 떼어 내 준다.' },
+  { id:5, n:'약장수',     spr:'potion', stock:['potHeal','potMana','potCure'], cats:true,
     t:'물약과 촉매. 마시는 것은 여기서만 산다.' },
-  { id:6, n:'마법상',   spr:'wand',   stock:['scrMap','scrTele','scrFlee'], rods:true,
+  { id:6, n:'두루마리 장수', spr:'wand',  stock:['scrMap','scrTele','scrFlee'], rods:true,
     t:'두루마리와 지팡이. 읽는 것과 외우는 것.' },
   /* Not in town. This one walks the dungeon, which is the only
      reason the gold in your purse means anything after floor 1. */

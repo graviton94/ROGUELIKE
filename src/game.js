@@ -5230,7 +5230,7 @@ export function startGame(raceKey, classKey, base) {
   if (G.memories.includes('digger')) G.player.gold += 300;
 
   enterDepth(0);
-  say('마을. 문이 열려 있는 집은 여섯 채뿐이고, 나머지는 닫혀 있다. 골목 끝에 내려가는 자리가 있다.', 'warn');
+  say('지붕이 남은 집이 없다. 수레 여섯 대가 한 골목에 모여 있고, 그 너머 폐허 끝에 내려가는 자리가 있다.', 'warn');
   if (G.memories.length)
     say(`기억이 남아 있다 — ${G.memories.map(id => MEMORIES.find(x => x.id === id).n).join(' · ')}.`, 'good');
   if (G.abyss)

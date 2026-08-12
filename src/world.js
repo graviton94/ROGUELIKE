@@ -122,68 +122,67 @@ export class Level {
     const inb = (x, y) => x > x0 && y > y0 && x < x0 + w - 1 && y < y0 + h - 1;
     const at = (x, y) => (inb(x, y) ? this.tiles[idx(x, y)] : ROCK);
 
-    /* Open ground first, buildings standing in it afterwards.
-       Cutting streets out of rock made a warren — the first
-       attempt was four fifths wall — and it is also backwards:
-       nobody tunnels a town. Put the ground down, stand things on
-       it, and the streets are whatever is left between them,
-       which is how a real one ends up crooked. */
     for (let y = y0; y < y0 + h; y++)
       for (let x = x0; x < x0 + w; x++) this.tiles[idx(x, y)] = FLOOR;
 
-    /* Two clearings that nothing may be built on: the market, off
-       centre, and the stair mouth at the far end from it. */
-    const mx = x0 + 6 + rnd(w - 16), my = y0 + 5 + rnd(h - 12);
-    const gateX = (mx - x0 < w / 2) ? x0 + w - 7 : x0 + 6;
-    const gateY = Math.max(y0 + 5, Math.min(y0 + h - 6, my + rnd(9) - 4));
-    const clear = (x, y) =>
-      Math.hypot((x - mx) * 0.8, y - my) < 6 || Math.hypot(x - gateX, y - gateY) < 4.5;
+    /* The traders camp in the middle of it, the way people who
+       have somewhere else to be always do — in a cleared lane,
+       facing each other, close enough to hear each other shout. */
+    const cx = x0 + 8 + rnd(w - 22), cy = y0 + (h >> 1) + rnd(5) - 2;
+    const gateX = (cx - x0 < w / 2) ? x0 + w - 7 : x0 + 6;
+    const gateY = Math.max(y0 + 5, Math.min(y0 + h - 6, cy + rnd(11) - 5));
+    const camp = (x, y) => Math.abs(x - cx) <= 7 && Math.abs(y - cy) <= 4;
+    const yard = (x, y) => Math.hypot(x - gateX, y - gateY) < 4.5;
 
-    /* Buildings. Assorted footprints, never sharing a wall — the
-       gap between two of them is the alley. */
-    const built = [];
-    for (let t = 0; t < 3000 && built.length < 30; t++) {
-      const bw = 3 + rnd(6), bh = 3 + rnd(5);
+    /* Ruins, not houses. Nothing here is a building you go into —
+       the roofs are down, the walls are open on at least one
+       side, and what is inside is what fell off the walls. A dozen
+       of them, not thirty: the point is that the streets between
+       are empty, and thirty shells is a maze, not a graveyard. */
+    for (let t = 0; t < 900 && this.rooms.length < 13; t++) {
+      const bw = 5 + rnd(5), bh = 4 + rnd(4);
       const bx = x0 + 2 + rnd(w - bw - 4), by = y0 + 2 + rnd(h - bh - 4);
       let ok = true;
-      // a one-tile skirt of open ground on every side, and clear
-      // of the market and the stair
       for (let y = by - 1; y <= by + bh && ok; y++)
         for (let x = bx - 1; x <= bx + bw && ok; x++)
-          if (!inb(x, y) || at(x, y) !== FLOOR || clear(x, y)) ok = false;
+          if (!inb(x, y) || at(x, y) !== FLOOR || camp(x, y) || yard(x, y)) ok = false;
       if (!ok) continue;
+      /* One corner of every shell is simply gone, and the rest of
+         the wall has holes in it. Standing masonry reads as SHOP
+         (the renderer's wall); everything else is walkable, so a
+         ruin is something you can wander into rather than a solid
+         block you route around. */
+      const gx = Math.random() < 0.5 ? bx : bx + bw - 1;
+      const gy = Math.random() < 0.5 ? by : by + bh - 1;
       for (let y = by; y < by + bh; y++)
-        for (let x = bx; x < bx + bw; x++) this.tiles[idx(x, y)] = SHOP;
-      built.push({ x: bx, y: by, w: bw, h: bh,
-                   d: Math.hypot(bx + bw / 2 - mx, by + bh / 2 - my) });
+        for (let x = bx; x < bx + bw; x++) {
+          const edge = x === bx || x === bx + bw - 1 || y === by || y === by + bh - 1;
+          const collapsed = Math.abs(x - gx) + Math.abs(y - gy) <= 2 + rnd(2);
+          this.tiles[idx(x, y)] = edge && !collapsed
+            ? (Math.random() < 0.22 ? RUBBLE : SHOP)
+            : (Math.random() < 0.42 ? RUBBLE : FLOOR);
+        }
+      this.rooms.push({ x: bx, y: by, w: bw, h: bh, lit: true, ruin: true });
     }
 
-    /* Six of them are open, and they are the six nearest the
-       market, because that is where a shop would be. The rest
-       stay shut — a town where every building is a shop you can
-       walk into is a shopping mall, and the one thing this place
-       is supposed to say is that most of the people are gone. */
-    const faceOf = (b) => {
-      const f = [];
-      for (let x = b.x; x < b.x + b.w; x++) {
-        if (b.h >= 3) { f.push({ x, y: b.y + b.h - 1, ix:0, iy:-1 }); f.push({ x, y: b.y, ix:0, iy:1 }); }
-      }
-      for (let y = b.y; y < b.y + b.h; y++) {
-        if (b.w >= 3) { f.push({ x: b.x + b.w - 1, y, ix:-1, iy:0 }); f.push({ x: b.x, y, ix:1, iy:0 }); }
-      }
-      return f.filter(o => at(o.x + o.ix * 2, o.y + o.iy * 2) === SHOP);
+    /* The camp itself: two facing rows of stalls with a lane
+       between them. The tile you step on to trade is the ground
+       in front of the stall, not a door — there are no doors
+       left in this town. */
+    const stallRow = (sy, ky, ids) => {
+      ids.forEach((id, k) => {
+        const sx = cx + (k - 1) * 4;
+        const shop = SHOPS.find(s2 => s2.id === id);
+        if (!shop || !inb(sx, sy)) return;
+        this.tiles[idx(sx, sy)] = PROP;
+        this.props.set(idx(sx, sy), { kind:'stall', hp: 8 });
+        this.signAt.set(idx(sx, sy), id);
+        this.keeperAt.set(idx(sx, ky), id);
+        this.shopAt.set(idx(sx, sy + Math.sign(cy - sy)), id);
+      });
     };
-    const open = built.filter(b => faceOf(b).length).sort((a2, b2) => a2.d - b2.d);
-    SHOPS.filter(s2 => !s2.wander).forEach((shop, i) => {
-      const b = open[i];
-      if (!b) return;
-      const fs = faceOf(b);
-      const f = fs[rnd(fs.length)];
-      this.tiles[idx(f.x, f.y)] = DOOR_OPEN;   // shopfronts are never shut
-      this.shopAt.set(idx(f.x, f.y), shop.id);
-      this.keeperAt.set(idx(f.x + f.ix, f.y + f.iy), shop.id);
-      this.signAt.set(idx(f.x + f.ix * 2, f.y + f.iy * 2), shop.id);
-    });
+    stallRow(cy - 2, cy - 3, [3, 2, 1]);
+    stallRow(cy + 2, cy + 3, [5, 4, 6]);
 
     /* Furniture, checked against the same rule the dungeon uses:
        never stand something where it could seal a way through. */
@@ -200,43 +199,44 @@ export class Level {
       return true;
     };
 
-    place(mx, my, 'well');
-    let stalls = 0;
-    for (let a2 = 0; a2 < 14 && stalls < 5; a2++) {
-      const ang = a2 * (Math.PI / 7) + 0.4;
-      if (place(Math.round(mx + Math.cos(ang) * 3.6), Math.round(my + Math.sin(ang) * 3), 'stall')) stalls++;
-    }
-    // lamps: at the market's rim and either side of the way down
-    for (const [lx, ly] of [[mx - 5, my - 3], [mx + 5, my + 3], [mx + 5, my - 3], [mx - 5, my + 3],
-                            [gateX - 3, gateY - 2], [gateX + 3, gateY + 2]])
-      place(lx, ly, 'brazier');
-    // and a handful of standing lamps out in the streets — a
-    // handful, because forty of them is a bonfire, not a town
+    // fires at both ends of the trading lane, and the well behind it
+    place(cx - 6, cy, 'brazier'); place(cx + 6, cy, 'brazier');
+    place(cx - 6, cy - 3, 'brazier'); place(cx + 6, cy + 3, 'brazier');
+    place(cx + 8, cy - 4, 'well') || place(cx - 8, cy + 4, 'well');
+    // two more where the way down is, so the last lit thing is the stair
+    place(gateX - 3, gateY - 2, 'brazier'); place(gateX + 3, gateY + 2, 'brazier');
+    // and a handful guttering out in the empty streets
     let lamps = 0;
-    for (let t = 0; t < 90 && lamps < 6; t++)
+    for (let t = 0; t < 90 && lamps < 4; t++)
       if (place(x0 + 2 + rnd(w - 4), y0 + 2 + rnd(h - 4), 'brazier')) lamps++;
-
-    /* Swept to the edges and against the walls, the way ground
-       people cross every day actually ends up. */
-    for (let t = 0; t < 120; t++) {
+    // bones and barrels spilled out of the shells
+    for (let t = 0; t < 60; t++) {
       const x = x0 + rnd(w), y = y0 + rnd(h);
-      if (at(x, y) !== FLOOR) continue;
+      if (camp(x, y) || yard(x, y)) continue;
+      place(x, y, Math.random() < 0.5 ? 'bones' : 'barrel');
+    }
+
+    /* Rubble against the standing walls and along the edges —
+       what came off the buildings is still lying where it fell. */
+    for (let t = 0; t < 400; t++) {
+      const x = x0 + rnd(w), y = y0 + rnd(h);
+      if (at(x, y) !== FLOOR || camp(x, y) || yard(x, y)) continue;
       const edge = Math.min(x - x0, x0 + w - 1 - x, y - y0, y0 + h - 1 - y) <= 1;
       let wall = 0;
       for (const [ax, ay] of [[1,0],[-1,0],[0,1],[0,-1]]) if (at(x + ax, y + ay) === SHOP) wall++;
-      if ((edge || wall >= 2) && Math.random() < 0.4) this.tiles[idx(x, y)] = RUBBLE;
+      if ((edge || wall >= 1) && Math.random() < 0.55) this.tiles[idx(x, y)] = RUBBLE;
     }
 
     this.tiles[idx(gateX, gateY)] = DOWN;
-    for (const [ex, ey] of [[gateX, gateY + 2], [gateX, gateY - 2], [gateX + 2, gateY], [gateX - 2, gateY]]) {
+    this.entry = { x: gateX, y: gateY };
+    for (const [ex, ey] of [[gateX, gateY + 2], [gateX, gateY - 2], [gateX + 2, gateY], [gateX - 2, gateY]])
       if (!this.solid(ex, ey)) { this.entry = { x: ex, y: ey }; break; }
-    }
-    if (!this.entry.x) this.entry = { x: gateX + 1, y: gateY };
 
     /* One lit room over the whole settlement, so daylight reaches
        the far end of the street instead of guttering out two
-       tiles from the hero the way torchlight does. */
-    this.rooms.push({ x: x0, y: y0, w, h, lit: true, bright: true });
+       tiles from the hero the way torchlight does. It goes in
+       first so the ruins above keep their own indices. */
+    this.rooms.unshift({ x: x0, y: y0, w, h, lit: true, bright: true });
     for (let y = y0; y < y0 + h; y++)
       for (let x = x0; x < x0 + w; x++) this.roomOf[idx(x, y)] = 0;
     this.theme = { id:'town' };

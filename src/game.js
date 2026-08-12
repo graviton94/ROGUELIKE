@@ -12,7 +12,7 @@ import {
   upgradeOdds, upgradeRisk, UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS,
   BOONS, boonById, transChance,
   FUSIONS, fusionOf, FUSE_ODDS, FUSE_COST,
-  ALTAR_OFFERS, rarityOf, isCursed,
+  ALTAR_OFFERS, rarityOf, isCursed, TEMPLE_SHARE,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   RELICS, RELIC_SLOTS, relicSlots, relicById, BRANCHES,
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH, REGIONS, regionOf,
@@ -4895,23 +4895,76 @@ function grantBoon(result, weight) {
 }
 
 /* ── shops ──────────────────────────────────────────────── */
+/* ── 신전 ─────────────────────────────────────────────────
+   The one door in the plaza that does not sell you anything. It
+   was a strictly worse alchemist — two potions the alchemist also
+   had — which made it a sign hanging over nothing.
+
+   It takes things off instead. Every other counter in the game
+   adds: the anvil adds a plus, the fire adds a property, the
+   altar adds a gamble. Nothing anywhere could remove a curse, so
+   a cursed find was simply a dead find you carried to a merchant.
+   Now it is a decision with a price on it. */
+export const templeCost = it =>
+  Math.max(60, Math.round(priceOf(it, true) * TEMPLE_SHARE));
+
+export function templeOffers() {
+  const p = G.player;
+  const out = [];
+  for (const k of GEAR_SLOTS) {
+    const it = p.equip[k];
+    if (it && isCursed(it) && !it.unique) out.push({ where:'equip', key:k, item:it });
+  }
+  p.pack.forEach((slot, i) => {
+    if (isCursed(slot.item) && !slot.item.unique)
+      out.push({ where:'pack', key:i, item:slot.item });
+  });
+  return out;
+}
+
+export function cleanse(offer) {
+  const p = G.player;
+  const it = offer.item;
+  if (!isCursed(it)) { say('이미 깨끗하다.', 'warn'); return; }
+  const cost = templeCost(it);
+  if (p.gold < cost) { say('금화가 모자란다.', 'warn'); return; }
+  p.gold -= cost;
+  /* Only the cursed half comes off. A 저주받은 예리한 검 keeps
+     its edge — the temple is not a reroll, it is a subtraction. */
+  if (PREFIXES.find(a => a.id === it.pre)?.curse) it.pre = null;
+  if (SUFFIXES.find(a => a.id === it.suf)?.curse) it.suf = null;
+  recalc(p);
+  fx({ t:'cleanse', x:p.x, y:p.y });
+  say(`${nameOf(it)}에서 붙어 있던 것이 떨어져 나갔다. (-${cost})`, 'level');
+}
+
 export function shopStock(shop) {
-  if (shop.stock === 'weapon')
-    return WEAPONS.filter(w => w.d <= 12).map(w => ({ kind:'weapon', ...w }));
+  /* The weapon rack used to return here, which meant the quiver
+     rack hung below an early return and the one shop that sells
+     them never did. */
+  if (shop.stock === 'weapon') {
+    const out = WEAPONS.filter(w => w.d <= 12 && w.t !== 'wand')
+      .map(w => ({ kind:'weapon', ...w }));
+    if (shop.quivers)
+      for (const q of QUIVERS)
+        if (q.d <= Math.max(1, G.deepest || G.depth))
+          out.push({ kind:'quiver', slot:'quiver', ...q });
+    return out;
+  }
   if (shop.stock === 'armour')
     return ARMOURS.filter(a => a.d <= 12).map(a => ({ kind:'armour', ...a }));
   const out = shop.stock.map(id => makeConsumable(id));
+  /* Rods are read, not swung, so they hang with the scrolls
+     rather than on the weapon rack — the one shelf a caster has
+     any reason to walk to. */
+  if (shop.rods)
+    for (const w of WEAPONS)
+      if (w.t === 'wand' && w.d <= Math.max(1, G.deepest || G.depth))
+        out.push({ kind:'weapon', ...w });
   /* 닫힌 장부 halves the shelf. Deterministic on the shop id and
      the day's stock rather than random, so re-entering the door
      cannot reroll what is for sale. */
   if (hasShackle('ledger') && out.length > 1) out.length = Math.ceil(out.length / 2);
-  /* Quivers. The weaponsmith is the only rack that hangs them,
-     because the quiver is now the second half of a bow rather
-     than a supply run — one purchase that keeps working. */
-  if (shop.quivers)
-    for (const q of QUIVERS)
-      if (q.d <= Math.max(1, G.deepest || G.depth))
-        out.push({ kind:'quiver', slot:'quiver', ...q });
   /* The wandering merchant also deals in materials, which is what
      turns a purse of gold into a +1 you actually wanted. */
   if (shop.mats)
@@ -5177,7 +5230,7 @@ export function startGame(raceKey, classKey, base) {
   if (G.memories.includes('digger')) G.player.gold += 300;
 
   enterDepth(0);
-  say('마을. 여섯 개의 문이 열려 있고, 광장 한가운데에 계단이 있다.', 'warn');
+  say('마을. 문이 열려 있는 집은 여섯 채뿐이고, 나머지는 닫혀 있다. 골목 끝에 내려가는 자리가 있다.', 'warn');
   if (G.memories.length)
     say(`기억이 남아 있다 — ${G.memories.map(id => MEMORIES.find(x => x.id === id).n).join(' · ')}.`, 'good');
   if (G.abyss)

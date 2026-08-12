@@ -1513,18 +1513,34 @@ export const UNKNOWABLE = CONSUMABLES
 
 /* ── the town ─────────────────────────────────────────────
    Six shops, as on Moria's level 0.                        */
+/* ── the six doors ────────────────────────────────────────
+   Every shop used to sell 체력 물약. Four of the six did, which
+   meant the plaza was one shop wearing six signs and the temple
+   was a strictly worse alchemist. A door is only worth walking
+   to if it is the *only* door to something.
+
+   So each one now holds a monopoly, and the temple — which had
+   no reason to exist at all — holds the one service in the game
+   that is not a purchase: it takes things *off* your gear. */
 export const SHOPS = [
-  { id:1, n:'잡화점',   spr:'torch',  stock:['torch','potHeal','scrMap','smoke','picks'] },
-  { id:2, n:'방어구점', spr:'armor',  stock:'armour' },
-  { id:3, n:'무기점',   spr:'sword',  stock:'weapon', quivers:true },
-  { id:4, n:'신전',     spr:'amulet', stock:['potHeal','potCure'] },
-  { id:5, n:'연금술사', spr:'potion', stock:['potHeal','potMana','potCure'], cats:true },
-  { id:6, n:'마법상',   spr:'wand',   stock:['scrMap','scrTele','scrFlee','potMana'] },
+  { id:1, n:'잡화점',   spr:'torch',  stock:['torch','picks','smoke','scrMap'],
+    t:'도구. 불, 갈고리, 연기 — 싸움 밖에서 쓰는 것들.' },
+  { id:2, n:'방어구점', spr:'armor',  stock:'armour',
+    t:'입는 것 전부. 방패도 여기에만 있다.' },
+  { id:3, n:'무기점',   spr:'sword',  stock:'weapon', quivers:true,
+    t:'드는 것 전부. 활과 화살통을 거는 유일한 자리.' },
+  { id:4, n:'신전',     spr:'amulet', temple:true, stock:['potCure'],
+    t:'파는 곳이 아니다. 붙은 것을 떼어 내는 곳이다.' },
+  { id:5, n:'연금술사', spr:'potion', stock:['potHeal','potMana','potCure'], cats:true,
+    t:'물약과 촉매. 마시는 것은 여기서만 산다.' },
+  { id:6, n:'마법상',   spr:'wand',   stock:['scrMap','scrTele','scrFlee'], rods:true,
+    t:'두루마리와 지팡이. 읽는 것과 외우는 것.' },
   /* Not in town. This one walks the dungeon, which is the only
      reason the gold in your purse means anything after floor 1. */
   { id:7, n:'떠돌이 상인', spr:'amulet', wander:true,
     stock:['potHeal','potCure','potMana','scrTele','scrMap','scrFlee','torch','smoke'],
-    mats:['scrap','dust','essence'], cats:true },
+    mats:['scrap','dust','essence'], cats:true,
+    t:'층 안에서 만난다. 무엇이든 조금씩, 값은 비싸게.' },
 ];
 
 /* ── affixes ──────────────────────────────────────────────
@@ -1617,6 +1633,10 @@ export const RARITY = [
   { n:'초월', tone:'W', glow:'#f2efe4' },
 ];
 export const CURSED_TONE = 'R';
+/* What the temple charges to take a curse off, as a share of what
+   the item is worth. Priced so that cleansing a good find is
+   obviously right and cleansing a bad one is obviously a waste. */
+export const TEMPLE_SHARE = 0.45;
 
 /* ── 초월 ─────────────────────────────────────────────────
    The tier you cannot grind into. Rarity 0–3 is arithmetic on

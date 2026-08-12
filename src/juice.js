@@ -737,6 +737,14 @@ export function pump(queue, player) {
         sfx.blast();
         break;
 
+      /* 신전에서 떨어져 나가는 것. Upward and pale — the one
+         effect in the game that is a subtraction. */
+      case 'cleanse':
+        ring(e.x, e.y, 1.4, PALETTE.W, 460);
+        burstShards(e.x, e.y, [PALETTE.W, PALETTE.y], 18, 1.2);
+        number(e.x, e.y - 0.8, '떨어졌다', PALETTE.W, 1.1);
+        break;
+
       /* 연막탄. Grey, low and wide — it has to read as cover
          rather than as a blast, because nothing in it took any
          damage. */

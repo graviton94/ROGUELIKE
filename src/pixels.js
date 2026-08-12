@@ -644,6 +644,32 @@ export const SPRITES = {
     '..ssss..',
     '.ssssss.',
   ],
+  /* The town's middle. Everything in this game is a corridor or
+     a shopfront; the plaza needed one thing that is neither —
+     something people would have stood around before the deep
+     place opened underneath them. */
+  well: [
+    '..dddd..',
+    '.dGGGGd.',
+    'dGbbbbGd',
+    'dGbBBbGd',
+    'dGbbbbGd',
+    '.dGGGGd.',
+    '..GGGG..',
+    '..GGGG..',
+  ],
+  /* A stall front: cloth over poles. Reads as market rather than
+     as furniture to smash. */
+  stall: [
+    'rrrrrrrr',
+    'rWrWrWrr',
+    'rrrrrrrr',
+    '.n....n.',
+    '.n....n.',
+    '.n.ww.n.',
+    '.n.ww.n.',
+    '.n....n.',
+  ],
   pillar: [
     '.GGGGGG.',
     '.GggggG.',
@@ -1064,6 +1090,10 @@ export const TERRAIN = {
   dark:    { base:'d', grain:'g', mortar:'k', floor:'k', dust:'d',  style:'brick' },
   // 물에 잠긴 층: wet blue stone, streaked downward.
   flooded: { base:'b', grain:'B', mortar:'k', floor:'d', dust:'b',  style:'streak' },
+  /* 마을: the only place above ground. Warm, pale, worn — it has
+     to look like daylight next to fifteen floors of wet stone,
+     because the contrast is most of what the town is for. */
+  town:    { base:'n', grain:'N', mortar:'k', floor:'G', dust:'g',  style:'ashlar' },
   // 소굴: chitin and old web over the stone.
   nest:    { base:'p', grain:'P', mortar:'k', floor:'d', dust:'p',  style:'rough' },
 };

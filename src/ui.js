@@ -131,7 +131,12 @@ export function draw() {
       if (lit) {
         const d = Math.hypot(x - p.x, y - p.y);
         const rid = L.roomOf[i];
-        const ambient = (rid >= 0 && L.rooms[rid].lit && rid === L.roomOf[idx(p.x, p.y)]) ? 0.55 : 0;
+        /* Daylight, not torchlight. A lit dungeon room still
+           falls off toward its corners; the town does not, or the
+           far end of the street reads as unexplored cave. */
+        const room = rid >= 0 ? L.rooms[rid] : null;
+        const ambient = room?.bright ? 1
+          : (room?.lit && rid === L.roomOf[idx(p.x, p.y)]) ? 0.55 : 0;
         alpha = clamp(0.30 + Math.max(ambient, 1 - d / (lightR + 1.5)) * 0.72, 0, 1);
       } else {
         alpha = 0.26;
@@ -2233,6 +2238,37 @@ function renderShop() {
   $('shop-gold').textContent = p.gold;
 
   const buyList = $('shop-buy'); buyList.innerHTML = '';
+  /* Each door says what only it does, right above the shelf.
+     Six signs that all read "물약 있음" is the same as no signs. */
+  if (shop.t) buyList.appendChild(el('p', 'empty shopline', shop.t));
+
+  /* The temple sells almost nothing and does one thing, so the
+     one thing goes at the top of its shelf rather than below a
+     row of flasks. */
+  if (shop.temple) {
+    const offers = Game.templeOffers();
+    if (!offers.length)
+      buyList.appendChild(el('p', 'empty', '떼어 낼 것이 없다. 붙은 물건을 들고 오시오.'));
+    for (const off of offers) {
+      const cost = Game.templeCost(off.item);
+      const row = el('button', 'itemrow' + (p.gold < cost ? ' poor' : ''));
+      const ic = el('canvas', 'icon'); paintIcon(ic, off.item.spr);
+      row.appendChild(ic);
+      const mid = el('div', 'imid');
+      mid.appendChild(nameEl(off.item));
+      mid.appendChild(el('span', 'idesc',
+        `${off.where === 'equip' ? '착용 중' : '배낭'} · 붙은 것을 떼어 냅니다${affixBlurb(off.item)}`));
+      row.appendChild(mid);
+      row.appendChild(el('span', 'iact', `${cost}g`));
+      row.onclick = () => {
+        if (p.gold < cost) { Game.say('금화가 모자란다.', 'warn'); refresh(); return; }
+        ask(`${affixName(off.item)}에서 저주를 떼어 낼까요?`,
+            `저주만 떨어집니다. 좋은 속성과 강화는 그대로 남습니다.\n가진 금화 ${p.gold} → ${p.gold - cost}`,
+            () => { Game.cleanse(off); renderShop(); refresh(); });
+      };
+      buyList.appendChild(row);
+    }
+  }
   for (const item of Game.shopStock(shop)) {
     const cost = Game.priceOf(item, true);
     const row = el('button', 'itemrow' + (p.gold < cost ? ' poor' : ''));
@@ -2909,13 +2945,15 @@ export function inspect(x, y) {
       sub = '오브젝트 — 부딪치면 상호작용';
       rows.push(['', {
         barrel:'부수면 안에 든 것이 나온다. 가끔 안에 든 것이 이빨을 갖고 있다.',
+        well: '깊은 곳이 열리기 전에도 여기 있었다. 지금도 물은 맑다.',
+        stall: '천막 아래는 비어 있다. 팔 사람이 남아 있지 않다.',
         brazier: prop.lit ? '이미 타고 있다.'
                           : '불을 옮기면 기름이 260턴어치 아껴진다. 대신 주변 일곱 칸이 전부 깨어난다.',
         pillar:'길을 막는다. 부술 수 있지만 소리가 아홉 칸을 건넌다.',
         bones:'셋에 하나는 아래에 무언가가 자고 있다.',
         urn:'다섯에 하나는 터지고 독을 남긴다. 절반쯤은 값어치가 있다.',
       }[prop.kind]]);
-      if (prop.kind !== 'brazier') rows.push(['남은 내구', `${prop.hp}`]);
+      if (prop.kind !== 'brazier' && prop.kind !== 'well') rows.push(['남은 내구', `${prop.hp}`]);
       const box0 = $('look-rows');
       box0.innerHTML = '';
       $('look-name').textContent = title;

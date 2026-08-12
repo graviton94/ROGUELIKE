@@ -99,47 +99,147 @@ export class Level {
     return t === ROCK || t === SHOP || isShut(t);
   }
 
-  /* ── town: an open plaza ringed by six shopfronts ── */
+  /* ── town: a place people built, not a plan ─────────────
+     The old one was a rectangle of floor with six identical
+     shopfronts pinned to its rim at even spacing, a scatter of
+     rubble, and the stairs bare in the middle. It read as a
+     level-select screen with a floor texture.
+
+     This one is cut the way a settlement actually grows: a
+     street that wanders because the ground made it wander, side
+     lanes of whatever length they happened to reach, a market
+     that is a widening of the street rather than a courtyard,
+     buildings of assorted footprints crowded against the lanes
+     with their doors on the street, and the stair mouth at the
+     far end with the town turning its back on it.
+
+     Half the buildings are shut houses with no door at all. A
+     town where every single building is a shop you can enter is
+     a shopping mall, and the one thing this town is supposed to
+     say is that most of the people who lived here have gone. */
   buildTown() {
-    const x0 = 6, y0 = 5, w = MW - 12, h = MH - 10;
+    const x0 = 3, y0 = 3, w = MW - 6, h = MH - 6;
+    const inb = (x, y) => x > x0 && y > y0 && x < x0 + w - 1 && y < y0 + h - 1;
+    const at = (x, y) => (inb(x, y) ? this.tiles[idx(x, y)] : ROCK);
+
+    /* Open ground first, buildings standing in it afterwards.
+       Cutting streets out of rock made a warren — the first
+       attempt was four fifths wall — and it is also backwards:
+       nobody tunnels a town. Put the ground down, stand things on
+       it, and the streets are whatever is left between them,
+       which is how a real one ends up crooked. */
     for (let y = y0; y < y0 + h; y++)
       for (let x = x0; x < x0 + w; x++) this.tiles[idx(x, y)] = FLOOR;
 
-    // scatter a few rubble piles for texture
-    for (let i = 0; i < 40; i++) {
-      const x = x0 + rnd(w), y = y0 + rnd(h);
-      if (this.tiles[idx(x, y)] === FLOOR) this.tiles[idx(x, y)] = RUBBLE;
+    /* Two clearings that nothing may be built on: the market, off
+       centre, and the stair mouth at the far end from it. */
+    const mx = x0 + 6 + rnd(w - 16), my = y0 + 5 + rnd(h - 12);
+    const gateX = (mx - x0 < w / 2) ? x0 + w - 7 : x0 + 6;
+    const gateY = Math.max(y0 + 5, Math.min(y0 + h - 6, my + rnd(9) - 4));
+    const clear = (x, y) =>
+      Math.hypot((x - mx) * 0.8, y - my) < 6 || Math.hypot(x - gateX, y - gateY) < 4.5;
+
+    /* Buildings. Assorted footprints, never sharing a wall — the
+       gap between two of them is the alley. */
+    const built = [];
+    for (let t = 0; t < 3000 && built.length < 30; t++) {
+      const bw = 3 + rnd(6), bh = 3 + rnd(5);
+      const bx = x0 + 2 + rnd(w - bw - 4), by = y0 + 2 + rnd(h - bh - 4);
+      let ok = true;
+      // a one-tile skirt of open ground on every side, and clear
+      // of the market and the stair
+      for (let y = by - 1; y <= by + bh && ok; y++)
+        for (let x = bx - 1; x <= bx + bw && ok; x++)
+          if (!inb(x, y) || at(x, y) !== FLOOR || clear(x, y)) ok = false;
+      if (!ok) continue;
+      for (let y = by; y < by + bh; y++)
+        for (let x = bx; x < bx + bw; x++) this.tiles[idx(x, y)] = SHOP;
+      built.push({ x: bx, y: by, w: bw, h: bh,
+                   d: Math.hypot(bx + bw / 2 - mx, by + bh / 2 - my) });
     }
 
-    // shop buildings around the rim; the door tile carries the shop id
-    const spots = [
-      [x0 + 3,       y0 + 1],       [x0 + (w >> 1) - 2, y0 + 1],       [x0 + w - 6, y0 + 1],
-      [x0 + 3,       y0 + h - 4],   [x0 + (w >> 1) - 2, y0 + h - 4],   [x0 + w - 6, y0 + h - 4],
-    ];
-    // The wandering merchant has no storefront; he is placed in
-    // the dungeon instead, so he must not claim a town plot.
-    SHOPS.filter(s => !s.wander).forEach((shop, i) => {
-      const [sx, sy] = spots[i];
-      for (let y = sy; y < sy + 3; y++)
-        for (let x = sx; x < sx + 5; x++) this.tiles[idx(x, y)] = SHOP;
-      const dx = sx + 2, dy = (i < 3) ? sy + 3 : sy - 1;
-      this.tiles[idx(dx, dy)] = DOOR_OPEN;   // shopfronts are never shut
-      this.shopAt.set(idx(dx, dy), shop.id);
-
-      /* A shopfront should say what it sells without the player
-         having to walk in and find out. The keeper stands in the
-         doorway on the building side; the sign hangs above him. */
-      const inward = (i < 3) ? -1 : 1;             // toward the building
-      this.keeperAt.set(idx(dx, dy + inward), shop.id);
-      this.signAt.set(idx(dx, dy + inward * 2), shop.id);
+    /* Six of them are open, and they are the six nearest the
+       market, because that is where a shop would be. The rest
+       stay shut — a town where every building is a shop you can
+       walk into is a shopping mall, and the one thing this place
+       is supposed to say is that most of the people are gone. */
+    const faceOf = (b) => {
+      const f = [];
+      for (let x = b.x; x < b.x + b.w; x++) {
+        if (b.h >= 3) { f.push({ x, y: b.y + b.h - 1, ix:0, iy:-1 }); f.push({ x, y: b.y, ix:0, iy:1 }); }
+      }
+      for (let y = b.y; y < b.y + b.h; y++) {
+        if (b.w >= 3) { f.push({ x: b.x + b.w - 1, y, ix:-1, iy:0 }); f.push({ x: b.x, y, ix:1, iy:0 }); }
+      }
+      return f.filter(o => at(o.x + o.ix * 2, o.y + o.iy * 2) === SHOP);
+    };
+    const open = built.filter(b => faceOf(b).length).sort((a2, b2) => a2.d - b2.d);
+    SHOPS.filter(s2 => !s2.wander).forEach((shop, i) => {
+      const b = open[i];
+      if (!b) return;
+      const fs = faceOf(b);
+      const f = fs[rnd(fs.length)];
+      this.tiles[idx(f.x, f.y)] = DOOR_OPEN;   // shopfronts are never shut
+      this.shopAt.set(idx(f.x, f.y), shop.id);
+      this.keeperAt.set(idx(f.x + f.ix, f.y + f.iy), shop.id);
+      this.signAt.set(idx(f.x + f.ix * 2, f.y + f.iy * 2), shop.id);
     });
 
-    const cx = x0 + (w >> 1), cy = y0 + (h >> 1);
-    this.tiles[idx(cx, cy)] = DOWN;
-    this.entry = { x: cx, y: cy + 2 };
-    this.rooms.push({ x: x0, y: y0, w, h, lit: true });
+    /* Furniture, checked against the same rule the dungeon uses:
+       never stand something where it could seal a way through. */
+    const place = (x, y, kind) => {
+      const i = idx(x, y);
+      if (!inb(x, y) || this.tiles[i] !== FLOOR) return false;
+      if (this.shopAt.has(i) || this.keeperAt.has(i) || this.signAt.has(i)) return false;
+      let free = 0;
+      for (const [ax, ay] of [[1,0],[-1,0],[0,1],[0,-1]])
+        if (at(x + ax, y + ay) === FLOOR) free++;
+      if (free < 3) return false;
+      this.tiles[i] = PROP;
+      this.props.set(i, { kind, hp: kind === 'well' ? 40 : 6, lit: kind === 'brazier' });
+      return true;
+    };
+
+    place(mx, my, 'well');
+    let stalls = 0;
+    for (let a2 = 0; a2 < 14 && stalls < 5; a2++) {
+      const ang = a2 * (Math.PI / 7) + 0.4;
+      if (place(Math.round(mx + Math.cos(ang) * 3.6), Math.round(my + Math.sin(ang) * 3), 'stall')) stalls++;
+    }
+    // lamps: at the market's rim and either side of the way down
+    for (const [lx, ly] of [[mx - 5, my - 3], [mx + 5, my + 3], [mx + 5, my - 3], [mx - 5, my + 3],
+                            [gateX - 3, gateY - 2], [gateX + 3, gateY + 2]])
+      place(lx, ly, 'brazier');
+    // and a handful of standing lamps out in the streets — a
+    // handful, because forty of them is a bonfire, not a town
+    let lamps = 0;
+    for (let t = 0; t < 90 && lamps < 6; t++)
+      if (place(x0 + 2 + rnd(w - 4), y0 + 2 + rnd(h - 4), 'brazier')) lamps++;
+
+    /* Swept to the edges and against the walls, the way ground
+       people cross every day actually ends up. */
+    for (let t = 0; t < 120; t++) {
+      const x = x0 + rnd(w), y = y0 + rnd(h);
+      if (at(x, y) !== FLOOR) continue;
+      const edge = Math.min(x - x0, x0 + w - 1 - x, y - y0, y0 + h - 1 - y) <= 1;
+      let wall = 0;
+      for (const [ax, ay] of [[1,0],[-1,0],[0,1],[0,-1]]) if (at(x + ax, y + ay) === SHOP) wall++;
+      if ((edge || wall >= 2) && Math.random() < 0.4) this.tiles[idx(x, y)] = RUBBLE;
+    }
+
+    this.tiles[idx(gateX, gateY)] = DOWN;
+    for (const [ex, ey] of [[gateX, gateY + 2], [gateX, gateY - 2], [gateX + 2, gateY], [gateX - 2, gateY]]) {
+      if (!this.solid(ex, ey)) { this.entry = { x: ex, y: ey }; break; }
+    }
+    if (!this.entry.x) this.entry = { x: gateX + 1, y: gateY };
+
+    /* One lit room over the whole settlement, so daylight reaches
+       the far end of the street instead of guttering out two
+       tiles from the hero the way torchlight does. */
+    this.rooms.push({ x: x0, y: y0, w, h, lit: true, bright: true });
     for (let y = y0; y < y0 + h; y++)
       for (let x = x0; x < x0 + w; x++) this.roomOf[idx(x, y)] = 0;
+    this.theme = { id:'town' };
   }
 
   /* ── floor themes ─────────────────────────────────────────

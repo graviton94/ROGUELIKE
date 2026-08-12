@@ -57,6 +57,65 @@ export const PALETTE = {
 
 /* ── the bestiary, drawn ─────────────────────────────────── */
 export const SPRITES = {
+  /* ── 후보 C: 둘 사이 ───────────────────────────────────
+     8×8의 뭉툭함을 16×16에서 유지한다. 형태는 두 픽셀 단위로
+     굵게 가고, 음영은 한 겹만 — 재질의 밝은 색을 위쪽 면에
+     한 줄 얹는 정도. 외곽선은 그 재질의 어두운 색이고 검정은
+     쓰지 않는다. */
+  demoC: [
+    '................',
+    '...ffffffff.....',
+    '..fFFFFFFFFf....',
+    '..fFFFFFFFFf..qq',
+    '..fEEkkEEkkf..qQ',
+    '..fEEEEEEEEf..qQ',
+    '..feEEEEEEef.qQQ',
+    '..fewwEEwwef.qQ.',
+    '.jjJJJJJJJJjjQ..',
+    'jjJJJJJJJJJJjj..',
+    'jjJJEEEEEEJJjj..',
+    '.jJJEEEEEEJJj...',
+    '..ffEEEEEEff....',
+    '..fFFf..fFFf....',
+    '..fjjf..fjjf....',
+    '..tttt..tttt....',
+  ],
+
+  /* ── 후보 A: 16×16, 세 가지 색 ─────────────────────────
+     NES 한 장의 규칙이 타일당 세 가지 색이었다. 계조를 쌓는
+     대신 색을 줄이고 형태에 일을 시킨다 — 실루엣이 먼저 읽히고
+     안쪽은 거들 뿐이다. */
+  demoA: [
+    '................',
+    '....EEEEEE......',
+    '...EEEEEEEE.....',
+    '...EEkEEkEE.....',
+    '...EEEEEEEE..kk.',
+    '...EwEEEEwE..kk.',
+    '....EEEEEE...kk.',
+    '..nnnnnnnnnnkk..',
+    '.nnnnnnnnnnnkk..',
+    '.nnEEEEEEnnkk...',
+    '.nnEEEEEEnn.....',
+    '..EEEEEEEEE.....',
+    '..EEEE..EEEE....',
+    '..EEE....EEE....',
+    '..nn......nn....',
+    '................',
+  ],
+  /* ── 후보 B: 8×8, 같은 규칙으로 다시 ───────────────────
+     원래 크기 그대로, 다만 실루엣을 먼저 정하고 그 안을 채운
+     것. 투박함이 매력이 되려면 형태가 단호해야 한다. */
+  demoB: [
+    '.EEEEE..',
+    '.EkEkE..',
+    '.EEEEE.k',
+    'nnnnnnnk',
+    'nEEEEEnk',
+    '.EEEEE.k',
+    '.EE..EE.',
+    '.n....n.',
+  ],
   /* player — recolored per class at bake time via tint keys */
   hero: [
     '..wwww..',

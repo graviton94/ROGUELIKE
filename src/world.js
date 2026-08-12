@@ -139,8 +139,8 @@ export class Level {
        side, and what is inside is what fell off the walls. A dozen
        of them, not thirty: the point is that the streets between
        are empty, and thirty shells is a maze, not a graveyard. */
-    for (let t = 0; t < 900 && this.rooms.length < 13; t++) {
-      const bw = 5 + rnd(5), bh = 4 + rnd(4);
+    for (let t = 0; t < 900 && this.rooms.length < 9; t++) {
+      const bw = 6 + rnd(4), bh = 5 + rnd(3);
       const bx = x0 + 2 + rnd(w - bw - 4), by = y0 + 2 + rnd(h - bh - 4);
       let ok = true;
       for (let y = by - 1; y <= by + bh && ok; y++)
@@ -157,10 +157,14 @@ export class Level {
       for (let y = by; y < by + bh; y++)
         for (let x = bx; x < bx + bw; x++) {
           const edge = x === bx || x === bx + bw - 1 || y === by || y === by + bh - 1;
-          const collapsed = Math.abs(x - gx) + Math.abs(y - gy) <= 2 + rnd(2);
+          /* One corner is gone and the rest of the wall stands.
+             Punching random holes all along it turned every ruin
+             into a scatter of loose bricks that read as litter
+             rather than as a building. */
+          const collapsed = Math.abs(x - gx) + Math.abs(y - gy) <= 3;
           this.tiles[idx(x, y)] = edge && !collapsed
-            ? (Math.random() < 0.22 ? RUBBLE : SHOP)
-            : (Math.random() < 0.42 ? RUBBLE : FLOOR);
+            ? SHOP
+            : (Math.random() < 0.28 ? RUBBLE : FLOOR);
         }
       this.rooms.push({ x: bx, y: by, w: bw, h: bh, lit: true, ruin: true });
     }
@@ -209,22 +213,23 @@ export class Level {
     let lamps = 0;
     for (let t = 0; t < 90 && lamps < 4; t++)
       if (place(x0 + 2 + rnd(w - 4), y0 + 2 + rnd(h - 4), 'brazier')) lamps++;
-    // bones and barrels spilled out of the shells
-    for (let t = 0; t < 60; t++) {
+    /* A few, not a field of them. Sixty barrels and skulls turned
+       the streets into a spot-the-difference puzzle. */
+    let junk = 0;
+    for (let t = 0; t < 80 && junk < 7; t++) {
       const x = x0 + rnd(w), y = y0 + rnd(h);
       if (camp(x, y) || yard(x, y)) continue;
-      place(x, y, Math.random() < 0.5 ? 'bones' : 'barrel');
+      if (place(x, y, Math.random() < 0.5 ? 'bones' : 'barrel')) junk++;
     }
 
     /* Rubble against the standing walls and along the edges —
        what came off the buildings is still lying where it fell. */
-    for (let t = 0; t < 400; t++) {
+    for (let t = 0; t < 160; t++) {
       const x = x0 + rnd(w), y = y0 + rnd(h);
       if (at(x, y) !== FLOOR || camp(x, y) || yard(x, y)) continue;
-      const edge = Math.min(x - x0, x0 + w - 1 - x, y - y0, y0 + h - 1 - y) <= 1;
       let wall = 0;
       for (const [ax, ay] of [[1,0],[-1,0],[0,1],[0,-1]]) if (at(x + ax, y + ay) === SHOP) wall++;
-      if ((edge || wall >= 1) && Math.random() < 0.55) this.tiles[idx(x, y)] = RUBBLE;
+      if (wall >= 1 && Math.random() < 0.4) this.tiles[idx(x, y)] = RUBBLE;
     }
 
     this.tiles[idx(gateX, gateY)] = DOWN;

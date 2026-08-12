@@ -17,6 +17,7 @@ const ASYMMETRIC = new Set([
   'sword', 'dagger', 'great', 'axe', 'mace', 'spear', 'wand', 'gold',
   'rat', 'lean', 'dog', 'ashhound', 'anvil', 'doorBroken', 'rubble', 'thief',
   'stairsDown', 'stairsUp', 'web', 'water', 'bones', 'camp', 'campSpent',
+  'bat',   // 날개가 좌우로 다르게 접힌다
   // 무기를 든 것들 — 한쪽에 무기가 붙으므로 좌우가 달라야 정상이다
   'orc', 'kobold', 'warden', 'emberpriest', 'balemperor', 'lich', 'giant',
 ]);

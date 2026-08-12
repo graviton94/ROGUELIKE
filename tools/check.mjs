@@ -10,7 +10,6 @@
               속보다 밝으면 아웃라인이 아니라 후광으로 읽힙니다. */
 import * as P from '../src/pixels.js';
 
-const N = 16;
 const only = process.argv[2] ? new Set(process.argv[2].split(',')) : null;
 
 /* 한쪽에만 물건이 붙는 것들. 좌우가 달라야 정상입니다. */
@@ -22,20 +21,22 @@ const ASYMMETRIC = new Set([
   'orc', 'kobold', 'warden', 'emberpriest', 'balemperor', 'lich', 'giant',
 ]);
 
-const keys = new Set(Object.keys(P.PALETTE).concat(['C', 'D', 'X']));
+const keys = new Set(Object.keys(P.PALETTE).concat(['C', 'D', 'X', 'L']));
 const lum = hex => {
   const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
   return 0.299 * r + 0.587 * g + 0.114 * b;
 };
 /* C/D는 굽는 시점에 정해지므로 밝기 검사에서는 중간값으로 봅니다. */
-const lumOf = ch => ('CDX'.includes(ch) ? 120 : (P.PALETTE[ch] ? lum(P.PALETTE[ch]) : null));
+const lumOf = ch => ('CDXL'.includes(ch) ? 120 : (P.PALETTE[ch] ? lum(P.PALETTE[ch]) : null));
 
 let bad = 0, warn = 0;
 const say = (m) => { console.log(m); };
 
 function check(label, g, name) {
   if (!Array.isArray(g)) { say(`✗ ${label}: 배열이 아님`); bad++; return; }
-  if (g.length !== N) { say(`✗ ${label}: ${g.length}행`); bad++; }
+  /* 타일은 16, 배우는 32. 어느 쪽이든 정사각이기만 하면 됩니다. */
+  const N = g.length;
+  if (N !== 16 && N !== 32) { say(`✗ ${label}: ${N}행 — 16 또는 32라야 합니다`); bad++; return; }
 
   g.forEach((line, i) => {
     if (line.length !== N) { say(`✗ ${label} ${i}행: ${line.length}글자  |${line}|`); bad++; }

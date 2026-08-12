@@ -23,16 +23,19 @@ PIXELS = ROOT / 'src' / 'pixels.js'
 
 
 def sym(left):
-    """왼쪽 8글자를 받아 좌우대칭 16글자를 만든다."""
-    if len(left) != 8:
-        raise ValueError(f'왼쪽 절반은 8글자여야 합니다: {left!r} ({len(left)})')
+    """왼쪽 절반을 받아 좌우대칭 한 행을 만든다.
+
+    8글자를 주면 16칸, 16글자를 주면 32칸이 됩니다. 격자 크기가
+    달라져도 규칙은 하나입니다 — 절반만 그리면 어긋날 수가 없습니다."""
+    if len(left) not in (8, 16):
+        raise ValueError(f'왼쪽 절반은 8 또는 16글자여야 합니다: {left!r} ({len(left)})')
     return left + left[::-1]
 
 
 def raw(line):
-    """좌우가 달라야 하는 행. 16글자 그대로."""
-    if len(line) != 16:
-        raise ValueError(f'16글자여야 합니다: {line!r} ({len(line)})')
+    """좌우가 달라야 하는 행. 16 또는 32글자 그대로."""
+    if len(line) not in (16, 32):
+        raise ValueError(f'16 또는 32글자여야 합니다: {line!r} ({len(line)})')
     return line
 
 
@@ -42,11 +45,12 @@ def splice(name, grid, src):
     SPRITES / RACE_BODY / CLASS_KIT 어디에 있든, 들여쓰기가 몇 칸이든
     같은 방식으로 찾습니다. 이름은 'rat' 또는 'human.down' 꼴입니다.
     """
-    if len(grid) != 16:
-        raise ValueError(f'{name}: {len(grid)}행')
+    n = len(grid)
+    if n not in (16, 32):
+        raise ValueError(f'{name}: {n}행 — 16 또는 32라야 합니다')
     for i, line in enumerate(grid):
-        if len(line) != 16:
-            raise ValueError(f'{name} {i}행: {len(line)}글자 |{line}|')
+        if len(line) != n:
+            raise ValueError(f'{name} {i}행: {len(line)}글자 (={n} 이어야) |{line}|')
 
     key = name.split('.')[-1]
     pat = re.compile(r'(^([ \t]*)%s: \[\n)(?:.*?\n)*?(\2\],)' % re.escape(key), re.M)
@@ -77,11 +81,12 @@ def to_dir(name, views, src):
     몬스터에 방향이 생기면서 필요해졌습니다. 기존 격자가 배열이든
     이미 묶음이든 상관없이 통째로 갈아 끼웁니다."""
     for v, grid in views.items():
-        if len(grid) != 16:
-            raise ValueError(f'{name}.{v}: {len(grid)}행')
+        n = len(grid)
+        if n not in (16, 32):
+            raise ValueError(f'{name}.{v}: {n}행 — 16 또는 32라야 합니다')
         for i, line in enumerate(grid):
-            if len(line) != 16:
-                raise ValueError(f'{name}.{v} {i}행: {len(line)}글자 |{line}|')
+            if len(line) != n:
+                raise ValueError(f'{name}.{v} {i}행: {len(line)}글자 (={n} 이어야) |{line}|')
 
     # 일부 방향만 줘도 된다 — 준 것만 갈아 끼우고 나머지는 그대로 둔다.
     cur = {}

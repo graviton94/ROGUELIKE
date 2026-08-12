@@ -1488,57 +1488,57 @@ export const RACE_BODY = {
   human: {
     down: [
       '................',
-      '.....111111.....',
-      '....1nnNNnn1....',
-      '....1nNMMNn1....',
-      '....0haaaah0....',
-      '....0wkaakw0....',
-      '....0HhaahH0....',
-      '.....00hh00.....',
-      '..XCCDDCCDDCCX..',
-      '.XCNDDCCCCDDNCX.',
-      '.XhNDDCCCCDDNhX.',
-      '..XCNDDCCDDNCX..',
-      '..1nNNNNNNNNn1..',
-      '...XDDDDDDDDX...',
-      '...XDD1..1DDX...',
-      '...1nn1..1nn1...',
+      '......1111......',
+      '.....nnNNnn.....',
+      '....1nMNNNn1....',
+      '....1nNNNNn1....',
+      '....1nNNNNn1....',
+      '....1WkhhkW1....',
+      '....1hh00hh1....',
+      '...u91hhhh19u...',
+      '..9wwwwwwwwww9..',
+      '..999uWWWWu999..',
+      '..9902dddd2099..',
+      '..h0nNggggNn0h..',
+      '....1M1221M1....',
+      '....111..111....',
+      '...n111..111n...',
     ],
     side: [
       '................',
-      '.....111111.....',
-      '....1nnNNnn1....',
-      '....1nNMMNNn....',
-      '....1nhaaaa0....',
-      '....1nhhwka0....',
-      '....1nHhaah0....',
-      '.....00hhh00....',
-      '..XCCDDCCDDCCX..',
-      '.XCNDDCCCCDDNCX.',
-      '.XhNDDCCCCDDNX..',
-      '..XCNDDCCDDNCX..',
-      '..1nNNNNNNNNn1..',
-      '...XDDDDDDDDX...',
-      '....XDDDD1......',
-      '....1nnnn1......',
+      '......n111n.....',
+      '.....nNNNNn1....',
+      '....1nNNNNN1....',
+      '....1nNNMNN1....',
+      '....1nnNM111....',
+      '....1hhhhWk1....',
+      '....1hhhhhhH....',
+      '...u.1hhhh19....',
+      '..9wWwwwuuwwu...',
+      '..9Wu9wwWWWw9...',
+      '..9u99uuuwwuH0..',
+      '...HahnNd2gg0...',
+      '....1nMMnnN1....',
+      '...21NMn1NNNN...',
+      '....11111111n...',
     ],
     up: [
       '................',
-      '.....111111.....',
-      '....1nnNNnn1....',
-      '....1nNMMNn1....',
-      '....1nNNNNn1....',
-      '....1nNNNNn1....',
-      '....1nnNNnn1....',
-      '.....00hh00.....',
-      '..XCCDDCCDDCCX..',
-      '.XCNDDCCCCDDNCX.',
-      '.XhNDDCCCCDDNhX.',
-      '..XCNDDCCDDNCX..',
-      '..1nNNNNNNNNn1..',
-      '...XDDDDDDDDX...',
-      '...XDD1..1DDX...',
-      '...1nn1..1nn1...',
+      '......1111......',
+      '.....nNNNnn.....',
+      '....1NMMNNN1....',
+      '....1NMMMNN1....',
+      '....1NMMNNn1....',
+      '....1NNNNNN1....',
+      '....1NNNNNN1....',
+      '...u91NNNN19u...',
+      '..9uuwWWWWwuu9..',
+      '..9uuuwwww99u9..',
+      '..0hddggggd2h0..',
+      '..0hdGgddgGdH0..',
+      '...2nN1221Nn2...',
+      '...1nN2..2Nn1...',
+      '...n1M....M1n...',
     ],
   },
 
@@ -1959,57 +1959,57 @@ export const CLASS_KIT = {
   // 전사: a browed helm with cheek guards, pauldrons, a belt.
   warrior: {
     down: [
-      '.....222222.....',
-      '...2dSSSSSSd2...',
-      '...2SSSSSSSS2...',
-      '...2SS2222SS2...',
-      '...2S......S2...',
-      '...2S......S2...',
-      '...2SS....SS2...',
-      '....22222222....',
-      '..2sSSSSSSSSs2..',
-      '.2Ss2ssssss2sS2.',
-      '.2Ss2sdddds2sS2.',
-      '..222sdssds222..',
-      '....2sdssds2....',
-      '....2ddyydd2....',
       '................',
+      '.......DX.......',
+      '.....XXLCXX.....',
+      '....XCLLCCDX....',
+      '....XLLLCCCX....',
+      '....XCLCCCCX....',
+      '....XXXXXXXX....',
+      '....XX....XX....',
+      '..XXXX....XXXX..',
+      '..XDDCXXXXDDXX..',
+      '..XXXCLLCLDXXX..',
+      '..DXXCCCCCDXXX..',
+      '....XLDXXDLX....',
+      '....XCX..XCX....',
+      '....DC....CD....',
       '................',
     ],
     side: [
-      '.....222222.....',
-      '...2dSSSSSSd2...',
-      '...2SSSSSSSS2...',
-      '...2SSSSSSS22...',
-      '...2SSSSS22.....',
-      '...2SSSS2.......',
-      '...2SSS2........',
-      '....222222......',
-      '..2sSSSSSSSs2...',
-      '..2Ss2ssssss2...',
-      '..2Ss2sdddds2...',
-      '...222sdssds2...',
-      '.....2sdssds2...',
-      '.....2ddyyd2....',
       '................',
+      '....XXXXXD......',
+      '....XDLLLLC.....',
+      '....XLLLCCCX....',
+      '....XLLLCCCX....',
+      '....XCCCCCLX....',
+      '....XCCCCXXD....',
+      '....XDCCD.......',
+      '..XXXDDX..XX....',
+      '..XDDDDDXXCLD...',
+      '..XCDDDDCCCCX...',
+      '..XXXXXDDDDDX...',
+      '......XDDDLX....',
+      '....XXXDDXCD....',
+      '.....DXXXXC.....',
       '................',
     ],
     up: [
-      '.....222222.....',
-      '...2dSSSSSSd2...',
-      '...2SSSSSSSS2...',
-      '...2SSSSSSSS2...',
-      '...2SSSSSSSS2...',
-      '...2SSSSSSSS2...',
-      '...2dSSSSSSd2...',
-      '....22222222....',
-      '..2sSSSSSSSSs2..',
-      '.2Ss2ssssss2sS2.',
-      '.2Ss2ssssss2sS2.',
-      '..222ssssss222..',
-      '....2ssssss2....',
-      '....2dddddd2....',
       '................',
+      '.......DX.......',
+      '.....DXLDXX.....',
+      '....XLLLDCDX....',
+      '....XLLLCCCX....',
+      '....XLLLCCCX....',
+      '....XCLLCCCX....',
+      '....XCCCCCCX....',
+      '..XXXCCCCDXXXX..',
+      '..XDDCCLCLDXXX..',
+      '..XXXCCCCCDDXX..',
+      '..DXXDDCDDDXXX..',
+      '....XLDXXDLX....',
+      '....XCX..XCX....',
+      '....DD....CD....',
       '................',
     ],
   },
@@ -2017,58 +2017,58 @@ export const CLASS_KIT = {
   // 마법사: a pointed hat, a long robe, a staff down the side.
   mage: {
     down: [
-      '......6666......',
-      '.....6bBBb6.....',
-      '....6bBBBBb6....',
-      '.663yyyyyyyy366.',
+      '................',
+      '.....XXXXD......',
+      '.....XCCCDX.....',
+      '....XDDDDDDX....',
+      '....XDDDDDDX....',
+      '....XCDDDDCX....',
+      '....DXCCCCXX....',
+      '......XXXX......',
+      '...CCC....CCC...',
+      '..XCCLXXXXLCCX..',
+      '..XCXDLLLLDXCX..',
+      '..DD.XXXXXX.DD..',
       '................',
       '................',
       '................',
       '................',
-      '...6bBBBBBBb6...',
-      '..6CCCCCCCCCC6..',
-      '.6DCCCCCCCCCCD6.',
-      '.63yyyyyyyyyy36.',
-      '6DCCCCCCCCCCCCD6',
-      '6DCCCCCCCCCCCCD6',
-      '6DCCCCCCCCCCCCD6',
-      '66CCCCCCCCCCCC66',
     ],
     side: [
-      '......6666......',
-      '.....6bBBb6.....',
-      '....6bBBBBb6....',
-      '.663yyyyyyyy366.',
+      '................',
+      '.....DXXXXX.....',
+      '....XDDDDDX.....',
+      '....XDDDDDDX....',
+      '....XDDDDDDX....',
+      '....XCCCCCCX....',
+      '....XCCCCCDX....',
+      '....XXXXXXXX....',
+      '...DLLX...XX....',
+      '..XLLLLXXXCCD...',
+      '..XLCDLLLLLCX...',
+      '..XXXXXXXXXD....',
       '................',
       '................',
       '................',
       '................',
-      '...6bBBBBBBb6...',
-      '..6CCCCCCCCCC6..',
-      '.6DCCCCCCCCCCD6.',
-      '.63yyyyyyyyyy36.',
-      '6DCCCCCCCCCCCCD6',
-      '6DCCCCCCCCCCCCD6',
-      '6DCCCCCCCCCCCCD6',
-      '66CCCCCCCCCCCC66',
     ],
     up: [
-      '......6666......',
-      '.....6bBBb6.....',
-      '....6bBBBBb6....',
-      '.663yyyyyyyy366.',
+      '................',
+      '.....XXXXXX.....',
+      '....XXCDDCX.....',
+      '....XDCDDCDX....',
+      '....XDCDDCDX....',
+      '....XCCCCCCX....',
+      '....XXXXXXXX....',
+      '................',
+      '...CXXXXXXXXC...',
+      '..XCCLLLLLLCLX..',
+      '..DXXXLLLLXXXD..',
+      '......DXXD......',
       '................',
       '................',
       '................',
       '................',
-      '...6bBBBBBBb6...',
-      '..6CCCCCCCCCC6..',
-      '.6DCCCCCCCCCCD6.',
-      '.6DDDDDDDDDDDD6.',
-      '6DCCCCCCCCCCCCD6',
-      '6DCCCCCCCCCCCCD6',
-      '6DCCCCCCCCCCCCD6',
-      '66CCCCCCCCCCCC66',
     ],
   },
 
@@ -2076,57 +2076,57 @@ export const CLASS_KIT = {
   priest: {
     down: [
       '................',
+      '......XXXD......',
+      '.....DLLLDD.....',
+      '....XLLLCDDD....',
+      '....XCLXXXCX....',
+      '....XXX..XDX....',
+      '....XX...XDX....',
+      '....XX...XDX....',
+      '...LCXXXXXDDD...',
+      '..DCCXXXDDDDDD..',
+      '..XCXXXLCCDXCX..',
+      '..DD.DXXXXD.DD..',
       '................',
       '................',
       '................',
       '................',
-      '................',
-      '................',
-      '................',
-      '................',
-      '..9CC3yyyy3CC9..',
-      '.9C3yyCCCCyy3C9.',
-      '.9C3yyCCCCyy3C9.',
-      '.9C3yyCCCCyy3C9.',
-      '.9C3yyCCCCyy3C9.',
-      '.9CDDDCCCCDDDC9.',
-      '99CCCCCCCCCCCC99',
     ],
     side: [
       '................',
+      '......XXXC......',
+      '.....XXCCCC.....',
+      '....XXDLLLLC....',
+      '....XXDLLDDX....',
+      '....XDDCCXXX....',
+      '....XDDDX..D....',
+      '....XDDDX..D....',
+      '..XXXDCCDXXDX...',
+      '..XDCCCCCCDCX...',
+      '..XLDDCCCLLLD...',
+      '..XXXXXXXXXC....',
       '................',
       '................',
       '................',
       '................',
-      '................',
-      '................',
-      '................',
-      '................',
-      '...9CC3yyCC9....',
-      '..9C3yyCCyy3C9..',
-      '..9C3yyCCyy3C9..',
-      '..9C3yyCCyy3C9..',
-      '..9C3yyCCyy3C9..',
-      '..9CDDDDDDDDC9..',
-      '..99CCCCCCCC99..',
     ],
     up: [
       '................',
+      '......XXXX......',
+      '.....DLLLLD.....',
+      '....XLLLLCCD....',
+      '....XLLLLCCX....',
+      '....XDDLCCCX....',
+      '....XXDCCDDX....',
+      '....XXDCCXXX....',
+      '...LXXXCCXXDD...',
+      '..DCCXXXXDDDCX..',
+      '..DXXXDDCDXXXD..',
+      '......CXXC......',
       '................',
       '................',
       '................',
       '................',
-      '................',
-      '................',
-      '................',
-      '................',
-      '..9CCCCCCCCCC9..',
-      '.9CDDCCCCCCDDC9.',
-      '.9CDDCCCCCCDDC9.',
-      '.9CDDCCCCCCDDC9.',
-      '.9CDDCCCCCCDDC9.',
-      '.9CDDDCCCCDDDC9.',
-      '99CCCCCCCCCCCC99',
     ],
   },
 
@@ -2134,57 +2134,57 @@ export const CLASS_KIT = {
   rogue: {
     down: [
       '................',
+      '......DXXC......',
+      '.....CLLLLD.....',
+      '....DCLCLCDD....',
+      '....XCLXXDDX....',
+      '....XCD..XXX....',
+      '....XX...XXX....',
+      '....XX...XDX....',
+      '...LCDXXXXDDD...',
+      '..CCCDXXDDDDDD..',
+      '..XXXDCLCCCXCX..',
+      '..DXXDCLLCX.DX..',
+      '.....XXXXXX.....',
       '................',
       '................',
-      '...kddddddddk...',
       '................',
-      '................',
-      '................',
-      '................',
-      '..kdddddddddk...',
-      '.kCDDCCCCCCDD...',
-      '.kCDDCCCCCCDD...',
-      '..k1nNNNNNNn1...',
-      '..kCDDCCCCDDk...',
-      '..kCDDCCCCDDk...',
-      '...kDDDDDDDDk...',
-      '...kkkkkkkkkk...',
     ],
     side: [
       '................',
+      '......DXXL......',
+      '.....XDDCLC.....',
+      '....XXDCLLLL....',
+      '....XXDCCCCX....',
+      '....XDDCCXXX....',
+      '....XDDDX..D....',
+      '....XDDDX..C....',
+      '..XXDDLCDXXDX...',
+      '..XDDCCCCCDDX...',
+      '..XCDXCCLLLLX...',
+      '..XXXXCCLLLDX...',
+      '......XXXXXX....',
       '................',
       '................',
-      '...kddddddddk...',
       '................',
-      '................',
-      '................',
-      '................',
-      '..kdddddddddk...',
-      '..kCDDCCCCDDk...',
-      '..kCDDCCCCDDk...',
-      '..k1nNNNNNn1k...',
-      '..kCDDCCCCDDk...',
-      '..kCDDCCCCDDk...',
-      '...kDDDDDDDDk...',
-      '...kkkkkkkkkk...',
     ],
     up: [
       '................',
+      '......CXXC......',
+      '.....LLLLLD.....',
+      '....CLLLLCCD....',
+      '....XLCCCCCX....',
+      '....XDDCCDDX....',
+      '....XXDCCXXX....',
+      '....XXDCCXXX....',
+      '...LDXXCCXXDD...',
+      '..CLCCXXXDDDDD..',
+      '..DXXCDDDDDDDD..',
+      '.....XCCCCDX....',
+      '....XXXXXXXX....',
       '................',
       '................',
-      '...kddddddddk...',
       '................',
-      '................',
-      '................',
-      '................',
-      '..kdddddddddd...',
-      '.kCDDCCCCCCDD...',
-      '.kCDDCCCCCCDD...',
-      '..k1nNNNNNNn1...',
-      '..kCDDCCCCDDC...',
-      '..kCDDCCCCDDC...',
-      '...kDDDDDDDDk...',
-      '...kkkkkkkkkk...',
     ],
   },
 
@@ -2192,114 +2192,114 @@ export const CLASS_KIT = {
   ranger: {
     down: [
       '................',
+      '....CXXXXXXX....',
+      '....XCCDDDXX....',
+      '....XCCDDDDX....',
+      '....XDDDDDDX....',
+      '....XXXXXXXX....',
+      '....X......X....',
       '................',
-      '............e...',
-      '...51nNNNNn15...',
+      '...CXC....CXC...',
+      '....XLXXXXLX....',
+      '....XCLLLLCD....',
+      '....XCCLLCX.....',
+      '.....DXXXXD.....',
       '................',
       '................',
       '................',
-      '................',
-      '...eeeeeeee5....',
-      '...DDCCCCDDC5...',
-      '...DDCCCCDDC5...',
-      '...1nNNNNn15....',
-      '...CDDCCDDC5....',
-      '...CDDCCDDC5....',
-      '...5DDDDDD5.....',
-      '...55555555.....',
     ],
     side: [
       '................',
+      '....DXXXXXX.....',
+      '....XDDDDDXX....',
+      '....XDDCCCXX....',
+      '....XCDXXXXX....',
+      '....XXX....X....',
+      '....XX..........',
+      '....X...........',
+      '...DXXX...CC....',
+      '..XXXXCXXXLLD...',
+      '.....XCLLLLLX...',
+      '......XCLLLCX...',
+      '......DXXXXD....',
       '................',
-      '...e............',
-      '...51nNNNNn15...',
       '................',
       '................',
-      '................',
-      '................',
-      '...5eeeeeeee5...',
-      '...5CDDCCCCDD...',
-      '...5CDDCCCCDD...',
-      '....51nNNNNn1...',
-      '....5CDDCCDDC...',
-      '....5CDDCCDDC...',
-      '.....5DDDDDD5...',
-      '.....55555555...',
     ],
     up: [
       '................',
+      '......XXXX......',
+      '.....XDDXXX.....',
+      '....XDCCCDDX....',
+      '....XDCCCDDX....',
+      '....XDDDDDCX....',
+      '....XDDDDDCX....',
+      '....XDDDDDCX....',
+      '...CXXDDDDDXC...',
+      '....XLLLLLLX....',
+      '....CLLLLLLX....',
+      '.....XCCCCCX....',
+      '....XXXXXXXX....',
       '................',
-      '............e...',
-      '...51nNNNNn15...',
       '................',
       '................',
-      '................',
-      '................',
-      '...eeeeeeee5....',
-      '...DDCCCCDDC5...',
-      '...DDCCCCDDC5...',
-      '...1nNNNNn15....',
-      '...CDDCCDDC5....',
-      '...CDDCCDDC5....',
-      '...5DDDDDD5.....',
-      '...55555555.....',
     ],
   },
 
   // 팔라딘: a crested helm and a gilded breastplate.
   paladin: {
     down: [
-      '.....333333.....',
-      '...3yYY33YYy3...',
-      '...3YYY33YYY3...',
-      '...3Y333333Y3...',
-      '...3Y333333Y3...',
-      '...3YYY33YYY3...',
-      '...3yYY33YYy3...',
-      '...3111111113...',
-      '..3oooooooooo3..',
-      '.3yo3oooooo3oy3.',
-      '.3yo3oyyyyo3oy3.',
-      '..333oooooo333..',
-      '....3oyWWyo3....',
-      '....3oooooo3....',
       '................',
+      '......XXXX......',
+      '.....XDLCDX.....',
+      '....XDLLCCDX....',
+      '....XCLLCCDX....',
+      '....XLLCCCCX....',
+      '....XCCCCCDX....',
+      '....XCCDDDDX....',
+      '..XXXCCCCCDXXX..',
+      '..XXDDCCCCDXXX..',
+      '..XXXLLLLLDXXX..',
+      '..DXXDCLCDDXXD..',
+      '....XLDXXDLX....',
+      '....XLX..XLX....',
+      '....DD....CD....',
       '................',
     ],
     side: [
-      '.....333333.....',
-      '...3yYYYYYYy3...',
-      '...3YYYYYYYY3...',
-      '...3YY3333333...',
-      '...3YY3333333...',
-      '...3YYYYYYYY3...',
-      '...3yYYYYYYy3...',
-      '...3111111113...',
-      '..3ooooooooo3...',
-      '..3yo3oooooo3...',
-      '..3yo3oyyyyo3...',
-      '...333oooooo3...',
-      '.....3oyWWyo3...',
-      '.....3oooooo3...',
       '................',
+      '......XXXL......',
+      '.....XDCCLL.....',
+      '....XDCLLLLD....',
+      '....XDCLLLLX....',
+      '....XCCCCCLX....',
+      '....XCCCCCCX....',
+      '....XDCCCDDX....',
+      '..XXXDCCCCDDXD..',
+      '..XXDDXDCCCDXX..',
+      '..XXDXXDLLLCX...',
+      '..XXXXXDDDDDX...',
+      '......XLCXLX....',
+      '....XXXCDDLD....',
+      '.....DXXXXC.....',
       '................',
     ],
     up: [
-      '.....333333.....',
-      '...3yYYYYYYy3...',
-      '...3YYYYYYYY3...',
-      '...3YYYYYYYY3...',
-      '...3YYYYYYYY3...',
-      '...3YYYYYYYY3...',
-      '...3yYYYYYYy3...',
-      '...3111111113...',
-      '..3oooooooooo3..',
-      '.3yo3oooooo3oy3.',
-      '.3yo3oooooo3oy3.',
-      '..333oooooo333..',
-      '....3oooooo3....',
-      '....3oooooo3....',
       '................',
+      '......XXXX......',
+      '.....XDLCDX.....',
+      '....XDLLCDDX....',
+      '....XLLLCCDX....',
+      '....XLLLCCDX....',
+      '....XLLCCCDX....',
+      '....XLCCCCCX....',
+      '..XXDLCCCCCDXX..',
+      '..XDDDCCCCDDXX..',
+      '..XXDDCCLCDXXX..',
+      '..DXXDDCDDDXXD..',
+      '....XLDXXDLX....',
+      '....XLX..XLX....',
+      '....DD....CD....',
       '................',
     ],
   },
@@ -2499,25 +2499,28 @@ export const HAND = {
 /* 자루의 가로 위치는 늘 중심선(7~8열 사이)이므로 8로 고정입니다.
    세로 위치는 무기마다 다르므로 gripY() 로 구합니다. */
 export const GRIP = { x: WEAPON_W / 2 };
-export const gripY = name => WEAPON_H - 1 - ((WEAPON[name] || {}).grip || 0);
+export const gripY = name => (gripYs.has(name) ? gripYs.get(name) : WEAPON_H - 1);
 
 /* The class colour, and the shade one step under it. `C` and
    `D` in a grid are replaced with these at bake time, which is
    what lets one drawing serve six classes and still have a lit
    side and a shaded side. */
+/* 바탕 · 그늘 · 외곽선 · 빛. 격자의 C·D·X·L 이 이 넷으로 바뀝니다.
+   셋만 있을 때는 장비가 한 덩어리로 뭉쳐 보였습니다 — 갑옷이 갑옷으로
+   읽히려면 어두운 면과 밝은 면이 둘 다 있어야 합니다. */
 export const CLASS_TINT = {
-  warrior: ['S', 's', '2'],
-  mage:    ['B', 'b', '6'],
-  priest:  ['W', 'w', '9'],
-  rogue:   ['g', 'd', 'k'],
-  ranger:  ['E', 'e', '5'],
-  paladin: ['Y', 'y', '3'],
+  warrior: ['s', 'd', '2', 'S'],
+  mage:    ['B', 'b', '6', 'I'],
+  priest:  ['w', 'u', '9', 'W'],
+  rogue:   ['g', 'd', 'k', 'G'],
+  ranger:  ['E', 'e', '5', 'F'],
+  paladin: ['y', 'o', '3', 'Y'],
 };
 
 /* One keeper per shop, so the six of them are not identical. */
 export const SHOP_TINT = [
-  ['E', 'e', '5'], ['S', 's', '2'], ['R', 'r', '4'],
-  ['W', 'w', '9'], ['V', 'P', '7'], ['B', 'b', '6'],
+  ['E', 'e', '5', 'F'], ['s', 'd', '2', 'S'], ['R', 'r', '4', 'x'],
+  ['w', 'u', '9', 'W'], ['P', 'p', '7', 'V'], ['B', 'b', '6', 'I'],
 ];
 
 export const VIEWS = ['down', 'side', 'up'];
@@ -2540,26 +2543,47 @@ function rgb(hex) {
   return v;
 }
 
-const DEFAULT_TINT = ['S', 's', '2'];
+const DEFAULT_TINT = ['s', 'd', '2', 'S'];
+
+/* ── 격자의 크기는 격자가 정한다 ──────────────────────────
+   타일은 16이지만 배우는 32입니다. 굽는 쪽에서 크기를 상수로
+   박아 두면 둘이 공존할 수 없으므로, 격자를 보고 알아냅니다.
+   16짜리 그림은 예전 그대로 16으로 구워집니다.              */
+const sizeOf = grid => Math.max(grid.length, ...grid.map(l => l.length));
+
+/* 16짜리 옛 그림을 32 판에 올릴 때. 다시 그리기 전까지의 다리이며,
+   픽셀이 두 배로 굵어 보이는 것은 아직 손대지 않았다는 표시입니다. */
+function upscale2(grid) {
+  const out = [];
+  for (const line of grid) {
+    let big = '';
+    for (const ch of line) big += ch + ch;
+    out.push(big, big);
+  }
+  return out;
+}
+const fit = (grid, n) => (grid.length === n ? grid : grid.length * 2 === n ? upscale2(grid) : grid);
 
 function bakeGrid(grid, tint, flip = false) {
-  const [lit, shade, line] = tint || DEFAULT_TINT;
+  const [base, shade, edge, lit] = tint || DEFAULT_TINT;
+  const n = sizeOf(grid);
   const c = document.createElement('canvas');
-  c.width = CELL; c.height = CELL;
+  c.width = n; c.height = n;
   const x = c.getContext('2d');
-  const img = x.createImageData(CELL, CELL);
+  const img = x.createImageData(n, n);
   const px = img.data;
-  for (let row = 0; row < CELL; row++) {
+  for (let row = 0; row < n; row++) {
     const line = grid[row] || '';
-    for (let col = 0; col < CELL; col++) {
-      let ch = line[flip ? CELL - 1 - col : col] || '.';
-      if (ch === 'C') ch = lit;
+    for (let col = 0; col < n; col++) {
+      let ch = line[flip ? n - 1 - col : col] || '.';
+      if (ch === 'C') ch = base;
       else if (ch === 'D') ch = shade;
-      else if (ch === 'X') ch = line;
+      else if (ch === 'X') ch = edge;
+      else if (ch === 'L') ch = lit;
       const color = PALETTE[ch];
       if (!color) continue;
       const [r, g, b] = rgb(color);
-      const o = (row * CELL + col) * 4;
+      const o = (row * n + col) * 4;
       px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255;
     }
   }
@@ -2570,26 +2594,29 @@ function bakeGrid(grid, tint, flip = false) {
 /* Race under, class over. Any cell the kit leaves as '.' shows
    the body beneath, which is why the face survives the helmet. */
 function merge(body, kit) {
+  const n = Math.max(sizeOf(body), sizeOf(kit));
+  const B = fit(body, n), K = fit(kit, n);
   const out = [];
-  for (let row = 0; row < CELL; row++) {
+  for (let row = 0; row < n; row++) {
     let line = '';
-    for (let col = 0; col < CELL; col++) {
-      const over = (kit[row] || '')[col] || '.';
-      line += over !== '.' ? over : ((body[row] || '')[col] || '.');
+    for (let col = 0; col < n; col++) {
+      const over = (K[row] || '')[col] || '.';
+      line += over !== '.' ? over : ((B[row] || '')[col] || '.');
     }
     out.push(line);
   }
   return out;
 }
 
-/* The second walk frame. Only the two leg rows move: mirrored,
+/* The second walk frame. Only the bottom leg rows move: mirrored,
    the forward foot becomes the trailing one. It is one pixel of
    difference and it is the whole reason a walk reads as a walk
    rather than as a slide. */
 function stepFrame(grid) {
+  const n = sizeOf(grid);
   const out = grid.slice();
-  for (let row = LEG_TOP; row < CELL; row++) {
-    const line = (grid[row] || '').padEnd(CELL, '.');
+  for (let row = Math.round(n * LEG_TOP / CELL); row < n; row++) {
+    const line = (grid[row] || '').padEnd(n, '.');
     out[row] = [...line].reverse().join('');
   }
   return out;
@@ -2599,7 +2626,13 @@ const viewOf = (src, view) => (Array.isArray(src) ? src : src[view] || src.down)
 
 /* 무기는 16×32 판이라 정사각형 굽는 함수를 못 씁니다. `art` 는
    아래에서부터 채워지므로 짧은 무기는 짧게 적으면 됩니다. */
-function bakeWeapon(art) {
+const gripYs = new Map();
+function bakeWeapon(name, w) {
+  /* 32폭으로 그렸으면 그대로, 16폭이면 두 배로. 쥐는 행도 같은
+     배율로 따라가야 손 위치가 어긋나지 않습니다. */
+  const step = Math.max(...w.art.map(l => l.length)) > WEAPON_W / 2 ? 1 : 2;
+  const art = step === 1 ? w.art : upscale2(w.art);
+  gripYs.set(name, WEAPON_H - step - step * (w.grip || 0));
   const c = document.createElement('canvas');
   c.width = WEAPON_W; c.height = WEAPON_H;
   const x = c.getContext('2d');
@@ -2620,9 +2653,20 @@ function bakeWeapon(art) {
   return c;
 }
 
+/* ── 배우 판 크기 ─────────────────────────────────────────
+   타일도 배우도 16입니다. 굽는 쪽은 격자를 보고 크기를 알아내므로
+   이 값만 바꾸면 전부 따라오지만, 지금은 16을 지킵니다. */
+export const ACTOR_N = 16;
+const ACTORS = new Set([
+  'hero', 'rat', 'lean', 'bat', 'snake', 'spider', 'mold', 'jelly', 'kobold',
+  'orc', 'dog', 'ogre', 'troll', 'giant', 'wraith', 'mummy', 'vampire', 'lich',
+  'dragon', 'wyrm', 'ashhound', 'warden', 'ashen', 'emberpriest', 'balemperor',
+  'thief', 'mimic', 'keeper',
+]);
+
 export function bakeAll() {
   for (const [name, w] of Object.entries(WEAPON))
-    baked.set(`weapon:${name}`, bakeWeapon(w.art));
+    baked.set(`weapon:${name}`, bakeWeapon(name, w));
 
   /* ── 층 ────────────────────────────────────────────────
      맨몸 · 직업장비 · 무기를 **각각 따로** 굽습니다. 예전에는 격자
@@ -2631,7 +2675,7 @@ export function bakeAll() {
      그리는 쪽에서 순서를 정할 수 있습니다.                      */
   for (const race of Object.keys(RACE_BODY)) {
     for (const view of VIEWS) {
-      const g = viewOf(RACE_BODY[race], view);
+      const g = fit(viewOf(RACE_BODY[race], view), ACTOR_N);
       if (view === 'side') {
         baked.set(`race:${race}:right`, bakeGrid(g));
         baked.set(`race:${race}:left`,  bakeGrid(g, null, true));
@@ -2643,7 +2687,7 @@ export function bakeAll() {
   for (const cls of Object.keys(CLASS_KIT)) {
     const tint = CLASS_TINT[cls];
     for (const view of VIEWS) {
-      const g = viewOf(CLASS_KIT[cls], view);
+      const g = fit(viewOf(CLASS_KIT[cls], view), ACTOR_N);
       if (view === 'side') {
         baked.set(`kit:${cls}:right`, bakeGrid(g, tint));
         baked.set(`kit:${cls}:left`,  bakeGrid(g, tint, true));
@@ -2659,7 +2703,7 @@ export function bakeAll() {
     for (const cls of Object.keys(CLASS_KIT)) {
       const tint = CLASS_TINT[cls];
       for (const view of VIEWS) {
-        const g = merge(viewOf(RACE_BODY[race], view), viewOf(CLASS_KIT[cls], view));
+        const g = fit(merge(viewOf(RACE_BODY[race], view), viewOf(CLASS_KIT[cls], view)), ACTOR_N);
         [g, stepFrame(g)].forEach((f, i) => {
           if (view === 'side') {
             baked.set(`hero:${race}:${cls}:right:${i}`, bakeGrid(f, tint));
@@ -2679,14 +2723,14 @@ export function bakeAll() {
       // Kept as the fallback for anything that asks for a class
       // without naming a race — the ending screen, mostly.
       for (const [cls, tint] of Object.entries(CLASS_TINT))
-        baked.set(`hero:${cls}`, bakeGrid(grid, tint));
+        baked.set(`hero:${cls}`, bakeGrid(fit(grid, ACTOR_N), tint));
     } else if (name === 'keeper') {
-      SHOP_TINT.forEach((tint, i) => baked.set(`keeper:${i + 1}`, bakeGrid(grid, tint)));
+      SHOP_TINT.forEach((tint, i) => baked.set(`keeper:${i + 1}`, bakeGrid(fit(grid, ACTOR_N), tint)));
     } else if (!Array.isArray(grid)) {
       /* 방향을 가진 몬스터. 주인공과 같은 규칙이다 — 정면·옆·뒤를
          그리면 왼쪽은 옆을 뒤집어 만든다. */
       for (const view of VIEWS) {
-        const g = viewOf(grid, view);
+        const g = fit(viewOf(grid, view), ACTOR_N);
         if (view === 'side') {
           baked.set(`${name}:right`, bakeGrid(g));
           baked.set(`${name}:left`,  bakeGrid(g, null, true));
@@ -2697,7 +2741,7 @@ export function bakeAll() {
       // 방향을 묻지 않고 부르면 정면이 나온다.
       baked.set(name, baked.get(`${name}:down`));
     } else {
-      baked.set(name, bakeGrid(grid));
+      baked.set(name, bakeGrid(ACTORS.has(name) ? fit(grid, ACTOR_N) : grid));
     }
   }
 }

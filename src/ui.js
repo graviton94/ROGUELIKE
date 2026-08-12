@@ -447,11 +447,14 @@ export function draw() {
   const w = p.equip?.weapon;
   const held = w?.t && sprite(`weapon:${w.t}`);
   const grip = HAND[heroFace] || HAND.down;
+  /* 손 좌표는 타일이 아니라 **몸 그림**을 기준으로 잰 것입니다. 배우가
+     32로 커지면 타일 왼쪽 위와 그림 왼쪽 위가 더는 같은 점이 아닙니다. */
+  const B = actorBox(body, lx, ly, t);
 
-  if (held && grip.under) drawHeld(held, lx, ly, t, grip, w, gripY(w.t));
+  if (held && grip.under) drawHeld(held, B.x, B.y, t, grip, w, gripY(w.t));
   blitActor(body, lx, ly, t, po);
-  if (kit) ctx.drawImage(kit, lx, ly, t, t);
-  if (held && !grip.under) drawHeld(held, lx, ly, t, grip, w, gripY(w.t));
+  if (kit) { const K = actorBox(kit, lx, ly, t); ctx.drawImage(kit, K.x, K.y, K.w, K.h); }
+  if (held && !grip.under) drawHeld(held, B.x, B.y, t, grip, w, gripY(w.t));
 
   /* The countdown goes on last. It used to be drawn with the
      tint, which put it underneath the hero sprite — and a disc
@@ -944,23 +947,36 @@ function drawHeld(img, px, py, t, grip, item, gy) {
   ctx.restore();
 }
 
+/* ── 배우는 타일보다 클 수 있다 ──────────────────────────
+   타일은 16, 배우는 32입니다. 그림을 타일에 우겨 넣는 대신 **발바닥을
+   타일 바닥에 붙이고** 가로 가운데를 맞춥니다. 32짜리는 위로 한 칸,
+   좌우로 반 칸씩 넘쳐 오릅니다 — 지도 밀도는 그대로고 지형 생성기는
+   손댈 필요가 없습니다. 16짜리 그림은 계산이 그대로 t×t 로 떨어지므로
+   예전과 한 픽셀도 달라지지 않습니다.                          */
+function actorBox(img, px, py, t) {
+  const u = t / CELL_SIZE;
+  const w = img.width * u, h = img.height * u;
+  return { x: px + (t - w) / 2, y: py + t - h, w, h };
+}
+
 function blitActor(img, px, py, t, o) {
   /* A disc of shadow under the feet. Without it a sprite reads
      as pasted onto the floor rather than standing on it. */
   ctx.drawImage(dropShadow(), px, py, t, t);
+  const B = actorBox(img, px, py, t);
   const s = o.squash || 0;
   if (s > 0) {
     const g = 1 + s * 0.35;
-    const w = t * g, h = t * (2 - g);
-    ctx.drawImage(img, px - (w - t) / 2, py + (t - h), w, h);
+    const w = B.w * g, h = B.h * (2 - g);
+    ctx.drawImage(img, B.x - (w - B.w) / 2, B.y + (B.h - h), w, h);
   } else {
-    ctx.drawImage(img, px, py, t, t);
+    ctx.drawImage(img, B.x, B.y, B.w, B.h);
   }
   if (o.flash > 0) {
     const prev = ctx.globalCompositeOperation, a = ctx.globalAlpha;
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = o.flash * 0.9;
-    ctx.drawImage(img, px, py, t, t);
+    ctx.drawImage(img, B.x, B.y, B.w, B.h);
     ctx.globalCompositeOperation = prev;
     ctx.globalAlpha = a;
   }

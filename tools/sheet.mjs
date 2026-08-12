@@ -11,7 +11,7 @@ const COLS = Number(process.argv[5] || 10);
 const PAD = 4;
 
 const P = Pix.PALETTE;
-const TINT = { C: 'S', D: 's', X: '2' };
+const TINT = { C: 's', D: 'd', X: '2', L: 'S' };
 
 function gridSize(g) { return Math.max(g.length, ...g.map(l => l.length)); }
 function compose(body, kit) {
@@ -74,7 +74,7 @@ if (GROUP === 'sprites' || GROUP === 'all') {
 }
 function tintOf(cls) {
   const t = Pix.CLASS_TINT[cls];
-  return Array.isArray(t) ? { C: t[0], D: t[1], X: t[2] } : TINT;
+  return Array.isArray(t) ? { C: t[0], D: t[1], X: t[2], L: t[3] || t[0] } : TINT;
 }
 
 const N = Math.max(...entries.map(([, g]) => gridSize(g)));
@@ -98,14 +98,19 @@ function px(x, y, hex) {
 }
 
 entries.forEach(([name, grid, tint], i) => {
-  const ox = (i % cols) * cell + PAD, oy = ((i / cols) | 0) * cell + PAD;
-  for (let r = 0; r < N; r++) {
+  /* 16짜리와 32짜리가 한 장에 섞일 수 있다. 게임에서와 같이 발밑을
+     맞추고 가로 가운데를 잡아 놓아야 비교가 된다. */
+  const n = gridSize(grid);
+  const ox = (i % cols) * cell + PAD + ((N - n) >> 1) * Z;
+  const oy = ((i / cols) | 0) * cell + PAD + (N - n) * Z;
+  for (let r = 0; r < n; r++) {
     const line = grid[r] || '';
-    for (let c = 0; c < N; c++) {
+    for (let c = 0; c < n; c++) {
       let ch = line[c] || '.';
       if (ch === 'C') ch = tint.C;
       if (ch === 'D') ch = tint.D;
       if (ch === 'X') ch = tint.X;
+      if (ch === 'L') ch = tint.L;
       const col = P[ch];
       if (!col) continue;
       for (let dy = 0; dy < Z; dy++) for (let dx = 0; dx < Z; dx++)

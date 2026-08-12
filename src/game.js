@@ -25,8 +25,8 @@ import {
   ECHO_ROOM_HOPS, ECHO_ROOM_TOLL, ECHO_ROOM_KEEP,
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   ARTS, SHOVE_DIST, SHOVE_WALL, CLEAVE_SHARE,
-  AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE,
-  AMMO, ammoById, BOW_MELEE, BOW_FALLOFF, AMMO_BUNDLE,
+  AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE, SMOKE_RADIUS, SMOKE_TURNS,
+  QUIVERS, quiverById, BOW_MELEE, BOW_FALLOFF, GEAR_SLOTS,
   FORCE_STAM, FORCE_HURT, FORCE_NOISE, PICK_USES, CHEST_RUIN, RANGER_FOOTING,
   FAITH_MAX, FAITH_PER_HURT, FAITH_PER_UNDEAD, SANCTUM_TURNS, SANCTUM_CUT,
   ANATHEMA_MORE, JUDGE_HURT, MARTYR_TURNS, FAITH_HARD_HIT, FAITH_PER_HARD,
@@ -39,7 +39,7 @@ import {
 import {
   Level, computeFov, lineClear, idx, rnd, roll, clamp, MW, MH,
   FLOOR, DOWN, UP, DOOR, RUBBLE, DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN,
-  WEB, WATER, CAMP, ALTAR, EVENT, ANVIL, PROP, propAt, isDoor, isShut,
+  WEB, WATER, CAMP, ALTAR, EVENT, ANVIL, PROP, propAt, isDoor, isShut, walkable,
 } from './world.js';
 import { EVENTS } from './events.js';
 import * as Meta from './meta.js';
@@ -207,7 +207,11 @@ export function createHero(raceKey, classKey, base) {
      bow; the ranger *is* one. */
   if (classKey === 'ranger') {
     p.equip.weapon = { kind:'weapon', ...WEAPONS.find(w => w.n === '짧은 활') };
-    addItem(p, makeAmmo('arrow'), 24);
+    p.equip.quiver = makeQuiver('deer');
+    /* And two ways out. The class dies with something in its face
+       more than any other, and until this patch it had no verb
+       for that at all. */
+    addItem(p, makeConsumable('smoke'), 2);
     /* And the knife stays on the belt. Handing the ranger a bow
        *instead of* a weapon left it as the only class in the game
        with nothing to swing when something closed — a bow up
@@ -307,7 +311,7 @@ const EMPTY_BONUS = {
 export function gearBonus(p) {
   const b = { ...EMPTY_BONUS };
   if (!p) return b;
-  for (const slot of ['weapon', 'body', 'shield']) {
+  for (const slot of GEAR_SLOTS) {
     const it = p.equip[slot];
     if (!it) continue;
 
@@ -761,12 +765,12 @@ export function spellSlots() {
 export const makeConsumable = id => ({ kind:'use', ...CONSUMABLES.find(c => c.id === id) });
 /* Ammunition stacks the way flasks do — one line in the pack that
    counts down, not twenty arrows taking twenty slots. */
-export const makeAmmo = id => ({ kind:'ammo', ...ammoById(id) });
+export const makeQuiver = id => ({ kind:'quiver', slot:'quiver', ...quiverById(id) });
 
 export function addItem(p, item, qty = 1) {
   // Catalysts stack the same way flasks do — you carry three
   // 정련의 촉매, not three separate lines in the pack.
-  if (item.kind === 'use' || item.kind === 'cat' || item.kind === 'ammo') {
+  if (item.kind === 'use' || item.kind === 'cat') {
     const slot = p.pack.find(s => s.item.id === item.id);
     if (slot) { slot.qty += qty; return; }
   }
@@ -797,7 +801,7 @@ export function equip(slotIdx) {
     // the player picked up.
     if (it.t) Meta.see('weapons', it.t);
     say(`${nameOf(it)}을(를) 들었다.`, 'good');
-  } else if (it.kind === 'armour') {
+  } else if (it.kind === 'armour' || it.kind === 'quiver') {
     const key = it.slot;
     if (key === 'shield' && p.equip.weapon?.hands === 2) { say('양손 무기를 든 채로는 방패를 들 수 없다.', 'warn'); return; }
     const old = p.equip[key];
@@ -959,6 +963,35 @@ export function useItem(slotIdx) {
       break;
     case 'torch': p.lightTurns = Math.min(2600, p.lightTurns + 900); say('새 횃불에 불을 붙였다.', 'good'); break;
 
+    /* 연막탄. The one verb this game did not have: breaking
+       pursuit. Everything walks at your speed here, so once a
+       thing is on you the only exits were killing it or dying to
+       it — which is why every class dies the same way, with one
+       or two bodies in its face. This puts a third door in that
+       room. It deals nothing; it takes the room's attention off
+       you and holds the tile blind while you spend the turns you
+       just bought. */
+    case 'smoke': {
+      const caught = G.monsters.filter(m =>
+        Math.hypot(m.x - p.x, m.y - p.y) <= SMOKE_RADIUS);
+      G.smoke = { x:p.x, y:p.y, left: SMOKE_TURNS, r: SMOKE_RADIUS };
+      for (const m of caught) {
+        if (m.named) continue;     // a guardian does not lose its own doorway
+        m.awake = false;
+        m.provoked = false;
+      }
+      /* And nothing re-acquires you while it hangs. This is the
+         same gate 그림자 걸음 opens, on purpose: one funnel for
+         "nothing notices you", so the smoke cannot be right in
+         one place and wrong in the other. */
+      G.hushUntil = Math.max(G.hushUntil || 0, G.turn + SMOKE_TURNS);
+      fx({ t:'smoke', x:p.x, y:p.y, r: SMOKE_RADIUS, n: caught.length });
+      say(caught.length
+        ? `연기가 터진다. ${caught.length}이(가) 당신을 놓쳤다.`
+        : '연기가 터진다. 놓칠 것이 아무것도 없다.', caught.length ? 'good' : 'warn');
+      break;
+    }
+
     /* The unknown half. Three of these are worth drinking and
        three are not, so an unidentified flask is a real bet. */
     case 'might':
@@ -978,7 +1011,7 @@ export function useItem(slotIdx) {
     }
     case 'murk': afflict(p, 'blind', 22); break;
     case 'forge': {
-      const slots = ['weapon', 'body', 'shield'].filter(k => p.equip[k]);
+      const slots = GEAR_SLOTS.filter(k => p.equip[k]);
       if (!slots.length) { say('벼릴 것이 없다.', 'warn'); break; }
       const it2 = p.equip[slots[rnd(slots.length)]];
       it2.plus = Math.min(MAX_PLUS, (it2.plus || 0) + 1);
@@ -988,7 +1021,7 @@ export function useItem(slotIdx) {
       break;
     }
     case 'hex': {
-      const slots = ['weapon', 'body', 'shield'].filter(k => p.equip[k]);
+      const slots = GEAR_SLOTS.filter(k => p.equip[k]);
       if (!slots.length) { say('아무 일도 일어나지 않았다.'); break; }
       const it2 = p.equip[slots[rnd(slots.length)]];
       const table = Math.random() < 0.5 ? PREFIXES : SUFFIXES;
@@ -1055,13 +1088,9 @@ export function useArt(id) {
     if (weaponType(p) !== 'bow') { say('활이 없다.', 'warn'); return; }
     if (!shotTarget()) { say('사선이 트인 것이 없다.', 'warn'); return; }
   }
-  // An art that flies costs arrows on top of breath, and refuses
-  // rather than half-firing when the quiver cannot cover it.
-  if (a.ammo && (quiver()?.qty || 0) < a.ammo) { say('화살이 모자란다.', 'warn'); return; }
   if (a.faith && (p.faith || 0) < a.faith) { say('신앙이 모자란다.', 'warn'); return; }
   p.stam -= a.stam || 0;
   if (a.faith) p.faith -= a.faith;
-  if (a.ammo) spendArrows(a.ammo);
 
   switch (id) {
     case 'shove': {
@@ -1216,19 +1245,45 @@ export function useArt(id) {
       break;
     }
     case 'snare': {
-      /* The one art here that is not an attack. A ranger who has
-         been caught wants the ground to do the catching next
-         time, and it turns a corridor into a decision for the
-         thing chasing you. */
-      /* Its own list, not G.hazards — that one is the telegraphed
-         floor patterns, keyed on PATTERNS and ticked by `left`,
-         and a snare pushed into it would tick NaN and take the
-         whole floor's telegraphs down with it. */
+      /* Was: bury a trap under your own feet, which only paid off
+         if you were already leaving — so it fired eight times in
+         twelve measured runs and never at the moment it was
+         wanted. It is one action now: give ground and leave the
+         trap in the ground you gave. That answers the ranger's
+         actual way of dying, which is something standing in its
+         face with nowhere to go.
+
+         The snares get their own list rather than G.hazards —
+         that one is the telegraphed floor patterns, keyed on
+         PATTERNS and ticked by `left`, and a snare pushed into it
+         would tick NaN and take every telegraph on the floor
+         down with it. */
+      const from = near.sort((a, b) =>
+        Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
+      const ox = p.x, oy = p.y;
+      if (from) {
+        const bx = Math.sign(p.x - from.x), by = Math.sign(p.y - from.y);
+        /* Straight back first, then either shoulder — a ranger
+           against a wall still gets the trap, just not the step. */
+        for (const [dx, dy] of [[bx, by], [bx, 0], [0, by], [-by, bx], [by, -bx]]) {
+          if (!dx && !dy) continue;
+          const nx = p.x + dx, ny = p.y + dy;
+          if (!walkable(G.level, nx, ny)) continue;
+          if (G.monsters.some(o => o.x === nx && o.y === ny)) continue;
+          p.x = nx; p.y = ny;
+          break;
+        }
+      }
       G.snares = G.snares || [];
-      if (!G.snares.some(s2 => s2.x === p.x && s2.y === p.y))
-        G.snares.push({ x:p.x, y:p.y });
-      fx({ t:'snare', x:p.x, y:p.y });
-      say('발밑에 덫을 묻었다. 밟는 쪽이 손해다.', 'good');
+      if (!G.snares.some(s2 => s2.x === ox && s2.y === oy))
+        G.snares.push({ x:ox, y:oy });
+      fx({ t:'snare', x:ox, y:oy });
+      if (p.x !== ox || p.y !== oy) {
+        fx({ t:'roll', x:p.x, y:p.y, dx: Math.sign(p.x - ox), dy: Math.sign(p.y - oy), dist:1 });
+        say('한 걸음 물러서며 발자국 자리에 덫을 묻었다.', 'good');
+      } else {
+        say('발밑에 덫을 묻었다. 밟는 쪽이 손해다.', 'good');
+      }
       break;
     }
     case 'volley': {
@@ -1880,7 +1935,7 @@ function rollOddity(it) {
 export const hasUnique = id => G.player?.equip?.weapon?.unique === id;
 /* Awake oddities on the whole kit, for the rules to ask about. */
 export const oddAwake = id =>
-  ['weapon', 'body', 'shield'].some(k => oddityOf(G.player, G.player?.equip?.[k])?.id === id);
+  GEAR_SLOTS.some(k => oddityOf(G.player, G.player?.equip?.[k])?.id === id);
 
 const pickOne = pool => pool[rnd(pool.length)];
 
@@ -1938,7 +1993,7 @@ export function rollAffixes(item, depth, guaranteed) {
 export const hasBoon = id => {
   const p = G.player;
   if (!p) return false;
-  for (const slot of ['weapon', 'body', 'shield'])
+  for (const slot of GEAR_SLOTS)
     if (p.equip[slot]?.boon === id) return true;
   return false;
 };
@@ -2567,7 +2622,7 @@ function playerAttack(m) {
   // A bow up close is a stick. That is the price of reach, and it
   // is what stops a bow from being a free extra button on a build
   // that never wanted to stand back.
-  swing(m, weaponType(p) === 'bow' ? BOW_MELEE : 1);
+  swing(m, weaponType(p) === 'bow' && !fitRule(p, 'bowButt') ? BOW_MELEE : 1);
 }
 
 /* ── shooting ─────────────────────────────────────────────
@@ -2575,9 +2630,11 @@ function playerAttack(m) {
    A shot costs a turn and an arrow, falls off with distance, and
    needs a clear line — everything a monster's shot already costs
    it, read off the same helpers. */
+/* What is on the hip right now. Arrows stopped being a count
+   this patch: the quiver is a worn item and a bow with one is
+   simply a better bow, so nothing here can run out mid-floor. */
 export function quiver(p) {
-  const slot = (p || G.player)?.pack.find(s => s.item.kind === 'ammo');
-  return slot ? { slot, ammo: ammoById(slot.item.id), qty: slot.qty } : null;
+  return (p || G.player)?.equip?.quiver || null;
 }
 
 export function shotTarget() {
@@ -2594,9 +2651,9 @@ export function shotTarget() {
 /* How far this bow reaches in these hands. 긴 눈 is the only
    thing that moves it, and every reader goes through here. */
 export const bowRange = p =>
-  (p?.equip?.weapon?.rng || 5) + (fitRule(p, 'farEye') ? 2 : 0);
+  (p?.equip?.weapon?.rng || 5) + (quiver(p)?.rng || 0) + (fitRule(p, 'farEye') ? 2 : 0);
 
-export const canShoot = () => !!shotTarget() && !!quiver();
+export const canShoot = () => !!shotTarget();
 
 /* One arrow leaving the string, wherever it was told to go. Both
    the plain shot and every ranger art land here, so ammunition,
@@ -2605,8 +2662,7 @@ export const canShoot = () => !!shotTarget() && !!quiver();
    skips the roll for the arts that promise they cannot miss. */
 function loose(m, scale = 1, opt = {}) {
   const p = G.player;
-  const q = quiver();
-  const a = q?.ammo || AMMO[0];
+  const a = quiver(p) || QUIVERS[0];
   const dist = Math.hypot(m.x - p.x, m.y - p.y);
   const g = gearBonus(p);
   m.awake = true;
@@ -2628,59 +2684,36 @@ function loose(m, scale = 1, opt = {}) {
   // 부러뜨리는 손: the aim is still bad. What lands, lands twice.
   if (oddAwake('breakhand')) dmg *= 2;
   // Reach is not free — except where an art has bought it.
-  if (!opt.sure) dmg *= Math.max(0.55, 1 - dist * BOW_FALLOFF);
+  if (!opt.sure) dmg *= Math.max(0.55, 1 - dist * (BOW_FALLOFF + (a.falloff || 0)));
   dmg = Math.max(1, Math.round(dmg));
 
   // hurtMonster narrates off opt.weapon; saying it here too printed
   // every shot twice, once as an arrow and once as a shove.
   hurtMonster(m, dmg, null, { weapon:'arrow', shot:true, burst: a.burst || 0 });
   if (a.on && G.monsters.includes(m) && Math.random() < 0.6) poisonMonster(m, a.on);
+  /* 미늘 화살촉. Not poison and not damage — the head stays in,
+     and the thing wearing it arrives a turn later than it meant
+     to. The one quiver that answers being closed on. */
+  if (a.bleed && G.monsters.includes(m)) m.energy = (m.energy || 0) - 0.5;
   return true;
 }
 
 export function shoot() {
   const p = G.player;
   if (weaponType(p) !== 'bow') { say('활이 없다.', 'warn'); return; }
-  if (!quiver()) { say('화살이 떨어졌다.', 'warn'); return; }
   const m = shotTarget();
   if (!m) { say('겨눌 것이 없다.', 'warn'); return; }
   if (has(p, 'paralyze')) {
     say('몸이 굳어 말을 듣지 않는다.', 'warn');
     fx({ t:'struggle', x:p.x, y:p.y }); endTurn(); return;
   }
-  spendArrows(1);
   G.hushShot = true;
   loose(m, 1);
   /* 두 번 우는 활: a second arrow at half, out of the same nock.
      One arrow spent, two in the air. */
   if (hasUnique('twicewept') && G.monsters.includes(m)) loose(m, 0.5, { quietFx: true });
   G.hushShot = false;
-  recoverArrow();
   endTurn();
-}
-
-/* 궁수의 손. Half of what a ranger looses is walked back and
-   picked up — which is the difference between a bow being a
-   resource drain and being a weapon. Worth nothing at all to
-   anyone else holding the same bow. */
-function recoverArrow() {
-  const p = G.player;
-  if (!fitRule(p, 'recover') || Math.random() >= 0.5) return;
-  const q = quiver();
-  if (q) q.slot.qty++;
-  else addItem(p, makeAmmo('arrow'), 1);
-}
-
-/* Arrows leave the pack from one place, so an art and a plain
-   shot can never disagree about what a shot costs. */
-function spendArrows(n) {
-  const p = G.player;
-  for (let i = 0; i < n; i++) {
-    const q = quiver();
-    if (!q) return i;
-    removeItem(p, p.pack.indexOf(q.slot), 1);
-  }
-  return n;
 }
 
 function swing(m, scale) {
@@ -3263,6 +3296,7 @@ export function endTurn(skipMonsters = false) {
   if (p.iron > 0 && --p.iron === 0) say('굳었던 살갗이 풀린다.');
   if (p.brace > 0 && --p.brace === 0) say('어깨를 폈다.');
   if (G.sanctum && --G.sanctum.left <= 0) { G.sanctum = null; say('빛이 스러졌다.'); }
+  if (G.smoke && --G.smoke.left <= 0) { G.smoke = null; say('연기가 걷힌다.'); }
   if (p.martyr > 0 && --p.martyr === 0) {
     const owed = Math.round(p.martyrDebt || 0);
     p.martyrDebt = 0;
@@ -3647,7 +3681,7 @@ const CORRODERS = ['회색 곰팡이', '푸른 젤리', '미라', '망령'];
 function corrode(m) {
   const p = G.player;
   if (!CORRODERS.includes(m.n) || Math.random() >= CORRODE_CHANCE) return;
-  const worn = ['weapon', 'body', 'shield']
+  const worn = GEAR_SLOTS
     .map(k => p.equip[k]).filter(it => it && (it.plus || 0) > 0 && it.boon !== 'aegis');
   if (!worn.length) return;
   const it = worn[rnd(worn.length)];
@@ -4305,7 +4339,7 @@ function pickWeighted(table) {
    point, and the player chose this. */
 function breakItem(it) {
   const p = G.player;
-  for (const slot of ['weapon', 'body', 'shield'])
+  for (const slot of GEAR_SLOTS)
     if (p.equip[slot] === it) p.equip[slot] = null;
   const i = p.pack.findIndex(s => s.item === it);
   if (i >= 0) p.pack.splice(i, 1);
@@ -4570,7 +4604,7 @@ function eventApi() {
       }
     },
     forge: (n, slot) => {
-      const slots = slot ? [slot] : ['weapon', 'body', 'shield'];
+      const slots = slot ? [slot] : GEAR_SLOTS;
       const pick = slots.filter(k => p.equip[k]);
       if (!pick.length) { say('벼릴 것이 없다.', 'warn'); return; }
       const it = p.equip[pick[rnd(pick.length)]];
@@ -4714,7 +4748,7 @@ export const altarOffers = () => {
           : '착용 중인 무기·갑옷·방패 하나가 사라진다',
     can: o.id === 'blood' ? p.hp > 6
        : o.id === 'gold'  ? p.gold >= 60
-       : !!(p.equip.weapon || p.equip.body || p.equip.shield),
+       : GEAR_SLOTS.some(k => p.equip[k]),
   }));
 };
 
@@ -4742,7 +4776,7 @@ export function altarOffer(id) {
     weight = clamp(pay / (250 + G.depth * 90), 0.4, 2.0);
     say(`금화 ${pay}닢이 사라진다.`, 'warn');
   } else {
-    const slots = ['weapon', 'body', 'shield'].filter(k => p.equip[k]);
+    const slots = GEAR_SLOTS.filter(k => p.equip[k]);
     const k = slots[rnd(slots.length)];
     const given = p.equip[k];
     weight = 1.1 + rarityOf(given) * 0.5 + (given.plus || 0) * 0.15;
@@ -4785,7 +4819,7 @@ function grantBoon(result, weight) {
   if (result === '재앙') {
     const roll3 = rnd(3);
     if (roll3 === 0) {
-      const slots = ['weapon', 'body', 'shield'].filter(k => p.equip[k]);
+      const slots = GEAR_SLOTS.filter(k => p.equip[k]);
       if (slots.length) {
         const it = p.equip[slots[rnd(slots.length)]];
         const table = Math.random() < 0.5 ? PREFIXES : SUFFIXES;
@@ -4871,15 +4905,13 @@ export function shopStock(shop) {
      the day's stock rather than random, so re-entering the door
      cannot reroll what is for sale. */
   if (hasShackle('ledger') && out.length > 1) out.length = Math.ceil(out.length / 2);
-  /* Arrows. The weapon shop carries the whole rack, the general
-     store carries the plain ones — a bow with nothing to feed it
-     is a stick, so the cheap kind has to be easy to reach. */
-  if (shop.ammo)
-    for (const id of shop.ammo) {
-      const a = ammoById(id);
-      if (a && a.d <= Math.max(1, G.deepest || G.depth))
-        out.push({ kind:'ammo', ...a, qty: 12 });
-    }
+  /* Quivers. The weaponsmith is the only rack that hangs them,
+     because the quiver is now the second half of a bow rather
+     than a supply run — one purchase that keeps working. */
+  if (shop.quivers)
+    for (const q of QUIVERS)
+      if (q.d <= Math.max(1, G.deepest || G.depth))
+        out.push({ kind:'quiver', slot:'quiver', ...q });
   /* The wandering merchant also deals in materials, which is what
      turns a purse of gold into a +1 you actually wanted. */
   if (shop.mats)
@@ -4953,18 +4985,6 @@ export function buy(item) {
   /* A merchant names what he sells. Buying it teaches you the
      appearance for the rest of the run — otherwise the shop was
      a way to launder identification without spending anything. */
-  /* Arrows are sold by the bundle. Nobody wants to tap a shelf
-     twenty-four times, and a quiver that fills one at a time is a
-     chore rather than a decision. The price is per arrow, so the
-     bundle costs what the bundle is worth. */
-  if (item.kind === 'ammo') {
-    const want = item.qty || AMMO_BUNDLE;
-    const can = Math.min(want, Math.floor((p.gold + cost) / Math.max(1, cost)));
-    if (can > 1) p.gold -= cost * (can - 1);
-    addItem(p, { ...item, qty: undefined }, can);
-    say(`${item.n} ${can}발을 샀다. (-${cost * can})`, 'good');
-    return;
-  }
   identify(item.id, true);
   addItem(p, { ...item });
   say(`${item.n}을(를) 샀다. (-${cost})`, 'good');
@@ -5148,7 +5168,7 @@ export function startGame(raceKey, classKey, base) {
     for (const id of Object.keys(meta.items || {})) G.known[id] = true;
   }
   if (G.memories.includes('smith')) {
-    for (const slot of ['weapon', 'body', 'shield']) {
+    for (const slot of GEAR_SLOTS) {
       const it = G.player.equip[slot];
       if (it) it.plus = Math.max(it.plus || 0, 2);
     }

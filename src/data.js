@@ -693,11 +693,15 @@ export const RESONANCE = [
     say:'아침은 매번 온다. 그것만으로도 대부분은 충분하다.' },
 ];
 
+/* Every place that walks the worn gear reads this, so adding a
+   slot is one edit rather than a dozen that can drift apart. */
+export const GEAR_SLOTS = ['weapon', 'body', 'shield', 'quiver'];
+
 /* Read off the finished build rather than off the item that
    supplied it, same rule as `need` — a boon and a spell affix are
    different pockets and both should count. */
 const hasBoonId = (p, id) =>
-  ['weapon', 'body', 'shield'].some(k => p?.equip?.[k]?.boon === id);
+  GEAR_SLOTS.some(k => p?.equip?.[k]?.boon === id);
 const hasSpellEcho = p =>
   !!p?.spellAffix && Object.values(p.spellAffix).includes('echo');
 export const resonanceById = id => RESONANCE.find(r => r.id === id);
@@ -907,13 +911,13 @@ export const ARTS = {
   ],
 
   ranger: [
-    { id:'aimed',   name:'조준 사격', short:'조준', lv:1,  stam:2, ammo:1,
+    { id:'aimed',   name:'조준 사격', short:'조준', lv:1,  stam:2,
       desc:'빗나가지 않는다. 그리고 멀수록 아프다 — 활의 감쇠가 뒤집힌다.' },
-    { id:'pierce',  name:'관통 사격', short:'관통', lv:4,  stam:3, ammo:1,
+    { id:'pierce',  name:'관통 사격', short:'관통', lv:4,  stam:3,
       desc:'화살이 일직선 위의 모든 것을 뚫고 지나간다.' },
     { id:'snare',   name:'덫 놓기',   short:'덫',   lv:8,  stam:3,
       desc:'발밑에 덫을 묻는다. 밟은 것은 두 턴을 잃는다.' },
-    { id:'volley',  name:'빗발',      short:'빗발', lv:12, stam:5, ammo:3,
+    { id:'volley',  name:'빗발',      short:'빗발', lv:12, stam:5,
       desc:'보이는 모든 것에게 한 발씩. 각각은 절반만 아프다.' },
   ],
 };
@@ -1020,10 +1024,11 @@ export const WEAPON_TYPES = {
    trade: it reaches, and it runs out. Melee with one in hand is
    half a blow, so carrying a bow is a commitment rather than a
    free extra button. */
+export const SMOKE_RADIUS = 3;   // tiles; what loses your trail
+export const SMOKE_TURNS  = 4;   // how long the tile stays blind
+
 export const BOW_MELEE = 0.5;      // what a bow swings for up close
 export const BOW_FALLOFF = 0.045;  // damage lost per tile, so range is not free
-export const QUIVER_MAX = 40;
-export const AMMO_BUNDLE = 12;   // arrows per purchase
 
 /* ── locks ────────────────────────────────────────────────
    A locked door used to cost nothing to force. Fail the roll and
@@ -1082,8 +1087,8 @@ export const QUARRY_HEAL  = 0.045;  // share of maximum health per ranged kill
        equipped
 
    Deliberately *not* balanced against each other. 마법사 × 지팡이
-   returning mana is small and constant; 레인저 × 활 recovering
-   arrows is enormous for that build and worthless for any other.
+   returning mana is small and constant; 레인저 × 활 swinging for
+   full is enormous for that build and worthless for any other.
    That asymmetry is the point — it is what makes the forty-eight
    pairs into forty-eight different games rather than one game
    with a stat screen. */
@@ -1096,10 +1101,15 @@ export const FITS = [
     when:(p, it) => p.cls === 'rogue' && fam(it, 'dagger'),
     t:'세 번째 손이 두 번째에 온다.',
     rule:'thirdAtTwo' },
+  /* Was "half your arrows come back", which stopped meaning
+     anything the moment arrows stopped being counted. It answers
+     the class's measured way of dying instead: the ranger dies
+     with something in its face, and a bow up close is half a
+     blow for everyone. Not for these hands. */
   { id:'archersHand', n:'궁수의 손', good:true,
     when:(p, it) => p.cls === 'ranger' && fam(it, 'bow'),
-    t:'쏜 화살의 절반은 주워 올 수 있다.',
-    rule:'recover' },
+    t:'활을 휘둘러도 온전한 한 대가 나간다.',
+    rule:'bowButt' },
   { id:'magesRod', n:'술사의 지팡이', good:true,
     when:(p, it) => p.cls === 'mage' && fam(it, 'wand'),
     t:'주문을 외울 때마다 마나 1이 돌아온다.',
@@ -1240,23 +1250,46 @@ export function oddityOf(p, it) {
   return fitsOf(p, it).some(f => f.id === o.needs) ? o : null;
 }
 export const fitRule = (p, rule) =>
-  ['weapon', 'body', 'shield'].some(k =>
+  GEAR_SLOTS.some(k =>
     fitsOf(p, p?.equip?.[k]).some(f => f.rule === rule));
 
-/* Ammunition. Ordinary arrows are cheap and everywhere; the other
-   three are a decision about which fight you are saving them for.
-   `dmg` is a multiplier on the bow's roll. */
-export const AMMO = [
-  { id:'arrow',  n:'화살',        spr:'spear', cost:3,  rar:14, d:0,  dmg:1.0,
-    desc:'평범한 화살. 쏘고 나면 사라진다.' },
-  { id:'heavy',  n:'무거운 화살',  spr:'spear', cost:9,  rar:7,  d:3,  dmg:1.55, hit:-8,
-    desc:'피해 +55%, 명중 −8. 두꺼운 것에게.' },
-  { id:'venom',  n:'독화살',      spr:'spear', cost:12, rar:6,  d:5,  dmg:0.9,  on:'poison',
-    desc:'맞은 것이 중독된다. 오래 끄는 싸움에.' },
-  { id:'ember',  n:'불화살',      spr:'spear', cost:16, rar:5,  d:8,  dmg:1.15, burst:0.35,
-    desc:'죽은 자리가 터진다. 무리 한가운데로.' },
+/* ── 화살통 ───────────────────────────────────────────────
+   Arrows used to be a counted consumable, and counting them was
+   the worst thing in the game: 57% of measured ranger runs ended
+   with an empty quiver, at which point the class holds a stick.
+   A bow that can stop working is not a build, it is a chore, and
+   the chore fell entirely on the one class that cannot put the
+   bow down.
+
+   So the count is gone and the arrows became gear. The quiver is
+   a slot of its own — you cannot hold a shield and a quiver, but
+   every bow is two-handed anyway, so what it really trades
+   against is nothing you were using. What it buys is the second
+   half of the weapon: the bow is the roll, the quiver is what
+   the roll turns into. Both halves take enhancement and
+   properties, so a bow build has two things to find instead of
+   one thing to refill. */
+export const QUIVERS = [
+  { id:'deer',   n:'사슴가죽 화살통', spr:'spear', slot:'quiver', cost:40,   rar:12, d:0,
+    dmg:1.0,
+    desc:'곧게 깎은 화살. 특별할 것은 없고, 떨어지지도 않는다.' },
+  { id:'heavy',  n:'무거운 화살촉',   spr:'spear', slot:'quiver', cost:260,  rar:8,  d:3,
+    dmg:1.40, hit:-3,
+    desc:'피해 +40%, 명중 −3. 두꺼운 것을 뚫으려고 무게를 실었다.' },
+  { id:'venom',  n:'독 바른 화살촉',  spr:'spear', slot:'quiver', cost:420,  rar:6,  d:5,
+    dmg:0.95, on:'poison',
+    desc:'맞은 것이 중독된다. 체력이 큰 것일수록 치명적이고, 작은 것에게는 거의 의미가 없다.' },
+  { id:'ember',  n:'불붙이는 화살촉', spr:'spear', slot:'quiver', cost:680,  rar:5,  d:8,
+    dmg:1.15, burst:0.35,
+    desc:'죽은 자리가 터진다. 무리 한가운데를 노려라.' },
+  { id:'barbed', n:'미늘 화살촉',     spr:'spear', slot:'quiver', cost:900,  rar:4,  d:10,
+    dmg:1.2, bleed:true,
+    desc:'뽑히지 않는다. 맞은 것은 걸음이 느려진다.' },
+  { id:'long',   n:'긴 깃 화살통',    spr:'spear', slot:'quiver', cost:1200, rar:3,  d:12,
+    dmg:1.1, rng:2, falloff:-0.02,
+    desc:'사거리 +2. 멀리서도 힘이 덜 죽는다.' },
 ];
-export const ammoById = id => AMMO.find(a => a.id === id);
+export const quiverById = id => QUIVERS.find(q => q.id === id);
 
 /* ── 문장 ─────────────────────────────────────────────────
    Every blow in this game used to read `${적}에게 ${n}의 피해.`
@@ -1440,6 +1473,13 @@ export const CONSUMABLES = [
      reaches for it by id. Three tries to a set. */
   { id:'picks',    spr:'ring',   n:'자물쇠 갈고리', d:1,  cost:55,  rar:9,  use:null,
     desc:'잠긴 문과 상자를 조용히 연다. 실패해도 하나가 닳는다' },
+  /* The answer to being closed on, and it is not damage. Every
+     class that dies with something in its face can buy one; the
+     ranger is simply the class that dies that way most, so it
+     starts with two. Breaking pursuit is a real verb in a game
+     where everything walks at your speed. */
+  { id:'smoke',    spr:'potion', n:'연막탄',        d:1,  cost:90,  rar:9,  use:'smoke',
+    desc:'터진 자리 둘레의 것들이 당신을 놓친다. 쫓아오던 걸음이 끊긴다' },
   { id:'scrMap',   spr:'scroll', n:'지도 두루마리',   d:2,  cost:70,  rar:8,  use:'map',
     desc:'이 층의 지형이 전부 드러난다' },
   { id:'scrTele',  spr:'scroll', n:'전이 두루마리',   d:3,  cost:80,  rar:8,  use:'teleport',
@@ -1474,16 +1514,16 @@ export const UNKNOWABLE = CONSUMABLES
 /* ── the town ─────────────────────────────────────────────
    Six shops, as on Moria's level 0.                        */
 export const SHOPS = [
-  { id:1, n:'잡화점',   spr:'torch',  stock:['torch','potHeal','scrMap'], ammo:['arrow'] },
+  { id:1, n:'잡화점',   spr:'torch',  stock:['torch','potHeal','scrMap','smoke','picks'] },
   { id:2, n:'방어구점', spr:'armor',  stock:'armour' },
-  { id:3, n:'무기점',   spr:'sword',  stock:'weapon', ammo:['arrow','heavy','venom','ember'] },
+  { id:3, n:'무기점',   spr:'sword',  stock:'weapon', quivers:true },
   { id:4, n:'신전',     spr:'amulet', stock:['potHeal','potCure'] },
   { id:5, n:'연금술사', spr:'potion', stock:['potHeal','potMana','potCure'], cats:true },
   { id:6, n:'마법상',   spr:'wand',   stock:['scrMap','scrTele','scrFlee','potMana'] },
   /* Not in town. This one walks the dungeon, which is the only
      reason the gold in your purse means anything after floor 1. */
   { id:7, n:'떠돌이 상인', spr:'amulet', wander:true,
-    stock:['potHeal','potCure','potMana','scrTele','scrMap','scrFlee','torch'],
+    stock:['potHeal','potCure','potMana','scrTele','scrMap','scrFlee','torch','smoke'],
     mats:['scrap','dust','essence'], cats:true },
 ];
 

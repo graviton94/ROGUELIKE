@@ -1040,10 +1040,10 @@ export function refresh() {
   for (const line of G.log.slice(-6)) logBox.appendChild(el('p', line.tone, line.text));
 
   $('btn-cast').hidden = !Game.spellSlots().length;
-  /* 쏘기 only exists while a bow is held. It carries the arrow
-     count because running dry mid-fight is the thing a bow build
-     has to see coming, and greys out rather than vanishing when
-     there is no line — a control that moves is a control you
+  /* 쏘기 only exists while a bow is held. It names what is
+     nocked, because the quiver is half of what a bow
+     hits for now, and greys out rather than vanishing when there
+     is no line — a control that moves is a control you
      misfire. */
   const bowed = Game.weaponType(G.player) === 'bow';
   const q = Game.quiver();
@@ -1051,10 +1051,9 @@ export function refresh() {
   shootBtn.hidden = !bowed;
   if (bowed) {
     shootBtn.disabled = !Game.canShoot();
-    $('shoot-n').textContent = q ? `${q.ammo?.n === '화살' ? '' : q.ammo.n + ' '}${q.qty}` : '없음';
-    shootBtn.title = !q ? '화살이 떨어졌다'
-                   : !Game.shotTarget() ? '사선이 막혔거나 사거리 밖이다'
-                   : `${q.ammo.n} ${q.qty}발`;
+    $('shoot-n').textContent = q ? (q.n.length > 6 ? q.n.slice(0, 5) + '…' : q.n) : '맨 화살';
+    shootBtn.title = !Game.shotTarget() ? '사선이 막혔거나 사거리 밖이다'
+                   : q ? `${q.n} · ${q.desc}` : '화살통이 없다 — 평범한 화살이 나간다';
   }
   renderQuick();
   renderSpellRow();
@@ -2091,7 +2090,7 @@ function renderInventory() {
   for (const sec of document.querySelectorAll('#sc-inv [data-inv]'))
     sec.hidden = sec.dataset.inv !== invTab;
   const eq = $('equip-list'); eq.innerHTML = '';
-  const slots = [['weapon', '무기'], ['body', '갑옷'], ['shield', '방패']];
+  const slots = [['weapon', '무기'], ['body', '갑옷'], ['shield', '방패'], ['quiver', '화살통']];
   for (const [key, label] of slots) {
     const it = p.equip[key];
     const row = el('div', 'eqrow');
@@ -2176,6 +2175,7 @@ function renderInventory() {
     mid.appendChild(el('span', 'idesc',
       it.kind === 'weapon' ? `${grade ? `[${RARITY[grade].n}] ` : ''}${WEAPON_TYPES[it.t]?.n || ''} ${it.dice[0]}d${it.dice[1]}${it.hands === 2 ? ' · 양손' : ''}${reqText(it)}${affixBlurb(it)}`
       : it.kind === 'armour' ? `${grade ? `[${RARITY[grade].n}] ` : ''}방어 +${it.ac}${reqText(it)}${affixBlurb(it)}`
+      : it.kind === 'quiver' ? `${grade ? `[${RARITY[grade].n}] ` : ''}화살통 · ${quiverLine(it)}${affixBlurb(it)}`
       : it.kind === 'cat' ? `촉매 · ${it.t}`
       : Game.isKnown(it.id) ? (it.desc || '사용 가능') : '마셔 보기 전에는 알 수 없다'));
     const pt = plusText(it);
@@ -2243,6 +2243,7 @@ function renderShop() {
     mid.appendChild(el('span', 'idesc',
       item.kind === 'weapon' ? `${WEAPON_TYPES[item.t]?.n || ''} ${item.dice[0]}d${item.dice[1]}${item.hands === 2 ? ' · 양손' : ''}`
       : item.kind === 'armour' ? `방어 +${item.ac}`
+      : item.kind === 'quiver' ? `화살통 · ${quiverLine(item)}`
       : (item.desc || '')));
     row.appendChild(mid);
     row.appendChild(el('span', 'iact', `${cost}g`));
@@ -2412,6 +2413,20 @@ function affixBlurb(it) {
    Also names the next milestone, because the whole reason to
    push past +3 is the engraving waiting at +4. */
 /* What this piece asks of your arms, if it asks anything. */
+/* A quiver has no armour value and no dice of its own — it is a
+   multiplier on someone else's roll, so it needs its own line
+   rather than borrowing the armour one. */
+function quiverLine(it) {
+  const bits = [];
+  if (it.dmg && it.dmg !== 1) bits.push(`피해 ${it.dmg > 1 ? '+' : '−'}${Math.round(Math.abs(it.dmg - 1) * 100)}%`);
+  if (it.hit) bits.push(`명중 ${it.hit > 0 ? '+' : '−'}${Math.abs(it.hit)}`);
+  if (it.rng) bits.push(`사거리 +${it.rng}`);
+  if (it.on === 'poison') bits.push('중독');
+  if (it.burst) bits.push('죽은 자리가 터진다');
+  if (it.bleed) bits.push('맞은 것이 느려진다');
+  return bits.join(' · ') || '평범한 화살';
+}
+
 function reqText(it) {
   const need = it.hands === 2 ? 15
              : it.kind === 'weapon' && (it.dice?.[1] || 0) >= 8 ? 12
@@ -2865,6 +2880,11 @@ export function inspect(x, y) {
     } else if (it.kind === 'armour') {
       sub = '방어구';
       rows.push(['방어', `+${it.ac}`]);
+      if (affixBlurb(it)) rows.push(['속성', affixBlurb(it).replace(/^ · /, '')]);
+    } else if (it.kind === 'quiver') {
+      sub = '화살통';
+      rows.push(['화살', quiverLine(it)]);
+      rows.push(['', '활을 들었을 때만 값을 합니다. 떨어지지 않습니다.']);
       if (affixBlurb(it)) rows.push(['속성', affixBlurb(it).replace(/^ · /, '')]);
     } else if (it.kind === 'chest') {
       sub = '상자'; rows.push(['', it.locked ? '잠겨 있다 — 열쇠나 완력이 필요하다' : '열려 있다']);

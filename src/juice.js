@@ -287,7 +287,7 @@ export function pump(queue, player) {
          bone line; yours is thicker, tinted by what is nocked, and
          leaves a puff at the string. */
       case 'loose': {
-        const tone = { arrow:'W', heavy:'s', venom:'e', ember:'o' }[e.ammo] || 'W';
+        const tone = { deer:'W', heavy:'s', venom:'e', ember:'o', barbed:'N', long:'B' }[e.ammo] || 'W';
         beams.push({ fx: e.fx, fy: e.fy, tx: e.tx, ty: e.ty,
                      color: PALETTE[tone], life: 240, age: 0 });
         const dx = e.tx - e.fx, dy = e.ty - e.fy;
@@ -736,6 +736,17 @@ export function pump(queue, player) {
         buzz([40, 30]);
         sfx.blast();
         break;
+
+      /* 연막탄. Grey, low and wide — it has to read as cover
+         rather than as a blast, because nothing in it took any
+         damage. */
+      case 'smoke': {
+        for (let i = 0; i < 3; i++) ring(e.x, e.y, e.r * (0.5 + i * 0.3), PALETTE.g, 520 + i * 160);
+        burstShards(e.x, e.y, [PALETTE.g, PALETTE.G, PALETTE.d], 26, 0.8);
+        if (e.n) number(e.x, e.y - 0.7, `놓쳤다 ${e.n}`, PALETTE.G, 1.0);
+        sfx.blast();
+        break;
+      }
 
       /* 사냥꾼의 몫. Quiet on purpose — it fires on most kills a
          ranger makes, so it gets a breath of green and nothing

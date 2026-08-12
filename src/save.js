@@ -125,6 +125,7 @@ export function snapshot() {
     snares: [...(G.snares || [])],
     uniques: { ...(G.uniques || {}) }, ashCount: G.ashCount || 0,
     sanctum: G.sanctum || null,
+    smoke: G.smoke || null,
     relicShelf: G.relicShelf ?? null,
     nextMods: G.nextMods || null,
     /* The two trait counters that point at a live monster are
@@ -178,6 +179,7 @@ export function apply(data) {
   G.uniques = data.uniques || {};
   G.ashCount = data.ashCount || 0;
   G.sanctum = data.sanctum || null;
+  G.smoke = data.smoke || null;
   G.hushUntil = data.hushUntil ?? -1;
   /* Derived, never stored: a save from before the ladder existed
      still resolves to the right set of rules, and the rung's

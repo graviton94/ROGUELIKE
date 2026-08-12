@@ -17,7 +17,7 @@ const ASYMMETRIC = new Set([
   'sword', 'dagger', 'great', 'axe', 'mace', 'spear', 'wand', 'gold',
   'rat', 'lean', 'dog', 'ashhound', 'anvil', 'doorBroken', 'rubble', 'thief',
   'stairsDown', 'stairsUp', 'web', 'water', 'bones', 'camp', 'campSpent',
-  'bat', 'dragon', 'wyrm',   // 날개와 꼬리가 좌우로 다르게 접힌다
+  'bat', 'dragon', 'wyrm', 'boss:ogre',   // 날개·꼬리·몽둥이는 한쪽에만 붙는다
   // 무기를 든 것들 — 한쪽에 무기가 붙으므로 좌우가 달라야 정상이다
   'orc', 'kobold', 'warden', 'emberpriest', 'balemperor', 'lich', 'giant',
 ]);
@@ -82,6 +82,9 @@ for (const [n, g] of Object.entries(P.SPRITES)) {
   if (Array.isArray(g)) check(`SPRITES.${n}`, g, n);
   else for (const view of P.VIEWS) check(`SPRITES.${n}.${view}`, g[view], n);
 }
+/* 보스 판도 같은 규칙을 받는다 — 32칸이라는 것만 다르다. */
+for (const [n, v] of Object.entries(P.BOSSES)) if (want(n))
+  for (const view of P.VIEWS) check(`BOSSES.${n}.${view}`, v[view], `boss:${n}`);
 for (const [n, v] of Object.entries(P.RACE_BODY)) if (want(n))
   for (const view of P.VIEWS) check(`RACE_BODY.${n}.${view}`, v[view], n);
 for (const [n, v] of Object.entries(P.CLASS_KIT)) if (want(n))

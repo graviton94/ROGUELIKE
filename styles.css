@@ -321,7 +321,9 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   border: 1px solid var(--g);
   background: rgba(0, 0, 0, .78);
   touch-action: none; cursor: pointer;
+  opacity: .74;                 /* 물러나 있어야 하는 것 */
 }
+#mini:hover, #mini:active { opacity: 1; }
 #mini.off { display: none; }
 
 /* ── log ── */

@@ -506,7 +506,11 @@ export function drawMini() {
       const t = L.tiles[i];
       if (t === ROCK) continue;
       let tone = MINI_TILE[t] || (t === SHOP ? 'y' : null);
-      if (!tone) tone = L.vis[i] ? 'G' : 'g';
+      /* 미니맵은 가구여야지 주인공이면 안 된다. 밝은 돌색(G)을 쓰던
+         동안 이 구석이 화면에서 가장 밝은 것이었고, 시선이 전투가
+         아니라 여기로 갔다. 바닥 두 톤을 한참 낮춘다 — 몬스터·유물·
+         나를 가리키는 색만 밝게 남는다. */
+      if (!tone) tone = L.vis[i] ? 'A' : 'd';
       mctx.fillStyle = PALETTE[tone];
       mctx.fillRect(x * px, y * px, px, px);
     }

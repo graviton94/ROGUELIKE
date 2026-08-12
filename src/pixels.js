@@ -13,26 +13,46 @@
    only the values changed. */
 export const PALETTE = {
   '.': null,          // transparent
-  k: '#000000',       // true black — outlines and the void
-  d: '#181830',       // midnight indigo — floors, panels
-  g: '#484878',       // slate blue — stone in shadow
-  G: '#9090c0',       // lit stone
-  w: '#d8d8c0',       // bone
-  W: '#f8f8f8',       // white flash
-  r: '#a81020',       // dried blood
-  R: '#f84038',       // arcade red
-  o: '#f87c20',       // ember orange
-  y: '#f8d020',       // coin gold
-  n: '#805020',       // leather brown
-  N: '#c89050',       // tan hide
-  e: '#089840',       // deep green
-  E: '#58e068',       // slime green
-  b: '#2048c8',       // deep water
-  B: '#48a8f8',       // sky blue
-  p: '#8028a8',       // royal violet
-  P: '#c868f8',       // bright orchid
-  c: '#10b8a8',       // teal
+
+  /* 값은 0x72 DungeonTileset II(CC0)를 픽셀 단위로 세어 다시 잡았다.
+     에셋을 가져온 것이 아니라 규칙을 가져왔다 (proto/STYLE.md):
+       · 외곽선은 순검정이 아니라 색이 든 짙은 색 하나 — 시트의 35%가 그 한 색
+       · 램프는 어두울수록 붉게, 밝을수록 노랗게 색조를 민다 (H4 → H12 → H24 → H37)
+       · 저채도가 55%, 고채도는 강조에만
+     키는 계약이라 그대로 두고 값만 옮겼다. 스프라이트·juice·지형이
+     전부 이 키를 부르므로, 여기 한 곳을 고치면 전부 함께 바뀐다. */
+  k: '#120e1c',       // 외곽선과 어둠 — 순검정이 아니다
+  d: '#191428',       // 한밤의 남보라 — 바닥, 패널
+  g: '#463f66',       // 그늘 속의 돌
+  G: '#8e8ab0',       // 빛 받은 돌
+  w: '#ded6c0',       // 뼈 — 밝은 끝은 노랑 쪽으로
+  W: '#fdf7ed',       // 흰 섬광
+  r: '#7a1028',       // 마른 피 — 어두운 끝은 보라 쪽으로
+  R: '#f0483c',       // 아케이드 적
+  o: '#f4802a',       // 잉걸불
+  y: '#fad24a',       // 동전 금
+  n: '#5e3a1c',       // 가죽 — 어두운 끝
+  N: '#c8955c',       // 무두질한 가죽
+  e: '#0e6e3c',       // 짙은 초록 — 어두운 끝은 청록 쪽으로
+  E: '#6ce070',       // 점액 초록
+  b: '#1e3a9c',       // 깊은 물
+  B: '#4aa8f0',       // 하늘
+  p: '#6a2090',       // 자주
+  P: '#c072ee',       // 밝은 난초
+  c: '#14a89c',       // 청록
   s: '#98a0b8',       // steel
+
+  /* ── 결(grit) — 바닥과 벽에만 쓰는, 바탕보다 한 걸음만 밝은 톤 ──
+     0x72 시트를 픽셀 단위로 세어 보니 한 물체가 쓰는 색은 중앙값 5개였고,
+     대비는 물체 **안**이 아니라 물체와 배경 **사이**에 있었다 (외곽 픽셀의
+     94%가 V<64, 내부보다 평균 85 어둡다). 이 게임의 바닥은 정반대였다 —
+     바탕 #181830 위에 #484878 점을 칸마다 넷씩 뿌려서, 화면 전체가
+     텔레비전 노이즈로 읽혔다. 결은 바탕 옆에 붙어 있어야 한다. */
+  A: '#20203c',       // 평범한 돌바닥의 결
+  D: '#2a1a0e',       // 좁은 굴 — 흙과 뿌리
+  F: '#565a8a',       // 큰 방 — 밝은 바닥 위의 결
+  H: '#1a2a5a',       // 물에 잠긴 층 — 젖은 자국
+  J: '#2e1840',       // 소굴 — 오래된 거미줄
 };
 
 /* ── the bestiary, drawn ─────────────────────────────────── */
@@ -999,18 +1019,53 @@ export const CLASS_TINT = {
 const CELL = 8;
 const baked = new Map();
 
+/* ── 테두리 ──────────────────────────────────────────────
+   0x72 시트를 같은 자로 재 보니 우리와 갈린 곳은 한 군데였다:
+   그쪽은 외곽 픽셀의 94%가 V<64이고 내부보다 평균 85 어둡다.
+   우리는 5%에 20이었다 — 다시 말해 **테두리가 없었다.** 그래서
+   배경에서 떨어지지 않고 납작하게 보였다.
+
+   8×8에 바깥으로 선을 두르면 칸을 넘치고, 안쪽을 통째로 한 색
+   외곽선으로 채우면 6×6만 남아 형태가 뭉갠다. 그래서 실루엣
+   가장자리를 **눌러서** 어둡게 한다 — 색은 자기 색을 유지한 채
+   어두워지므로 재질은 남고 윤곽만 선다.
+
+   투명한 이웃이 있는 픽셀에만 적용한다. 칸을 꽉 채우는 스프라이트는
+   배경과 겹칠 일이 없으니 테두리도 필요 없다. */
+const RIM = 0.42;                 // 가장자리가 자기 색의 몇 배로 어두워지는가
+function rimColor(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.round((n >> 16) * RIM), g = Math.round(((n >> 8) & 255) * RIM), b = Math.round((n & 255) * RIM);
+  return `rgb(${r},${g},${b})`;
+}
+
 function bakeGrid(grid, tint) {
   const c = document.createElement('canvas');
   c.width = CELL; c.height = CELL;
   const x = c.getContext('2d');
+
+  /* 먼저 어느 칸이 차 있는지 알아야 가장자리를 판별할 수 있다. */
+  const key = [];
   for (let row = 0; row < CELL; row++) {
     const line = grid[row] || '';
+    const out = [];
     for (let col = 0; col < CELL; col++) {
       let ch = line[col] || '.';
       if (ch === 'C') ch = tint || 's';
+      out.push(PALETTE[ch] ? ch : null);
+    }
+    key.push(out);
+  }
+  const empty = (r, cl) => r < 0 || cl < 0 || r >= CELL || cl >= CELL || !key[r][cl];
+
+  for (let row = 0; row < CELL; row++) {
+    for (let col = 0; col < CELL; col++) {
+      const ch = key[row][col];
+      if (!ch) continue;
       const color = PALETTE[ch];
-      if (!color) continue;
-      x.fillStyle = color;
+      const edge = empty(row - 1, col) || empty(row + 1, col)
+                || empty(row, col - 1) || empty(row, col + 1);
+      x.fillStyle = edge ? rimColor(color) : color;
       x.fillRect(col, row, 1, 1);
     }
   }
@@ -1104,17 +1159,17 @@ const terrainCache = new Map();
    `base`/`grain`/`mortar` are the three colours the generator
    uses; `style` decides how the courses are cut.            */
 export const TERRAIN = {
-  plain:   { base:'g', grain:'G', mortar:'d', floor:'d', dust:'g',  style:'brick' },
+  plain:   { base:'g', grain:'G', mortar:'d', floor:'d', dust:'A',  style:'brick' },
   // 좁은 굴: hacked out rather than built. No courses at all.
-  warren:  { base:'n', grain:'N', mortar:'k', floor:'k', dust:'n',  style:'rough' },
+  warren:  { base:'n', grain:'N', mortar:'k', floor:'k', dust:'D',  style:'rough' },
   // 큰 방: dressed stone, wide courses, pale.
-  hall:    { base:'G', grain:'w', mortar:'g', floor:'g', dust:'G',  style:'ashlar' },
+  hall:    { base:'G', grain:'w', mortar:'g', floor:'g', dust:'F',  style:'ashlar' },
   // 빛이 없는 층: everything one step darker; the grain barely reads.
   dark:    { base:'d', grain:'g', mortar:'k', floor:'k', dust:'d',  style:'brick' },
   // 물에 잠긴 층: wet blue stone, streaked downward.
-  flooded: { base:'b', grain:'B', mortar:'k', floor:'d', dust:'b',  style:'streak' },
+  flooded: { base:'b', grain:'B', mortar:'k', floor:'d', dust:'H',  style:'streak' },
   // 소굴: chitin and old web over the stone.
-  nest:    { base:'p', grain:'P', mortar:'k', floor:'d', dust:'p',  style:'rough' },
+  nest:    { base:'p', grain:'P', mortar:'k', floor:'d', dust:'J',  style:'rough' },
 };
 
 let terrainTheme = 'plain';
@@ -1138,8 +1193,9 @@ function bakeTerrain(kind, variant) {
 
   if (kind === 'wall') {
     x.fillStyle = PALETTE[T.base]; x.fillRect(0, 0, CELL, CELL);
+    /* 결은 드물어야 결이다. 일곱 점은 무늬가 아니라 잡음이었다. */
     x.fillStyle = PALETTE[T.grain];
-    for (let i = 0; i < 7; i++) x.fillRect((rr() * 8) | 0, (rr() * 8) | 0, 1, 1);
+    for (let i = 0; i < 3; i++) x.fillRect((rr() * 8) | 0, (rr() * 8) | 0, 1, 1);
     x.fillStyle = PALETTE[T.mortar];
     if (T.style === 'brick') {
       // Running bond: one course line, staggered head joints.
@@ -1164,12 +1220,13 @@ function bakeTerrain(kind, variant) {
     }
   } else {
     x.fillStyle = PALETTE[T.floor]; x.fillRect(0, 0, CELL, CELL);
-    x.fillStyle = PALETTE[T.dust];
-    for (let i = 0; i < 4; i++) x.fillRect((rr() * 8) | 0, (rr() * 8) | 0, 1, 1);
-    // A few floors get a second scatter so the ground is not flat.
-    if (T.style === 'rough' || T.style === 'streak') {
-      x.fillStyle = PALETTE[T.grain];
-      if (rr() < 0.35) x.fillRect((rr() * 8) | 0, (rr() * 8) | 0, 1, 1);
+    /* 바닥은 조용해야 한다. 배우가 서는 무대이지 무대가 배우는 아니다.
+       칸마다 점을 넷씩 뿌리면 수백 칸이 모여 텔레비전 노이즈가 된다 —
+       여섯 변종 중 셋만, 그것도 한두 점만 받는다. */
+    if (variant % 2 === 0) {
+      x.fillStyle = PALETTE[T.dust];
+      const dots = 1 + ((rr() * 2) | 0);
+      for (let i = 0; i < dots; i++) x.fillRect((rr() * 8) | 0, (rr() * 8) | 0, 1, 1);
     }
   }
   terrainCache.set(key, c);

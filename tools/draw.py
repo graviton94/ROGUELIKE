@@ -83,10 +83,23 @@ def to_dir(name, views, src):
             if len(line) != 16:
                 raise ValueError(f'{name}.{v} {i}행: {len(line)}글자 |{line}|')
 
+    # 일부 방향만 줘도 된다 — 준 것만 갈아 끼우고 나머지는 그대로 둔다.
+    cur = {}
+    obj0 = re.compile(r'^  %s: \{\n(?:.*?\n)*?  \},' % re.escape(name), re.M).search(src)
+    if obj0:
+        for v in ('down', 'side', 'up'):
+            m = re.search(r"    %s: \[\n((?:      '.*',\n)+)    \]," % v, obj0.group(0))
+            if m:
+                cur[v] = re.findall(r"      '(.*)',", m.group(1))
+    merged = {**cur, **views}
+    missing = [v for v in ('down', 'side', 'up') if v not in merged]
+    if missing:
+        raise KeyError(f'{name}: {missing} 방향이 없습니다')
+
     body = f'  {name}: {{\n'
     for v in ('down', 'side', 'up'):
         body += f'    {v}: [\n'
-        body += ''.join("      '%s',\n" % l for l in views[v])
+        body += ''.join("      '%s',\n" % l for l in merged[v])
         body += '    ],\n'
     body += '  },'
 

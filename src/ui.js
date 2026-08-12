@@ -431,12 +431,17 @@ export function draw() {
   glow.addColorStop(1, 'rgba(217,138,60,0)');
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, viewW, viewH);
-  blitActor(heroSprite(p), hx - t / 2, hy - t / 2, t, po);
   /* 장착한 무기는 별도 층입니다. 직업 그림에 구워 넣으면 무기를
-     바꿔도 손에 든 것이 안 바뀌기 때문에, 주인공을 찍은 뒤 그 위에
-     겹칩니다. 없는 종류면 아무것도 안 그립니다. */
+     바꿔도 손에 든 것이 안 바뀌기 때문입니다.
+
+     층 순서는 방향이 정합니다. 등을 보이고 있으면 손에 든 것은 몸
+     **뒤**에 있어야 하고, 그 외에는 앞에 있어야 합니다. 순서를 안
+     가르면 뒤를 보고 걸을 때 칼이 등을 뚫고 나옵니다. */
   const held = p.equip?.weapon?.t && sprite(`held:${p.equip.weapon.t}:${heroFace}`);
-  if (held) ctx.drawImage(held, hx - t / 2, hy - t / 2, t, t);
+  const behind = heroFace === 'up';
+  if (held && behind) ctx.drawImage(held, hx - t / 2, hy - t / 2, t, t);
+  blitActor(heroSprite(p), hx - t / 2, hy - t / 2, t, po);
+  if (held && !behind) ctx.drawImage(held, hx - t / 2, hy - t / 2, t, t);
 
   /* The countdown goes on last. It used to be drawn with the
      tint, which put it underneath the hero sprite — and a disc

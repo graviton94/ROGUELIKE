@@ -4,7 +4,10 @@
    in the DOM; only the map is pixels.
    ═══════════════════════════════════════════════════════════ */
 
-import { sprite, wallTile, floorTile, CELL_SIZE, PALETTE, setTerrainTheme } from './pixels.js';
+import {
+  sprite, wallTile, floorTile, shadowTile, dropShadow,
+  CELL_SIZE, PALETTE, setTerrainTheme,
+} from './pixels.js';
 import * as Pix from './pixels.js';
 import {
   RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS, statRange,
@@ -66,7 +69,11 @@ export function resize() {
   ctx.imageSmoothingEnabled = false;
 
   viewW = box.width; viewH = box.height;
-  scale = clamp(Math.round(box.width / (CELL_SIZE * 17)), 2, 6);
+  /* Cells are 16px now, not 8, so the same on-screen tile costs
+     half the scale factor. Floor of 2 keeps a tile at 32 CSS px
+     on the narrowest phone — below that the art stops being
+     readable and the tap targets stop being tappable. */
+  scale = clamp(Math.round(box.width / (CELL_SIZE * 15)), 2, 5);
   cols = Math.ceil(viewW / (CELL_SIZE * scale));
   rows = Math.ceil(viewH / (CELL_SIZE * scale));
   draw();
@@ -97,6 +104,36 @@ export function snapCamera() {
   camX = cx; camY = cy; camReady = true;
 }
 
+/* ── masonry, and what it is next to ────────────────────────
+   Off the edge of the map counts as rock, so the border of the
+   level does not draw a lit cap facing out into nothing. */
+function isWall(L, x, y) {
+  if (x < 0 || y < 0 || x >= MW || y >= MH) return true;
+  const t = L.tiles[idx(x, y)];
+  return t === ROCK || t === SHOP;
+}
+const wallMask = (L, x, y) =>
+  (isWall(L, x, y - 1) ? 1 : 0) | (isWall(L, x + 1, y) ? 2 : 0) |
+  (isWall(L, x, y + 1) ? 4 : 0) | (isWall(L, x - 1, y) ? 8 : 0);
+
+/* ── which way the hero is facing ───────────────────────────
+   The rules layer has no concept of a facing and does not need
+   one: this is a drawing question, so it is answered here, by
+   watching the tile the player is standing on change. `step`
+   flips every move, which is what swaps the forward foot. */
+let heroFace = 'down', heroStep = 0, heroMoveAt = -1e9, heroAt = null;
+
+function trackHero(p) {
+  if (heroAt && (heroAt.x !== p.x || heroAt.y !== p.y)) {
+    const dx = p.x - heroAt.x, dy = p.y - heroAt.y;
+    if (Math.abs(dx) >= Math.abs(dy)) heroFace = dx > 0 ? 'right' : dx < 0 ? 'left' : heroFace;
+    else heroFace = dy > 0 ? 'down' : 'up';
+    heroStep ^= 1;
+    heroMoveAt = performance.now();
+  }
+  heroAt = { x: p.x, y: p.y };
+}
+
 /* ── the map ────────────────────────────────────────────── */
 export function draw() {
   if (!G.level || !G.player) return;
@@ -104,7 +141,7 @@ export function draw() {
   /* The masonry belongs to the theme. One call before any tile is
      asked for; the cache is keyed by theme so walking back up a
      floor costs nothing. */
-  setTerrainTheme(L.theme?.id || 'plain');
+  setTerrainTheme(L.depth === 0 ? 'town' : (L.theme?.id || 'plain'));
   const t = CELL_SIZE * scale;
   if (!camReady) snapCamera();
 
@@ -140,9 +177,16 @@ export function draw() {
       ctx.globalAlpha = alpha;
 
       if (tile === ROCK || tile === SHOP) {
-        ctx.drawImage(wallTile(x, y), px, py, t, t);
+        /* A wall tile is cut against its four neighbours: where
+           the rock meets open air it gets a lit cap, a dark lip
+           or a shaded return, and where it meets more rock it
+           gets nothing, so a block of stone reads as one mass
+           instead of as a grid of identical squares. */
+        ctx.drawImage(wallTile(x, y, wallMask(L, x, y)), px, py, t, t);
       } else {
         ctx.drawImage(floorTile(x, y), px, py, t, t);
+        // and the shadow that rock throws onto the floor below it
+        if (isWall(L, x, y - 1)) ctx.drawImage(shadowTile(), px, py, t, t);
         if (tile === DOWN)        ctx.drawImage(sprite('stairsDown'), px, py, t, t);
         if (tile === UP)          ctx.drawImage(sprite('stairsUp'),   px, py, t, t);
         if (tile === DOOR)        ctx.drawImage(sprite('door'),       px, py, t, t);
@@ -363,6 +407,7 @@ export function draw() {
   ctx.globalAlpha = 1;
 
   // the lamp glow, then the hero on top
+  trackHero(p);
   const po = Juice.offsetOf(p);
   const hx = (p.x + po.x - cx) * t + t / 2, hy = (p.y + po.y - cy) * t + t / 2;
   const glow = ctx.createRadialGradient(hx, hy, t * 0.4, hx, hy, t * lightR);
@@ -802,11 +847,15 @@ function drawIntent(kind, mx, my, t) {
    a race is somehow missing, so a bad save can never blank the
    thing the player is looking at. */
 export const heroSprite = p =>
+  sprite(`hero:${p.race}:${p.cls}:${heroFace}:${heroStep}`) ||
   sprite(`hero:${p.race}:${p.cls}`) || sprite(`hero:${p.cls}`);
 
 /* One sprite, plus a squash-punch on impact and an additive
    pass that whitens it for a few frames when it takes a hit. */
 function blitActor(img, px, py, t, o) {
+  /* A disc of shadow under the feet. Without it a sprite reads
+     as pasted onto the floor rather than standing on it. */
+  ctx.drawImage(dropShadow(), px, py, t, t);
   const s = o.squash || 0;
   if (s > 0) {
     const g = 1 + s * 0.35;

@@ -635,6 +635,75 @@ export function pump(queue, player) {
 
       // Each blow the stance turns away: a short spark back down
       // the line it came from. Quiet on purpose — it happens a lot.
+      /* ── the ranger's four ─────────────────────────────
+         The warrior's arts happen at arm's length and are drawn
+         at the hero. These happen across the room and are drawn
+         at the far end of it — that difference is most of what
+         makes the two classes feel unlike each other in the
+         hand. */
+
+      // 조준 사격 — the pause before it, then one clean line. The
+      // ring closes on the target instead of expanding off it.
+      case 'aimed': {
+        rings.push({ x: e.tx + 0.5, y: e.ty + 0.5, maxr: 2.2, color: PALETTE.E,
+                     life: 300, age: 0, shrink: true });
+        beams.push({ fx: e.fx, fy: e.fy, tx: e.tx, ty: e.ty,
+                     color: PALETTE.E, life: 300, age: 0 });
+        number(e.tx, e.ty - 0.8, `${Math.round(e.dist)}칸`, PALETTE.E, 1.05);
+        freeze = Math.max(freeze, 55);
+        shake = Math.max(shake, 0.25);
+        buzz([18, 26, 18]);
+        sfx.crit();
+        break;
+      }
+
+      // 관통 사격 — one line all the way to the wall, thick, and
+      // it does not stop where the first body is.
+      case 'pierceShot': {
+        beams.push({ fx: e.fx, fy: e.fy,
+                     tx: e.fx + e.dx * e.rng, ty: e.fy + e.dy * e.rng,
+                     color: PALETTE.B, life: 340, age: 0 });
+        for (let i = 1; i <= e.rng; i += 2)
+          ring(e.fx + e.dx * i, e.fy + e.dy * i, 0.8, PALETTE.b, 240);
+        shake = Math.max(shake, 0.35);
+        buzz([24, 20, 24]);
+        sfx.crit();
+        break;
+      }
+
+      // 덫 — nothing flies at all. A mark bitten into the floor.
+      case 'snare':
+        ring(e.x, e.y, 0.9, PALETTE.n, 480);
+        number(e.x, e.y - 0.4, '덫', PALETTE.N, 1.0);
+        sfx.door();
+        break;
+
+      case 'snared':
+        ring(e.x, e.y, 1.3, PALETTE.N, 380);
+        burstShards(e.x, e.y, [PALETTE.n, PALETTE.N], 12, 1.1);
+        number(e.x, e.y - 0.6, '걸렸다', PALETTE.N, 1.15);
+        shake = Math.max(shake, 0.3);
+        buzz([40, 30]);
+        sfx.blast();
+        break;
+
+      // 빗발 — many, from above, at once.
+      case 'volley': {
+        for (let i = 0; i < 10 && shards.length < MAX_SHARDS; i++) {
+          const a2 = Math.random() * Math.PI * 2;
+          shards.push({
+            x: e.x + 0.5 + Math.cos(a2) * 2.2, y: e.y + 0.5 + Math.sin(a2) * 2.2 - 3,
+            vx: 0, vy: 5 + Math.random() * 3,
+            life: 300 + Math.random() * 200, age: 0, size: 1, color: PALETTE.y,
+          });
+        }
+        ring(e.x, e.y, 3.2, PALETTE.y, 420);
+        shake = Math.max(shake, 0.3 + (e.n || 0) * 0.05);
+        buzz([16, 16, 16, 16]);
+        sfx.crit();
+        break;
+      }
+
       case 'braceHit':
         beams.push({ fx: e.x, fy: e.y, tx: e.from.x, ty: e.from.y,
                      color: PALETTE.y, life: 160, age: 0, thin: true });
@@ -819,7 +888,11 @@ export function drawEffects(ctx, camX, camY, t) {
     ctx.strokeStyle = r.color;
     ctx.lineWidth = Math.max(1.5, t * 0.12) * (1 - k);
     ctx.beginPath();
-    ctx.arc(X(r.x), Y(r.y), r.maxr * t * (0.15 + k * 0.95), 0, Math.PI * 2);
+    /* A ring normally opens outward from where something landed.
+       조준 사격 closes instead — the aim tightening onto a body
+       reads as the opposite gesture, and it should. */
+    const grow = r.shrink ? (1.1 - k * 0.95) : (0.15 + k * 0.95);
+    ctx.arc(X(r.x), Y(r.y), r.maxr * t * grow, 0, Math.PI * 2);
     ctx.stroke();
   }
 

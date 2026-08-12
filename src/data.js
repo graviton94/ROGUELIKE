@@ -295,7 +295,11 @@ export const CLASSES = {
   mage:    { name:'마법사',   mod:{ int:+3, str:-2, con:-2 },         hd:0, bth:2.0, realm:'arcane', note:'지능이 곧 힘. 맞으면 죽는다.' },
   priest:  { name:'사제',     mod:{ wis:+3, str:-1, dex:-1 },         hd:2, bth:3.0, realm:'divine', note:'스스로를 고치며 나아간다.' },
   rogue:   { name:'도적',     mod:{ dex:+3, int:+1, str:-1, wis:-2 }, hd:6, bth:4.0, realm:'arcane', note:'먼저 치고, 잘 피한다.' },
-  ranger:  { name:'레인저',   mod:{ dex:+2, int:+1, con:+1 },         hd:4, bth:4.5, realm:'arcane', note:'칼과 주문을 반씩 나눠 든다.' },
+  /* No realm. Casting the mage's book with the mage's stat minus
+     two was the whole reason this class read as an in-between —
+     it was a worse mage holding a worse dagger. Its five buttons
+     are arrows now, and nobody else has those. */
+  ranger:  { name:'레인저',   mod:{ dex:+3, int:+1, con:+1 },         hd:5, bth:4.8, realm:null,     note:'활이 곧 직업. 거리를 지운 쪽이 진다.' },
   paladin: { name:'팔라딘',   mod:{ str:+2, wis:+1, chr:+2, dex:-2 }, hd:6, bth:4.5, realm:'divine', note:'느리지만 무너지지 않는다.' },
 };
 for (const [k, c] of Object.entries(CLASSES)) c.trait = TRAITS[k];
@@ -877,7 +881,32 @@ export const ARTS = {
     { id:'finisher', name:'마무리',   short:'마무', lv:11, stam:4,
       desc:'상대가 잃은 피만큼 무거워지는 한 방.' },
   ],
+
+  /* The ranger cast the mage's five spells with worse intelligence
+     and swung worse than the rogue — best at nothing, which is
+     what "어중간" means. Its axis is the one the game never had:
+     the space between you and the thing.
+
+     So its arts spend arrows rather than mana, and every one of
+     them is a different answer to distance. Where the warrior's
+     four ask "what is next to me", these four ask "where is
+     everything standing". */
+  ranger: [
+    { id:'aimed',   name:'조준 사격', short:'조준', lv:1,  stam:2, ammo:1,
+      desc:'빗나가지 않는다. 그리고 멀수록 아프다 — 활의 감쇠가 뒤집힌다.' },
+    { id:'pierce',  name:'관통 사격', short:'관통', lv:4,  stam:3, ammo:1,
+      desc:'화살이 일직선 위의 모든 것을 뚫고 지나간다.' },
+    { id:'snare',   name:'덫 놓기',   short:'덫',   lv:8,  stam:3,
+      desc:'발밑에 덫을 묻는다. 밟은 것은 두 턴을 잃는다.' },
+    { id:'volley',  name:'빗발',      short:'빗발', lv:12, stam:5, ammo:3,
+      desc:'보이는 모든 것에게 한 발씩. 각각은 절반만 아프다.' },
+  ],
 };
+
+export const AIMED_GAIN  = 0.09;   // damage per tile, instead of the usual loss
+export const PIERCE_KEEP = 0.85;   // what the arrow carries to the next body
+export const SNARE_TURNS = 2;
+export const VOLLEY_SHARE = 0.5;
 
 export const SHOVE_DIST   = 2;     // tiles pushed
 export const SHOVE_WALL   = 0.5;   // extra damage, as a share of a normal blow, on impact
@@ -947,6 +976,7 @@ export const WEAPON_TYPES = {
 export const BOW_MELEE = 0.5;      // what a bow swings for up close
 export const BOW_FALLOFF = 0.045;  // damage lost per tile, so range is not free
 export const QUIVER_MAX = 40;
+export const AMMO_BUNDLE = 12;   // arrows per purchase
 
 /* Ammunition. Ordinary arrows are cheap and everywhere; the other
    three are a decision about which fight you are saving them for.

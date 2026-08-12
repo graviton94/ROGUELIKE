@@ -697,7 +697,50 @@ function wedge(c, x, y, r) {                // 마무리
   c.closePath();
 }
 
+/* The ranger's four. Every one is about the gap, so none of them
+   is a hand: a ring you look through, a line that does not stop,
+   a set of jaws on the floor, and several falling at once. */
+function crosshair(c, x, y, r) {
+  c.moveTo(x + r, y); c.arc(x, y, r, 0, Math.PI * 2, false);
+  c.moveTo(x + r * 0.5, y); c.arc(x, y, r * 0.5, 0, Math.PI * 2, true);
+  const w = r * 0.14;
+  c.moveTo(x - r * 1.25, y - w); c.lineTo(x + r * 1.25, y - w);
+  c.lineTo(x + r * 1.25, y + w); c.lineTo(x - r * 1.25, y + w); c.closePath();
+  c.moveTo(x - w, y - r * 1.25); c.lineTo(x + w, y - r * 1.25);
+  c.lineTo(x + w, y + r * 1.25); c.lineTo(x - w, y + r * 1.25); c.closePath();
+}
+function throughLine(c, x, y, r) {
+  const w = r * 0.2;
+  c.moveTo(x - r * 1.2, y - w); c.lineTo(x + r * 0.4, y - w);
+  c.lineTo(x + r * 0.4, y - r * 0.6); c.lineTo(x + r * 1.2, y);
+  c.lineTo(x + r * 0.4, y + r * 0.6); c.lineTo(x + r * 0.4, y + w);
+  c.lineTo(x - r * 1.2, y + w); c.closePath();
+}
+function jaws(c, x, y, r) {
+  for (const s of [-1, 1]) {
+    c.moveTo(x - r, y + s * r * 0.15);
+    for (let i = 0; i <= 4; i++) {
+      const px = x - r + (i / 4) * r * 2;
+      c.lineTo(px, y + s * (i % 2 ? r * 0.9 : r * 0.15));
+    }
+    c.lineTo(x + r, y + s * r * 0.15);
+    c.closePath();
+  }
+}
+function rain(c, x, y, r) {
+  for (const off of [-r * 0.7, 0, r * 0.7]) {
+    const w = r * 0.13;
+    c.moveTo(x + off - w, y - r); c.lineTo(x + off + w, y - r);
+    c.lineTo(x + off + w, y + r * 0.45); c.lineTo(x + off, y + r);
+    c.lineTo(x + off - w, y + r * 0.45); c.closePath();
+  }
+}
+
 const SPELL_ICONS = {
+  aimed:    [(c, x, y, r) => crosshair(c, x, y, r),   'E'],
+  pierce:   [(c, x, y, r) => throughLine(c, x, y, r), 'B'],
+  snare:    [(c, x, y, r) => jaws(c, x, y, r),        'n'],
+  volley:   [(c, x, y, r) => rain(c, x, y, r),        'y'],
   shove:    [palm,                                    'W'],
   cleave:   [sweep,                                   'o'],
   brace:    [planted,                                 'y'],

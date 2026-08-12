@@ -23,7 +23,8 @@ import {
   ECHO_ROOM_HOPS, ECHO_ROOM_TOLL, ECHO_ROOM_KEEP,
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   ARTS, SHOVE_DIST, SHOVE_WALL, CLEAVE_SHARE,
-  AMMO, ammoById, BOW_MELEE, BOW_FALLOFF,
+  AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE,
+  AMMO, ammoById, BOW_MELEE, BOW_FALLOFF, AMMO_BUNDLE,
   BRACE_TURNS, BRACE_CUT, BRACE_THORNS, FINISH_MAX,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
@@ -921,6 +922,10 @@ function teleport() {
 /* Arts that are pointless with nothing in reach, so the row can
    grey them out the way it greys out a bolt with no target. */
 const ART_NEEDS_BODY = ['shove', 'cleave', 'finisher'];
+/* And the ones that need something down a clear line instead —
+   the ranger's row greys out on the same reading of the room that
+   the 쏘기 button uses. */
+const ART_NEEDS_SHOT = ['aimed', 'pierce', 'volley'];
 
 /* ── the warrior's four ───────────────────────────────────
    Each answers a situation the class is supposed to own and no
@@ -951,7 +956,15 @@ export function useArt(id) {
   if (ART_NEEDS_BODY.includes(id) && !near.length) {
     say('손이 닿는 곳에 아무것도 없다.', 'warn'); return;
   }
+  if (ART_NEEDS_SHOT.includes(id)) {
+    if (weaponType(p) !== 'bow') { say('활이 없다.', 'warn'); return; }
+    if (!shotTarget()) { say('사선이 트인 것이 없다.', 'warn'); return; }
+  }
+  // An art that flies costs arrows on top of breath, and refuses
+  // rather than half-firing when the quiver cannot cover it.
+  if (a.ammo && (quiver()?.qty || 0) < a.ammo) { say('화살이 모자란다.', 'warn'); return; }
   p.stam -= a.stam;
+  if (a.ammo) spendArrows(a.ammo);
 
   switch (id) {
     case 'shove': {
@@ -1012,6 +1025,73 @@ export function useArt(id) {
       fx({ t:'finisher', x:p.x, y:p.y, tx:m.x, ty:m.y, power:gone });
       say(`숨을 모아 내리친다.`, 'level');
       swing(m, 1 + gone * (FINISH_MAX - 1));
+      break;
+    }
+
+    /* ── the ranger's four ─────────────────────────────
+       Every one is about the gap. The warrior's arts ask what is
+       next to you; these ask where everything is standing. */
+    case 'aimed': {
+      /* A bow loses damage over distance. This one gains it, and
+         cannot miss — so the ranger's best shot is the one taken
+         from the far end of the room, which is the exact opposite
+         of every other attack in the game. */
+      const t = shotTarget();
+      const dist = Math.hypot(t.x - p.x, t.y - p.y);
+      fx({ t:'aimed', fx:p.x, fy:p.y, tx:t.x, ty:t.y, dist });
+      say(`숨을 멈추고 겨눈다.`, 'level');
+      loose(t, 1 + dist * AIMED_GAIN, { sure: true });
+      break;
+    }
+    case 'pierce': {
+      /* One arrow, one line, everything on it. The answer to a
+         corridor — and the reason a ranger wants the pack lined
+         up rather than spread. */
+      const t = shotTarget();
+      const dx = Math.sign(t.x - p.x), dy = Math.sign(t.y - p.y);
+      const rng = p.equip.weapon?.rng || 5;
+      fx({ t:'pierceShot', fx:p.x, fy:p.y, dx, dy, rng });
+      say('시위가 한 줄을 그었다.', 'level');
+      let carry = 1;
+      for (let i = 1; i <= rng; i++) {
+        const x = p.x + dx * i, y = p.y + dy * i;
+        if (G.level.solid(x, y)) break;
+        const o = monsterAt(x, y);
+        if (!o || o.disguise) continue;
+        loose(o, carry, { sure: true, quietFx: true });
+        carry *= PIERCE_KEEP;
+      }
+      break;
+    }
+    case 'snare': {
+      /* The one art here that is not an attack. A ranger who has
+         been caught wants the ground to do the catching next
+         time, and it turns a corridor into a decision for the
+         thing chasing you. */
+      /* Its own list, not G.hazards — that one is the telegraphed
+         floor patterns, keyed on PATTERNS and ticked by `left`,
+         and a snare pushed into it would tick NaN and take the
+         whole floor's telegraphs down with it. */
+      G.snares = G.snares || [];
+      if (!G.snares.some(s2 => s2.x === p.x && s2.y === p.y))
+        G.snares.push({ x:p.x, y:p.y });
+      fx({ t:'snare', x:p.x, y:p.y });
+      say('발밑에 덫을 묻었다. 밟는 쪽이 손해다.', 'good');
+      break;
+    }
+    case 'volley': {
+      /* Everything in sight, once each, at half. The answer to a
+         room rather than to a body — the ranger's 휩쓸기, thrown
+         across the floor instead of swung around the hips. */
+      const rng = p.equip.weapon?.rng || 5;
+      const seen = G.monsters.filter(o =>
+        !o.disguise && G.level.vis[idx(o.x, o.y)]
+        && Math.hypot(o.x - p.x, o.y - p.y) <= rng
+        && lineClear(G.level, p.x, p.y, o.x, o.y));
+      if (!seen.length) { say('겨눌 것이 없다.', 'warn'); break; }
+      fx({ t:'volley', x:p.x, y:p.y, n:seen.length });
+      say(`화살이 빗발친다 — ${seen.length}에게.`, 'level');
+      for (const o of [...seen]) if (G.monsters.includes(o)) loose(o, VOLLEY_SHARE, { quietFx: true });
       break;
     }
   }
@@ -1208,7 +1288,7 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   G.items = [];
   G.floorTurn = 0;
   G.waves = 0;
-  G.hazards = [];
+  G.hazards = []; G.snares = [];
   G.campUses = 1 + (hasRelic('ember') ? 1 : 0);
   G.tideUsed = false;
 
@@ -2217,47 +2297,69 @@ export function shotTarget() {
 
 export const canShoot = () => !!shotTarget() && !!quiver();
 
+/* One arrow leaving the string, wherever it was told to go. Both
+   the plain shot and every ranger art land here, so ammunition,
+   falloff, poison and the ember can never be right in one place
+   and wrong in another. `scale` is the art's multiplier; `sure`
+   skips the roll for the arts that promise they cannot miss. */
+function loose(m, scale = 1, opt = {}) {
+  const p = G.player;
+  const q = quiver();
+  const a = q?.ammo || AMMO[0];
+  const dist = Math.hypot(m.x - p.x, m.y - p.y);
+  const g = gearBonus(p);
+  m.awake = true;
+  if (!opt.quietFx) fx({ t:'loose', fx:p.x, fy:p.y, tx:m.x, ty:m.y, ammo:a.id });
+
+  if (!opt.sure) {
+    const hit = 12 + statB(p, 'dex') * 3 + Math.floor(p.lv * 0.8) + g.hit + (a.hit || 0)
+              + (p.blessed > 0 ? 6 : 0);
+    const land = clamp(0.32 + (hit - (m.ac || 0) * 1.6) / 46, 0.15, 0.95);
+    if (Math.random() > land) {
+      say(`${pickLine(MISS_AT, m.n, nextLine())}`);
+      fx({ t:'miss', x:m.x, y:m.y });
+      return false;
+    }
+  }
+  const d = p.equip.weapon?.dice || [1, 4];
+  let dmg = roll(d[0], d[1]) + statB(p, 'dex') * 2 + Math.floor(p.lv / 3) + g.dmg;
+  dmg *= (1 + g.dmgPct) * (a.dmg || 1) * scale;
+  // Reach is not free — except where an art has bought it.
+  if (!opt.sure) dmg *= Math.max(0.55, 1 - dist * BOW_FALLOFF);
+  dmg = Math.max(1, Math.round(dmg));
+
+  // hurtMonster narrates off opt.weapon; saying it here too printed
+  // every shot twice, once as an arrow and once as a shove.
+  hurtMonster(m, dmg, null, { weapon:'arrow', shot:true, burst: a.burst || 0 });
+  if (a.on && G.monsters.includes(m) && Math.random() < 0.6) poisonMonster(m, a.on);
+  return true;
+}
+
 export function shoot() {
   const p = G.player;
   if (weaponType(p) !== 'bow') { say('활이 없다.', 'warn'); return; }
-  const q = quiver();
-  if (!q) { say('화살이 떨어졌다.', 'warn'); return; }
+  if (!quiver()) { say('화살이 떨어졌다.', 'warn'); return; }
   const m = shotTarget();
   if (!m) { say('겨눌 것이 없다.', 'warn'); return; }
   if (has(p, 'paralyze')) {
     say('몸이 굳어 말을 듣지 않는다.', 'warn');
     fx({ t:'struggle', x:p.x, y:p.y }); endTurn(); return;
   }
-
-  const a = q.ammo || AMMO[0];
-  removeItem(p, p.pack.indexOf(q.slot), 1);
-
-  const dist = Math.hypot(m.x - p.x, m.y - p.y);
-  const g = gearBonus(p);
-  const hit = 12 + statB(p, 'dex') * 3 + Math.floor(p.lv * 0.8) + g.hit + (a.hit || 0)
-            + (p.blessed > 0 ? 6 : 0);
-  const land = clamp(0.32 + (hit - (m.ac || 0) * 1.6) / 46, 0.15, 0.95);
-  fx({ t:'loose', fx:p.x, fy:p.y, tx:m.x, ty:m.y, ammo:a.id });
-  m.awake = true;
-
-  if (Math.random() > land) {
-    say(`${pickLine(MISS_AT, m.n, nextLine())}`);
-    fx({ t:'miss', x:m.x, y:m.y });
-    endTurn(); return;
-  }
-  const d = p.equip.weapon.dice;
-  let dmg = roll(d[0], d[1]) + statB(p, 'dex') * 2 + Math.floor(p.lv / 3) + g.dmg;
-  dmg *= (1 + g.dmgPct) * (a.dmg || 1);
-  // Reach is not free: the far end of a longbow is a graze.
-  dmg *= Math.max(0.55, 1 - dist * BOW_FALLOFF);
-  dmg = Math.max(1, Math.round(dmg));
-
-  // hurtMonster already narrates off opt.weapon — saying it here
-  // too printed every shot twice, once as an arrow and once as a
-  // shove. One voice per blow.
-  hurtMonster(m, dmg, null, { weapon:'arrow', shot:true, burst: a.burst || 0 });
-  if (a.on && G.monsters.includes(m) && Math.random() < 0.6) poisonMonster(m, a.on);
+  spendArrows(1);
+  loose(m, 1);
   endTurn();
+}
+
+/* Arrows leave the pack from one place, so an art and a plain
+   shot can never disagree about what a shot costs. */
+function spendArrows(n) {
+  const p = G.player;
+  for (let i = 0; i < n; i++) {
+    const q = quiver();
+    if (!q) return i;
+    removeItem(p, p.pack.indexOf(q.slot), 1);
+  }
+  return n;
 }
 
 function swing(m, scale) {
@@ -2991,6 +3093,21 @@ function monsterTurn(m) {
   const dx = p.x - m.x, dy = p.y - m.y;
   const dist2 = dx * dx + dy * dy;
   const dist = Math.sqrt(dist2);
+
+  /* A snare is spent by the thing that steps in it. Checked at the
+     top of its turn rather than on the step, so a fast thing that
+     moved twice is caught by the tile it stopped on. */
+  if (G.snares?.length) {
+    const i = G.snares.findIndex(s2 => s2.x === m.x && s2.y === m.y);
+    if (i >= 0) {
+      G.snares.splice(i, 1);
+      m.energy = -SNARE_TURNS;
+      m.awake = true;
+      fx({ t:'snared', x:m.x, y:m.y });
+      say(`${m.n}이(가) 덫에 걸렸다.`, 'good');
+      return;
+    }
+  }
 
   if (m.poison > 0) {
     m.poison--;
@@ -4448,6 +4565,18 @@ export function buy(item) {
   /* A merchant names what he sells. Buying it teaches you the
      appearance for the rest of the run — otherwise the shop was
      a way to launder identification without spending anything. */
+  /* Arrows are sold by the bundle. Nobody wants to tap a shelf
+     twenty-four times, and a quiver that fills one at a time is a
+     chore rather than a decision. The price is per arrow, so the
+     bundle costs what the bundle is worth. */
+  if (item.kind === 'ammo') {
+    const want = item.qty || AMMO_BUNDLE;
+    const can = Math.min(want, Math.floor((p.gold + cost) / Math.max(1, cost)));
+    if (can > 1) p.gold -= cost * (can - 1);
+    addItem(p, { ...item, qty: undefined }, can);
+    say(`${item.n} ${can}발을 샀다. (-${cost * can})`, 'good');
+    return;
+  }
   identify(item.id, true);
   addItem(p, { ...item });
   say(`${item.n}을(를) 샀다. (-${cost})`, 'good');
@@ -4599,7 +4728,7 @@ export function startGame(raceKey, classKey, base) {
   G.engraved = 0; G.memories = []; G.relicShelf = null;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
-  G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.bank = 0;
+  G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.snares = []; G.bank = 0;
   G.tally = 0; G.hushUntil = -1; G.resoFound = 0;
   G.pendingAltar = null;
   shuffleAppearances(G.player);

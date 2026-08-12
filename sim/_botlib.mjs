@@ -5,6 +5,8 @@ import { idx, MW, MH, DOWN, CAMP, ANVIL, PROP, walkable } from '../src/world.js'
 import { ENCHANT_COST } from '../src/data.js';
 import * as BOWDATA from '../src/data.js';
 export const ARTUSE = {};
+/* Offers already reached for, keyed tile+floor, cleared per run. */
+const pressed = new Set();
 /* 시전 기회 대비 「눈앞에 있는데 살 수 있는 주문이 없던」 턴. 자원이
    자원인지 묻는 유일한 지표 — 걷는 턴의 잔량은 아무것도 말하지 않는다. */
 export const DRY = { dry: 0, cast: 0 };
@@ -102,6 +104,7 @@ function runBot(race, cls, clear, opt = {}) {
      8.5층 where a clean run read 6.1. The callers forget() once at
      the top, which is not enough. */
   Meta.forget();
+  pressed.clear();
   Game.startGame(race, cls, Game.rollStats());
   outfit();
   /* A bow is a different build, not a better sword, and the
@@ -351,8 +354,19 @@ function runBot(race, cls, clear, opt = {}) {
     /* An offer underfoot waits for a press now instead of throwing
        its screen up on arrival, so the bot has to reach for it.
        Without this it walks over every fire, altar and anvil in
-       the dungeon and measures a game with no furniture. */
-    if (Game.hereOffer && Game.hereOffer()) { Game.openHere(); continue; }
+       the dungeon and measures a game with no furniture.
+
+       Once each, though. A fire that is walked away from stays a
+       fire, so a bot that presses whatever is underfoot presses it
+       again the instant the screen closes — and never takes
+       another step. Measured: every class fell to floor 1.1 until
+       this set existed. The turn-free refusal loop again, this
+       time built by the probe rather than found by it. */
+    if (Game.hereOffer) {
+      const off = Game.hereOffer();
+      const key = idx(p.x, p.y) + ':' + G.depth;
+      if (off && !pressed.has(key)) { pressed.add(key); Game.openHere(); continue; }
+    }
 
     /* Loose an arrow rather than walk into a fight you could have
        finished from here. Only past arm's length — a bow up close

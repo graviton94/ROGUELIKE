@@ -1146,43 +1146,6 @@ export const wallTile  = (x, y) => bakeTerrain('wall',  1 + ((hash(x, y) * 6) | 
 export const floorTile = (x, y) => bakeTerrain('floor', 1 + ((hash(x, y) * 6) | 0));
 export const CELL_SIZE = CELL;
 
-/* ── 8-bit fog ────────────────────────────────────────────
-   Light used to be a continuous globalAlpha fade — the one
-   smooth gradient in an otherwise hard-pixel frame. Now it is
-   six discrete steps of ordered Bayer dither: an 8×8 stamp of
-   opaque black cells laid over the tile, so darkness is made of
-   the same pixels everything else is. Level 0 is clear, level 5
-   is nearly night; the coverage ramp roughly matches the alphas
-   the old fade produced, so distances read the same as before. */
-const BAYER4 = [
-  [ 0,  8,  2, 10],
-  [12,  4, 14,  6],
-  [ 3, 11,  1,  9],
-  [15,  7, 13,  5],
-];
-const SHADE_COV = [0, 3, 6, 9, 12, 14];   // black cells per 16, by level
-export const SHADE_MAX = SHADE_COV.length - 1;
-const shadeCache = [];
-
-export function shadeTile(level) {
-  const lv = Math.max(0, Math.min(SHADE_MAX, level | 0));
-  if (shadeCache[lv]) return shadeCache[lv];
-  const c = document.createElement('canvas');
-  c.width = CELL; c.height = CELL;
-  const x = c.getContext('2d');
-  x.fillStyle = PALETTE.k;
-  const cov = SHADE_COV[lv];
-  for (let row = 0; row < CELL; row++)
-    for (let col = 0; col < CELL; col++)
-      if (BAYER4[row % 4][col % 4] < cov) x.fillRect(col, row, 1, 1);
-  shadeCache[lv] = c;
-  return c;
-}
-
-/* light 1.0 → level 0 (clear), light ~0.26 (memory) → level 4. */
-export const shadeLevel = light =>
-  Math.max(0, Math.min(SHADE_MAX, Math.round((1 - light) * SHADE_MAX)));
-
 /* ── 양피지 ───────────────────────────────────────────────
    The one surface in the game that is meant to be *read* rather
    than watched, so it gets a page rather than a panel.

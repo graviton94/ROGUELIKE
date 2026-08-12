@@ -744,6 +744,16 @@ const SPELL_ICONS = {
   shove:    [palm,                                    'W'],
   cleave:   [sweep,                                   'o'],
   flurry:   [(c, x, y, r) => rain(c, x, y, r),        'R'],
+  /* The rogue's four reuse shapes that are already here rather
+     than adding drawings: a jump reads as the blink zigzag, a fan
+     of knives as the sweep, vanishing as the star closing, and
+     급소 as the wedge. No new pixels, and the row is never blank —
+     drawSpellInto returns silently on an id it does not know, so
+     a missing line here is four buttons with nothing on them. */
+  shadowstep: [zigzag,                              'P'],
+  fan:        [sweep,                               'B'],
+  vanish:     [(c, x, y, r) => star4(c, x, y, r),   'g'],
+  vitals:     [wedge,                               'P'],
   finisher: [wedge,                                   'R'],
   bolt:   [arrow,                                     'P'],
   blink:  [zigzag,                                    'B'],
@@ -1165,10 +1175,17 @@ function renderSpellRow() {
     } else {
       label.appendChild(document.createTextNode(s.short));
       label.appendChild(el('b', '', String(s.cost)));
+      /* The pip prints whichever resource actually gates the art.
+         For the rogue that is 그림자 — the breath is one or two and
+         never the thing stopping you, and a tooltip that says
+         "1기력" over a button held shut by an empty shadow pouch
+         is the row lying in a quieter way. */
+      const unit = s.shade ? '그림자' : s.art ? '기력' : 'mp';
+      const price = s.shade ? `그림자 ${s.shade} · 기력 ${s.stam}` : `${s.cost}${unit}`;
       b.title = s.silent ? `${s.name} — 침묵의 서약으로 봉인됨`
-              : s.noTarget ? (s.art ? `${s.name} — 손이 닿는 곳에 아무것도 없다`
+              : s.noTarget ? (s.art ? `${s.name} — 조건이 아직 아니다`
                                     : `${s.name} — 시야에 적이 없다`)
-              : `${s.name} · ${s.cost}${s.art ? '기력' : 'mp'}`;
+              : `${s.name} · ${price}`;
     }
     /* An art spends breath, not mana, and the row has to say so
        without a word — the cost pip carries the stamina colour. */

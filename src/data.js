@@ -282,8 +282,13 @@ export const TRAITS = {
     t:'주문을 넷 쓸 때마다 다음 하나는 마나를 쓰지 않고 두 번 나간다.' },
   priest:  { n:'응답', max:0,
     t:'체력이 절반 아래일 때 모든 회복이 60% 더 든다. 여섯 턴마다 저절로 아문다.' },
-  rogue:   { n:'그림자 걸음', max:0,
-    t:'구르기가 기력을 하나만 쓴다. 구른 바로 다음 공격은 무조건 치명타.' },
+  /* It used to be a light that was on or off — p.shadow was 0 or
+     1 and a swing spent it. A switch is not a resource: there is
+     nothing to save up and nothing to decide. Now it fills to
+     five, and the four arts below are the only things that empty
+     it. */
+  rogue:   { n:'그림자', max:5,
+    t:'들키지 않은 채 다섯 턴을 보내거나, 모르는 것을 찌르거나, 구를 때마다 하나씩 쌓인다. 기예 넷이 이걸 태운다.' },
   ranger:  { n:'표적', max:5,
     t:'같은 적을 때릴 때마다 그 적에게 주는 피해가 9%씩 쌓인다(최대 45%). 대상을 바꾸면 사라진다.' },
   paladin: { n:'맹세', max:8,
@@ -294,7 +299,14 @@ export const CLASSES = {
   warrior: { name:'전사',     mod:{ str:+3, con:+2, int:-2, wis:-2 }, hd:9, bth:5.0, realm:null,     note:'주문 없이, 오직 무기로.' },
   mage:    { name:'마법사',   mod:{ int:+3, str:-2, con:-2 },         hd:0, bth:2.0, realm:'arcane', note:'지능이 곧 힘. 맞으면 죽는다.' },
   priest:  { name:'사제',     mod:{ wis:+3, str:-1, dex:-1 },         hd:2, bth:3.0, realm:'divine', note:'스스로를 고치며 나아간다.' },
-  rogue:   { name:'도적',     mod:{ dex:+3, int:+1, str:-1, wis:-2 }, hd:6, bth:4.0, realm:'arcane', note:'먼저 치고, 잘 피한다.' },
+  /* No realm, for the same reason the ranger lost one: casting
+     the mage's five spells with the mage's stat minus two is not
+     a class, it is a worse mage holding a knife. Measured, the
+     bot cast 마력 화살 27.6 times a run as a rogue — the class's
+     most-used button belonged to someone else.
+     Its axis is 그림자: ammunition you gather by not being seen
+     and burn in one of four ways. */
+  rogue:   { name:'도적',     mod:{ dex:+3, int:+1, str:-1, wis:-2 }, hd:6, bth:4.0, realm:null,     note:'보이지 않는 동안 모으고, 한 번에 태운다.' },
   /* No realm. Casting the mage's book with the mage's stat minus
      two was the whole reason this class read as an in-between —
      it was a worse mage holding a worse dagger. Its five buttons
@@ -891,6 +903,30 @@ export const ARTS = {
      them is a different answer to distance. Where the warrior's
      four ask "what is next to me", these four ask "where is
      everything standing". */
+  /* The rogue's four spend 그림자 rather than breath alone, and
+     the brief they were written to is narrow on purpose: "unseen
+     I am strong, seen I am naked" is a class that simply dies to
+     a pack and to an archer, because neither lets you choose when
+     to be seen. So two of these four are answers to exactly that
+     — 그림자 도약 deletes the distance an archer needs, 칼부채
+     answers a room rather than a body — and only the other two
+     are the assassin's fantasy.
+
+     They are also the reason the resource can refill mid-fight:
+     어둠 되감기 makes the things around you lose you, which turns
+     the next blow into an ambush, which pays a shade back. That
+     loop is the class. */
+  rogue: [
+    { id:'shadowstep', name:'그림자 도약', short:'도약', lv:1,  stam:1, shade:1,
+      desc:'보이는 적의 등 뒤로 건너뛰어 친다. 그 한 대는 기습이다. (그림자 1)' },
+    { id:'fan',        name:'칼부채',      short:'부채', lv:4,  stam:2, shade:2,
+      desc:'부채꼴로 칼을 던진다. 그 안의 모든 것이 맞는다. (그림자 2)' },
+    { id:'vanish',     name:'어둠 되감기',  short:'되감', lv:8,  stam:2, shade:1,
+      desc:'싸움 한가운데서 자취를 지운다. 깨어 있던 것들이 너를 놓친다. (그림자 1)' },
+    { id:'vitals',     name:'급소',        short:'급소', lv:12, stam:3, shade:3,
+      desc:'모은 것을 한 번에 태운다. 갑옷을 지나가는 한 방. (그림자 3)' },
+  ],
+
   ranger: [
     { id:'aimed',   name:'조준 사격', short:'조준', lv:1,  stam:2, ammo:1,
       desc:'빗나가지 않는다. 그리고 멀수록 아프다 — 활의 감쇠가 뒤집힌다.' },
@@ -902,6 +938,22 @@ export const ARTS = {
       desc:'보이는 모든 것에게 한 발씩. 각각은 절반만 아프다.' },
   ],
 };
+
+/* ── 그림자 ───────────────────────────────────────────────
+   The rogue's ammunition. Five is the cap because the most
+   expensive art costs three: a full pouch is one 급소 and a
+   도약, or two 칼부채 — enough that a full pouch is a plan, few
+   enough that it is never a rotation. */
+export const SHADOW_MAX  = 5;
+export const SHADOW_TICK = 5;     // turns unseen that earn one
+export const FAN_RANGE   = 4;
+export const FAN_ARC     = 0.35;  // dot-product floor: a touch wider than 90°
+export const FAN_SHARE   = 0.7;   // what each body in the arc takes of one swing
+/* Three, not two: the turn the art is used on is itself spent,
+   so two reads as one on the bench. This is the same off-by-one
+   the warrior's 버티기 has a comment about. */
+export const VANISH_HUSH = 3;     // turns nothing can notice you afterwards
+export const VITALS_MULT = 2.6;
 
 export const AIMED_GAIN  = 0.09;   // damage per tile, instead of the usual loss
 export const PIERCE_KEEP = 0.85;   // what the arrow carries to the next body

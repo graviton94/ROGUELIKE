@@ -25,6 +25,7 @@ import {
   ECHO_ROOM_HOPS, ECHO_ROOM_TOLL, ECHO_ROOM_KEEP,
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   ARTS, SHOVE_DIST, SHOVE_WALL, CLEAVE_SHARE,
+  SHADOW_MAX, SHADOW_TICK, FAN_RANGE, FAN_ARC, FAN_SHARE, VANISH_HUSH, VITALS_MULT,
   AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE,
   AMMO, ammoById, BOW_MELEE, BOW_FALLOFF, AMMO_BUNDLE,
   FORCE_STAM, FORCE_HURT, FORCE_NOISE, PICK_USES, CHEST_RUIN, RANGER_FOOTING,
@@ -185,6 +186,7 @@ export function createHero(raceKey, classKey, base) {
     spellPlus: {}, spellAffix: {},
     relics: [], boneHp: 0, seedAc: 0, grudge: 0,
     stam: 0, maxStam: 0, iframe: 0,
+    shadow: 0,        // 도적의 탄약. Everyone carries the field; only a rogue fills it.
     perm: {}, tuned: {}, markup: 0, permHp: 0,
     equip: { weapon: null, body: null, shield: null },
     pack: [],
@@ -625,10 +627,46 @@ export function traitState() {
                              note: p.markN ? `+${Math.round((p.markN) * 9)}%` : '' };
     case 'paladin': return { ...spec, at: p.oath || 0, ready: (p.oath || 0) >= 8,
                              note: p.oath ? `방어 +${p.oath}` : '' };
-    case 'rogue':   return { ...spec, at: p.shadow ? 1 : 0, max: 1, ready: !!p.shadow };
+    case 'rogue':   return { ...spec, at: p.shadow || 0, max: SHADOW_MAX,
+                             ready: (p.shadow || 0) >= 1,
+                             note: p.shadow ? `그림자 ${p.shadow}` : '' };
     case 'priest':  return { ...spec, at: 0, max: 0, ready: p.hp < p.maxhp * 0.5 };
   }
   return spec;
+}
+
+/* ── 그림자 ───────────────────────────────────────────────
+   One funnel in and one out, for the same reason every other
+   resource here has one: a shade earned in the ambush path and
+   a shade earned on the roll must be the same shade, or the
+   gauge in the HUD is describing two different things.
+
+   Nothing but this adds to it, and nothing but useArt spends it. */
+export function gainShadow(n = 1, why = '') {
+  const p = G.player;
+  if (!p || p.cls !== 'rogue' || !(n > 0)) return 0;
+  const was = p.shadow || 0;
+  p.shadow = Math.min(SHADOW_MAX, was + n);
+  const got = p.shadow - was;
+  if (got) {
+    fx({ t:'shadowGain', x:p.x, y:p.y, at:p.shadow, why });
+    if (p.shadow === SHADOW_MAX && was < SHADOW_MAX)
+      say('그림자가 가득 찼다.', 'good');
+  }
+  return got;
+}
+
+/* Is anything awake looking at you right now? The quiet tick
+   below is paid for standing outside every awake thing's line,
+   which is the same test the monsters themselves run — so the
+   gauge cannot fill while something is watching. */
+function unseenByAll() {
+  const p = G.player, L = G.level;
+  if (!L) return false;
+  return !G.monsters.some(m =>
+    m.awake && !m.disguise
+    && Math.hypot(m.x - p.x, m.y - p.y) <= 9
+    && lineClear(L, m.x, m.y, p.x, p.y));
 }
 
 /* 응답: the priest heals harder the worse it is going. Every
@@ -683,12 +721,20 @@ export function spellSlots() {
     const near = G.level && adjacentMonsters(p).length > 0;
     const noTarget = (ART_NEEDS_BODY.includes(a.id) && !near)
                   || (ART_NEEDS_SHOT.includes(a.id) && !(G.level && shotTarget()))
+                  || (ART_NEEDS_SIGHT.includes(a.id) && !(G.level && visibleMonsters().length))
+                  || (ART_NEEDS_WATCHER.includes(a.id) && !(G.level && awakeWatchers().length))
                   || (!!a.ammo && (quiver(p)?.qty || 0) < a.ammo);
+    /* 그림자 is the cost the row has to print for the rogue: the
+       breath is one or two and never the thing that stops you,
+       and a button whose real price is invisible is a button the
+       player learns by being disappointed. */
+    const short = a.shade ? (p.shadow || 0) < a.shade : false;
     return {
       id: a.id, name: a.name, short: a.short || a.name.slice(0, 2),
-      lv: a.lv, cost: a.stam, art: true, locked, silent: false, noTarget,
+      lv: a.lv, cost: a.shade || a.stam, stam: a.stam, shade: a.shade || 0,
+      art: true, locked, silent: false, noTarget,
       plus: 0, affix: null,
-      ready: !locked && !noTarget && p.stam >= a.stam,
+      ready: !locked && !noTarget && !short && p.stam >= a.stam,
     };
   });
   if (!realm) return arts;
@@ -967,11 +1013,33 @@ function teleport() {
 /* ── spells ─────────────────────────────────────────────── */
 /* Arts that are pointless with nothing in reach, so the row can
    grey them out the way it greys out a bolt with no target. */
-const ART_NEEDS_BODY = ['shove', 'cleave', 'finisher'];
+const ART_NEEDS_BODY = ['shove', 'cleave', 'finisher', 'vitals'];
 /* And the ones that need something down a clear line instead —
    the ranger's row greys out on the same reading of the room that
    the 쏘기 button uses. */
 const ART_NEEDS_SHOT = ['aimed', 'pierce', 'volley'];
+/* The rogue's two that only need to *see* something — no bow, no
+   reach, just a body in the light. */
+const ART_NEEDS_SIGHT = ['shadowstep', 'fan'];
+/* And the one that needs something to lose you: vanishing in an
+   empty room is a wasted shade, so the row says so. */
+const ART_NEEDS_WATCHER = ['vanish'];
+
+/* The eight neighbours, in the order a landing spot should be
+   tried: straight behind first, then around. */
+const dirs8 = [[0,-1],[0,1],[-1,0],[1,0],[-1,-1],[1,-1],[-1,1],[1,1]];
+
+/* Everything the rogue sees right now, nearest first. One reader,
+   because three arts and the row all have to agree on what "적이
+   보인다" means. */
+function visibleMonsters() {
+  const p = G.player, L = G.level;
+  if (!L) return [];
+  return G.monsters
+    .filter(m => !m.disguise && L.vis[idx(m.x, m.y)])
+    .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
+}
+const awakeWatchers = () => visibleMonsters().filter(m => m.awake && !m.boss);
 
 /* ── the warrior's four ───────────────────────────────────
    Each answers a situation the class is supposed to own and no
@@ -1006,11 +1074,20 @@ export function useArt(id) {
     if (weaponType(p) !== 'bow') { say('활이 없다.', 'warn'); return; }
     if (!shotTarget()) { say('사선이 트인 것이 없다.', 'warn'); return; }
   }
+  if (ART_NEEDS_SIGHT.includes(id) && !visibleMonsters().length) {
+    say('보이는 것이 없다.', 'warn'); return;
+  }
+  if (ART_NEEDS_WATCHER.includes(id) && !awakeWatchers().length) {
+    say('너를 보고 있는 것이 없다.', 'warn'); return;
+  }
+  // 그림자 is spent here and nowhere else.
+  if (a.shade && (p.shadow || 0) < a.shade) { say('그림자가 모자란다.', 'warn'); return; }
   // An art that flies costs arrows on top of breath, and refuses
   // rather than half-firing when the quiver cannot cover it.
   if (a.ammo && (quiver()?.qty || 0) < a.ammo) { say('화살이 모자란다.', 'warn'); return; }
   p.stam -= a.stam;
   if (a.ammo) spendArrows(a.ammo);
+  if (a.shade) p.shadow = Math.max(0, (p.shadow || 0) - a.shade);
 
   switch (id) {
     case 'shove': {
@@ -1080,6 +1157,91 @@ export function useArt(id) {
       fx({ t:'finisher', x:p.x, y:p.y, tx:m.x, ty:m.y, power:gone });
       say(`숨을 모아 내리친다.`, 'level');
       swing(m, 1 + gone * (FINISH_MAX - 1));
+      break;
+    }
+
+    /* ── the rogue's four ──────────────────────────────
+       Two answers to being outnumbered or outranged, and two
+       assassin's blows. In that order, because the first two are
+       what make the other two survivable. */
+    case 'shadowstep': {
+      /* The archer answer. An archer beats you by keeping a gap;
+         this spends a shade to delete the gap entirely and arrive
+         on the blind side. The blow lands as an ambush whether or
+         not the thing was awake — which is what "등 뒤" means. */
+      const t = visibleMonsters()[0];
+      const dx = Math.sign(t.x - p.x), dy = Math.sign(t.y - p.y);
+      /* Behind it, from where you stand. If the far side is a
+         wall, take any free tile touching it rather than refusing
+         — a shade is already spent and an art that eats the
+         resource and does nothing is the worst thing here. */
+      const spots = [[t.x + dx, t.y + dy],
+                     ...dirs8.map(([ax, ay]) => [t.x + ax, t.y + ay])];
+      const to = spots.find(([x, y]) =>
+        !G.level.solid(x, y) && !monsterAt(x, y) && !(x === p.x && y === p.y));
+      if (!to) { say('설 자리가 없다.', 'warn'); break; }
+      const from = { x:p.x, y:p.y };
+      p.x = to[0]; p.y = to[1];
+      refreshFov();
+      fx({ t:'roll', x:p.x, y:p.y,
+           dx: Math.sign(p.x - from.x), dy: Math.sign(p.y - from.y),
+           dist: Math.max(1, Math.round(Math.hypot(p.x - from.x, p.y - from.y))) });
+      say(`${t.n}의 등 뒤에 섰다.`, 'level');
+      /* Unaware is how this game already spells "ambush", so the
+         art borrows that rather than inventing a second kind of
+         guaranteed crit. Waking it again is the monster's job. */
+      const wasAwake = t.awake;
+      t.awake = false;
+      swing(t, 1, { noShade: true });
+      if (wasAwake && G.monsters.includes(t)) t.awake = true;
+      break;
+    }
+    case 'fan': {
+      /* The pack answer, and the reason a rogue does not simply
+         die to four kobolds in a wide room. A cone rather than a
+         ring: it is thrown, so it answers the half of the room
+         you are facing and not the thing behind you. */
+      const t = visibleMonsters()[0];
+      const len = Math.max(1e-6, Math.hypot(t.x - p.x, t.y - p.y));
+      const ax = (t.x - p.x) / len, ay = (t.y - p.y) / len;
+      const hit = visibleMonsters().filter(o => {
+        const d = Math.hypot(o.x - p.x, o.y - p.y);
+        if (d > FAN_RANGE) return false;
+        if (d < 0.5) return true;
+        return ((o.x - p.x) / d) * ax + ((o.y - p.y) / d) * ay >= FAN_ARC;
+      });
+      fx({ t:'volley', x:p.x, y:p.y, n:hit.length });
+      say(hit.length > 1 ? `칼이 부채처럼 펼쳐졌다 — ${hit.length}에게.`
+                         : '칼 한 자루가 날아갔다.', 'level');
+      for (const o of [...hit]) if (G.monsters.includes(o)) swing(o, FAN_SHARE);
+      break;
+    }
+    case 'vanish': {
+      /* Stealth as something you can re-enter, rather than a
+         state you only ever lose once. Everything awake that can
+         see you loses you — which makes your next blow an ambush
+         by the ordinary rule, which hands a shade back. That loop
+         is the class, and it is why this one costs only one.
+
+         A boss does not lose you. Neither does a named thing you
+         have already picked a fight with: those two are the
+         encounters the game promises you cannot walk out of. */
+      const lost = awakeWatchers().filter(m => !(m.named && m.provoked));
+      for (const m of lost) m.awake = false;
+      G.hushUntil = G.turn + VANISH_HUSH;
+      fx({ t:'burst', x:p.x, y:p.y, r:3, color:'B' });
+      say(lost.length ? `${lost.length}이(가) 너를 놓쳤다.` : '자취를 지웠다.', 'good');
+      break;
+    }
+    case 'vitals': {
+      /* The one shot. Priced off nothing but the three shades it
+         costs, so unlike 마무리 it is worth the same on a full
+         health bar as on a sliver — the assassin's blow is the
+         one that does not care how the fight was going. */
+      const m = near.sort((x, y) => y.hp - x.hp)[0];
+      fx({ t:'finisher', x:p.x, y:p.y, tx:m.x, ty:m.y, power:1 });
+      say('칼끝이 갑옷 사이를 찾았다.', 'level');
+      swing(m, VITALS_MULT, { pierce: true });
       break;
     }
 
@@ -2575,7 +2737,12 @@ function spendArrows(n) {
   return n;
 }
 
-function swing(m, scale) {
+/* `opt` carries the handful of things an art needs the blow to do
+   differently — today only 급소's disregard for armour. It goes
+   through here rather than an art rolling its own damage, so
+   every affix, boon, relic and combo the swing knows about is
+   still true of the art. */
+function swing(m, scale, opt = {}) {
   const p = G.player;
 
   /* You did not attack a mimic — you reached for a chest. It
@@ -2660,10 +2827,14 @@ function swing(m, scale) {
   /* The two traits that decide a crit outright, rather than
      nudging the roll. Both are earned by a rule the player can
      see filling in the HUD. */
-  const forced = (p.cls === 'warrior' && (p.chain3 || 0) >= 3)
-              || (p.cls === 'rogue' && p.shadow);
-  if (forced && p.cls === 'warrior') { p.chain3 = 0; say('세 번째 손 — 급소가 열렸다.', 'level'); }
-  if (forced && p.cls === 'rogue') { p.shadow = 0; say('그림자에서 나온 칼.', 'level'); }
+  /* The rogue used to be the second line here: a swing spent
+     p.shadow for a guaranteed crit. That is what made the shade a
+     blinking light rather than a resource — it was banked and
+     burned by the same button you press anyway, so there was
+     never a turn on which you held it. The shade is ammunition
+     now and only the four arts empty it. */
+  const forced = (p.cls === 'warrior' && (p.chain3 || 0) >= 3);
+  if (forced) { p.chain3 = 0; say('세 번째 손 — 급소가 열렸다.', 'level'); }
   const crit = asleep || forced
     || Math.random() < critChance(p) + (kind === 'dagger' ? 0.08 : 0);
   if (crit) dmg *= critMult(p) * (asleep ? 1.5 : 1);
@@ -2685,6 +2856,16 @@ function swing(m, scale) {
   if (asleep) {
     say(`잠든 ${m.n}의 급소를 찔렀다.`, 'level');
     if (hasResonance('shadowstep')) G.hushUntil = G.turn + 1;
+    /* A throat opened quietly pays for the next one. This is the
+       loop 어둠 되감기 closes: vanish, strike unaware, get the
+       shade back that the vanish cost.
+
+       Not for an ambush the art manufactured itself, though.
+       그림자 도약 marks its target unaware for one blow, and
+       measured on the bench that refunded the shade it had just
+       spent — a free teleport-and-crit, once per turn, forever.
+       An art may borrow the ambush; it may not be paid for it. */
+    if (!opt.noShade) gainShadow(1, 'ambush');
   }
 
   /* 처형: below the threshold nothing survives, so a suffix that
@@ -2710,7 +2891,7 @@ function swing(m, scale) {
     if (crit && hasBoon('ruin') && !m.boss)
       dmg += Math.max(1, Math.round(m.maxhp * 0.08));
     if (perfect) fx({ t:'perfect', x:m.x, y:m.y });
-    hurtMonster(m, dmg, null, { crit, sneak: asleep, weapon: kind, perfect });
+    hurtMonster(m, dmg, null, { crit, sneak: asleep, weapon: kind, perfect, ...opt });
     // 모르고 휘두른 것: the stick answers.
     if (oddAwake('blindswing') && G.monsters.includes(m)) {
       const bolt = Math.max(2, Math.round(4 + p.lv * 0.9));
@@ -3222,6 +3403,13 @@ export function endTurn(skipMonsters = false) {
   if (p.cls === 'priest' && rested && G.turn % 6 === 0 && p.hp < p.maxhp)
     p.hp = Math.min(p.maxhp, p.hp + Math.max(1, Math.round(regen * healScale())));
   if (G.turn % 10 === 0 && p.mana < p.maxmana) p.mana = Math.min(p.maxmana, p.mana + 1);
+
+  /* 그림자, the third way: time spent with nothing awake looking
+     at you. It is deliberately the slow one — the two fast ways
+     (an ambush, a roll) are things you do, and this is what pays
+     the approach that the class's whole stealth stat exists for. */
+  if (p.cls === 'rogue' && G.turn % SHADOW_TICK === 0 && unseenByAll())
+    gainShadow(1, 'quiet');
 
   refreshFov();
   if (G.depth > 0) scanForTraps();
@@ -3764,8 +3952,8 @@ export function dodgeRoll(dx, dy) {
   p.stam -= rollCost();
   p.iframe = 1;
   p.stuck = 0;
-  // …and the blow that comes out of the roll always lands clean.
-  if (p.cls === 'rogue') p.shadow = 1;
+  // …and a roll is one of the three things that earns a shade.
+  gainShadow(1, 'roll');
   fx({ t:'roll', x:p.x, y:p.y, dx, dy, dist:moved });
   refreshFov();
   // A roll passes over ground rather than stopping on it: no

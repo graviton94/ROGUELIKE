@@ -287,8 +287,9 @@ export const TRAITS = {
   ranger:  { n:'표적', max:5,
     t:'같은 적을 때릴 때마다 그 적에게 주는 피해가 9%씩 쌓인다(최대 45%). 대상을 바꾸면 사라진다.\n'
     + '그리고 두 칸 밖에서 잡으면 숨이 돌아온다 — 기력 2와 최대 체력의 4.5%. 붙어서 잡으면 아무것도 없다.' },
-  paladin: { n:'맹세', max:8,
-    t:'맞을 때마다 방어 +1이 쌓인다(층마다 초기화, 최대 +8). 처치하면 하나 되돌려준다.' },
+  paladin: { n:'맹세', max:10,
+    t:'맞으면 +1, 죽이면 +1(층마다 초기화, 최대 10). 둘마다 방어 +1.\n'
+    + '쌓아 두는 벽이 아니라 계속 죽이기 위한 연료다 — 네 기예가 전부 이것을 먹는다.' },
 };
 
 export const CLASSES = {
@@ -301,7 +302,7 @@ export const CLASSES = {
      it was a worse mage holding a worse dagger. Its five buttons
      are arrows now, and nobody else has those. */
   ranger:  { name:'레인저',   mod:{ dex:+3, int:+1, con:+1 },         hd:5, bth:4.8, realm:null,     note:'활이 곧 직업. 거리를 두고 잡아야 숨이 돌아온다.' },
-  paladin: { name:'팔라딘',   mod:{ str:+2, wis:+1, chr:+2, dex:-2 }, hd:6, bth:4.5, realm:'divine', note:'느리지만 무너지지 않는다.' },
+  paladin: { name:'팔라딘',   mod:{ str:+2, wis:+1, chr:+2, dex:-2 }, hd:6, bth:4.5, realm:'divine', note:'맞아서 시작하고, 죽여서 굴러간다.' },
 };
 for (const [k, c] of Object.entries(CLASSES)) c.trait = TRAITS[k];
 
@@ -910,6 +911,23 @@ export const ARTS = {
       desc:'다섯 턴 동안 쓰러지지 않는다. 끝나면 피한 것이 한꺼번에 온다.' },
   ],
 
+  /* ── 팔라딘의 넷 ───────────────────────────────────
+     The warrior's arts ask what is next to you, the ranger's ask
+     where everything is standing, the priest's ask what the
+     ground and the dead are doing. These ask which single thing
+     in the room is the worst one — and then how to get to it,
+     through it, and on to the next. */
+  paladin: [
+    { id:'charge',  name:'돌진',        short:'돌진', lv:1,  oath:2,
+      desc:'네 칸까지 직선으로 달려가 첫 번째 것을 들이받는다. 벽에 처박히면 두 턴을 잃는다.' },
+    { id:'judgest', name:'심판의 일격',  short:'일격', lv:4,  oath:3,
+      desc:'방어를 완전히 무시한다. 그리고 상대의 최대 체력이 클수록 더 아프다.' },
+    { id:'storm',   name:'성스러운 폭풍', short:'폭풍', lv:8,  oath:4,
+      desc:'주위 여덟 칸 전부. 여기서 죽은 것마다 맹세가 하나씩 돌아온다.' },
+    { id:'crusade', name:'성전',        short:'성전', lv:12, oath:8,
+      desc:'가장 가까운 것을 벤다. 죽으면 다음으로 걸어가 또 벤다. 죽지 않는 순간 끝난다.' },
+  ],
+
   ranger: [
     { id:'aimed',   name:'조준 사격', short:'조준', lv:1,  stam:2,
       desc:'빗나가지 않는다. 그리고 멀수록 아프다 — 활의 감쇠가 뒤집힌다.' },
@@ -965,6 +983,28 @@ export const BRACE_TURNS  = 4;
 export const BRACE_CUT    = 0.4;   // damage taken, reduced by this share
 export const BRACE_THORNS = 0.5;   // what the blocker hands back, of what it stopped
 export const FINISH_MAX   = 2.5;   // the blow at the target's last sliver
+
+/* ── 맹세 ─────────────────────────────────────────────────
+   It used to be a number that leaked. +1 defence for every blow
+   taken, one given back on every kill — so the better the fight
+   went the less the paladin had, and the whole class was "stand
+   there and be hard to move". A wall is not a fantasy in a game
+   where the interesting thing is walking into a room and taking
+   it apart, and the class it produced was a warrior with more
+   health and no verbs.
+
+   It runs the other way now: filled by being hit AND by killing,
+   spent on four ways of killing. Which means the paladin
+   accelerates — a good swing pays for the next one, and the room
+   gets worse for it rather than better. */
+export const OATH_MAX     = 10;
+export const OATH_PER_HIT = 1;
+export const OATH_PER_KILL = 1;
+export const CHARGE_DIST  = 4;     // tiles crossed to reach the first body
+export const CHARGE_SLAM  = 2;     // turns lost by something driven into a wall
+export const JUDGE_STRIKE = 0.12;  // share of the target's maximum, on top of the swing
+export const STORM_SHARE  = 0.9;   // what each surrounding body takes, vs one clean swing
+export const CRUSADE_MAX  = 6;     // how many times the chain may continue
 
 /* A chest is a monster you have not identified yet. Its profile
    is derived from the floor rather than fixed, because a chest

@@ -32,6 +32,8 @@ import {
   ANATHEMA_MORE, JUDGE_HURT, MARTYR_TURNS, FAITH_HARD_HIT, FAITH_PER_HARD,
   QUARRY_RANGE, QUARRY_STAM, QUARRY_HEAL,
   BRACE_TURNS, BRACE_CUT, BRACE_THORNS, FINISH_MAX,
+  OATH_MAX, OATH_PER_HIT, OATH_PER_KILL, CHARGE_DIST, CHARGE_SLAM,
+  JUDGE_STRIKE, STORM_SHARE, CRUSADE_MAX,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
   strikeLine, takenLine, pickLine, MISS_BY, MISS_AT, FELLED,
@@ -433,7 +435,7 @@ export const armourClass = p =>
   gearBonus(p).ac
   + statB(p, 'dex') + Math.floor(p.lv / 4)
   + (p.blessed > 0 ? 4 : 0) + (p.iron > 0 ? 10 : 0)
-  + (p.cls === 'paladin' ? (p.oath || 0) : 0);   // 맹세
+  + (p.cls === 'paladin' ? Math.floor((p.oath || 0) / 2) : 0);   // 맹세
 
 /* 힘의 아래쪽. Heavy gear asks for a number, and a hero who does
    not have it swings badly rather than being refused — a refusal
@@ -559,6 +561,14 @@ function bumpCombo(x, y) {
    no way to build it standing safely in a corridor, which is the
    whole design: the priest's buttons light up during the fight it
    is losing, not before it starts. */
+/* One funnel for 맹세, so being hit, killing and the storm's
+   refund can never disagree about the ceiling. */
+export function oathGain(n) {
+  const p = G.player;
+  if (p?.cls !== 'paladin') return;
+  p.oath = Math.min(OATH_MAX, (p.oath || 0) + n);
+}
+
 export function faithGain(n) {
   const p = G.player;
   if (p?.cls !== 'priest') return;
@@ -612,8 +622,7 @@ function tookHit() {
      an arrow the same as an axe. */
   // 맹세의 방패: a paladin behind a shield swears twice as fast,
   // which is the whole reason to give up the second weapon.
-  if (p.cls === 'paladin')
-    p.oath = Math.min(8, (p.oath || 0) + (fitRule(p, 'twiceSworn') ? 2 : 1));
+  if (p.cls === 'paladin') oathGain(OATH_PER_HIT * (fitRule(p, 'twiceSworn') ? 2 : 1));
 }
 
 /* How long after a blow before the body starts closing again,
@@ -682,8 +691,9 @@ export function traitState() {
     case 'mage':    return { ...spec, at: p.casts % 4, ready: (p.casts % 4) === 3 };
     case 'ranger':  return { ...spec, at: p.markN || 0, ready: (p.markN || 0) >= 5,
                              note: p.markN ? `+${Math.round((p.markN) * 9)}%` : '' };
-    case 'paladin': return { ...spec, at: p.oath || 0, ready: (p.oath || 0) >= 8,
-                             note: p.oath ? `방어 +${p.oath}` : '' };
+    case 'paladin': return { ...spec, at: p.oath || 0, max: OATH_MAX,
+                             ready: (p.oath || 0) >= 2,
+                             note: p.oath ? `맹세 ${p.oath}` : '' };
     case 'rogue':   return { ...spec, at: p.shadow ? 1 : 0, max: 1, ready: !!p.shadow };
     case 'priest':  return { ...spec, at: p.faith || 0, max: FAITH_MAX,
                              ready: (p.faith || 0) >= 3,
@@ -737,11 +747,14 @@ export function spellSlots() {
     const noTarget = ART_NEEDS_BODY.includes(a.id) && !near;
     return {
       id: a.id, name: a.name, short: a.short || a.name.slice(0, 2),
-      lv: a.lv, cost: a.faith || a.stam, art: true, faith: !!a.faith,
+      lv: a.lv, cost: a.faith || a.oath || a.stam, art: true,
+      faith: !!a.faith, oath: !!a.oath,
       locked, silent: false, noTarget,
       plus: 0, affix: null,
       ready: !locked && !noTarget
-             && (a.faith ? (p.faith || 0) >= a.faith : p.stam >= a.stam),
+             && (a.faith ? (p.faith || 0) >= a.faith
+               : a.oath ? (p.oath || 0) >= a.oath
+               : p.stam >= a.stam),
     };
   });
   if (!realm) return arts;
@@ -1049,7 +1062,7 @@ function teleport() {
 /* ── spells ─────────────────────────────────────────────── */
 /* Arts that are pointless with nothing in reach, so the row can
    grey them out the way it greys out a bolt with no target. */
-const ART_NEEDS_BODY = ['shove', 'cleave', 'finisher'];
+const ART_NEEDS_BODY = ['shove', 'cleave', 'finisher', 'judgest', 'storm'];
 /* And the ones that need something down a clear line instead —
    the ranger's row greys out on the same reading of the room that
    the 쏘기 button uses. */
@@ -1079,6 +1092,7 @@ export function useArt(id) {
   // These two are mis-taps rather than lost turns, so they cost
   // nothing — the same way a spell with no mana costs nothing.
   if (a.stam && p.stam < a.stam) { say('숨이 차다.', 'warn'); return; }
+  if (a.oath && (p.oath || 0) < a.oath) { say('맹세가 모자라다.', 'warn'); return; }
 
   const near = adjacentMonsters(p);
   if (ART_NEEDS_BODY.includes(id) && !near.length) {
@@ -1091,6 +1105,7 @@ export function useArt(id) {
   if (a.faith && (p.faith || 0) < a.faith) { say('신앙이 모자란다.', 'warn'); return; }
   p.stam -= a.stam || 0;
   if (a.faith) p.faith -= a.faith;
+  if (a.oath) p.oath -= a.oath;
 
   switch (id) {
     case 'shove': {
@@ -1160,6 +1175,127 @@ export function useArt(id) {
       fx({ t:'finisher', x:p.x, y:p.y, tx:m.x, ty:m.y, power:gone });
       say(`숨을 모아 내리친다.`, 'level');
       swing(m, 1 + gone * (FINISH_MAX - 1));
+      break;
+    }
+
+    /* ── 팔라딘의 넷 ───────────────────────────────────
+       The old paladin was a defence number that leaked, and the
+       first attempt at fixing it was another defence number that
+       asked him to stand still — which is nothing in a game whose
+       whole texture is walking into a room and taking it apart.
+       All four of these kill something. What differs is the
+       shape: how you reach it, how you get through it, how you
+       take a crowd, and how you keep going. */
+    case 'charge': {
+      /* Nobody in the game has a gap-closer, and the paladin is
+         the class that most needs one — dexterity −2 makes him
+         the slowest thing on the floor, so anything that wants to
+         keep away from him simply does. */
+      const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+      let best = null;
+      for (const [dx, dy] of dirs) {
+        for (let d = 1; d <= CHARGE_DIST; d++) {
+          const tx = p.x + dx * d, ty = p.y + dy * d;
+          if (!walkable(G.level, tx, ty)) break;
+          const hit = G.monsters.find(o => !o.disguise && o.x === tx && o.y === ty);
+          if (hit) {
+            if (!best || d < best.d) best = { m: hit, dx, dy, d };
+            break;
+          }
+        }
+      }
+      if (!best) { say('달려들 곳이 없다.', 'warn'); break; }
+      const lx = best.m.x - best.dx, ly = best.m.y - best.dy;
+      const from = { x: p.x, y: p.y };
+      if (walkable(G.level, lx, ly) && !G.monsters.some(o => o.x === lx && o.y === ly)) {
+        p.x = lx; p.y = ly;
+      }
+      fx({ t:'charge', x:from.x, y:from.y, tx:p.x, ty:p.y, dx:best.dx, dy:best.dy });
+      say('땅을 밟고 달려든다.', 'level');
+      /* Driven into a wall it loses its footing. The extra is not
+         damage — it is turns, which is worth more. */
+      const bx = best.m.x + best.dx, by = best.m.y + best.dy;
+      const pinned = !walkable(G.level, bx, by);
+      swing(best.m, 1.35);
+      if (pinned && G.monsters.includes(best.m)) {
+        best.m.energy = -CHARGE_SLAM;
+        best.m.awake = true;
+        fx({ t:'slam', x:best.m.x, y:best.m.y });
+        say(`${best.m.n}이(가) 벽에 처박혔다.`, 'good');
+      }
+      break;
+    }
+    case 'judgest': {
+      /* The warrior's 마무리 is priced off what the target has
+         lost, so it closes fights. This one is priced off how big
+         the target is to begin with, so it opens them — and it
+         goes through armour entirely, which is what makes the
+         thickest thing in the room the right thing to use it on. */
+      const m = near.sort((x, y) => (y.maxhp || 0) - (x.maxhp || 0))[0];
+      fx({ t:'judgest', x:p.x, y:p.y, tx:m.x, ty:m.y });
+      say('내리치는 것은 무기가 아니라 판결이다.', 'level');
+      /* The whole blow goes through armour, so it is priced and
+         delivered by hand rather than through swing() — which
+         rolls the target's plate in on every hit and has no way
+         to be told not to. */
+      const heft = Math.round(baseSwing(p) + (m.maxhp || 10) * JUDGE_STRIKE);
+      fx({ t:'lunge', who:'player', x:p.x, y:p.y, kind:weaponType(p),
+           dx: Math.sign(m.x - p.x), dy: Math.sign(m.y - p.y) });
+      m.awake = true;
+      hurtMonster(m, Math.max(3, heft), '심판의 일격', { pierce: true });
+      break;
+    }
+    case 'storm': {
+      /* The reason to walk into the middle of a crowd rather than
+         hold a doorway. Everything around him, and every kill
+         hands the oath back — three bodies down is three oath
+         returned, which is another storm or most of a 성전. This
+         is the engine: the class accelerates on a good swing
+         instead of running dry on one. */
+      if (!near.length) { say('휘두를 것이 없다.', 'warn'); break; }
+      fx({ t:'storm', x:p.x, y:p.y, n:near.length });
+      say(`${near.length}을(를) 한 바퀴에 쓸어버린다.`, 'level');
+      let felled = 0;
+      for (const m of [...near]) {
+        if (!G.monsters.includes(m)) continue;
+        swing(m, STORM_SHARE);
+        if (!G.monsters.includes(m)) felled++;
+      }
+      if (felled) {
+        oathGain(felled);
+        fx({ t:'oathback', x:p.x, y:p.y, n:felled });
+        say(`쓰러진 만큼 맹세가 돌아온다. (+${felled})`, 'good');
+      }
+      break;
+    }
+    case 'crusade': {
+      /* The whole bar, and it only pays if the room is already
+         nearly down — which is what 성스러운 폭풍 is for. Cut the
+         nearest thing; if it falls, walk to the next and cut that
+         one; stop the moment something does not fall. A paladin
+         who set the room up right clears it in one action, and one
+         who did not gets a single swing for eight oath. */
+      let cuts = 0;
+      fx({ t:'crusade', x:p.x, y:p.y });
+      say('한 번 시작한 것은 끝날 때까지 멈추지 않는다.', 'level');
+      while (cuts < CRUSADE_MAX) {
+        const alive = G.monsters.filter(o => !o.disguise && G.level.vis[idx(o.x, o.y)]);
+        if (!alive.length) break;
+        const m = alive.sort((x, y) =>
+          Math.hypot(x.x - p.x, x.y - p.y) - Math.hypot(y.x - p.x, y.y - p.y))[0];
+        const d = Math.hypot(m.x - p.x, m.y - p.y);
+        // step to it if it is not already in reach
+        if (d > 1.5) {
+          const sx = p.x + Math.sign(m.x - p.x), sy = p.y + Math.sign(m.y - p.y);
+          if (!walkable(G.level, sx, sy) || G.monsters.some(o => o.x === sx && o.y === sy)) break;
+          p.x = sx; p.y = sy;
+          if (Math.hypot(m.x - p.x, m.y - p.y) > 1.5) { cuts++; continue; }
+        }
+        fx({ t:'crusadeCut', x:p.x, y:p.y, tx:m.x, ty:m.y, n:cuts });
+        swing(m, 1.15);
+        cuts++;
+        if (G.monsters.includes(m)) break;    // it did not fall; the march is over
+      }
       break;
     }
 
@@ -2903,9 +3039,11 @@ export const goldGain = n => Math.max(0, Math.round(
    뼈 목걸이 is the slow one, worth taking early or not at all. */
 function onKill(m) {
   const p = G.player;
-  // 맹세 spends itself down as he wins — the wall is highest at
-  // the moment he is losing, which is when a paladin needs it.
-  if (p.cls === 'paladin' && p.oath > 0) p.oath--;
+  /* 맹세 used to spend itself down on every kill, which meant
+     the better the fight went the less he had — a class that
+     decelerates when it is winning. It fills on a kill now, so a
+     good swing pays for the next one. */
+  if (p.cls === 'paladin') oathGain(OATH_PER_KILL);
   if (hasUnique('ashcount')) G.ashCount = (G.ashCount || 0) + 1;
   if (UNDEAD.includes(m.spr)) faithGain(FAITH_PER_UNDEAD);
   if ((hasRelic('hunger') || hasRelic('famine')) && p.hp < p.maxhp) {

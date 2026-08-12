@@ -737,6 +737,61 @@ export function pump(queue, player) {
         sfx.blast();
         break;
 
+      /* ── 팔라딘의 넷 ───────────────────────────────
+         The warrior's arts land at arm's length and the ranger's
+         land across the room. These travel: the charge draws a
+         line the hero actually moved along, and the crusade draws
+         one per body it walked to. */
+      case 'charge': {
+        beams.push({ fx:e.x + 0.5, fy:e.y + 0.5, tx:e.tx + 0.5, ty:e.ty + 0.5,
+                     color:PALETTE.y, age:0, life:280 });
+        ring(e.tx, e.ty, 1.5, PALETTE.y, 320);
+        shake = Math.max(shake, 0.5);
+        buzz([16, 8, 22]); sfx.crit();
+        break;
+      }
+      case 'slam':
+        ring(e.x, e.y, 1.7, PALETTE.W, 300);
+        burstShards(e.x, e.y, [PALETTE.G, PALETTE.w], 16, 1.4);
+        number(e.x, e.y - 0.6, '처박혔다', PALETTE.W, 1.1);
+        shake = Math.max(shake, 0.55);
+        break;
+
+      case 'judgest':
+        ring(e.tx, e.ty, 1.9, PALETTE.y, 380);
+        beams.push({ fx:e.x + 0.5, fy:e.y - 1.2, tx:e.tx + 0.5, ty:e.ty + 0.5,
+                     color:PALETTE.W, age:0, life:260 });
+        flashScreen = Math.max(flashScreen, 0.3); flashHue = 'y';
+        freeze = 80;
+        shake = Math.max(shake, 0.6);
+        buzz(36); sfx.crit();
+        break;
+
+      case 'storm':
+        for (let i = 0; i < 3; i++) ring(e.x, e.y, 1.2 + i * 0.5, PALETTE.y, 300 + i * 90);
+        burstShards(e.x, e.y, [PALETTE.y, PALETTE.W], 22, 1.3);
+        shake = Math.max(shake, 0.5);
+        buzz([20, 10, 20]); sfx.blast();
+        break;
+
+      case 'oathback':
+        number(e.x, e.y - 1.1, `맹세 +${e.n}`, PALETTE.y, 1.15);
+        ring(e.x, e.y, 0.9, PALETTE.y, 260);
+        break;
+
+      case 'crusade':
+        ring(e.x, e.y, 2.2, PALETTE.W, 460);
+        flashScreen = Math.max(flashScreen, 0.24); flashHue = 'W';
+        break;
+
+      case 'crusadeCut':
+        beams.push({ fx:e.x + 0.5, fy:e.y + 0.5, tx:e.tx + 0.5, ty:e.ty + 0.5,
+                     color:PALETTE.W, age:0, life:220, thin:true });
+        ring(e.tx, e.ty, 1.1, PALETTE.y, 240);
+        shake = Math.max(shake, 0.28 + e.n * 0.06);
+        buzz(14);
+        break;
+
       /* 신전에서 떨어져 나가는 것. Upward and pale — the one
          effect in the game that is a subtraction. */
       case 'cleanse':

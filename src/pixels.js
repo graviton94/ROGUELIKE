@@ -26,6 +26,33 @@ export const PALETTE = {
   P: '#b57ad0',       // orchid
   c: '#3f8f8f',       // teal
   s: '#7d8596',       // steel
+
+  /* ── the second step of every ramp ────────────────────────
+     Two shades of a colour is a flat fill with a line around it,
+     which is what every sprite in here was. Four is a surface: a
+     lit plane, a body colour, a turned plane, and an edge. The
+     edge is the darkest shade of the material — pure black only
+     where the sprite meets nothing at all, because a black
+     keyline around every limb is a colouring book. Light comes
+     from the upper left in every sprite in this file. */
+  f: '#1d4630',       // green, deepest
+  F: '#a6dba4',       // green, lit
+  j: '#33210f',       // brown, deepest
+  J: '#c4a06a',       // brown, lit
+  q: '#464d5c',       // steel, deepest
+  Q: '#b4bcc9',       // steel, lit
+  a: '#6b4530',       // skin, shadowed
+  A: '#bc8a60',       // skin
+  h: '#571914',       // red, deepest
+  H: '#f18c74',       // red, lit
+  l: '#132a52',       // blue, deepest
+  L: '#a3cdec',       // blue, lit
+  m: '#39204b',       // violet, deepest
+  M: '#dcaaee',       // violet, lit
+  v: '#7d4210',       // ember, deepest
+  V: '#f7dda6',       // ember, lit
+  u: '#9a9484',       // bone, shadowed
+  t: '#141a26',       // the shadow a body casts on the floor
 };
 
 /* ── the bestiary, drawn ─────────────────────────────────── */
@@ -208,23 +235,25 @@ export const SPRITES = {
      or a shadow — which is most of why everything read as the
      same blob wearing different colours. Same palette, same file,
      four times the room. */
+  /* Light from the upper left. Four greens rather than two, edges in the darkest green rather than black, a cleaver held to one side so the silhouette is not a mirror, and a shadow under it so it stands on the floor instead of floating over it. */
+  /* A narrower skull, a harness with a lit strap down the middle, arms clear of the body, and the cleaver held out so the silhouette is not a mirror of itself. */
   orc: [
     '................',
-    '.....kkkkk......',
-    '....keeeeek.....',
-    '...keEEEEEek....',
-    '...keEeeeEek....',
-    '..kkeRwWwRekk...',
-    '..kwkeewweekwk..',
-    '...kkeWWWWekk...',
-    '....keeWWeek....',
-    '...knnNNNNnnk...',
-    '..knnNNNNNNnnk..',
-    '.kskn.NNNN.nksk.',
-    '.ks..knnnnk..sk.',
-    '.....kn..nk.....',
-    '.....ks..sk.....',
-    '....kss..ssk....',
+    '....ffff........',
+    '...fEFFEf...qq..',
+    '..fEFFEEEf..qQ..',
+    '..fEFEeeEf..qQ..',
+    '..fFwkEkwf..qQ..',
+    '..feEEEEEf.qQQ..',
+    '..fWEeeEWf.qQ...',
+    '.fjJjNNNjjfqQ...',
+    'fjJNNJJJNNjQ....',
+    'fjNNJNNNJNjq....',
+    'fjNNJNNNJNnj....',
+    '.fjNNJJJNNjf....',
+    '..feEfffeEf.....',
+    '..fjf...fjf.....',
+    '.tttt...tttt....',
   ],
   /* Ears up, muzzle forward, four legs under it. */
   dog: [

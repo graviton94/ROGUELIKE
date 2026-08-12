@@ -6,7 +6,7 @@
 
 import {
   sprite, wallTile, floorTile, shadowTile, dropShadow,
-  CELL_SIZE, PALETTE, setTerrainTheme, HAND, GRIP, gripY, WEAPON_W, WEAPON_H,
+  CELL_SIZE, PALETTE, setTerrainTheme, HAND, GRIP, gripY, WEAPON_W, WEAPON_H, hasSprite,
 } from './pixels.js';
 import * as Pix from './pixels.js';
 import {
@@ -136,6 +136,14 @@ function monsterSprite(m) {
     else face = dy > 0 ? 'down' : 'up';
   }
   monFace.set(m, { x: m.x, y: m.y, face });
+  /* 이름 있는 것과 대군주는 큰 그림을 먼저 찾습니다. 32짜리 판이
+     있으면 그걸 쓰고, 없으면 평소 그림으로 물러섭니다 — 데이터 쪽은
+     자기가 큰지 작은지 몰라도 됩니다. 발밑은 여전히 한 칸이고 그림만
+     위로 넘쳐 오릅니다(blitActor).                              */
+  if (m.named || m.boss) {
+    for (const k of [`boss:${m.spr}:${face}`, `boss:${m.spr}`])
+      if (hasSprite(k)) return sprite(k);
+  }
   return sprite(`${m.spr}:${face}`) || sprite(m.spr);
 }
 

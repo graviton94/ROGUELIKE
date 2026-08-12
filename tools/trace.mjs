@@ -44,6 +44,7 @@ export const RAMPS = {
   blue:   ['6', 'b', 'B', 'I'],
   violet: ['7', 'p', 'P', 'V'],
   teal:   ['8', 'c', 't', 'T'],
+  ember:  ['m', 'o', 'O', 'Y'],
   tint:   ['X', 'D', 'C', 'L'],       // 직업 색으로 구워질 자리
 };
 
@@ -185,6 +186,21 @@ export function denoise(grid, keep = new Set(['k', 'W', '.'])) {
     for (const [v, k] of tally) if (k >= 3 && v !== c) out[y][x] = v;
   }
   return out.map(r => r.join(''));
+}
+
+/* ── 부스러기 떼기 ────────────────────────────────────────
+   이웃이 하나 이하인 점은 실루엣이 아니라 먼지입니다. 옷자락처럼
+   얇은 것을 줄이다 보면 발밑에 점이 뜨는데, 화면에서는 그냥 때로
+   보입니다.                                                    */
+export function despeckle(grid) {
+  const N = grid.length;
+  const g = grid.map(l => [...l]);
+  return g.map((row, y) => row.map((c, x) => {
+    if (c === '.') return c;
+    const n = [[0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]]
+      .filter(([dx, dy]) => ((g[y + dy] || [])[x + dx] || '.') !== '.').length;
+    return n <= 1 ? '.' : c;
+  }).join(''));
 }
 
 /* ── 목 붙이기 ────────────────────────────────────────────

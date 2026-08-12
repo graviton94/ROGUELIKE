@@ -962,6 +962,22 @@ export function refresh() {
   for (const line of G.log.slice(-6)) logBox.appendChild(el('p', line.tone, line.text));
 
   $('btn-cast').hidden = !Game.spellSlots().length;
+  /* 쏘기 only exists while a bow is held. It carries the arrow
+     count because running dry mid-fight is the thing a bow build
+     has to see coming, and greys out rather than vanishing when
+     there is no line — a control that moves is a control you
+     misfire. */
+  const bowed = Game.weaponType(G.player) === 'bow';
+  const q = Game.quiver();
+  const shootBtn = $('btn-shoot');
+  shootBtn.hidden = !bowed;
+  if (bowed) {
+    shootBtn.disabled = !Game.canShoot();
+    $('shoot-n').textContent = q ? `${q.ammo?.n === '화살' ? '' : q.ammo.n + ' '}${q.qty}` : '없음';
+    shootBtn.title = !q ? '화살이 떨어졌다'
+                   : !Game.shotTarget() ? '사선이 막혔거나 사거리 밖이다'
+                   : `${q.ammo.n} ${q.qty}발`;
+  }
   renderQuick();
   renderSpellRow();
 
@@ -3522,6 +3538,7 @@ export function bindInput() {
   $('btn-down').onclick   = () => { stopAuto(); act(Game.descend); };
   $('btn-up').onclick     = () => { stopAuto(); act(Game.ascend); };
   $('btn-door').onclick   = () => { stopAuto(); act(Game.closeDoor); };
+  $('btn-shoot').onclick  = () => { stopAuto(); act(Game.shoot); };
   for (const b of [$('btn-help'), $('btn-help2')])
     b.onclick = () => { stopAuto(); setScreen('help'); };
   $('btn-codex').onclick  = () => setScreen('codex');

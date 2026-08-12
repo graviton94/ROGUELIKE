@@ -281,6 +281,30 @@ export function pump(queue, player) {
         buzz(12);
         break;
 
+      /* Your arrow, and theirs, must never be the same streak —
+         the two lines cross the same room and the player has to
+         read at a glance which way one is going. Theirs is a thin
+         bone line; yours is thicker, tinted by what is nocked, and
+         leaves a puff at the string. */
+      case 'loose': {
+        const tone = { arrow:'W', heavy:'s', venom:'e', ember:'o' }[e.ammo] || 'W';
+        beams.push({ fx: e.fx, fy: e.fy, tx: e.tx, ty: e.ty,
+                     color: PALETTE[tone], life: 240, age: 0 });
+        const dx = e.tx - e.fx, dy = e.ty - e.fy;
+        const len = Math.max(0.001, Math.hypot(dx, dy));
+        for (let i = 0; i < 6 && shards.length < MAX_SHARDS; i++) {
+          shards.push({
+            x: e.fx + 0.5, y: e.fy + 0.5,
+            vx: (dx / len) * (2 + Math.random() * 1.6) + (Math.random() - 0.5),
+            vy: (dy / len) * (2 + Math.random() * 1.6) + (Math.random() - 0.5),
+            life: 180 + Math.random() * 140, age: 0, size: 1, color: PALETTE[tone],
+          });
+        }
+        buzz(14);
+        sfx.miss();
+        break;
+      }
+
       case 'trap': {
         const hue = { dart:'s', poison:'e', pit:'k', teleport:'P', alarm:'y' }[e.kind] || 'R';
         ring(e.x, e.y, e.kind === 'alarm' ? 9 : 2.4, PALETTE[hue] || PALETTE.R, 620);

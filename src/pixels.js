@@ -248,6 +248,18 @@ export const SPRITES = {
      colours — char, ember, steel — so the deep floors read as
      one place rather than as six unrelated monsters. */
   // 재의 사냥개: low, long, running. Two embers where eyes go.
+  /* A drawn bow, string to the right, so the item tile reads as
+     "this one reaches" next to the swords and axes. */
+  bow: [
+    '...NN...',
+    '..N..W..',
+    '.N....W.',
+    '.N....W.',
+    '.N....W.',
+    '.N....W.',
+    '..N..W..',
+    '...NN...',
+  ],
   ashhound: [
     '........',
     'd......d',

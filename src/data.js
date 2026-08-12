@@ -930,7 +930,38 @@ export const WEAPON_TYPES = {
   spear:  { n:'창류',   t:'두 칸 거리에서 찌른다. 붙지 않고 싸운다.' },
   mace:   { n:'둔기류', t:'30%로 비틀거리게 만든다 — 그 적은 다음 턴을 잃는다.' },
   great:  { n:'대검류', t:'피해 +45%, 명중 −12%. 치명타는 인접한 전부를 벤다.' },
+  bow:    { n:'활류',   t:'화살을 먹고 멀리서 쏜다. 붙으면 활대로 때리는 셈이라 절반만 아프다.' },
 };
+
+/* ── bows ─────────────────────────────────────────────────
+   Monsters have shot at the player since the first week; the
+   player has never been able to shoot back. Four of the eight
+   things on floors 10 and below open at range, the ranger's whole
+   identity is supposed to be distance, and the only answers in
+   the game were a spell or a jog.
+
+   A bow is a weapon that eats a second resource. That is the
+   trade: it reaches, and it runs out. Melee with one in hand is
+   half a blow, so carrying a bow is a commitment rather than a
+   free extra button. */
+export const BOW_MELEE = 0.5;      // what a bow swings for up close
+export const BOW_FALLOFF = 0.045;  // damage lost per tile, so range is not free
+export const QUIVER_MAX = 40;
+
+/* Ammunition. Ordinary arrows are cheap and everywhere; the other
+   three are a decision about which fight you are saving them for.
+   `dmg` is a multiplier on the bow's roll. */
+export const AMMO = [
+  { id:'arrow',  n:'화살',        spr:'spear', cost:3,  rar:14, d:0,  dmg:1.0,
+    desc:'평범한 화살. 쏘고 나면 사라진다.' },
+  { id:'heavy',  n:'무거운 화살',  spr:'spear', cost:9,  rar:7,  d:3,  dmg:1.55, hit:-8,
+    desc:'피해 +55%, 명중 −8. 두꺼운 것에게.' },
+  { id:'venom',  n:'독화살',      spr:'spear', cost:12, rar:6,  d:5,  dmg:0.9,  on:'poison',
+    desc:'맞은 것이 중독된다. 오래 끄는 싸움에.' },
+  { id:'ember',  n:'불화살',      spr:'spear', cost:16, rar:5,  d:8,  dmg:1.15, burst:0.35,
+    desc:'죽은 자리가 터진다. 무리 한가운데로.' },
+];
+export const ammoById = id => AMMO.find(a => a.id === id);
 
 /* ── 문장 ─────────────────────────────────────────────────
    Every blow in this game used to read `${적}에게 ${n}의 피해.`
@@ -1052,6 +1083,14 @@ export const WEAPONS = [
   { spr:'dagger', n:'서슬 단검',    t:'dagger', dice:[3,7],  d:12, cost:2400, hands:1 },
   { spr:'axe',   n:'쌍날 도끼',    t:'axe',    dice:[3,8],  d:12, cost:2700, hands:2 },
   { spr:'spear',   n:'용창',         t:'spear',  dice:[4,7],  d:13, cost:3200, hands:2 },
+
+  /* Bows. Reach is the stat that matters, so it climbs with the
+     table while the dice stay modest — a longbow is not a better
+     sword, it is a different question about where you stand. */
+  { spr:'bow',   n:'짧은 활',      t:'bow',    dice:[1,7],  d:0,  cost:60,   hands:2, rng:5 },
+  { spr:'bow',   n:'사냥 활',      t:'bow',    dice:[2,5],  d:3,  cost:240,  hands:2, rng:6 },
+  { spr:'bow',   n:'장궁',         t:'bow',    dice:[2,8],  d:7,  cost:760,  hands:2, rng:8 },
+  { spr:'bow',   n:'뿔나무 활',    t:'bow',    dice:[3,7],  d:11, cost:2100, hands:2, rng:9 },
 ];
 
 export const ARMOURS = [
@@ -1125,9 +1164,9 @@ export const UNKNOWABLE = CONSUMABLES
 /* ── the town ─────────────────────────────────────────────
    Six shops, as on Moria's level 0.                        */
 export const SHOPS = [
-  { id:1, n:'잡화점',   spr:'torch',  stock:['torch','potHeal','scrMap'] },
+  { id:1, n:'잡화점',   spr:'torch',  stock:['torch','potHeal','scrMap'], ammo:['arrow'] },
   { id:2, n:'방어구점', spr:'armor',  stock:'armour' },
-  { id:3, n:'무기점',   spr:'sword',  stock:'weapon' },
+  { id:3, n:'무기점',   spr:'sword',  stock:'weapon', ammo:['arrow','heavy','venom','ember'] },
   { id:4, n:'신전',     spr:'amulet', stock:['potHeal','potCure'] },
   { id:5, n:'연금술사', spr:'potion', stock:['potHeal','potMana','potCure'], cats:true },
   { id:6, n:'마법상',   spr:'wand',   stock:['scrMap','scrTele','scrFlee','potMana'] },

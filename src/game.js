@@ -23,6 +23,7 @@ import {
   ECHO_ROOM_HOPS, ECHO_ROOM_TOLL, ECHO_ROOM_KEEP,
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   ARTS, SHOVE_DIST, SHOVE_WALL, CLEAVE_SHARE,
+  AMMO, ammoById, BOW_MELEE, BOW_FALLOFF,
   BRACE_TURNS, BRACE_CUT, BRACE_THORNS, FINISH_MAX,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
@@ -193,6 +194,14 @@ export function createHero(raceKey, classKey, base) {
   addItem(p, makeConsumable('torch'), 2);
   p.equip.weapon = { kind:'weapon', ...WEAPONS[0] };
   p.equip.body   = { kind:'armour', ...ARMOURS[0] };
+  /* The ranger is the class whose whole idea is distance, so it
+     starts holding the thing that makes distance possible rather
+     than hoping the weapon shop has one. Everyone else can buy a
+     bow; the ranger *is* one. */
+  if (classKey === 'ranger') {
+    p.equip.weapon = { kind:'weapon', ...WEAPONS.find(w => w.n === '짧은 활') };
+    addItem(p, makeAmmo('arrow'), 24);
+  }
   return p;
 }
 
@@ -658,11 +667,14 @@ export function spellSlots() {
 
 /* ── inventory ──────────────────────────────────────────── */
 export const makeConsumable = id => ({ kind:'use', ...CONSUMABLES.find(c => c.id === id) });
+/* Ammunition stacks the way flasks do — one line in the pack that
+   counts down, not twenty arrows taking twenty slots. */
+export const makeAmmo = id => ({ kind:'ammo', ...ammoById(id) });
 
 export function addItem(p, item, qty = 1) {
   // Catalysts stack the same way flasks do — you carry three
   // 정련의 촉매, not three separate lines in the pack.
-  if (item.kind === 'use' || item.kind === 'cat') {
+  if (item.kind === 'use' || item.kind === 'cat' || item.kind === 'ammo') {
     const slot = p.pack.find(s => s.item.id === item.id);
     if (slot) { slot.qty += qty; return; }
   }
@@ -922,7 +934,17 @@ export function useArt(id) {
   const p = G.player;
   const a = artById(p, id);
   if (!a) return;
-  if (has(p, 'paralyze')) { say('몸이 굳어 말을 듣지 않는다.', 'warn'); return; }
+  /* Paralysis eats the turn here exactly as it does in step().
+     Returning without spending it looks harmless and is not: any
+     caller that loops until the turn advances — the bot does —
+     spins forever on a paralysed hero. */
+  if (has(p, 'paralyze')) {
+    say('몸이 굳어 말을 듣지 않는다.', 'warn');
+    fx({ t:'struggle', x:p.x, y:p.y });
+    endTurn(); return;
+  }
+  // These two are mis-taps rather than lost turns, so they cost
+  // nothing — the same way a spell with no mana costs nothing.
   if (p.stam < a.stam) { say('숨이 차다.', 'warn'); return; }
 
   const near = adjacentMonsters(p);
@@ -2166,7 +2188,76 @@ function playerAttack(m) {
     p.swinging = false;
     return;
   }
-  swing(m, 1);
+  // A bow up close is a stick. That is the price of reach, and it
+  // is what stops a bow from being a free extra button on a build
+  // that never wanted to stand back.
+  swing(m, weaponType(p) === 'bow' ? BOW_MELEE : 1);
+}
+
+/* ── shooting ─────────────────────────────────────────────
+   The other half of a fight the player could only ever walk into.
+   A shot costs a turn and an arrow, falls off with distance, and
+   needs a clear line — everything a monster's shot already costs
+   it, read off the same helpers. */
+export function quiver(p) {
+  const slot = (p || G.player)?.pack.find(s => s.item.kind === 'ammo');
+  return slot ? { slot, ammo: ammoById(slot.item.id), qty: slot.qty } : null;
+}
+
+export function shotTarget() {
+  const p = G.player, L = G.level;
+  if (!p || weaponType(p) !== 'bow') return null;
+  const rng = p.equip.weapon?.rng || 5;
+  return G.monsters
+    .filter(m => !m.disguise && L.vis[idx(m.x, m.y)]
+              && Math.hypot(m.x - p.x, m.y - p.y) <= rng
+              && lineClear(L, p.x, p.y, m.x, m.y))
+    .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0] || null;
+}
+
+export const canShoot = () => !!shotTarget() && !!quiver();
+
+export function shoot() {
+  const p = G.player;
+  if (weaponType(p) !== 'bow') { say('활이 없다.', 'warn'); return; }
+  const q = quiver();
+  if (!q) { say('화살이 떨어졌다.', 'warn'); return; }
+  const m = shotTarget();
+  if (!m) { say('겨눌 것이 없다.', 'warn'); return; }
+  if (has(p, 'paralyze')) {
+    say('몸이 굳어 말을 듣지 않는다.', 'warn');
+    fx({ t:'struggle', x:p.x, y:p.y }); endTurn(); return;
+  }
+
+  const a = q.ammo || AMMO[0];
+  removeItem(p, p.pack.indexOf(q.slot), 1);
+
+  const dist = Math.hypot(m.x - p.x, m.y - p.y);
+  const g = gearBonus(p);
+  const hit = 12 + statB(p, 'dex') * 3 + Math.floor(p.lv * 0.8) + g.hit + (a.hit || 0)
+            + (p.blessed > 0 ? 6 : 0);
+  const land = clamp(0.32 + (hit - (m.ac || 0) * 1.6) / 46, 0.15, 0.95);
+  fx({ t:'loose', fx:p.x, fy:p.y, tx:m.x, ty:m.y, ammo:a.id });
+  m.awake = true;
+
+  if (Math.random() > land) {
+    say(`${pickLine(MISS_AT, m.n, nextLine())}`);
+    fx({ t:'miss', x:m.x, y:m.y });
+    endTurn(); return;
+  }
+  const d = p.equip.weapon.dice;
+  let dmg = roll(d[0], d[1]) + statB(p, 'dex') * 2 + Math.floor(p.lv / 3) + g.dmg;
+  dmg *= (1 + g.dmgPct) * (a.dmg || 1);
+  // Reach is not free: the far end of a longbow is a graze.
+  dmg *= Math.max(0.55, 1 - dist * BOW_FALLOFF);
+  dmg = Math.max(1, Math.round(dmg));
+
+  // hurtMonster already narrates off opt.weapon — saying it here
+  // too printed every shot twice, once as an arrow and once as a
+  // shove. One voice per blow.
+  hurtMonster(m, dmg, null, { weapon:'arrow', shot:true, burst: a.burst || 0 });
+  if (a.on && G.monsters.includes(m) && Math.random() < 0.6) poisonMonster(m, a.on);
+  endTurn();
 }
 
 function swing(m, scale) {
@@ -2524,7 +2615,11 @@ export function hurtMonster(m, dmg, source, opt = {}) {
        how they branch. */
     const room = hasResonance('powder');
     if (room && (opt.blast || 0) === 0) G.powderSpent = 0;
-    if (g.burst > 0 && (room ? ((opt.blast || 0) < POWDER_MAX
+    /* The gear's 작열 and an ember arrow are the same rule from
+       two pockets. Reading only the gear meant an ember arrow
+       carried a `burst` field that nothing ever looked at. */
+    const burstRate = g.burst + (opt.burst || 0);
+    if (burstRate > 0 && (room ? ((opt.blast || 0) < POWDER_MAX
                                 && (G.powderSpent || 0) < POWDER_BUDGET)
                              : !opt.noBurst)) {
       /* Normally a corpse goes off for a share of what it was, so
@@ -2535,7 +2630,7 @@ export function hurtMonster(m, dmg, source, opt = {}) {
          is what makes the second one able to kill and the third
          one able to happen at all. */
       const charge = room ? Math.max(m.maxhp || 10, dmg) : (m.maxhp || 10);
-      const blast = Math.max(2, Math.round(charge * g.burst * (room ? 0.7 : 0.5)));
+      const blast = Math.max(2, Math.round(charge * burstRate * (room ? 0.7 : 0.5)));
       const caught = adjacentMonsters(m);
       if (caught.length) {
         fx({ t:'burst', x:m.x, y:m.y, r: room ? 2.4 : 1.9, color:'o' });
@@ -4271,6 +4366,15 @@ export function shopStock(shop) {
      the day's stock rather than random, so re-entering the door
      cannot reroll what is for sale. */
   if (hasShackle('ledger') && out.length > 1) out.length = Math.ceil(out.length / 2);
+  /* Arrows. The weapon shop carries the whole rack, the general
+     store carries the plain ones — a bow with nothing to feed it
+     is a stick, so the cheap kind has to be easy to reach. */
+  if (shop.ammo)
+    for (const id of shop.ammo) {
+      const a = ammoById(id);
+      if (a && a.d <= Math.max(1, G.deepest || G.depth))
+        out.push({ kind:'ammo', ...a, qty: 12 });
+    }
   /* The wandering merchant also deals in materials, which is what
      turns a purse of gold into a +1 you actually wanted. */
   if (shop.mats)

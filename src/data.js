@@ -1098,11 +1098,85 @@ export const FITS = [
    undead tomorrow and it is covered the day it is written. */
 export const UNDEAD = ['wraith', 'mummy', 'lich', 'vampire', 'ashheap', 'emberpriest'];
 
+/* ── the named ────────────────────────────────────────────
+   A tier above 초월, and the only weapons in the game with proper
+   nouns. One of each exists per run at most, they are never
+   rolled with affixes, and every one carries a rule rather than a
+   bigger die — the same bar the resonances have to clear.
+
+   They are found, never bought and never forged, which is what
+   keeps them a story rather than a shopping list. */
+export const UNIQUES = [
+  { id:'ashcount', n:'재를 세는 자',   spr:'dagger', t:'dagger', dice:[2,6], d:4,  hands:1,
+    rule:'재운 것 하나마다 피해 +1. 층을 내려가면 셈이 처음으로 돌아간다.',
+    lore:'자루에 금이 그어져 있다. 세는 쪽은 칼이지 당신이 아니다.' },
+  { id:'longhush', n:'긴 침묵',       spr:'bow',    t:'bow',    dice:[2,6], d:6,  hands:2, rng:7,
+    rule:'맞은 것 말고는 아무것도 깨어나지 않는다.',
+    lore:'시위를 당겨도 소리가 나지 않는다. 놓아도 마찬가지다.' },
+  { id:'emberpull', n:'화로에서 꺼낸 것', spr:'great', t:'great', dice:[3,6], d:8, hands:2,
+    rule:'잃은 피가 많을수록 무거워진다 — 반쯤 죽었을 때 피해 +60%.',
+    lore:'아직 식지 않았다. 몇 해가 지났는데도.' },
+  { id:'promise',  n:'약속',          spr:'sword',  t:'sword',  dice:[2,7], d:9,  hands:1,
+    rule:'넘치게 때린 만큼이 체력으로 돌아온다.',
+    lore:'누가 누구에게 한 약속인지는 적혀 있지 않다.' },
+  { id:'nailer',   n:'못 박는 자',     spr:'mace',   t:'mace',   dice:[3,5], d:10, hands:1,
+    rule:'맞은 것은 다음 턴에 움직이지 못한다.',
+    lore:'대장장이의 물건이었다. 대장장이는 그것으로 못을 박지 않았다.' },
+  { id:'twicewept', n:'두 번 우는 활', spr:'bow',    t:'bow',    dice:[2,7], d:12, hands:2, rng:8,
+    rule:'한 번 쏠 때마다 두 발이 나간다. 두 번째는 절반. 화살은 하나만 든다.',
+    lore:'첫 번째는 맞은 것을 위해, 두 번째는 쏜 것을 위해 운다고 한다.' },
+  { id:'lastlamp', n:'마지막 등불',    spr:'wand',   t:'wand',   dice:[1,6], d:13, hands:1,
+    manaFlat:8, spellPow:0.25,
+    rule:'체력이 4분의 1 아래면 주문에 마나가 들지 않는다.',
+    lore:'심지가 짧을수록 밝다. 그것이 등불에게 좋은 일은 아니다.' },
+];
+export const uniqueById = id => UNIQUES.find(u => u.id === id);
+export const UNIQUE_ODDS = 0.035;   // share of floor drops, past its depth
+
+/* ── the oddities ─────────────────────────────────────────
+   An enchantment that only wakes in the wrong hands.
+
+   A mage in plate is a mistake, and it should stay a mistake —
+   the mana penalty does not go away. But once in a long while the
+   thing you should not be wearing turns out to have been made for
+   exactly that, and then wearing it anyway is the best decision
+   in the run.
+
+   Every one of these is gated on a *bad* fit being active on the
+   same item, so they cannot be farmed by playing correctly. They
+   are the reward for a mistake you chose to keep. */
+export const ODDITIES = [
+  { id:'runeplate', n:'룬을 새긴 자의 것', needs:'ironTongue',
+    t:'마나는 여전히 줄어든다. 그러나 나오는 주문은 두 배로 나간다.',
+    say:'쇠가 혀를 막는다 — 막힌 것이 안에서 터진다.' },
+  { id:'blindswing', n:'모르고 휘두른 것', needs:'dullRod',
+    t:'막대를 휘두를 때마다 마력 화살이 함께 나간다.',
+    say:'무엇인지 모르고 휘둘렀는데, 그것이 대답했다.' },
+  { id:'quietsteel', n:'소리 없는 강철', needs:'elfInPlate',
+    t:'서 있는 동안에는 보이지 않는다.',
+    say:'너무 무거워서 아무 소리도 나지 않는다.' },
+  { id:'breakhand', n:'부러뜨리는 손',  needs:'orcishAim',
+    t:'명중은 그대로 나쁘다. 맞으면 두 배다.',
+    say:'조준을 포기하자 활이 부러질 듯 휘었다.' },
+];
+export const oddityById = id => ODDITIES.find(o => o.id === id);
+export const ODDITY_ODDS = 0.045;   // share of generated gear carrying one
+
 /* Everything the current hands do to this one thing. One funnel,
    so the item card and gearBonus can never disagree. */
 export function fitsOf(p, it) {
   if (!p || !it) return [];
   return FITS.filter(f => { try { return f.when(p, it); } catch { return false; } });
+}
+
+/* The oddity on this item, and only if the hands holding it are
+   the wrong ones. Written as one reader so the item card, the
+   rules and the log can never disagree about whether it is awake. */
+export function oddityOf(p, it) {
+  if (!it?.odd) return null;
+  const o = oddityById(it.odd);
+  if (!o) return null;
+  return fitsOf(p, it).some(f => f.id === o.needs) ? o : null;
 }
 export const fitRule = (p, rule) =>
   ['weapon', 'body', 'shield'].some(k =>
@@ -1483,6 +1557,10 @@ export const isCursed = item =>
   || SUFFIXES.find(a => a.id === item?.suf)?.curse);
 
 export const affixName = (item) => {
+  /* A named weapon is only ever its name. No plus, no prefix —
+     the whole point of a proper noun is that there is one of it
+     and it is already finished. */
+  if (item.unique) return `《${item.n}》`;
   const pre = item.pre ? PREFIXES.find(a => a.id === item.pre) : null;
   const suf = item.suf ? SUFFIXES.find(a => a.id === item.suf) : null;
   const plus = item.plus ? `+${item.plus} ` : '';

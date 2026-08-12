@@ -2351,6 +2351,13 @@ function affixBlurb(it) {
      be readable from the floor. */
   for (const f of Game.fitsOf(G.player, it).slice().reverse())
     parts.unshift(`${f.good ? '✦' : '✕'} ${f.n} — ${f.t}`);
+  /* An oddity is only ever mentioned when it is awake. Naming a
+     sleeping one would turn "keep the wrong thing and find out"
+     into a checklist. */
+  const odd = Game.oddityOf(G.player, it);
+  if (odd) parts.unshift(`❉ ${odd.n} — ${odd.t}`);
+  // A named weapon leads with its rule; the name is the affix.
+  if (it.unique) parts.unshift(it.rule);
   // Rules first, numbers after: the 은총 and the engravings change
   // what the item does, the affixes only change how much.
   for (const id of [...(it.engrave || [])].reverse())

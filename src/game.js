@@ -19,6 +19,7 @@ import {
   MEMORIES, memoryEarned, SHACKLES, shacklesAt, SHACKLE_STAT, tellsNeeded,
   WEAPON_TYPES, PATTERNS, NAMED,
   FITS, fitsOf, fitRule, UNDEAD,
+  UNIQUES, uniqueById, UNIQUE_ODDS, ODDITIES, oddityById, oddityOf, ODDITY_ODDS,
   RESONANCE, resonanceById, CHAIN_ECHO, CHAIN_DECAY, CHAIN_MAX,
   CHAIN_KEEP, CHAIN_KEEP_RESO, POWDER_MAX, POWDER_BUDGET, BRAMBLE_BITE,
   ECHO_ROOM_HOPS, ECHO_ROOM_TOLL, ECHO_ROOM_KEEP,
@@ -501,7 +502,12 @@ export const critMult = p =>
    the sneak attack above is a real option or a dead letter, and
    it is deliberately wired to armour: plate keeps you alive and
    announces you down the corridor. Pick one. */
-export const stealth = p => (gearBonus(p).noStealth ? 0 : clamp(
+export const stealth = p =>
+  /* 소리 없는 강철: too heavy to make a sound. Standing still in
+     the wrong armour is the only way anyone has ever been
+     invisible in this game. */
+  (oddAwake('quietsteel') && G.player?.stillFor > 0) ? 0.95
+  : (gearBonus(p).noStealth ? 0 : clamp(
   0.10 + statB(p, 'dex') * 0.05
   + (p.race === 'halfling' ? 0.20 : p.race === 'elf' ? 0.10 : p.race === 'halfTroll' ? -0.15 : 0)
   + (p.cls === 'rogue' ? 0.25 : p.cls === 'ranger' ? 0.12 : 0)
@@ -748,7 +754,11 @@ export function equip(slotIdx) {
    The answer to "why is all this gear dropping". A weapon you
    will never wear is no longer litter; it is either coin at the
    merchant or material at the fire, and you cannot have both. */
-export const canSalvage = it => !!it && (it.kind === 'weapon' || it.kind === 'armour');
+/* A named weapon is neither scrap nor a candidate for the anvil.
+   Melting 《약속》 for two dust, or plussing it into an ordinary
+   +7, would make the one-of-a-kind into a resource. */
+export const canSalvage = it =>
+  !!it && !it.unique && (it.kind === 'weapon' || it.kind === 'armour');
 
 export const salvagePreview = it => (canSalvage(it) ? salvageYield(it) : null);
 
@@ -1200,7 +1210,10 @@ export function cast(spellId, echo = false) {
   if (!echo && fitRule(p, 'siphon')) p.mana = Math.min(p.maxmana, p.mana + 1);
   if (!echo) p.casts = (p.casts || 0) + 1;
   if (twice) say(`${sp.name}이(가) 두 번 나간다. 마나는 들지 않았다.`, 'level');
-  const pow = spellPower(p, sp.id);
+  /* 룬을 새긴 자의 것: the plate still chokes the pool. What does
+     get out comes out twice as hard, which is the trade for
+     wearing the thing that was strangling you. */
+  const pow = spellPower(p, sp.id) * (oddAwake('runeplate') ? 2 : 1);
   const aff = SPELL_AFFIXES.find(a => a.id === p.spellAffix?.[sp.id]);
 
   switch (sp.id) {
@@ -1304,6 +1317,10 @@ export const spellPower = (p, id) =>
 export const spellCost = (p, sp) => {
   const a = SPELL_AFFIXES.find(x => x.id === p.spellAffix?.[sp.id]);
   if (hasRelic('paradox')) return 0;
+  // 마지막 등불: the shorter the wick, the brighter. Free while
+  // you are nearly gone — which is exactly when a caster is out
+  // of mana anyway.
+  if (p.equip?.weapon?.unique === 'lastlamp' && p.hp < p.maxhp * 0.25) return 0;
   return Math.max(1, sp.cost - (a?.costCut || 0) + (a?.costUp || 0)
                      - (hasRelic('twin') ? relicVal('twin') : 0));
 };
@@ -1435,6 +1452,7 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     }
   }
   G.tally = 0;                      // 처형인의 셈 starts over each floor
+  G.ashCount = 0;                   // and so does 재를 세는 자
   G.hushUntil = -1;
   if (depth > 0) p.grudge = 0;      // 앙심 forgets between floors
   if (depth > 0) { p.oath = 0; p.chain3 = 0; p.markN = 0; p.chainOn = null; p.markOn = null; }
@@ -1708,15 +1726,43 @@ function pickItem(depth) {
     const pool = CONSUMABLES.filter(c => c.d <= depth + 2);
     return { kind:'use', ...pickByRarity(pool) };
   }
+  /* A named weapon, at most one of each per run. Rolled before
+     the ordinary tables so the deep floors can actually produce
+     one, and never given affixes — the name is the affix. */
+  if (r < 0.71 + UNIQUE_ODDS) {
+    const pool = UNIQUES.filter(u => u.d <= depth && !(G.uniques || {})[u.id]);
+    if (pool.length) {
+      const u = pool[rnd(pool.length)];
+      (G.uniques = G.uniques || {})[u.id] = true;
+      return { kind:'weapon', unique:u.id, ...u };
+    }
+  }
   if (r < 0.71) {
     const it = { kind:'weapon', ...pickOne(inBand(WEAPONS, depth)) };
     rollAffixes(it, depth);
+    rollOddity(it);
     return it;
   }
   const it = { kind:'armour', ...pickOne(inBand(ARMOURS, depth)) };
   rollAffixes(it, depth);
+  rollOddity(it);
   return it;
 }
+
+/* A sleeping enchantment. It is stamped on at generation and does
+   nothing at all until the item ends up in hands it does not
+   suit — so it cannot be farmed by playing correctly, and the
+   only way to meet one is to keep something you should have
+   dropped. */
+function rollOddity(it) {
+  if (Math.random() >= ODDITY_ODDS) return;
+  it.odd = ODDITIES[rnd(ODDITIES.length)].id;
+}
+
+export const hasUnique = id => G.player?.equip?.weapon?.unique === id;
+/* Awake oddities on the whole kit, for the rules to ask about. */
+export const oddAwake = id =>
+  ['weapon', 'body', 'shield'].some(k => oddityOf(G.player, G.player?.equip?.[k])?.id === id);
 
 const pickOne = pool => pool[rnd(pool.length)];
 
@@ -2379,7 +2425,7 @@ function openChest(index, chest) {
    Six rules rather than six damage dice. Everything below reads
    `weaponType(p)` once and branches; nothing else in the file
    needs to know what a spear is. */
-export { fitsOf, fitRule, FITS };
+export { fitsOf, fitRule, FITS, oddityOf, UNIQUES, ODDITIES };
 export const weaponType = p => p.equip.weapon?.t || 'sword';
 export const weaponReach = p => (weaponType(p) === 'spear' ? 2 : 1);
 
@@ -2461,6 +2507,8 @@ function loose(m, scale = 1, opt = {}) {
   const d = p.equip.weapon?.dice || [1, 4];
   let dmg = roll(d[0], d[1]) + statB(p, 'dex') * 2 + Math.floor(p.lv / 3) + g.dmg;
   dmg *= (1 + g.dmgPct) * (a.dmg || 1) * scale;
+  // 부러뜨리는 손: the aim is still bad. What lands, lands twice.
+  if (oddAwake('breakhand')) dmg *= 2;
   // Reach is not free — except where an art has bought it.
   if (!opt.sure) dmg *= Math.max(0.55, 1 - dist * BOW_FALLOFF);
   dmg = Math.max(1, Math.round(dmg));
@@ -2483,7 +2531,12 @@ export function shoot() {
     fx({ t:'struggle', x:p.x, y:p.y }); endTurn(); return;
   }
   spendArrows(1);
-  const landed = loose(m, 1);
+  G.hushShot = true;
+  loose(m, 1);
+  /* 두 번 우는 활: a second arrow at half, out of the same nock.
+     One arrow spent, two in the air. */
+  if (hasUnique('twicewept') && G.monsters.includes(m)) loose(m, 0.5, { quietFx: true });
+  G.hushShot = false;
   recoverArrow();
   endTurn();
 }
@@ -2577,6 +2630,11 @@ function swing(m, scale) {
   // 진노의: the same idea without the downside, which is what
   // makes a 은총 a 은총 and not an affix.
   if (hasBoon('wrath') && (m.elite?.length || m.boss || m.named)) dmg *= 1.35;
+  // 재를 세는 자: one notch per body, and the notches are this
+  // floor's only. The knife counts, not you.
+  if (hasUnique('ashcount')) dmg += (G.ashCount || 0);
+  // 화로에서 꺼낸 것: it wakes up as you run out.
+  if (hasUnique('emberpull')) dmg *= 1 + (1 - p.hp / Math.max(1, p.maxhp)) * 1.2;
   /* 사제의 무게: a mace in the right hands against the things
      that should already be still. Read off the sprite rather than
      a hand-kept list, so a new undead is covered the day it is
@@ -2643,6 +2701,18 @@ function swing(m, scale) {
       dmg += Math.max(1, Math.round(m.maxhp * 0.08));
     if (perfect) fx({ t:'perfect', x:m.x, y:m.y });
     hurtMonster(m, dmg, null, { crit, sneak: asleep, weapon: kind, perfect });
+    // 모르고 휘두른 것: the stick answers.
+    if (oddAwake('blindswing') && G.monsters.includes(m)) {
+      const bolt = Math.max(2, Math.round(4 + p.lv * 0.9));
+      fx({ t:'beam', fx:p.x, fy:p.y, tx:m.x, ty:m.y, color:'P' });
+      hurtMonster(m, bolt, '막대 끝', { weapon:'spell' });
+    }
+    // 못 박는 자: pinned. Negative energy is how this game spends
+    // a monster's turn for it.
+    if (hasUnique('nailer') && G.monsters.includes(m)) {
+      m.energy = Math.min(m.energy, -1);
+      fx({ t:'snared', x:m.x, y:m.y });
+    }
   }
   if (!G.running) return;
 
@@ -2685,6 +2755,7 @@ function onKill(m) {
   // 맹세 spends itself down as he wins — the wall is highest at
   // the moment he is losing, which is when a paladin needs it.
   if (p.cls === 'paladin' && p.oath > 0) p.oath--;
+  if (hasUnique('ashcount')) G.ashCount = (G.ashCount || 0) + 1;
   if ((hasRelic('hunger') || hasRelic('famine')) && p.hp < p.maxhp) {
     const base = hasRelic('famine') ? relicVal('famine') : relicVal('hunger');
     /* 굶주린 무리 multiplies the bite by the streak. Three in a
@@ -2854,6 +2925,17 @@ export function hurtMonster(m, dmg, source, opt = {}) {
        finishing tap on a sliver stays quiet and a hit that erases
        a full-health troll gets the whole fireworks budget. */
     const over = clamp(-m.hp / Math.max(1, before), 0, 3);
+    /* 약속: what spilled past the kill comes back. A weapon that
+       rewards hitting far harder than you needed to, which is the
+       opposite of every efficiency instinct the game teaches. */
+    if (hasUnique('promise') && m.hp < 0) {
+      const back = Math.min(G.player.maxhp - G.player.hp, Math.round(-m.hp));
+      if (back > 0) {
+        G.player.hp += back;
+        fx({ t:'heal', x:G.player.x, y:G.player.y, amt:back });
+        say(`넘친 것이 돌아왔다. 체력 +${back}.`, 'good');
+      }
+    }
     G.monsters.splice(G.monsters.indexOf(m), 1);
     bumpCombo(m.x, m.y);
 
@@ -3047,6 +3129,12 @@ export function ascend() {
 export function endTurn(skipMonsters = false) {
   const p = G.player;
   G.turn++;
+  /* How long you have not moved. Cheap to keep and the only
+     thing 소리 없는 강철 needs — armour that hides you while you
+     hold still has to know when you are holding still. */
+  if (p.x === p._wasX && p.y === p._wasY) p.stillFor = (p.stillFor || 0) + 1;
+  else p.stillFor = 0;
+  p._wasX = p.x; p._wasY = p.y;
 
   if (p.blessed > 0) p.blessed--;
   if (p.might > 0 && --p.might === 0) say('끓던 피가 식는다.');
@@ -3733,9 +3821,11 @@ export function campTargets() {
   const p = G.player, out = [];
   for (const [slot, label] of [['weapon', '무기'], ['body', '갑옷'], ['shield', '방패']]) {
     const it = p.equip[slot];
+    // A named weapon is already what it is: the anvil has nothing
+    // to add and everything to lose.
     if (it) out.push({
       key: `eq:${slot}`, label, name: affixName(it), kind: it.kind, item: it,
-      plus: it.plus || 0, capped: (it.plus || 0) >= MAX_PLUS, cap: MAX_PLUS,
+      plus: it.plus || 0, capped: !!it.unique || (it.plus || 0) >= MAX_PLUS, cap: MAX_PLUS,
     });
   }
   for (const s of spellList(p)) {
@@ -4884,7 +4974,7 @@ export function startGame(raceKey, classKey, base) {
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
   G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.snares = []; G.bank = 0;
-  G.tally = 0; G.hushUntil = -1; G.resoFound = 0; G.forced = {};
+  G.tally = 0; G.hushUntil = -1; G.resoFound = 0; G.forced = {}; G.uniques = {};
   G.pendingAltar = null;
   shuffleAppearances(G.player);
 

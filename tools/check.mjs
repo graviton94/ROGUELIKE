@@ -18,6 +18,8 @@ const ASYMMETRIC = new Set([
   'sword', 'dagger', 'great', 'axe', 'mace', 'spear', 'wand', 'gold',
   'rat', 'lean', 'dog', 'ashhound', 'anvil', 'doorBroken', 'rubble', 'thief',
   'stairsDown', 'stairsUp', 'web', 'water', 'bones', 'camp', 'campSpent',
+  // 무기를 든 것들 — 한쪽에 무기가 붙으므로 좌우가 달라야 정상이다
+  'orc', 'kobold', 'warden', 'emberpriest', 'balemperor', 'lich', 'giant',
 ]);
 
 const keys = new Set(Object.keys(P.PALETTE).concat(['C', 'D', 'X']));

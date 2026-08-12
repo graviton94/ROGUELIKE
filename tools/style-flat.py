@@ -116,3 +116,46 @@ GRIDS['rat'] = [raw(l) for l in [
     '..kkkk.kkkk.....',
     '................',
 ]]
+# 기준: 톤 2~3개 · 검은 외곽선 · 무기를 든다 · 얼굴에 표정이 있다.
+# 납작(1톤)과 과한 램프(4톤) 사이. 하이라이트는 덩어리로만 놓는다.
+GRIDS = {}
+
+# 오크 — 초록 3톤, 가죽 흉갑, 오른손에 검
+GRIDS['orc'] = [raw(l) for l in [
+    '................',
+    '.....kkkkkk.....',
+    '....keeeeeek....',
+    '...keEEEEEEek...',
+    '...kEEFFFFEEk.k.',
+    '...kEkFFFFkEkkSk',
+    '...kEEFFFFEEkSSk',
+    '...kEEwwwwEEkSSk',
+    '...kkEEEEEEkkSk.',
+    '..kNNNNNNNNNNkk.',
+    '..kNMMMMMMMMNk..',
+    '..kNMMMMMMMMNk..',
+    '..kNNNNNNNNNNk..',
+    '...kkEEEEEEkk...',
+    '....kEEk.kEEk...',
+    '....kkk...kkk...',
+]]
+
+# 코볼드 — 뿔 둘, 붉은 눈, 드러난 이빨, 왼손에 단검
+GRIDS['kobold'] = [raw(l) for l in [
+    '................',
+    '..kk........kk..',
+    '..kNk......kNk..',
+    '..kNNk....kNNk..',
+    '..kNNNkkkkNNNk..',
+    '.kNNMMMMMMMMNNk.',
+    '.kNRkMMMMMMkRNk.',
+    '.kNNMMMMMMMMNNk.',
+    '.kNNwwwwwwwwNNk.',
+    '..kkNNNNNNNNkk..',
+    '.kNNNNNNNNNNNNk.',
+    'kSkNMMMMMMMMNk..',
+    'kSkNMMMMMMMMNk..',
+    '.kkNNNNNNNNNNk..',
+    '..kNNk....kNNk..',
+    '..kkkk....kkkk..',
+]]

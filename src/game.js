@@ -235,7 +235,18 @@ export function recalc(p, init) {
     const key = cls.realm === 'arcane' ? 'int' : 'wis';
     const b = statBonus(p.stats[key]);
     // Mana moves on the odd levels only, twice as far each time.
-    p.maxmana = Math.max(0, Math.floor((b + 1) * Math.ceil(p.lv / 2) * 1.7));
+    /* 1.7 made the pool a number that goes up rather than a
+       resource. Measured at that value: a level-15 mage could cast
+       마력 화살 61 times in a row, the pool sat at 97% of maximum
+       across a run and was full on 82% of turns, and in forty runs
+       the caster stood in front of something it could not afford
+       to answer exactly zero times.
+       At 1.2 that last figure is 1.3 times a run — about one
+       casting opportunity in twenty-five — and the reach barely
+       moves (2.9층 → 2.8층). The pool is a budget again, and the
+       three places that refill it in full (a level, a fire, and
+       the 시간 도둑) are worth something. */
+    p.maxmana = Math.max(0, Math.floor((b + 1) * Math.ceil(p.lv / 2) * 1.2));
   } else p.maxmana = 0;
   const g = gearBonus(p);
   p.maxhp = Math.max(8, Math.round(p.maxhp * (1 + g.maxhpPct)) + (p.boneHp || 0) + (p.permHp || 0));
@@ -3648,7 +3659,11 @@ export function endTurn(skipMonsters = false) {
   // and past the line everyone else stops at. That is the class.
   if (p.cls === 'priest' && rested && G.turn % 6 === 0 && p.hp < p.maxhp)
     p.hp = Math.min(p.maxhp, p.hp + Math.max(1, Math.round(regen * healScale())));
-  if (G.turn % 10 === 0 && p.mana < p.maxmana) p.mana = Math.min(p.maxmana, p.mana + 1);
+  /* Every fifteen turns rather than every ten. The trickle is what
+     lets a caster walk a corridor and arrive full; slowing it is
+     what makes 휴식 at a fire mean something to a mage, since that
+     option's whole pitch is "마나 전부". */
+  if (G.turn % 15 === 0 && p.mana < p.maxmana) p.mana = Math.min(p.maxmana, p.mana + 1);
 
   /* 그림자, the third way: time spent with nothing awake looking
      at you. It is deliberately the slow one — the two fast ways

@@ -351,8 +351,19 @@ export const SPELLS = {
   divine: [
     { id:'cure',   name:'경상 치유',   short:'치유', lv:1,  cost:1,  desc:'상처를 닫는다.' },
     { id:'bless',  name:'축복',        short:'축복', lv:3,  cost:2,  desc:'잠시 명중과 방어가 오른다.' },
-    { id:'detect', name:'악 감지',     short:'감지', lv:5,  cost:3,  desc:'층의 모든 몬스터 위치를 읽는다.' },
-    { id:'smite',  name:'응징의 빛',   short:'응징', lv:9,  cost:5,  desc:'시야의 적 하나를 빛으로 태운다.' },
+    /* 응징 and 감지 have swapped rungs. Counted by kind, the divine
+       book was four utilities and one attack, and that attack sat
+       at level nine — which no measured run of any class has ever
+       reached. The arcane book is three attacks starting at one.
+       So the priest was not a class with a weak verb; it was a
+       class with no verb, and it shows in the fight table: it wins
+       40 of 40 against a four-body pack and takes 38 turns doing
+       it, the slowest in the game by a factor of two.
+       Detection moves late instead. It is the one utility that
+       gets *better* deep — a mimic on floor eleven is worth
+       unmasking, one on floor three is worth a dagger. */
+    { id:'smite',  name:'응징의 빛',   short:'응징', lv:5,  cost:5,  desc:'시야의 적 하나를 빛으로 태운다.' },
+    { id:'detect', name:'악 감지',     short:'감지', lv:9,  cost:3,  desc:'층의 모든 몬스터 위치를 읽는다.' },
     { id:'heal',   name:'중상 치유',   short:'회복', lv:13, cost:8,  desc:'깊은 상처까지 되돌린다.' },
   ],
 };

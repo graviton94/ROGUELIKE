@@ -1064,6 +1064,14 @@ export const ATONE_CAP  = 0.55;
    1.7, 1.5 bought nothing over 1.0 (both 1.9). */
 export const KILL_MEND  = 1;
 
+/* 표적. The numbers the trait text has always promised — 9% a
+   stack, five stacks, 45% at the top. They were written inline in
+   one branch of one function, which is how the whole trait came
+   to be true of a bow used as a club and false of a bow used as a
+   bow. */
+export const MARK_STEP = 0.09;
+export const MARK_MAX  = 5;
+
 export const AIMED_GAIN  = 0.09;   // damage per tile, instead of the usual loss
 export const PIERCE_KEEP = 0.85;   // what the arrow carries to the next body
 export const SNARE_TURNS = 2;

@@ -29,7 +29,7 @@ import {
   OATH_BLOW, CALL_PULL, CALL_COST, RING_COST, RING_BASE, RING_STEP,
   ATONE_BASE, ATONE_HEAL, ATONE_CAP, KILL_MEND,
   SHADOW_MAX, SHADOW_TICK, FAN_RANGE, FAN_ARC, FAN_SHARE, VANISH_HUSH, VITALS_MULT,
-  AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, SNARE_STEP, VOLLEY_SHARE,
+  AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, SNARE_STEP, VOLLEY_SHARE, MARK_STEP, MARK_MAX,
   AMMO, ammoById, BOW_MELEE, BOW_FALLOFF, AMMO_BUNDLE,
   FORCE_STAM, FORCE_HURT, FORCE_NOISE, PICK_USES, CHEST_RUIN, RANGER_FOOTING,
   FLURRY_MAX, FLURRY_STEP, FLURRY_STAM, FINISH_MAX,
@@ -2882,9 +2882,13 @@ function loose(m, scale = 1, opt = {}) {
       return false;
     }
   }
+  /* Landed. The mark goes on before the damage is priced, exactly
+     as it does for a swing, so a shot benefits from the stack it
+     just placed. */
+  markTarget(m);
   const d = p.equip.weapon?.dice || [1, 4];
   let dmg = roll(d[0], d[1]) + statB(p, 'dex') * 2 + Math.floor(p.lv / 3) + g.dmg;
-  dmg *= (1 + g.dmgPct) * (a.dmg || 1) * scale;
+  dmg *= (1 + g.dmgPct) * (a.dmg || 1) * scale * markMult();
   // 부러뜨리는 손: the aim is still bad. What lands, lands twice.
   if (oddAwake('breakhand')) dmg *= 2;
   // Reach is not free — except where an art has bought it.
@@ -2943,6 +2947,29 @@ function spendArrows(n) {
   return n;
 }
 
+/* ── 표적 (레인저) ────────────────────────────────────────
+   One funnel, called by every landed blow whichever hand threw
+   it. It used to be two inline fragments inside swing(): the
+   stack counter in one branch and the damage multiplier eighty
+   lines below it. loose() — the arrow path, which is the entire
+   class — touched neither.
+
+   So the one class whose whole design is the bow built its trait
+   only by clubbing things with the bow, and measured, a level-12
+   ranger shooting a single target held 표적 0.00 out of 5 for the
+   whole fight. The gauge in the HUD sat at zero forever and the
+   45% the tooltip promises did not exist. */
+function markTarget(m) {
+  const p = G.player;
+  if (p.cls !== 'ranger') return;
+  p.markN = p.markOn === m ? Math.min(MARK_MAX, (p.markN || 0) + 1) : 0;
+  p.markOn = m;
+}
+const markMult = () => {
+  const p = G.player;
+  return (p?.cls === 'ranger' && p.markN) ? 1 + p.markN * MARK_STEP : 1;
+};
+
 /* `opt` carries the handful of things an art needs the blow to do
    differently — today only 급소's disregard for armour. It goes
    through here rather than an art rolling its own damage, so
@@ -2994,10 +3021,7 @@ function swing(m, scale, opt = {}) {
   }
   /* 표적 (레인저). The opposite instruction: stay on one thing
      and it gets worse for it, 9% at a time. */
-  if (p.cls === 'ranger') {
-    p.markN = p.markOn === m ? Math.min(5, (p.markN || 0) + 1) : 0;
-    p.markOn = m;
-  }
+  markTarget(m);
 
   const w = p.equip.weapon;
   const dice = w ? w.dice : [1, 3];
@@ -3028,7 +3052,7 @@ function swing(m, scale, opt = {}) {
   // 사냥의 각인: only the blow that opens the wound.
   if (g.firstStrike && m.hp >= m.maxhp) dmg *= 1 + g.firstStrike;
 
-  if (p.cls === 'ranger' && p.markN) dmg *= 1 + p.markN * 0.09;
+  dmg *= markMult();
 
   /* The two traits that decide a crit outright, rather than
      nudging the roll. Both are earned by a rule the player can

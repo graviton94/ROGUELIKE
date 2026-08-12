@@ -293,7 +293,7 @@ export const TRAITS = {
 export const CLASSES = {
   warrior: { name:'전사',     mod:{ str:+3, con:+2, int:-2, wis:-2 }, hd:9, bth:5.0, realm:null,     note:'주문 없이, 오직 무기로.' },
   mage:    { name:'마법사',   mod:{ int:+3, str:-2, con:-2 },         hd:0, bth:2.0, realm:'arcane', note:'지능이 곧 힘. 맞으면 죽는다.' },
-  priest:  { name:'사제',     mod:{ wis:+3, str:-1, dex:-1 },         hd:2, bth:3.0, realm:'divine', note:'스스로를 고치며 나아간다.' },
+  priest:  { name:'사제',     mod:{ wis:+3, str:-1, dex:-1 },         hd:3, bth:3.4, realm:'divine', note:'맞을수록 강해진다. 신앙은 편할 때 차지 않는다.' },
   rogue:   { name:'도적',     mod:{ dex:+3, int:+1, str:-1, wis:-2 }, hd:6, bth:4.0, realm:'arcane', note:'먼저 치고, 잘 피한다.' },
   /* No realm. Casting the mage's book with the mage's stat minus
      two was the whole reason this class read as an in-between —
@@ -891,6 +891,20 @@ export const ARTS = {
      them is a different answer to distance. Where the warrior's
      four ask "what is next to me", these four ask "where is
      everything standing". */
+  /* 사제. Spent from 신앙 rather than mana or breath, so the
+     priest's four are the only things in the game that get easier
+     the worse the fight is going. */
+  priest: [
+    { id:'sanctum',  name:'성역',   short:'성역', lv:1,  faith:3,
+      desc:'선 자리를 축성한다. 그 안에서는 받는 피해가 절반 아래로 떨어지고, 죽지 않는 것은 붙지 못한다.' },
+    { id:'anathema', name:'파문',   short:'파문', lv:4,  faith:4,
+      desc:'하나를 지목한다. 그것은 더는 아물지 않고, 모두에게 더 아프다.' },
+    { id:'judge',    name:'심판',   short:'심판', lv:8,  faith:6,
+      desc:'보이는 죽지 않는 것 전부가 크게 다치고 달아난다.' },
+    { id:'martyr',   name:'순교',   short:'순교', lv:12, faith:9,
+      desc:'다섯 턴 동안 쓰러지지 않는다. 끝나면 피한 것이 한꺼번에 온다.' },
+  ],
+
   ranger: [
     { id:'aimed',   name:'조준 사격', short:'조준', lv:1,  stam:2, ammo:1,
       desc:'빗나가지 않는다. 그리고 멀수록 아프다 — 활의 감쇠가 뒤집힌다.' },
@@ -902,6 +916,29 @@ export const ARTS = {
       desc:'보이는 모든 것에게 한 발씩. 각각은 절반만 아프다.' },
   ],
 };
+
+/* ── the priest ───────────────────────────────────────────
+   Four of its five spells did not hurt anything, its one attack
+   arrived at level nine, and its trait was more healing. The
+   whole class was "do not die", which in a game with no other
+   people in it is the definition of doing nothing — you lose
+   more slowly. It measured fifth of six.
+
+   The fix is not another heal. It is a resource that runs the
+   other way from everyone else's: 신앙 fills when you are hit and
+   when you put down something that should already be still. A
+   mage is strongest with a full pool, which is at the start of a
+   fight; a priest is strongest at the end of a bad one. That
+   inversion is the class, and none of the four arts below is a
+   heal. */
+export const FAITH_MAX     = 12;
+export const FAITH_PER_HURT = 1;    // per blow taken, not per point
+export const FAITH_PER_UNDEAD = 2;
+export const SANCTUM_TURNS = 6;
+export const SANCTUM_CUT   = 0.55;  // damage taken inside, reduced by this share
+export const ANATHEMA_MORE = 0.35;  // what a marked thing takes on top
+export const JUDGE_HURT    = 0.42;  // share of an undead's maximum, in one word
+export const MARTYR_TURNS  = 5;
 
 export const AIMED_GAIN  = 0.09;   // damage per tile, instead of the usual loss
 export const PIERCE_KEEP = 0.85;   // what the arrow carries to the next body

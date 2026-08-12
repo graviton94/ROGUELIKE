@@ -28,6 +28,8 @@ import {
   AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE,
   AMMO, ammoById, BOW_MELEE, BOW_FALLOFF, AMMO_BUNDLE,
   FORCE_STAM, FORCE_HURT, FORCE_NOISE, PICK_USES, CHEST_RUIN, RANGER_FOOTING,
+  FAITH_MAX, FAITH_PER_HURT, FAITH_PER_UNDEAD, SANCTUM_TURNS, SANCTUM_CUT,
+  ANATHEMA_MORE, JUDGE_HURT, MARTYR_TURNS,
   BRACE_TURNS, BRACE_CUT, BRACE_THORNS, FINISH_MAX,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
@@ -541,6 +543,19 @@ function bumpCombo(x, y) {
 /* 앙심 counts the hits you have taken on this floor. Every path
    that costs you health goes through here, so a relic that pays
    for being hit can never disagree with what "being hit" means. */
+/* 신앙. It fills where a mage's pool empties — one point per blow
+   landed on you, and two for every undead put back down. There is
+   no way to build it standing safely in a corridor, which is the
+   whole design: the priest's buttons light up during the fight it
+   is losing, not before it starts. */
+export function faithGain(n) {
+  const p = G.player;
+  if (p?.cls !== 'priest') return;
+  const was = p.faith || 0;
+  p.faith = Math.min(FAITH_MAX, was + n);
+  if (was < FAITH_MAX && p.faith === FAITH_MAX) say('신앙이 가득 찼다.', 'level');
+}
+
 function tookHit() {
   const p = G.player;
   /* You cannot catch your breath while something is hitting you.
@@ -626,7 +641,9 @@ export function traitState() {
     case 'paladin': return { ...spec, at: p.oath || 0, ready: (p.oath || 0) >= 8,
                              note: p.oath ? `방어 +${p.oath}` : '' };
     case 'rogue':   return { ...spec, at: p.shadow ? 1 : 0, max: 1, ready: !!p.shadow };
-    case 'priest':  return { ...spec, at: 0, max: 0, ready: p.hp < p.maxhp * 0.5 };
+    case 'priest':  return { ...spec, at: p.faith || 0, max: FAITH_MAX,
+                             ready: (p.faith || 0) >= 3,
+                             note: p.faith ? `신앙 ${p.faith}` : '' };
   }
   return spec;
 }
@@ -676,9 +693,11 @@ export function spellSlots() {
     const noTarget = ART_NEEDS_BODY.includes(a.id) && !near;
     return {
       id: a.id, name: a.name, short: a.short || a.name.slice(0, 2),
-      lv: a.lv, cost: a.stam, art: true, locked, silent: false, noTarget,
+      lv: a.lv, cost: a.faith || a.stam, art: true, faith: !!a.faith,
+      locked, silent: false, noTarget,
       plus: 0, affix: null,
-      ready: !locked && !noTarget && p.stam >= a.stam,
+      ready: !locked && !noTarget
+             && (a.faith ? (p.faith || 0) >= a.faith : p.stam >= a.stam),
     };
   });
   if (!realm) return arts;
@@ -986,7 +1005,7 @@ export function useArt(id) {
   }
   // These two are mis-taps rather than lost turns, so they cost
   // nothing — the same way a spell with no mana costs nothing.
-  if (p.stam < a.stam) { say('숨이 차다.', 'warn'); return; }
+  if (a.stam && p.stam < a.stam) { say('숨이 차다.', 'warn'); return; }
 
   const near = adjacentMonsters(p);
   if (ART_NEEDS_BODY.includes(id) && !near.length) {
@@ -999,7 +1018,9 @@ export function useArt(id) {
   // An art that flies costs arrows on top of breath, and refuses
   // rather than half-firing when the quiver cannot cover it.
   if (a.ammo && (quiver()?.qty || 0) < a.ammo) { say('화살이 모자란다.', 'warn'); return; }
-  p.stam -= a.stam;
+  if (a.faith && (p.faith || 0) < a.faith) { say('신앙이 모자란다.', 'warn'); return; }
+  p.stam -= a.stam || 0;
+  if (a.faith) p.faith -= a.faith;
   if (a.ammo) spendArrows(a.ammo);
 
   switch (id) {
@@ -1073,6 +1094,52 @@ export function useArt(id) {
       break;
     }
 
+    /* ── the priest's four ─────────────────────────────
+       None of them is a heal. Three answer things the game
+       already had no answer to — a room you cannot leave, a thing
+       that keeps aning, a floor full of the undead — and the
+       fourth is a bet rather than a cure. */
+    case 'sanctum': {
+      G.sanctum = { x:p.x, y:p.y, left: SANCTUM_TURNS };
+      fx({ t:'sanctum', x:p.x, y:p.y, turns:SANCTUM_TURNS });
+      say('발밑의 돌이 밝아진다. 여기서는 물러서지 않는다.', 'good');
+      break;
+    }
+    case 'anathema': {
+      /* The answer to everything that keeps closing its own
+         wounds — the troll, the vampire, 잿물 먹는 것. There was
+         no way to switch that off before. */
+      const near2 = G.monsters.filter(o => !o.disguise && G.level.vis[idx(o.x, o.y)]);
+      if (!near2.length) { say('지목할 것이 없다.', 'warn'); break; }
+      const m2 = near2.sort((x, y) => (y.maxhp || 0) - (x.maxhp || 0))[0];
+      m2.cursed = true; m2.awake = true;
+      fx({ t:'anathema', x:m2.x, y:m2.y });
+      say(`${m2.n}을(를) 파문했다. 더는 아물지 않는다.`, 'level');
+      break;
+    }
+    case 'judge': {
+      const dead = G.monsters.filter(o => !o.disguise && UNDEAD.includes(o.spr)
+                                       && G.level.vis[idx(o.x, o.y)]);
+      if (!dead.length) { say('심판할 것이 없다.', 'warn'); break; }
+      fx({ t:'judge', x:p.x, y:p.y, n:dead.length });
+      say(`${dead.length}에게 이름을 되돌려주었다.`, 'level');
+      for (const o of [...dead]) {
+        if (!G.monsters.includes(o)) continue;
+        hurtMonster(o, Math.max(3, Math.round((o.maxhp || 10) * JUDGE_HURT)), '심판', { pierce:true });
+        if (G.monsters.includes(o)) { o.fleeing = true; o.awake = true; }
+      }
+      break;
+    }
+    case 'martyr': {
+      /* Not a heal — a debt. Everything turned aside arrives at
+         once when it ends, so the five turns have to be spent
+         finishing the fight rather than surviving it. */
+      p.martyr = MARTYR_TURNS; p.martyrDebt = 0;
+      fx({ t:'martyr', x:p.x, y:p.y, turns:MARTYR_TURNS });
+      say('무릎을 꿇지 않기로 했다. 다섯 턴 동안은.', 'level');
+      break;
+    }
+
     /* ── the ranger's four ─────────────────────────────
        Every one is about the gap. The warrior's arts ask what is
        next to you; these ask where everything is standing. */
@@ -1141,6 +1208,17 @@ export function useArt(id) {
     }
   }
   if (G.running) endTurn();
+}
+
+/* 성역. Only while you are standing in it — the moment you step
+   off the consecrated tile it is just a bright stone. That is what
+   makes it zone control rather than a buff: the priest has to
+   decide to hold a place, and the room has to be worth holding. */
+function sanctumSoak(dmg) {
+  const p = G.player, s2 = G.sanctum;
+  if (!s2 || s2.left <= 0 || p.x !== s2.x || p.y !== s2.y) return dmg;
+  fx({ t:'sanctumHit', x:p.x, y:p.y });
+  return Math.max(1, Math.round(dmg * (1 - SANCTUM_CUT)));
 }
 
 /* 버티기, in one place because two paths land blows on the player
@@ -1344,7 +1422,7 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   G.items = [];
   G.floorTurn = 0;
   G.waves = 0;
-  G.hazards = []; G.snares = [];
+  G.hazards = []; G.snares = []; G.sanctum = null;
   G.campUses = 1 + (hasRelic('ember') ? 1 : 0);
   G.tideUsed = false;
 
@@ -2756,6 +2834,7 @@ function onKill(m) {
   // the moment he is losing, which is when a paladin needs it.
   if (p.cls === 'paladin' && p.oath > 0) p.oath--;
   if (hasUnique('ashcount')) G.ashCount = (G.ashCount || 0) + 1;
+  if (UNDEAD.includes(m.spr)) faithGain(FAITH_PER_UNDEAD);
   if ((hasRelic('hunger') || hasRelic('famine')) && p.hp < p.maxhp) {
     const base = hasRelic('famine') ? relicVal('famine') : relicVal('hunger');
     /* 굶주린 무리 multiplies the bite by the streak. Three in a
@@ -2898,6 +2977,8 @@ function enterPhase(m) {
 }
 
 export function hurtMonster(m, dmg, source, opt = {}) {
+  // 파문: a named thing stays named until it is down.
+  if (m.cursed) dmg = Math.round(dmg * (1 + ANATHEMA_MORE));
   m.awake = true;
   /* You started it. From here it follows.
 
@@ -3140,6 +3221,17 @@ export function endTurn(skipMonsters = false) {
   if (p.might > 0 && --p.might === 0) say('끓던 피가 식는다.');
   if (p.iron > 0 && --p.iron === 0) say('굳었던 살갗이 풀린다.');
   if (p.brace > 0 && --p.brace === 0) say('어깨를 폈다.');
+  if (G.sanctum && --G.sanctum.left <= 0) { G.sanctum = null; say('빛이 스러졌다.'); }
+  if (p.martyr > 0 && --p.martyr === 0) {
+    const owed = Math.round(p.martyrDebt || 0);
+    p.martyrDebt = 0;
+    if (owed > 0) {
+      say(`빚이 한꺼번에 왔다. (−${owed})`, 'bad');
+      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg:owed, who:'순교', severe:true });
+      p.hp -= owed;
+      if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'스스로 진 빚' }); return; }
+    } else say('일어섰다. 빚은 없었다.', 'good');
+  }
   if (G.detectPulse > 0) G.detectPulse--;
 
   if (G.comboT > 0 && --G.comboT === 0) breakCombo(true);
@@ -3358,7 +3450,8 @@ function monsterTurn(m) {
     hurtMonster(m, tick, '독', { quiet: true });
     if (!G.monsters.includes(m)) return;
   }
-  if (m.regen && m.hp < m.maxhp) m.hp = Math.min(m.maxhp, m.hp + m.regen);
+  // 파문: nothing mends. Regen, drain and the troll's whole idea.
+  if (m.regen && !m.cursed && m.hp < m.maxhp) m.hp = Math.min(m.maxhp, m.hp + m.regen);
 
   if (!m.awake) {
     if (!L.vis[idx(m.x, m.y)] || dist2 > 110) return;
@@ -3486,12 +3579,13 @@ function monsterMelee(m) {
     (roll(2, Math.max(3, Math.floor(m.atk * 0.72))) - Math.floor(ac / 5))
     * (heavy ? 2.5 : 1) * (1 + (p.perm?.takeMore || 0))) - gearBonus(p).flatDR);
   dmg = braceSoak(m, dmg, true);
+  dmg = sanctumSoak(dmg);
   p.hp -= Math.max(1, dmg);
-  breakCombo(false); tookHit();
+  breakCombo(false); tookHit(); faithGain(FAITH_PER_HURT);
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        who:m.n, spr:m.spr, severe: dmg >= p.maxhp * 0.18 });
   say(`${heavy ? '당겼던 것이 떨어졌다. ' : ''}${takenLine(m.n, dmg, p.maxhp, nextLine())} (${dmg})`, 'hit');
-  if (m.drain) {                       // 흡혈하는: it heals off you
+  if (m.drain && !m.cursed) {          // 흡혈하는: it heals off you
     const back = Math.max(1, Math.round(dmg * m.drain));
     m.hp = Math.min(m.maxhp, m.hp + back);
   }
@@ -3557,10 +3651,10 @@ function monsterShoot(m) {
     fx({ t:'miss', x:p.x, y:p.y });
     return;
   }
-  const dmg = braceSoak(m, Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.6)))
-    - Math.floor(ac / 6) - gearBonus(p).flatDR), false);
+  const dmg = sanctumSoak(braceSoak(m, Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.6)))
+    - Math.floor(ac / 6) - gearBonus(p).flatDR), false));
   p.hp -= dmg;
-  breakCombo(false); tookHit();
+  breakCombo(false); tookHit(); faithGain(FAITH_PER_HURT);
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        who:m.n, spr:m.spr, arrow:true, severe: dmg >= p.maxhp * 0.18 });
   say(`멀리서 날아왔다. ${takenLine(m.n, dmg, p.maxhp, nextLine())} (${dmg})`, 'hit');
@@ -3573,6 +3667,14 @@ function monsterShoot(m) {
    shut door: most things are simply stopped by one. */
 function advance(m, sx, sy) {
   const p = G.player, L = G.level;
+  /* 성역: the things that should already be still cannot come to
+     the stone. Everything else can — it is a ward, not a wall. */
+  const s2 = G.sanctum;
+  if (s2 && s2.left > 0 && UNDEAD.includes(m.spr)
+      && Math.max(Math.abs(s2.x - m.x), Math.abs(s2.y - m.y)) <= 1) {
+    const away = Math.hypot(m.x - s2.x, m.y - s2.y);
+    if (away <= 1.5) { m.energy = Math.min(m.energy, 0); return; }
+  }
 
   const go = (a, b) => {
     if (!a && !b) return false;
@@ -4905,6 +5007,19 @@ function death(killer) {
      that can reduce you to zero, so it cannot be missed at one of
      them. Once per floor, and the floor has to end before it comes
      back — otherwise it is not a rescue, it is a second health bar. */
+  /* 순교. Not a rescue and not a heal — a debt. Everything turned
+     aside is written down, and it all arrives the moment the five
+     turns end. The only way to win the bet is to finish the fight
+     inside it. Checked here for the same reason 역류의 is: eleven
+     things can bring you to zero and none of them should have to
+     know about this. */
+  if (p.martyr > 0) {
+    p.martyrDebt = (p.martyrDebt || 0) + (1 - p.hp);
+    p.hp = 1;
+    fx({ t:'martyrHold', x:p.x, y:p.y });
+    say('무릎이 꺾이지 않는다. 아직은.', 'warn');
+    return;
+  }
   if (hasBoon('tide') && !G.tideUsed) {
     G.tideUsed = true;
     p.hp = Math.max(1, Math.floor(p.maxhp * 0.5));
@@ -4973,7 +5088,7 @@ export function startGame(raceKey, classKey, base) {
   G.engraved = 0; G.memories = []; G.relicShelf = null;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
-  G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.snares = []; G.bank = 0;
+  G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.snares = []; G.sanctum = null; G.bank = 0;
   G.tally = 0; G.hushUntil = -1; G.resoFound = 0; G.forced = {}; G.uniques = {};
   G.pendingAltar = null;
   shuffleAppearances(G.player);

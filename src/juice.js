@@ -85,8 +85,8 @@ function number(x, y, text, color, size, drift) {
   });
 }
 
-function ring(x, y, maxr, color, life) {
-  rings.push({ x: x + 0.5, y: y + 0.5, maxr, color, life: life || 380, age: 0 });
+function ring(x, y, maxr, color, life, shrink) {
+  rings.push({ x: x + 0.5, y: y + 0.5, maxr, color, life: life || 380, age: 0, shrink });
 }
 
 const buzz = ms => { try { navigator.vibrate?.(ms); } catch { /* not supported */ } };
@@ -635,6 +635,56 @@ export function pump(queue, player) {
 
       // Each blow the stance turns away: a short spark back down
       // the line it came from. Quiet on purpose — it happens a lot.
+      /* ── the priest's four ─────────────────────────────
+         The mage throws things; the priest marks them. Three of
+         these are lines drawn on something rather than objects
+         travelling through the air. */
+      case 'sanctum':
+        ring(e.x, e.y, 1.6, PALETTE.W, 700);
+        ring(e.x, e.y, 1.0, PALETTE.y, 820);
+        number(e.x, e.y - 0.6, '성역', PALETTE.W, 1.15);
+        buzz([20, 40, 20]);
+        sfx.heal();
+        break;
+      case 'sanctumHit':
+        ring(e.x, e.y, 0.85, PALETTE.W, 220);
+        break;
+      case 'anathema':
+        ring(e.x, e.y, 2.0, PALETTE.p, 520, true);
+        burstShards(e.x, e.y, [PALETTE.p, PALETTE.P], 14, 1.2);
+        number(e.x, e.y - 0.7, '파문', PALETTE.P, 1.2);
+        shake = Math.max(shake, 0.3);
+        buzz([30, 20, 40]);
+        sfx.warn();
+        break;
+      case 'judge': {
+        for (let i = 0; i < 14 && shards.length < MAX_SHARDS; i++) {
+          const a2 = (i / 14) * Math.PI * 2;
+          shards.push({ x: e.x + 0.5, y: e.y + 0.5,
+                        vx: Math.cos(a2) * 6.5, vy: Math.sin(a2) * 6.5,
+                        life: 380, age: 0, size: 2, color: PALETTE.y });
+        }
+        ring(e.x, e.y, 7, PALETTE.y, 620);
+        flashScreen = Math.max(flashScreen, 0.4); flashHue = 'y';
+        freeze = Math.max(freeze, 90);
+        shake = Math.max(shake, 0.6);
+        buzz([60, 40, 80]);
+        sfx.levelup();
+        break;
+      }
+      case 'martyr':
+        ring(e.x, e.y, 1.4, PALETTE.R, 640);
+        number(e.x, e.y - 0.7, '순교', PALETTE.R, 1.25);
+        flashScreen = Math.max(flashScreen, 0.25); flashHue = 'r';
+        buzz([80, 40, 80]);
+        sfx.warn();
+        break;
+      case 'martyrHold':
+        ring(e.x, e.y, 1.1, PALETTE.R, 260);
+        number(e.x, e.y - 0.5, '버틴다', PALETTE.R, 1.05);
+        shake = Math.max(shake, 0.4);
+        break;
+
       /* ── the ranger's four ─────────────────────────────
          The warrior's arts happen at arm's length and are drawn
          at the hero. These happen across the room and are drawn

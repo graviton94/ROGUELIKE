@@ -15,7 +15,7 @@ import {
   BOSS, tellsOf, tellsNeeded, CONSUMABLES, RESONANCE,
   REGIONS, regionOf, MEMORIES, memoryEarned, SHACKLES, MAX_SHACKLE, josa,
   UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS, FUSE_ODDS, FUSE_COST,
-  xpToLevel, statBonus,
+  xpToLevel, statBonus, FAITH_MAX,
 } from './data.js';
 import { EVENTS } from './events.js';
 
@@ -736,7 +736,42 @@ function rain(c, x, y, r) {
   }
 }
 
+/* 사제의 넷. 셋은 원이 아니라 표시다 — 땅에 그은 것, 이름 위에
+   그은 것, 방 전체에 그은 것. 마법사의 도형과 닮으면 안 된다. */
+function slab(c, x, y, r) {                 // 성역
+  c.moveTo(x - r, y + r * 0.2); c.lineTo(x, y - r * 0.55);
+  c.lineTo(x + r, y + r * 0.2); c.lineTo(x, y + r * 0.95); c.closePath();
+  c.moveTo(x - r * 0.42, y + r * 0.2); c.lineTo(x, y - r * 0.12);
+  c.lineTo(x + r * 0.42, y + r * 0.2); c.lineTo(x, y + r * 0.52); c.closePath();
+}
+function strikeOut(c, x, y, r) {            // 파문
+  c.moveTo(x + r * 0.72, y - r); c.arc(x, y, r, -Math.PI / 4, Math.PI * 7 / 4, false);
+  const w = r * 0.19;
+  c.moveTo(x - r * 1.1 - w, y - w); c.lineTo(x + r * 1.1, y - r * 1.1 - w);
+  c.lineTo(x + r * 1.1 + w, y - r * 1.1 + w); c.lineTo(x - r * 1.1 + w, y + w); c.closePath();
+}
+function rays(c, x, y, r) {                 // 심판
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2, w = 0.12;
+    c.moveTo(x + Math.cos(a - w) * r * 0.3, y + Math.sin(a - w) * r * 0.3);
+    c.lineTo(x + Math.cos(a) * r * 1.15,    y + Math.sin(a) * r * 1.15);
+    c.lineTo(x + Math.cos(a + w) * r * 0.3, y + Math.sin(a + w) * r * 0.3);
+    c.closePath();
+  }
+  c.moveTo(x + r * 0.34, y); c.arc(x, y, r * 0.34, 0, Math.PI * 2, false);
+}
+function kneel(c, x, y, r) {                // 순교
+  c.moveTo(x - r * 0.16, y - r); c.lineTo(x + r * 0.16, y - r);
+  c.lineTo(x + r * 0.16, y + r * 0.28); c.lineTo(x + r, y + r * 0.28);
+  c.lineTo(x + r, y + r * 0.6); c.lineTo(x - r, y + r * 0.6);
+  c.lineTo(x - r, y + r * 0.28); c.lineTo(x - r * 0.16, y + r * 0.28); c.closePath();
+}
+
 const SPELL_ICONS = {
+  sanctum:  [slab,                                    'W'],
+  anathema: [strikeOut,                               'p'],
+  judge:    [rays,                                    'y'],
+  martyr:   [kneel,                                   'R'],
   aimed:    [(c, x, y, r) => crosshair(c, x, y, r),   'E'],
   pierce:   [(c, x, y, r) => throughLine(c, x, y, r), 'B'],
   snare:    [(c, x, y, r) => jaws(c, x, y, r),        'n'],
@@ -1168,7 +1203,7 @@ function renderSpellRow() {
       b.title = s.silent ? `${s.name} — 침묵의 서약으로 봉인됨`
               : s.noTarget ? (s.art ? `${s.name} — 손이 닿는 곳에 아무것도 없다`
                                     : `${s.name} — 시야에 적이 없다`)
-              : `${s.name} · ${s.cost}${s.art ? '기력' : 'mp'}`;
+              : `${s.name} · ${s.cost}${s.art ? (s.faith ? '신앙' : '기력') : 'mp'}`;
     }
     /* An art spends breath, not mana, and the row has to say so
        without a word — the cost pip carries the stamina colour. */
@@ -2253,11 +2288,14 @@ function renderSpells() {
   /* A class with arts reads its breath here, not its mana — the
      header has to name the resource the buttons below spend, and
      a warrior's page is not called 주문. */
-  $('spell-title').textContent = arts.length ? (spells.length ? '무술과 주문' : '무술') : '주문';
+  $('spell-title').textContent = !arts.length ? '주문'
+    : arts.some(a => a.faith) ? (spells.length ? '기도와 주문' : '기도')
+    : (spells.length ? '무술과 주문' : '무술');
   $('spell-chip').firstChild.textContent = arts.length ? '' : '✦ ';
-  $('spell-mana').textContent = arts.length
-    ? `기력 ${p.stam}/${p.maxStam}` + (p.maxmana ? ` · ✦ ${p.mana}/${p.maxmana}` : '')
-    : `${p.mana}/${p.maxmana}`;
+  const usesFaith = arts.some(a => a.faith);
+  $('spell-mana').textContent = !arts.length ? `${p.mana}/${p.maxmana}`
+    : (usesFaith ? `신앙 ${p.faith || 0}/${FAITH_MAX}` : `기력 ${p.stam}/${p.maxStam}`)
+      + (p.maxmana ? ` · ✦ ${p.mana}/${p.maxmana}` : '');
   for (const a of arts) {
     const row = el('button', 'itemrow artrow' + (p.stam < a.stam ? ' poor' : ''));
     const mid = el('div', 'imid');
@@ -2266,7 +2304,7 @@ function renderSpells() {
     mid.appendChild(nm);
     mid.appendChild(el('span', 'idesc', a.desc));
     row.appendChild(mid);
-    row.appendChild(el('span', 'iact', `${a.stam}기력`));
+    row.appendChild(el('span', 'iact', a.faith ? `${a.faith}신앙` : `${a.stam}기력`));
     row.onclick = () => { Game.cast(a.id); setScreen('play'); refresh(); };
     list.appendChild(row);
   }

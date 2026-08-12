@@ -22,8 +22,9 @@ Settings → Pages → Source `main` / `/ (root)`. 폰 브라우저에서 열고
 
 ```
 index.html      화면 8개의 마크업 (타이틀·생성·플레이·배낭·상점·주문·도움말·결말)
-styles.css      16색 팔레트 기반 UI
+styles.css      콘솔 팔레트 기반 UI — 진짜 검정, 8단계 DAC 원색, 스캔라인
 src/pixels.js   팔레트, 스프라이트 격자 37종, 절차적 벽/바닥 생성기
+preview.html    스프라이트 시트 프리뷰 (팔레트/도트 작업용, 게임과 무관)
 src/data.js     종족·직업·주문·몬스터·아이템·상점·상태이상·함정 테이블
 src/world.js    마을/던전 생성, 특수 타일, 그림자 캐스팅 시야
 src/game.js     상태, 턴, 전투, 인벤토리, 상점, 주문

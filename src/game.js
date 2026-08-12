@@ -254,7 +254,19 @@ export function recalc(p, init) {
        row, and the pool sat at 97% of maximum across a run. At 1.2
        the caster runs dry about one casting opportunity in
        twenty-five and the reach barely moves. */
-    p.maxmana = Math.max(0, Math.floor((b + 1) * Math.ceil(p.lv / 2) * 1.2));
+    /* 1.7, restored. It was cut to 1.2 on a measurement that does
+       not hold: "in forty runs the caster never stood in front of
+       something it could not afford" was true, but it was counted
+       against 마력 화살, which costs one at every level — the pool
+       has never gated *that* spell and never will. What the pool
+       actually gates is 서리 폭발 and 중상 치유, and the probe never
+       asked about those.
+       Re-measured on a bot that reaches floor eight rather than
+       floor three: the cut cost the mage a full floor (7.8 → 6.8)
+       and three levels, with the dry-turn count still zero at both
+       settings. A change that buys nothing measurable and costs a
+       floor is a change that was measuring its own instrument. */
+    p.maxmana = Math.max(0, Math.floor((b + 1) * Math.ceil(p.lv / 2) * 1.7));
   } else p.maxmana = 0;
   const g = gearBonus(p);
   p.maxhp = Math.max(8, Math.round(p.maxhp * (1 + g.maxhpPct)) + (p.boneHp || 0) + (p.permHp || 0));
@@ -3764,12 +3776,7 @@ export function endTurn(skipMonsters = false) {
   // and past the line everyone else stops at. That is the class.
   if (p.cls === 'priest' && rested && G.turn % 6 === 0 && p.hp < p.maxhp)
     p.hp = Math.min(p.maxhp, p.hp + Math.max(1, Math.round(regen * healScale())));
-  /* Every fifteen turns rather than ten. The trickle is what let a
-     caster walk a corridor and arrive full, and it made 휴식 at a
-     fire worth nothing to a mage — that option's pitch is "마나
-     전부". Measured at ten: in forty runs the caster stood in
-     front of something it could not afford to answer zero times. */
-  if (G.turn % 15 === 0 && p.mana < p.maxmana) p.mana = Math.min(p.maxmana, p.mana + 1);
+  if (G.turn % 10 === 0 && p.mana < p.maxmana) p.mana = Math.min(p.maxmana, p.mana + 1);
 
   /* 그림자, the slow way: time spent with nothing awake looking at
      you. The two fast ways (an ambush, a roll) are things you do;

@@ -8,7 +8,7 @@ const { runBot, ARTUSE } = await import('./_botlib.mjs');
 Meta.forget();
 
 const N = Number(process.argv[2] || 12);
-for (const cls of ['warrior','ranger','priest']) {
+for (const cls of ['warrior','ranger','priest','paladin','rogue','mage']) {
   for (const k of Object.keys(ARTUSE)) delete ARTUSE[k];
   let depth = 0;
   for (let i = 0; i < N; i++) { const r = runBot('human', cls, i % 2 === 0); depth += r.depth; }

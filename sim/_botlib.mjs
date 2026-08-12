@@ -1,10 +1,17 @@
 import * as Game from '../src/game.js';
+const Meta = await import('../src/meta.js');
 import { G } from '../src/game.js';
 import { idx, MW, MH, DOWN, CAMP, ANVIL, PROP, walkable } from '../src/world.js';
 import { ENCHANT_COST } from '../src/data.js';
 import * as BOWDATA from '../src/data.js';
 export const ARTUSE = {};
+/* 시전 기회 대비 「눈앞에 있는데 살 수 있는 주문이 없던」 턴. 자원이
+   자원인지 묻는 유일한 지표 — 걷는 턴의 잔량은 아무것도 말하지 않는다. */
+export const DRY = { dry: 0, cast: 0 };
 function useArtCounted(id) { ARTUSE[id] = (ARTUSE[id]||0)+1; Game.cast(id); }
+/* The mage's lines want to record *which sentence* was cast, not
+   only which spell, so they pass a label and the spell id apart. */
+function castCounted(label, id) { ARTUSE[label] = (ARTUSE[label]||0)+1; Game.cast(id); }
 const DIRS = [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]];
 const prev = new Int32Array(MW*MH);
 function route(pred) { return routeAvoiding(pred, true) || routeAvoiding(pred, false); }
@@ -84,6 +91,17 @@ function outfit() {
 }
 
 function runBot(race, cls, clear, opt = {}) {
+  /* Runs in one process are not independent unless this is here.
+     meta.js keeps its ledger in a module-level cache, and startGame
+     turns that ledger into 기억 — +300 gold, +2 on every piece of
+     starting gear, every potion pre-identified. So the fortieth run
+     of a batch starts richer than the first, and a class measured
+     after a long batch reads higher than the same class measured
+     first. Caught here by accident: a rogue that spun for 116k
+     actions left so much ledger behind that the mage after it read
+     8.5층 where a clean run read 6.1. The callers forget() once at
+     the top, which is not enough. */
+  Meta.forget();
   Game.startGame(race, cls, Game.rollStats());
   outfit();
   /* A bow is a different build, not a better sword, and the
@@ -176,10 +194,16 @@ function runBot(race, cls, clear, opt = {}) {
         && (m.ai === 'ranged' || m.casts?.length)
         && Math.hypot(m.x - p.x, m.y - p.y) <= 7);
 
-      const brace = art('brace');
-      if (can(brace) && !(p.brace > 0)
-          && (adjA.length >= 2 || shooters.length || adjA.some(m => m.heavy)))
-        { useArtCounted('brace'); continue; }
+      /* 버티기 is gone — it was the standing-still verb, and the
+         measurement that killed it came from this harness: 12판에
+         버티기 296 · 휩쓸기 83 · 마무리 72 · 밀치기 3. 연타 is the
+         same slot spent forwards, so the policy is the burst
+         question: one thing in front, worth the pool, and enough
+         breath to finish the chain. */
+      const flurry = art('flurry');
+      if (can(flurry) && adjA.length === 1 && p.stam >= 4
+          && adjA[0].hp > adjA[0].maxhp * 0.35)
+        { useArtCounted('flurry'); continue; }
 
       const cleave = art('cleave');
       if (can(cleave) && adjA.length >= 2) { useArtCounted('cleave'); continue; }
@@ -292,6 +316,36 @@ function runBot(race, cls, clear, opt = {}) {
           && (m.regen > 0 || m.named || m.maxhp >= p.maxhp * 1.2));
         if (worth) { useArtCounted('anathema'); continue; }
       }
+
+      /* Rogue. 그림자 is ammunition gathered by not being seen, and
+         four arts burn it. Priority: get out from under a pack,
+         finish what is nearly done, delete an archer's distance,
+         thin a crowd. */
+      if (p.cls === 'rogue') {
+        const shade = p.shadow || 0;
+        const canHide = a => a && shade >= (a.shade || 0) && p.stam >= (a.stam || 0) && a.lv <= p.lv;
+        /* 어둠 되감기 refuses when nothing awake can actually see
+           you, and a refusal costs no turn — so a policy that asks
+           for it on the wrong reading of the room loops forever.
+           Measured here first: vanish 116,073 presses in 8 runs.
+           The predicate has to be the one the rules use, not a
+           near-miss of it: 붙어 있는 것 ≠ 너를 보고 있는 것. A boss
+           is excluded on both sides — it never loses you. */
+        const watchers = seen.filter(m => m.awake && !m.boss
+                                       && !(m.named && m.provoked));
+        const vanish = art('vanish');
+        if (canHide(vanish) && watchers.length && adjA.length >= 2
+            && p.hp < p.maxhp * 0.65)
+          { useArtCounted('vanish'); continue; }
+        const vitals = art('vitals');
+        if (canHide(vitals) && adjA.length && adjA.some(m => m.hp > m.maxhp * 0.4))
+          { useArtCounted('vitals'); continue; }
+        const fan = art('fan');
+        if (canHide(fan) && seen.length >= 3) { useArtCounted('fan'); continue; }
+        const step = art('shadowstep');
+        if (canHide(step) && !adjA.length && seen.length)
+          { useArtCounted('shadowstep'); continue; }
+      }
     }
 
     /* Loose an arrow rather than walk into a fight you could have
@@ -326,8 +380,23 @@ function runBot(race, cls, clear, opt = {}) {
       const bless = has('bless');
       if (afford(bless) && !p.blessed && (adj.length || far.length >= 2)) { Game.cast(bless.id); continue; }
 
+      /* 잔향 (마법사). A spell leaves an afterimage that changes
+         the next one, so the caster plays sentences: set one up
+         when it is cold, cash it in when it is warm. A policy that
+         ignores 잔향 measures the old class with the new code. */
+      const echo = Game.liveEcho ? Game.liveEcho(p) : null;
+      if (echo && visible.length) {
+        const bolt = has('bolt'), fr = has('frost');
+        if (echo.id === 'reach' && afford(fr)) { castCounted('주문:서리+지형', fr.id); continue; }
+        if (afford(bolt)) { DRY.cast++; castCounted(`주문:화살+${echo.n}`, bolt.id); continue; }
+      }
+      const detect = has('detect');
+      if (p.cls === 'mage' && !echo && afford(detect) && visible.length >= 3
+          && p.mana > (detect.cost || 3) * 2) { castCounted('주문:탐지', detect.id); continue; }
+
       const nuke = has('smite') || has('bolt');
-      if (afford(nuke) && far.length) { Game.cast(nuke.id); continue; }
+      if (afford(nuke) && far.length) { DRY.cast++; Game.cast(nuke.id); continue; }
+      if (visible.length && nuke && !afford(nuke)) DRY.dry++;
     }
     /* The quiver is the other half of a bow now, so the shop
        policy is an upgrade policy rather than a supply run: buy

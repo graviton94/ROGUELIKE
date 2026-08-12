@@ -43,7 +43,6 @@ import {
   FLOOR, DOWN, UP, DOOR, RUBBLE, DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN,
   WEB, WATER, CAMP, ALTAR, EVENT, ANVIL, PROP, propAt, isDoor, isShut, walkable,
 } from './world.js';
-import { facingOf } from './pixels.js';
 import { EVENTS } from './events.js';
 import * as Meta from './meta.js';
 
@@ -2168,12 +2167,6 @@ export function step(dx, dy) {
   if (!G.running) return;
   const p = G.player, L = G.level;
 
-  /* Which way he is looking. Set before anything can refuse the
-     step, because turning to face a wall you walked into is what
-     a person does — and a hero who faces the same way no matter
-     which key was pressed is a cardboard standee. */
-  p.facing = facingOf(dx, dy);
-
   // Paralysis eats the turn outright — that is what makes a lich
   // frightening rather than merely damaging.
   if (has(p, 'paralyze')) {
@@ -3887,8 +3880,6 @@ function monsterShoot(m) {
    shut door: most things are simply stopped by one. */
 function advance(m, sx, sy) {
   const p = G.player, L = G.level;
-  // Same rule as the hero: it turns toward the step it tried.
-  m.facing = facingOf(sx, sy);
   /* 성역: the things that should already be still cannot come to
      the stone. Everything else can — it is a ward, not a wall. */
   const s2 = G.sanctum;

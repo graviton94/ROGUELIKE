@@ -1667,12 +1667,12 @@ export const ELITES = [
    you can see it before you can read it. */
 export const RARITY = [
   { n:'평범', tone:'w', glow:null },
-  { n:'마법', tone:'B', glow:'#5b9bd5' },
-  { n:'희귀', tone:'y', glow:'#e8c76a' },
-  { n:'유물', tone:'P', glow:'#b57ad0' },
+  { n:'마법', tone:'B', glow:'#48a8f8' },
+  { n:'희귀', tone:'y', glow:'#f8d020' },
+  { n:'유물', tone:'P', glow:'#c868f8' },
   /* 초월. Colourless on purpose — every other tier gets a hue,
      and the one above them all is simply too bright to have one. */
-  { n:'초월', tone:'W', glow:'#f2efe4' },
+  { n:'초월', tone:'W', glow:'#f8f8f8' },
 ];
 export const CURSED_TONE = 'R';
 /* What the temple charges to take a curse off, as a share of what

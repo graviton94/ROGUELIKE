@@ -4,7 +4,7 @@
    in the DOM; only the map is pixels.
    ═══════════════════════════════════════════════════════════ */
 
-import { sprite, wallTile, floorTile, CELL_SIZE, PALETTE, setTerrainTheme, facingOf } from './pixels.js';
+import { sprite, wallTile, floorTile, CELL_SIZE, PALETTE, setTerrainTheme } from './pixels.js';
 import * as Pix from './pixels.js';
 import {
   RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS, statRange,
@@ -62,11 +62,18 @@ export function resize() {
   if (w === cv.width && h === cv.height) return;   // nothing moved
 
   cv.width = w; cv.height = h;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  /* Device-pixel space, identity transform. The old dpr transform
+     put drawing in CSS pixels, so a sprite pixel covered
+     scale×dpr device pixels — fractional on most phones, and the
+     rounding fell differently on every column: the grid was made
+     of subtly unequal pixels. Working in device pixels with an
+     integer scale makes every sprite pixel the same square, which
+     is the whole contract of the art style. */
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.imageSmoothingEnabled = false;
 
-  viewW = box.width; viewH = box.height;
-  scale = clamp(Math.round(box.width / (CELL_SIZE * 17)), 2, 6);
+  viewW = w; viewH = h;
+  scale = clamp(Math.round(w / (CELL_SIZE * 17)), 2, 12);
   cols = Math.ceil(viewW / (CELL_SIZE * scale));
   rows = Math.ceil(viewH / (CELL_SIZE * scale));
   draw();
@@ -77,6 +84,7 @@ export function resize() {
    offsets in juice.js this is what turns a tile hop into a
    step. */
 let camX = 0, camY = 0, camReady = false;
+let heroFacing = 1, heroLastX = null;
 
 function cameraTarget() {
   const p = G.player;
@@ -116,6 +124,9 @@ export function draw() {
 
   const lightR = G.lightRadius || 7;
   const x0 = Math.floor(cx) - 1, y0 = Math.floor(cy) - 1;
+  /* Two-frame tiles: water laps, fire leans. One clock for all
+     of them so the floor breathes in unison. */
+  const flick = ((performance.now() / 420) | 0) & 1;
 
   for (let y = y0; y <= cy + rows + 1; y++) {
     for (let x = x0; x <= cx + cols + 1; x++) {
@@ -127,6 +138,9 @@ export function draw() {
       const tile = L.tiles[i];
       const lit = L.vis[i];
 
+      /* The fog is a smooth alpha fade — tried as ordered dither
+         once (v33) and walked back: the sprites are the pixels,
+         the light is allowed to be light. Hard dots, soft glow. */
       let alpha;
       if (lit) {
         const d = Math.hypot(x - p.x, y - p.y);
@@ -155,11 +169,11 @@ export function draw() {
         if (tile === DOOR_LOCKED) ctx.drawImage(sprite('doorLocked'), px, py, t, t);
         if (tile === DOOR_BROKEN) ctx.drawImage(sprite('doorBroken'), px, py, t, t);
         if (tile === WEB)         ctx.drawImage(sprite('web'),        px, py, t, t);
-        if (tile === WATER)       ctx.drawImage(sprite('water'),      px, py, t, t);
+        if (tile === WATER)       ctx.drawImage(sprite(flick ? 'water2' : 'water'), px, py, t, t);
         if (tile === CAMP) {
           const prevA = ctx.globalAlpha;
           ctx.globalAlpha = Math.max(prevA, 0.55 + Math.sin(performance.now() / 300) * 0.12);
-          ctx.drawImage(sprite('camp'), px, py, t, t);
+          ctx.drawImage(sprite(flick ? 'camp2' : 'camp'), px, py, t, t);
           ctx.globalAlpha = prevA;
         }
         if (tile === ALTAR) {
@@ -186,8 +200,9 @@ export function draw() {
             // A lit brazier throws its own light, so it is drawn
             // at full brightness whatever the fog says.
             const prevA = ctx.globalAlpha;
-            if (o.kind === 'brazier' && o.lit) ctx.globalAlpha = 1;
-            ctx.drawImage(sprite(o.kind === 'brazier' && o.lit ? 'brazierLit' : o.kind),
+            const isLit = o.kind === 'brazier' && o.lit;
+            if (isLit) ctx.globalAlpha = 1;
+            ctx.drawImage(sprite(isLit ? (flick ? 'brazierLit2' : 'brazierLit') : o.kind),
                           px, py, t, t);
             ctx.globalAlpha = prevA;
           }
@@ -222,7 +237,7 @@ export function draw() {
       if (shopId && lit) {
         ctx.globalAlpha = 1;
         ctx.fillStyle = PALETTE.y;
-        ctx.font = `bold ${Math.floor(t * 0.42)}px ui-monospace, monospace`;
+        ctx.font = `bold ${Math.floor(t * 0.42)}px Galmuri11, ui-monospace, monospace`;
         ctx.textAlign = 'left'; ctx.textBaseline = 'top';
         ctx.fillText(String(shopId), px + t * 0.08, py + t * 0.06);
       }
@@ -313,6 +328,13 @@ export function draw() {
     ctx.globalAlpha = 1;
   }
 
+  /* The idle beat: a square wave, not a sine. Everything alive
+     drops exactly one sprite pixel on the off-beat, each at its
+     own phase — the cheapest possible two-frame animation, and
+     it reads as one because the step is quantized. */
+  const bobT = (performance.now() / 480) | 0;
+  const px1 = Math.max(1, Math.round(t / CELL_SIZE));   // one sprite pixel
+
   for (const m of G.monsters) {
     const seenNow = L.vis[idx(m.x, m.y)];
     if (!seenNow && !(G.detectPulse > 0)) continue;
@@ -324,21 +346,33 @@ export function draw() {
        like a chest looks, but it breathes — a slow half-pixel
        rise a patient player can catch and a hurried one can't. */
     if (m.disguise) my += Math.sin(performance.now() / 900 + m.x) * t * 0.045;
+    // Awake and undisguised: on the beat. Sleepers hold still.
+    else if (m.awake) my += ((bobT + m.x + m.y) & 1) ? px1 : 0;
 
-    /* An elite gets a ring so you can decide to walk away from
-       it before you are already in melee with it. */
+    /* A monster faces the way it last moved. Mirroring is free —
+       the same baked sprite, drawn through a flipped transform. */
+    if (m._lx != null && m.x !== m._lx) m._face = m.x > m._lx ? 1 : -1;
+    m._lx = m.x;
+
+    /* An elite gets a marker so you can decide to walk away from
+       it before you are already in melee with it. Corner brackets
+       out of whole pixels, not a stroked circle — the one shape
+       the tile grid can draw honestly. */
     if (m.elite?.length && seenNow) {
       ctx.save();
       ctx.globalAlpha = 0.55 + Math.sin(performance.now() / 420) * 0.18;
-      ctx.strokeStyle = m.elite.length > 1 ? PALETTE.P : PALETTE.o;
-      ctx.lineWidth = Math.max(1.5, t * 0.09);
-      ctx.beginPath();
-      ctx.arc(mx + t / 2, my + t / 2, t * 0.56, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.fillStyle = m.elite.length > 1 ? PALETTE.P : PALETTE.o;
+      const u = px1, arm = u * 3;
+      const bx0 = Math.round(mx) - u,  by0 = Math.round(my) - u;
+      const bx1 = Math.round(mx + t),  by1 = Math.round(my + t);
+      ctx.fillRect(bx0, by0, arm, u);           ctx.fillRect(bx0, by0, u, arm);
+      ctx.fillRect(bx1 + u - arm, by0, arm, u); ctx.fillRect(bx1, by0, u, arm);
+      ctx.fillRect(bx0, by1, arm, u);           ctx.fillRect(bx0, by1 + u - arm, u, arm);
+      ctx.fillRect(bx1 + u - arm, by1, arm, u); ctx.fillRect(bx1, by1 + u - arm, u, arm);
       ctx.restore();
     }
 
-    blitActor(sprite(m.spr, m.facing), mx, my, t, o);
+    blitActor(sprite(m.spr), mx, my, t, o, m._face === -1);
     if (m.disguise) continue;     // no sleep marker, no health bar — it is furniture
 
     /* A sleeping target is a free critical, so say so plainly —
@@ -346,7 +380,7 @@ export function draw() {
     if (seenNow && !m.awake) {
       const zx = mx + t * 0.86;
       const zy = my - t * 0.06 + Math.sin(performance.now() / 500) * t * 0.09;
-      ctx.font = `900 ${Math.floor(t * 0.62)}px ui-monospace, monospace`;
+      ctx.font = `900 ${Math.floor(t * 0.62)}px Galmuri11, ui-monospace, monospace`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.lineWidth = Math.max(2, t * 0.16);
       ctx.strokeStyle = PALETTE.k;
@@ -371,11 +405,15 @@ export function draw() {
   const po = Juice.offsetOf(p);
   const hx = (p.x + po.x - cx) * t + t / 2, hy = (p.y + po.y - cy) * t + t / 2;
   const glow = ctx.createRadialGradient(hx, hy, t * 0.4, hx, hy, t * lightR);
-  glow.addColorStop(0, 'rgba(217,138,60,0.16)');
-  glow.addColorStop(1, 'rgba(217,138,60,0)');
+  glow.addColorStop(0, 'rgba(248,124,32,0.16)');
+  glow.addColorStop(1, 'rgba(248,124,32,0)');
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, viewW, viewH);
-  blitActor(heroSprite(p), hx - t / 2, hy - t / 2, t, po);
+  // The hero keeps the beat too, and faces the way he last walked.
+  if (heroLastX !== null && p.x !== heroLastX) heroFacing = p.x > heroLastX ? 1 : -1;
+  heroLastX = p.x;
+  const hbob = (bobT & 1) ? px1 : 0;
+  blitActor(heroSprite(p), hx - t / 2, hy - t / 2 + hbob, t, po, heroFacing === -1);
 
   /* The countdown goes on last. It used to be drawn with the
      tint, which put it underneath the hero sprite — and a disc
@@ -391,7 +429,7 @@ export function draw() {
     const urgent = h.left <= 1;
     const pop = urgent ? 1 + Math.abs(Math.sin(performance.now() / 130)) * 0.22 : 1;
     ctx.globalAlpha = 1;
-    ctx.font = `900 ${Math.floor(t * 0.78 * pop)}px ui-monospace, monospace`;
+    ctx.font = `900 ${Math.floor(t * 0.78 * pop)}px Galmuri11, ui-monospace, monospace`;
     ctx.lineWidth = Math.max(3, t * 0.24);
     ctx.strokeStyle = PALETTE.k;
     ctx.strokeText(String(h.left), mx2, my2);
@@ -416,7 +454,7 @@ export function draw() {
       ctx.fillStyle = n >= 3 ? PALETTE.r : n === 2 ? PALETTE.n : PALETTE.g;
       ctx.fillRect(px + t * 0.06, py + t * 0.06, t * 0.88, t * 0.88);
       ctx.globalAlpha = 1;
-      ctx.font = `700 ${Math.floor(t * 0.4)}px ui-monospace, monospace`;
+      ctx.font = `700 ${Math.floor(t * 0.4)}px Galmuri11, ui-monospace, monospace`;
       ctx.fillStyle = n >= 3 ? PALETTE.R : PALETTE.G;
       ctx.fillText(String(n), px + t * 0.82, py + t * 0.2);
     }
@@ -876,11 +914,19 @@ function drawIntent(kind, mx, my, t) {
    a race is somehow missing, so a bad save can never blank the
    thing the player is looking at. */
 export const heroSprite = p =>
-  sprite(`hero:${p.race}:${p.cls}`, p?.facing) || sprite(`hero:${p.cls}`, p?.facing);
+  sprite(`hero:${p.race}:${p.cls}`) || sprite(`hero:${p.cls}`);
 
 /* One sprite, plus a squash-punch on impact and an additive
-   pass that whitens it for a few frames when it takes a hit. */
-function blitActor(img, px, py, t, o) {
+   pass that whitens it for a few frames when it takes a hit.
+   `flip` mirrors around the sprite's own centre line — the same
+   baked canvas serves both directions. */
+function blitActor(img, px, py, t, o, flip = false) {
+  if (flip) {
+    ctx.save();
+    ctx.translate(px + t / 2, 0);
+    ctx.scale(-1, 1);
+    ctx.translate(-(px + t / 2), 0);
+  }
   const s = o.squash || 0;
   if (s > 0) {
     const g = 1 + s * 0.35;
@@ -897,6 +943,7 @@ function blitActor(img, px, py, t, o) {
     ctx.globalCompositeOperation = prev;
     ctx.globalAlpha = a;
   }
+  if (flip) ctx.restore();
 }
 
 /* ── the frame loop ─────────────────────────────────────────
@@ -3818,9 +3865,13 @@ function bindMapGestures() {
   const tileUnder = (clientX, clientY) => {
     const box = cv.getBoundingClientRect();
     const { cx, cy, t } = camera();
+    /* t is in device pixels now; the pointer arrives in CSS
+       pixels. Convert through the bitmap/box ratio rather than
+       devicePixelRatio, so a mid-transition box can't lie. */
+    const kx = cv.width / box.width, ky = cv.height / box.height;
     return {
-      x: Math.floor(cx + (clientX - box.left) / t),
-      y: Math.floor(cy + (clientY - box.top) / t),
+      x: Math.floor(cx + (clientX - box.left) * kx / t),
+      y: Math.floor(cy + (clientY - box.top) * ky / t),
     };
   };
 

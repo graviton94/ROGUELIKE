@@ -1,20 +1,38 @@
 /* ═══════════════════════════════════════════════════════════
    styles.css — the chrome. Palette matches src/pixels.js so
-   the DOM panels and the pixel map share one 16-colour world.
+   the DOM panels and the pixel map share one console world:
+   true black, midnight indigo, and 8-step DAC primaries.
    ═══════════════════════════════════════════════════════════ */
 
-:root {
-  --k:#0a0c12; --d:#1b2130; --g:#333c52; --G:#59657f;
-  --w:#d8d5c8; --W:#f2efe4;
-  --r:#8f2f28; --R:#d95a4a; --o:#d98a3c; --y:#e8c76a;
-  --n:#5c3f28; --N:#8f6b3f;
-  --e:#357a4c; --E:#6fb87a;
-  --b:#2b5288; --B:#5b9bd5;
-  --p:#6b3f85; --P:#b57ad0;
-  --s:#7d8596;
+/* ── the typeface ─────────────────────────────────────────
+   Galmuri11 (OFL — fonts/OFL.md), subset to the exact glyphs
+   this game's source can ever put on screen: ~970 characters,
+   21KB. The one binary asset in the project, and the single
+   biggest step the UI takes toward the console: every letter is
+   now made of the same pixels the sprites are. */
+@font-face {
+  font-family: 'Galmuri11';
+  src: url('fonts/Galmuri11.woff2') format('woff2');
+  font-weight: 400; font-display: swap;
+}
+@font-face {
+  font-family: 'Galmuri11';
+  src: url('fonts/Galmuri11-Bold.woff2') format('woff2');
+  font-weight: 700; font-display: swap;
+}
 
-  --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas,
-          "Apple SD Gothic Neo", "Noto Sans KR", monospace;
+:root {
+  --k:#000000; --d:#181830; --g:#484878; --G:#9090c0;
+  --w:#d8d8c0; --W:#f8f8f8;
+  --r:#a81020; --R:#f84038; --o:#f87c20; --y:#f8d020;
+  --n:#805020; --N:#c89050;
+  --e:#089840; --E:#58e068;
+  --b:#2048c8; --B:#48a8f8;
+  --p:#8028a8; --P:#c868f8;
+  --s:#98a0b8;
+
+  --mono: 'Galmuri11', ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo,
+          Consolas, "Apple SD Gothic Neo", "Noto Sans KR", monospace;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -31,6 +49,18 @@ html, body {
   font-family: var(--mono); font-size: 14px;
   overscroll-behavior: none; touch-action: manipulation;
   -webkit-font-smoothing: none;
+}
+
+/* ── the tube ─────────────────────────────────────────────
+   A faint scanline wash over everything, DOM and canvas alike.
+   It is the cheapest possible CRT: one repeating gradient, no
+   blend modes, pointer-events off. Kept near-invisible — the
+   look is meant to register, not to be noticed. */
+body::after {
+  content: ''; position: fixed; inset: 0; z-index: 999;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom, rgba(0,0,0,.12) 0 1px, transparent 1px 3px);
 }
 
 .screen {
@@ -82,15 +112,24 @@ html, body {
 .abysslabel { font-size: 10.5px; color: var(--G); letter-spacing: .2em; }
 .abyssrow { display: flex; gap: 4px; justify-content: center; margin: 6px 0 0; }
 .abyssrow button { width: 34px; padding: 7px 0; font-size: 12px; }
-.abyssrow button.on { border-color: var(--R); color: var(--R); background: #241618; }
+.abyssrow button.on { border-color: var(--R); color: var(--R); background: #301018; }
 #abyss-note { text-align: center; margin-top: 6px; }
 
+/* Every button is a console tile: hard corners and a one-pixel
+   bevel painted with inset shadows, so pressing one visibly
+   pushes it into the panel. Insets cost no layout, which is why
+   the d-pad and the quick slots can share the treatment. */
 button {
   font-family: var(--mono); cursor: pointer;
   background: var(--d); color: var(--w);
-  border: 1px solid var(--g);
+  border: 1px solid var(--g); border-radius: 0;
+  box-shadow: inset -2px -2px 0 rgba(0,0,0,.5),
+              inset 2px 2px 0 rgba(255,255,255,.07);
 }
-button:active { background: var(--o); color: var(--k); border-color: var(--o); }
+button:active {
+  background: var(--o); color: var(--k); border-color: var(--o);
+  box-shadow: inset 2px 2px 0 rgba(0,0,0,.4);
+}
 button:focus-visible { outline: 2px solid var(--y); outline-offset: 2px; }
 
 .big {
@@ -136,7 +175,7 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   display: flex; flex-direction: column; gap: 3px; align-items: flex-start;
   padding: 9px 10px; text-align: left;
 }
-.pickbtn.on { border-color: var(--o); background: #241d16; }
+.pickbtn.on { border-color: var(--o); background: #302010; }
 .pickbtn .pname { font-size: 13px; color: var(--w); }
 .pickbtn.on .pname { color: var(--o); }
 .pickbtn .pmod { font-size: 10px; color: var(--G); }
@@ -149,6 +188,10 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 /* The band this race and class can ever roll inside. */
 .sbar u { position: absolute; inset: 0 auto; top: 0; height: 100%; background: var(--g); }
 .sbar i { position: relative; display: block; height: 100%; background: var(--B); }
+.sbar::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background: repeating-linear-gradient(to right, transparent 0 7px, var(--d) 7px 9px);
+}
 .statrow .srange { width: 44px; font-size: 9.5px; color: var(--G); text-align: right; }
 
 /* ── play HUD ── */
@@ -189,49 +232,49 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   color: var(--G); white-space: nowrap;
 }
 .chip b { color: var(--w); }
-.chip.gold { color: var(--y); border-color: #4a3f22; } .chip.gold b { color: var(--y); }
-.chip.mana { color: var(--B); border-color: #23364f; } .chip.mana b { color: var(--B); }
-.chip.depth { color: var(--o); border-color: #4a331a; }
-.chip.relics { color: var(--P); border-color: #40265c; } .chip.relics b { color: var(--P); }
+.chip.gold { color: var(--y); border-color: #605018; } .chip.gold b { color: var(--y); }
+.chip.mana { color: var(--B); border-color: #204068; } .chip.mana b { color: var(--B); }
+.chip.depth { color: var(--o); border-color: #603010; }
+.chip.relics { color: var(--P); border-color: #502078; } .chip.relics b { color: var(--P); }
 /* The class counter. Dim while it fills, lit the turn it pays. */
 .chip.trait { color: var(--G); border-color: var(--g); }
 .chip.trait b { color: var(--G); font-weight: 400; }
-.chip.trait.on { color: var(--o); border-color: var(--o); background: rgba(217, 138, 60, .14); }
+.chip.trait.on { color: var(--o); border-color: var(--o); background: rgba(248, 124, 32, .14); }
 .chip.trait.on b { color: var(--o); }
 
 /* The pile on the table. It glows brighter as it grows, which
    is the entire persuasion — the number is supposed to be hard
    to walk past. */
-.chip.wager { color: var(--y); border-color: #6a5320; }
+.chip.wager { color: var(--y); border-color: #806810; }
 .chip.wager b { color: var(--y); }
 .chip.wager.hot {
   color: var(--o); border-color: var(--o);
-  background: rgba(232, 199, 106, .14);
+  background: rgba(248, 208, 32, .14);
   animation: comboPulse 1.4s ease-in-out infinite;
 }
-.campopt.wager { border-color: var(--y); background: #241f14; }
+.campopt.wager { border-color: var(--y); background: #302810; }
 
 /* The floor's patience. Quiet while there is room to breathe,
    orange when it is nearly gone, red once the floor is feeding. */
 .chip.clock { color: var(--G); border-color: var(--g); }
 .chip.clock b { color: var(--w); }
-.chip.clock.warn { color: var(--o); border-color: #4a331a; }
+.chip.clock.warn { color: var(--o); border-color: #603010; }
 .chip.clock.warn b { color: var(--o); }
-.chip.clock.bad { color: var(--R); border-color: var(--r); background: rgba(143, 47, 40, .22); }
+.chip.clock.bad { color: var(--R); border-color: var(--r); background: rgba(168, 16, 32, .22); }
 .chip.clock.bad b { color: var(--R); }
 
 /* The kill chain. --heat runs 0..1 with the streak, so the
    chip literally warms up as it grows. */
 .chip.combo {
   --heat: 0;
-  color: var(--y); border-color: #6a5320;
-  background: rgba(232, 199, 106, calc(var(--heat) * .16));
+  color: var(--y); border-color: #806810;
+  background: rgba(248, 208, 32, calc(var(--heat) * .16));
   transform-origin: center;
 }
 .chip.combo b { color: var(--W); font-size: 13px; }
 .chip.combo.hot {
   color: var(--o); border-color: var(--o);
-  box-shadow: 0 0 calc(var(--heat) * 12px) rgba(217, 138, 60, .55);
+  box-shadow: 0 0 calc(var(--heat) * 12px) rgba(248, 124, 32, .55);
   animation: comboPulse .9s ease-in-out infinite;
 }
 .chip.combo.pop { animation: comboPop .28s cubic-bezier(.2, 1.7, .4, 1); }
@@ -245,8 +288,15 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 .gauge { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .glabel { font-size: 9.5px; color: var(--G); width: 18px; }
 .gval   { font-size: 10.5px; color: var(--w); width: 62px; text-align: right; }
-.track { flex: 1 1 auto; height: 7px; background: var(--k); border: 1px solid var(--g); }
+.track { position: relative; flex: 1 1 auto; height: 7px; background: var(--k); border: 1px solid var(--g); }
 .track i { display: block; height: 100%; transition: width .16s linear; }
+/* Console gauges come in cells. The ticks are painted over the
+   fill in the track's own background colour, so the bar reads as
+   segments without the fill logic knowing anything about it. */
+.track::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(to right, transparent 0 7px, var(--k) 7px 9px);
+}
 .track i.hp { background: var(--R); }
 .track i.mp { background: var(--B); }
 .track i.st { background: var(--E); }
@@ -269,7 +319,7 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   position: absolute; top: 6px; right: 6px;
   image-rendering: pixelated;
   border: 1px solid var(--g);
-  background: rgba(10, 12, 18, .78);
+  background: rgba(0, 0, 0, .78);
   touch-action: none; cursor: pointer;
 }
 #mini.off { display: none; }
@@ -497,7 +547,7 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 
 /* Fusion. The chosen two glow; the odds bar reads the same way
    the altar's does, because it is the same kind of bet. */
-.relicrow.chosen { border-color: var(--o); background: #241d16; }
+.relicrow.chosen { border-color: var(--o); background: #302010; }
 .relicrow.chosen .iact { color: var(--o); }
 #fuse-odds { margin: 14px 0 4px; transition: opacity .18s; }
 .oddrow { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
@@ -517,7 +567,7 @@ table.keys td:first-child { width: 40%; color: var(--G); }
   flex: 1 1 0; padding: 8px 6px; font-size: 12px;
   border: 1px solid var(--g); background: var(--d); color: var(--G);
 }
-.styleswitch button.on { border-color: var(--o); background: #241d16; color: var(--o); }
+.styleswitch button.on { border-color: var(--o); background: #302010; color: var(--o); }
 #camp-style-note { margin: 0 0 10px; }
 .stairswarn { border-left: 2px solid var(--o); padding: 8px 10px; background: var(--d); }
 .stairswarn b { color: var(--o); }
@@ -543,7 +593,7 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .slotrow.empty .slotwho { color: var(--g); }
 .slotdel {
   flex: 0 0 auto; padding: 7px 10px; font-size: 10.5px;
-  color: var(--R); border-color: #4a2320; background: transparent;
+  color: var(--R); border-color: #601018; background: transparent;
 }
 .slotrow:active .slotwho, .slotrow:active .slotmeta, .slotrow:active .slotnum { color: var(--k); }
 
@@ -551,7 +601,7 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .modal {
   position: fixed; inset: 0; z-index: 50;
   display: flex; align-items: center; justify-content: center;
-  padding: 24px; background: rgba(10, 12, 18, .82);
+  padding: 24px; background: rgba(0, 0, 0, .82);
 }
 .modal[hidden] { display: none; }
 /* Every card in the game is the same leaf now. A blue-bordered
@@ -577,7 +627,7 @@ table.keys td:first-child { width: 40%; color: var(--G); }
   flex: 1 1 0; padding: 12px 8px; font-size: 12.5px;
   background: transparent; border-color: rgba(90,70,40,.55); color: var(--ink);
 }
-.askbtns button:active { background: var(--ink); color: #d8cba6; border-color: var(--ink); }
+.askbtns button:active { background: var(--ink); color: #d8c8a0; border-color: var(--ink); }
 .askbtns b { color: #7a4a10; margin-left: 4px; }
 /* A lesson, not a question: one button, and the prose gets room
    to breathe because it is being read rather than answered. */
@@ -594,8 +644,8 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 /* 예 still reads as the committing answer, but in ink rather
    than in the old orange — the sheet has its own palette. */
 #ask-yes { border-color: #7a4a10; color: #6a3d0c; font-weight: 600; }
-#ask-yes:active, #ask-no:active { background: var(--ink); color: #d8cba6; }
-#ask-yes:active b, #ask-no:active b { color: #d8cba6; }
+#ask-yes:active, #ask-no:active { background: var(--ink); color: #d8c8a0; }
+#ask-yes:active b, #ask-no:active b { color: #d8c8a0; }
 
 /* A rare name should catch the eye in a list of twenty. */
 .shine { text-shadow: 0 0 8px currentColor; }
@@ -733,7 +783,7 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 }
 .scrollbar b { flex: 1 1 auto; font-size: 12px; letter-spacing: .2em; color: var(--ink); }
 .scrollbar .mini { background: transparent; border-color: rgba(90,70,40,.5); color: var(--ink); }
-.scrollbar .mini:active { background: var(--ink); color: #d8cba6; }
+.scrollbar .mini:active { background: var(--ink); color: #d8c8a0; }
 .scrolltext { flex: 1 1 auto; overflow-y: auto; padding: 10px 14px 16px; -webkit-overflow-scrolling: touch; }
 /* A floor is a chapter and a turn is a paragraph. Nothing is
    dropped — the grouping is typographic, not lossy. */
@@ -763,7 +813,7 @@ table.keys td:first-child { width: 40%; color: var(--G); }
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 12;
   display: flex; flex-wrap: wrap; gap: 4px; justify-content: center;
   padding: 5px 8px; pointer-events: none;
-  background: linear-gradient(to top, rgba(10,12,18,.92), rgba(10,12,18,0));
+  background: linear-gradient(to top, rgba(0,0,0,.92), rgba(0,0,0,0));
   transition: opacity .3s;
 }
 #tally.fade { opacity: 0; }
@@ -792,7 +842,7 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .screen.assheet {
   top: auto; bottom: 0; height: min(64%, 560px);
   border-top: 2px solid var(--o);
-  box-shadow: 0 -10px 30px rgba(10, 12, 18, .85);
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, .85);
   animation: sheetup .22s ease-out;
 }
 @keyframes sheetup { from { transform: translateY(24px); opacity: .4; } to { transform: none; opacity: 1; } }
@@ -817,7 +867,7 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .gamename {
   margin: 0; font-size: clamp(30px, 11vw, 46px); letter-spacing: .22em;
   color: var(--W); font-weight: 600;
-  text-shadow: 0 0 18px rgba(217,138,60,.55), 0 3px 0 var(--k);
+  text-shadow: 0 0 18px rgba(248,124,32,.55), 0 3px 0 var(--k);
 }
 .gamesub {
   margin: 4px 0 0; font-size: clamp(9px, 2.6vw, 11px); letter-spacing: .5em;
@@ -836,6 +886,6 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 #title-stat { color: var(--G); }
 /* A resonance is a turning point, not a stat — so it is the one
    chip that reads as an event and stays for the rest of the run. */
-.chip.reso { color: var(--W); border-color: var(--y); background: #2a2415; }
+.chip.reso { color: var(--W); border-color: var(--y); background: #302810; }
 .chip.reso b { color: var(--y); }
 .codextext .idesc.lit { color: var(--y); }

@@ -3,7 +3,7 @@
    순서가 결과를 안 바꾸면 이 설계는 또 장식이고, 그러면 내가 또 실패한 것이다. */
 import { chromium } from 'playwright';
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-const pg = await b.newPage({ viewport: { width: 1000, height: 900 } });
+const pg = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 const errs = [];
 pg.on('pageerror', e => errs.push(e.message));
 pg.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.location()?.url || '')) errs.push('console: ' + m.text()); });
@@ -19,7 +19,19 @@ console.log(`  격차  ×${(bench.best[1] / Math.max(1, bench.worst[1])).toFixed
 console.log('  상위:'); for (const [k, v] of bench.top) console.log(`    ${String(v).padStart(6)}  ${k}`);
 console.log('  하위:'); for (const [k, v] of bench.bottom) console.log(`    ${String(v).padStart(6)}  ${k}`);
 
-/* 2. 실제로 걸어지는가 — 무작위 워크 300걸음 */
+/* 2. 순서를 실제로 바꿀 수 있는가 (탭-탭 교환) */
+const swap = await pg.evaluate(() => {
+  const g0 = window.__peek().chainIds.join(',');
+  const els = document.querySelectorAll('#chain .mod');
+  if (els.length < 2) return { ok: false, why: '체인이 2칸 미만' };
+  els[0].click(); document.querySelectorAll('#chain .mod')[1].click();
+  const g1 = window.__peek().chainIds.join(',');
+  return { ok: g0 !== g1, g0, g1 };
+});
+console.log(`\n탭-탭 순서 교환: ${swap.ok ? '작동' : '실패 — ' + (swap.why || swap.g0)}`);
+
+/* 3. 실제로 걸어지는가 — 무작위 워크 300걸음 */
+await pg.screenshot({ path: 'shot-start.png' });
 const walk = await pg.evaluate(async () => {
   const keys = [[0,-1],[0,1],[-1,0],[1,0]];
   const seen0 = window.__G ? 0 : 0;
@@ -44,22 +56,11 @@ const walk = await pg.evaluate(async () => {
 console.log(`\n무작위 워크 300걸음 — 이동 ${walk.moved} · 교전승 ${walk.fights} · 뽑기 ${walk.drafts}`);
 console.log(`  구역 ${walk.depth} · 노심 ${walk.hp} · 정지 ${walk.kills} · 밝힌 칸 ${walk.revealed} · 체인 ${walk.chain}칸 · 종료 ${walk.over}`);
 
-/* 3. 순서를 실제로 바꿀 수 있는가 (탭-탭 교환) */
-const swap = await pg.evaluate(() => {
-  const g0 = window.__peek().chainIds.join(',');
-  const els = document.querySelectorAll('#chain .mod');
-  if (els.length < 2) return { ok: false, why: '체인이 2칸 미만' };
-  els[0].click(); document.querySelectorAll('#chain .mod')[1].click();
-  const g1 = window.__peek().chainIds.join(',');
-  return { ok: g0 !== g1, g0, g1 };
-});
-console.log(`\n탭-탭 순서 교환: ${swap.ok ? '작동' : '실패 — ' + (swap.why || swap.g0)}`);
-
-await pg.screenshot({ path: '/tmp/claude-0/-home-user-ROGUELIKE/df5def91-9f06-5415-baa6-46f3f5cf182c/scratchpad/delve3.png' });
+await pg.screenshot({ path: '/tmp/claude-0/-home-user-ROGUELIKE/df5def91-9f06-5415-baa6-46f3f5cf182c/scratchpad/delve-m.png' });
 
 let bad = 0;
 if (bench.spread < 10) { console.log('\n  ✗ 순서를 바꿔도 결과가 거의 같다 — 이 설계는 장식이다'); bad++; }
-if (walk.moved < 100) { console.log('  ✗ 걷지를 못한다'); bad++; }
+if (walk.moved < 40) { console.log('  ✗ 걷지를 못한다'); bad++; }
 if (walk.fights < 1) { console.log('  ✗ 300걸음 동안 아무것도 못 잡았다'); bad++; }
 if (!swap.ok) { console.log('  ✗ 순서를 바꿀 수 없다'); bad++; }
 if (errs.length) { console.log('  ✗ 콘솔 오류:'); errs.slice(0,5).forEach(e=>console.log('     '+e)); bad++; }

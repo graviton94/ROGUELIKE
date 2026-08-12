@@ -18,6 +18,7 @@ import {
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH, REGIONS, regionOf,
   MEMORIES, memoryEarned, SHACKLES, shacklesAt, SHACKLE_STAT, tellsNeeded,
   WEAPON_TYPES, PATTERNS, NAMED,
+  FITS, fitsOf, fitRule, UNDEAD,
   RESONANCE, resonanceById, CHAIN_ECHO, CHAIN_DECAY, CHAIN_MAX,
   CHAIN_KEEP, CHAIN_KEEP_RESO, POWDER_MAX, POWDER_BUDGET, BRAMBLE_BITE,
   ECHO_ROOM_HOPS, ECHO_ROOM_TOLL, ECHO_ROOM_KEEP,
@@ -287,7 +288,7 @@ export const statB = (p, k) => statBonus(effStats(p)[k]);
 const EMPTY_BONUS = {
   dmg:0, dmgPct:0, hit:0, hitPct:1, crit:0, critMult:0, ac:0, stealth:0,
   lifesteal:0, chain:0, burst:0, execute:0, pierce:0,
-  regen:0, lightR:0, maxhpPct:0, manaPct:0, manaFlat:0,
+  regen:0, lightR:0, maxhpPct:0, manaPct:0, manaFlat:0, spellPow:0,
   on:null, resistAll:false, noStealth:false,
   // engraving-only rules — see ENGRAVINGS in data.js
   firstStrike:0, vsElite:0, flatDR:0, reflect:0, dawn:0, ailShrug:0, anchor:false,
@@ -307,6 +308,10 @@ export function gearBonus(p) {
       else b.ac += it.plus * 2;
     }
     if (it.kind === 'armour') b.ac += it.ac || 0;
+    /* A rod is not swung, it is held. Its two numbers go straight
+       into the pool and the book rather than into the blow. */
+    b.manaFlat += it.manaFlat || 0;
+    b.spellPow += it.spellPow || 0;
 
     for (const a of [
       it.pre && PREFIXES.find(x => x.id === it.pre),
@@ -341,6 +346,23 @@ export function gearBonus(p) {
       if (a.anchor) b.anchor = true;
       if (a.on) b.on = a.on;
       if (a.resist === 'all') b.resistAll = true;
+    }
+
+    /* What these particular hands do with this particular thing.
+       Folded in here rather than anywhere else because gearBonus
+       is the one place every derived number already passes
+       through — a fit that lived outside it would be right in the
+       item card and wrong in the swing. */
+    for (const f of fitsOf(p, it)) {
+      const m = f.mod;
+      if (m) {
+        b.dmg += m.dmg || 0;  b.dmgPct += m.dmgPct || 0;
+        b.hit += m.hit || 0;  b.ac += m.ac || 0;
+        b.crit += m.crit || 0;  b.stealth += m.stealth || 0;
+        b.maxhpPct += m.maxhpPct || 0;  b.manaPct += m.manaPct || 0;
+        b.regen += m.regen || 0;  b.lifesteal += m.lifesteal || 0;
+      }
+      if (f.rule === 'noStealth') b.noStealth = true;
     }
   }
 
@@ -523,7 +545,10 @@ function tookHit() {
   /* 맹세 (팔라딘). Every blow taken hardens him a little more.
      Sits here rather than in the two damage sites so it counts
      an arrow the same as an axe. */
-  if (p.cls === 'paladin') p.oath = Math.min(8, (p.oath || 0) + 1);
+  // 맹세의 방패: a paladin behind a shield swears twice as fast,
+  // which is the whole reason to give up the second weapon.
+  if (p.cls === 'paladin')
+    p.oath = Math.min(8, (p.oath || 0) + (fitRule(p, 'twiceSworn') ? 2 : 1));
 }
 
 /* How long after a blow before the body starts closing again,
@@ -998,10 +1023,19 @@ export function useArt(id) {
     }
     case 'cleave': {
       /* The answer to a pack — and the reason 재의 사냥개 arriving
-         three at a time is a fight rather than a funeral. */
-      fx({ t:'cleave', x:p.x, y:p.y, n:near.length });
-      say(near.length > 2 ? '한 호를 그리며 전부를 지나갔다.' : '넓게 베었다.', 'level');
-      for (const m of [...near]) if (G.monsters.includes(m)) swing(m, CLEAVE_SHARE);
+         three at a time is a fight rather than a funeral.
+
+         전사의 자루 reaches a ring further with a haft in both
+         hands, which turns the art from "the things touching me"
+         into "the things near me". */
+      const wide = fitRule(p, 'wideCleave');
+      const hit = wide
+        ? G.monsters.filter(o => !o.disguise
+            && Math.max(Math.abs(o.x - p.x), Math.abs(o.y - p.y)) <= 2)
+        : near;
+      fx({ t:'cleave', x:p.x, y:p.y, n:hit.length, wide });
+      say(hit.length > 2 ? '한 호를 그리며 전부를 지나갔다.' : '넓게 베었다.', 'level');
+      for (const m of [...hit]) if (G.monsters.includes(m)) swing(m, CLEAVE_SHARE);
       break;
     }
     case 'brace': {
@@ -1050,7 +1084,7 @@ export function useArt(id) {
          up rather than spread. */
       const t = shotTarget();
       const dx = Math.sign(t.x - p.x), dy = Math.sign(t.y - p.y);
-      const rng = p.equip.weapon?.rng || 5;
+      const rng = bowRange(p);
       fx({ t:'pierceShot', fx:p.x, fy:p.y, dx, dy, rng });
       say('시위가 한 줄을 그었다.', 'level');
       let carry = 1;
@@ -1084,7 +1118,7 @@ export function useArt(id) {
       /* Everything in sight, once each, at half. The answer to a
          room rather than to a body — the ranger's 휩쓸기, thrown
          across the floor instead of swung around the hips. */
-      const rng = p.equip.weapon?.rng || 5;
+      const rng = bowRange(p);
       const seen = G.monsters.filter(o =>
         !o.disguise && G.level.vis[idx(o.x, o.y)]
         && Math.hypot(o.x - p.x, o.y - p.y) <= rng
@@ -1161,6 +1195,9 @@ export function cast(spellId, echo = false) {
   if (TARGETED.includes(sp.id) && !nearest) { say('시야에 적이 없다.', 'warn'); return; }
 
   p.mana -= cost;
+  // 술사의 지팡이: the rod gives one back. Small, constant, and
+  // the reason a mage keeps a wand in hand rather than a sword.
+  if (!echo && fitRule(p, 'siphon')) p.mana = Math.min(p.maxmana, p.mana + 1);
   if (!echo) p.casts = (p.casts || 0) + 1;
   if (twice) say(`${sp.name}이(가) 두 번 나간다. 마나는 들지 않았다.`, 'level');
   const pow = spellPower(p, sp.id);
@@ -1260,6 +1297,7 @@ export function cast(spellId, echo = false) {
    climb, and an affix that changes what the spell *does*. */
 export const spellPower = (p, id) =>
   (1 + (p.spellPlus?.[id] || 0) * 0.22
+     + gearBonus(p).spellPow
      + (SPELL_AFFIXES.find(a => a.id === p.spellAffix?.[id])?.powPct || 0))
   * (hasRelic('paradox') ? 0.55 : hasRelic('twin') ? 0.8 : 1);
 
@@ -2341,6 +2379,7 @@ function openChest(index, chest) {
    Six rules rather than six damage dice. Everything below reads
    `weaponType(p)` once and branches; nothing else in the file
    needs to know what a spear is. */
+export { fitsOf, fitRule, FITS };
 export const weaponType = p => p.equip.weapon?.t || 'sword';
 export const weaponReach = p => (weaponType(p) === 'spear' ? 2 : 1);
 
@@ -2351,6 +2390,10 @@ function playerAttack(m) {
   if (!p.swinging && weaponType(p) === 'dagger') {
     p.swinging = true;
     swing(m, 0.62);
+    // 도적의 날: the streak counter is already at two after the
+    // first thrust, so the guaranteed crit lands on the second
+    // rather than a turn later.
+    if (fitRule(p, 'thirdAtTwo') && p.chain3 === 2) p.chain3 = 3;
     // The second thrust only lands if there is still something
     // in front of you — which is why a dagger wants 처형.
     if (G.running && G.monsters.includes(m)) swing(m, 0.62);
@@ -2376,13 +2419,18 @@ export function quiver(p) {
 export function shotTarget() {
   const p = G.player, L = G.level;
   if (!p || weaponType(p) !== 'bow') return null;
-  const rng = p.equip.weapon?.rng || 5;
+  const rng = bowRange(p);
   return G.monsters
     .filter(m => !m.disguise && L.vis[idx(m.x, m.y)]
               && Math.hypot(m.x - p.x, m.y - p.y) <= rng
               && lineClear(L, p.x, p.y, m.x, m.y))
     .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0] || null;
 }
+
+/* How far this bow reaches in these hands. 긴 눈 is the only
+   thing that moves it, and every reader goes through here. */
+export const bowRange = p =>
+  (p?.equip?.weapon?.rng || 5) + (fitRule(p, 'farEye') ? 2 : 0);
 
 export const canShoot = () => !!shotTarget() && !!quiver();
 
@@ -2435,8 +2483,21 @@ export function shoot() {
     fx({ t:'struggle', x:p.x, y:p.y }); endTurn(); return;
   }
   spendArrows(1);
-  loose(m, 1);
+  const landed = loose(m, 1);
+  recoverArrow();
   endTurn();
+}
+
+/* 궁수의 손. Half of what a ranger looses is walked back and
+   picked up — which is the difference between a bow being a
+   resource drain and being a weapon. Worth nothing at all to
+   anyone else holding the same bow. */
+function recoverArrow() {
+  const p = G.player;
+  if (!fitRule(p, 'recover') || Math.random() >= 0.5) return;
+  const q = quiver();
+  if (q) q.slot.qty++;
+  else addItem(p, makeAmmo('arrow'), 1);
 }
 
 /* Arrows leave the pack from one place, so an art and a plain
@@ -2516,6 +2577,11 @@ function swing(m, scale) {
   // 진노의: the same idea without the downside, which is what
   // makes a 은총 a 은총 and not an affix.
   if (hasBoon('wrath') && (m.elite?.length || m.boss || m.named)) dmg *= 1.35;
+  /* 사제의 무게: a mace in the right hands against the things
+     that should already be still. Read off the sprite rather than
+     a hand-kept list, so a new undead is covered the day it is
+     written. */
+  if (fitRule(p, 'vsUndead') && UNDEAD.includes(m.spr)) dmg *= 1.4;
   // 결전의 각인: the same idea, cut into the blade rather than worn.
   if (g.vsElite && (m.elite?.length || m.boss || m.named)) dmg *= 1 + g.vsElite;
   // 사냥의 각인: only the blow that opens the wound.

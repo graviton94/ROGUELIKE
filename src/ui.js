@@ -2327,6 +2327,8 @@ const AFFIX_WORDS = {
   lightR: v => `시야 +${v}`,
   maxhpPct: v => `최대 체력 +${Math.round(v * 100)}%`,
   manaPct: v => `최대 마나 +${Math.round(v * 100)}%`,
+  manaFlat: v => `최대 마나 ${v > 0 ? '+' : ''}${v}`,
+  spellPow: v => `주문 위력 +${Math.round(v * 100)}%`,
   dawn: v => `층에 들어설 때 체력 +${Math.round(v * 100)}%`,
   on: v => `타격 시 ${AILMENTS[v]?.n || v}`,
   resist: () => '상태이상 면역',
@@ -2343,6 +2345,12 @@ function affixText(a) {
 function affixBlurb(it) {
   const parts = [affixText(affixOf(it.pre, PREFIXES)), affixText(affixOf(it.suf, SUFFIXES))]
     .filter(Boolean);
+  /* What *these* hands do with it, before it is picked up. A fit
+     that only reveals itself after equipping would be a trap
+     rather than a decision — and the bad ones especially have to
+     be readable from the floor. */
+  for (const f of Game.fitsOf(G.player, it).slice().reverse())
+    parts.unshift(`${f.good ? '✦' : '✕'} ${f.n} — ${f.t}`);
   // Rules first, numbers after: the 은총 and the engravings change
   // what the item does, the affixes only change how much.
   for (const id of [...(it.engrave || [])].reverse())

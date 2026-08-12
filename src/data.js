@@ -960,6 +960,7 @@ export const WEAPON_TYPES = {
   mace:   { n:'둔기류', t:'30%로 비틀거리게 만든다 — 그 적은 다음 턴을 잃는다.' },
   great:  { n:'대검류', t:'피해 +45%, 명중 −12%. 치명타는 인접한 전부를 벤다.' },
   bow:    { n:'활류',   t:'화살을 먹고 멀리서 쏜다. 붙으면 활대로 때리는 셈이라 절반만 아프다.' },
+  wand:   { n:'지팡이류', t:'때리는 물건이 아니다. 최대 마나가 오르고, 주문 위력이 붙는다.' },
 };
 
 /* ── bows ─────────────────────────────────────────────────
@@ -999,6 +1000,113 @@ export const CHEST_RUIN   = 0.5;  // odds a forced lid spoils something inside
 /* The ranger's footing: how often a trap under the boot simply
    does not go off. Not immunity — a habit. */
 export const RANGER_FOOTING = 0.55;
+
+/* ── whose hands ──────────────────────────────────────────
+   Until now a longsword was a longsword whoever picked it up.
+   Every item read the same for every one of the forty-eight
+   race×class pairs, which meant the pairs were a stat spread and
+   nothing else.
+
+   A fit is what a pair of hands does to a thing. The rules:
+
+     it changes a *rule* or moves a number that already exists —
+       never a flat "+10% because you match", which is a tax on
+       reading rather than a decision
+     the good ones are narrow. A fit that fires on half the table
+       is a difficulty setting, not a build
+     the bad ones are real, and they are the player's fault. A
+       mage in plate should regret it
+     nothing here is hidden. `fitsOf` feeds the item card, so the
+       card says what these hands do with this thing before it is
+       equipped
+
+   Deliberately *not* balanced against each other. 마법사 × 지팡이
+   returning mana is small and constant; 레인저 × 활 recovering
+   arrows is enormous for that build and worthless for any other.
+   That asymmetry is the point — it is what makes the forty-eight
+   pairs into forty-eight different games rather than one game
+   with a stat screen. */
+const isHeavy = it => it.kind === 'armour' && (it.ac || 0) >= 12;
+const fam = (it, t) => it.kind === 'weapon' && it.t === t;
+
+export const FITS = [
+  /* ── the hands that fit ───────────────────────────── */
+  { id:'roguesEdge', n:'도적의 날', good:true,
+    when:(p, it) => p.cls === 'rogue' && fam(it, 'dagger'),
+    t:'세 번째 손이 두 번째에 온다.',
+    rule:'thirdAtTwo' },
+  { id:'archersHand', n:'궁수의 손', good:true,
+    when:(p, it) => p.cls === 'ranger' && fam(it, 'bow'),
+    t:'쏜 화살의 절반은 주워 올 수 있다.',
+    rule:'recover' },
+  { id:'magesRod', n:'술사의 지팡이', good:true,
+    when:(p, it) => p.cls === 'mage' && fam(it, 'wand'),
+    t:'주문을 외울 때마다 마나 1이 돌아온다.',
+    rule:'siphon' },
+  { id:'oathShield', n:'맹세의 방패', good:true,
+    when:(p, it) => p.cls === 'paladin' && it.slot === 'shield',
+    t:'맹세가 두 배로 쌓인다.',
+    rule:'twiceSworn' },
+  { id:'clericsWeight', n:'사제의 무게', good:true,
+    when:(p, it) => p.cls === 'priest' && fam(it, 'mace'),
+    t:'죽지 않는 것에게 피해 +40%.',
+    rule:'vsUndead' },
+  { id:'warriorsHaft', n:'전사의 자루', good:true,
+    when:(p, it) => p.cls === 'warrior' && (fam(it, 'great') || fam(it, 'axe')),
+    t:'휩쓸기가 한 칸 더 나간다.',
+    rule:'wideCleave' },
+
+  /* ── the blood that fits ──────────────────────────── */
+  { id:'stoneBorn', n:'돌 밑에서 났다', good:true,
+    when:(p, it) => p.race === 'dwarf' && isHeavy(it),
+    t:'무거운 갑옷의 방어 +3, 힘 요구가 없다.',
+    mod:{ ac: 3 }, rule:'noStrReq' },
+  { id:'longSight', n:'긴 눈', good:true,
+    when:(p, it) => p.race === 'elf' && fam(it, 'bow'),
+    t:'사거리 +2.',
+    rule:'farEye' },
+  { id:'smallHands', n:'작은 손', good:true,
+    when:(p, it) => p.race === 'halfling' && fam(it, 'dagger'),
+    t:'은신 +12%p. 작은 것은 작게 움직인다.',
+    mod:{ stealth: 0.12 } },
+  { id:'trollGrip', n:'트롤의 악력', good:true,
+    when:(p, it) => p.race === 'halfTroll' && it.hands === 2,
+    t:'두 손 무기를 한 손처럼 쥔다 — 피해 +12%.',
+    mod:{ dmgPct: 0.12 } },
+
+  /* ── the hands that do not ────────────────────────── */
+  { id:'ironTongue', n:'쇠가 혀를 막는다', good:false,
+    when:(p, it) => (p.cls === 'mage' || p.cls === 'priest') && isHeavy(it),
+    t:'최대 마나 −40%. 쇳덩이를 입고는 외울 수 없다.',
+    mod:{ manaPct: -0.40 } },
+  { id:'dullRod', n:'그냥 몽둥이', good:false,
+    when:(p, it) => (p.cls === 'warrior' || p.cls === 'paladin') && fam(it, 'wand'),
+    t:'피해 −35%. 손에 든 것이 무엇인지 모른다.',
+    mod:{ dmgPct: -0.35 } },
+  { id:'elfInPlate', n:'엘프에게 판금', good:false,
+    when:(p, it) => (p.race === 'elf' || p.race === 'halfling') && isHeavy(it),
+    t:'명중 −6, 은신이 사라진다.',
+    mod:{ hit: -6 }, rule:'noStealth' },
+  { id:'orcishAim', n:'오크의 조준', good:false,
+    when:(p, it) => (p.race === 'halfOrc' || p.race === 'halfTroll') && fam(it, 'bow'),
+    t:'명중 −8. 시위는 참을성 있는 손을 좋아한다.',
+    mod:{ hit: -8 } },
+];
+
+/* The things a mace is for. Derived from the sprites the bestiary
+   already uses rather than kept by hand next to the fit — add an
+   undead tomorrow and it is covered the day it is written. */
+export const UNDEAD = ['wraith', 'mummy', 'lich', 'vampire', 'ashheap', 'emberpriest'];
+
+/* Everything the current hands do to this one thing. One funnel,
+   so the item card and gearBonus can never disagree. */
+export function fitsOf(p, it) {
+  if (!p || !it) return [];
+  return FITS.filter(f => { try { return f.when(p, it); } catch { return false; } });
+}
+export const fitRule = (p, rule) =>
+  ['weapon', 'body', 'shield'].some(k =>
+    fitsOf(p, p?.equip?.[k]).some(f => f.rule === rule));
 
 /* Ammunition. Ordinary arrows are cheap and everywhere; the other
    three are a decision about which fight you are saving them for.
@@ -1135,6 +1243,16 @@ export const WEAPONS = [
   { spr:'dagger', n:'서슬 단검',    t:'dagger', dice:[3,7],  d:12, cost:2400, hands:1 },
   { spr:'axe',   n:'쌍날 도끼',    t:'axe',    dice:[3,8],  d:12, cost:2700, hands:2 },
   { spr:'spear',   n:'용창',         t:'spear',  dice:[4,7],  d:13, cost:3200, hands:2 },
+
+  /* Rods. The mage had no mage's weapon: every class was holding
+     something from the same six families, and the one whose whole
+     kit is mana had nothing that spoke to mana. A rod is a bad
+     stick that makes the book better — which is the trade a
+     caster should be making with its weapon slot. */
+  { spr:'wand',  n:'개암나무 막대',  t:'wand',   dice:[1,4],  d:0,  cost:70,   hands:1, manaFlat:3,  spellPow:0.10 },
+  { spr:'wand',  n:'주목 지팡이',    t:'wand',   dice:[1,6],  d:3,  cost:280,  hands:1, manaFlat:6,  spellPow:0.20 },
+  { spr:'wand',  n:'뼈 지팡이',      t:'wand',   dice:[2,5],  d:7,  cost:820,  hands:1, manaFlat:10, spellPow:0.32 },
+  { spr:'wand',  n:'별 박힌 홀',     t:'wand',   dice:[2,6],  d:11, cost:2400, hands:1, manaFlat:16, spellPow:0.48 },
 
   /* Bows. Reach is the stat that matters, so it climbs with the
      table while the dice stay modest — a longbow is not a better

@@ -2406,6 +2406,33 @@ function renderShop() {
      Six signs that all read "물약 있음" is the same as no signs. */
   if (shop.t) buyList.appendChild(el('p', 'empty shopline', shop.t));
 
+  /* 오늘 이 수레의 기분. 값이 왜 이런지 말해 주지 않으면 흔들리는
+     값은 그냥 버그처럼 읽힌다. 그리고 흥정은 한 번뿐이라 버튼도
+     한 번만 산다 — 걸고 나면 결과가 그 자리에 남는다. */
+  const mood = Game.shopMood(shop);
+  const hag = Game.haggleState();
+  const moodBox = el('div', 'shopmood' + (hag?.sour ? ' sour' : hag?.cut < 1 ? ' cut' : ''));
+  moodBox.appendChild(el('span', 'moodname', mood.n));
+  moodBox.appendChild(el('span', 'moodtag', mood.t));
+  buyList.appendChild(moodBox);
+
+  if (!hag?.done) {
+    const hb = el('button', 'campopt wager haggle');
+    const head = el('div', 'camphead');
+    head.appendChild(el('span', 'campname', '값을 깎아 본다'));
+    head.appendChild(el('span', 'camptag odds', `${Math.round(Game.haggleOdds() * 100)}%`));
+    hb.appendChild(head);
+    hb.appendChild(el('span', 'campdesc', `되면 이 수레에서 ${Math.round((1 - Game.HAGGLE_CUT) * 100)}% 싸진다.`));
+    hb.appendChild(el('span', 'campdesc risk', '실패 — 오늘 이 수레는 아무것도 사 주지 않는다.'));
+    hb.onclick = () => { Game.haggle(); renderShop(); refresh(); };
+    buyList.appendChild(hb);
+  } else if (hag.sour) {
+    buyList.appendChild(el('p', 'empty shopline sour', '상인이 등을 돌렸다. 오늘은 팔 수 없다.'));
+  } else if (hag.cut < 1) {
+    buyList.appendChild(el('p', 'empty shopline cut',
+      `깎았다 — ${Math.round((1 - hag.cut) * 100)}% 싸게 산다.`));
+  }
+
   /* The temple sells almost nothing and does one thing, so the
      one thing goes at the top of its shelf rather than below a
      row of flasks. */
@@ -3263,6 +3290,22 @@ export function renderEvent() {
 
   $('event-name').textContent = offer.n;
   $('event-text').textContent = offer.t;
+
+  /* 사건마다 그림이 따로 있지는 않다. 있는 것을 쓴다 — 사건의 성격에
+     가까운 스프라이트를 골라 크게 앉히고, 없으면 물음표 타일. */
+  const ART = { seep:'potion', wickseller:'torch', blackroom:'door',
+                eggs:'web', anvil:'anvil', shrine:'altar' };
+  const art = $('event-art');
+  if (art) {
+    const S = CELL_SIZE * 9;
+    art.width = S; art.height = S;
+    art.style.width = `${S}px`; art.style.height = `${S}px`;
+    const c = art.getContext('2d');
+    c.imageSmoothingEnabled = false;
+    c.clearRect(0, 0, S, S);
+    const spr = sprite(ART[offer.id] || 'event') || sprite('event');
+    if (spr) c.drawImage(spr, 0, 0, S, S);
+  }
 
   for (const o of offer.opts) {
     const row = el('button', 'campopt' + (o.can ? '' : ' poor'));

@@ -580,6 +580,52 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .campopt:active .campname, .campopt:active .camptag, .campopt:active .campdesc { color: var(--k); }
 #camp-back { margin-top: 12px; }
 
+/* ── ? ────────────────────────────────────────────────────
+   읽는 자리와 거는 자리를 위아래로 가른다. 사건은 「무엇을 보고
+   있는가」를 먼저 읽고 「무엇을 걸 것인가」를 나중에 고르는 화면인데,
+   둘이 같은 모양으로 붙어 있으면 그냥 목록이 된다.
+
+   선택지는 아래로 밀어 붙인다. 화면 절반이 비어 있던 것도 문제지만,
+   그보다 엄지가 닿는 곳이 결정하는 곳이어야 한다. */
+/* min-height:100%는 부모의 안쪽 여백만큼 넘친다 — 실제로 42px
+   넘쳤다. 높이를 강요하는 대신, 선택지에 margin-top:auto를 줘서
+   남는 공간을 위로 밀어 올린다. 결과는 같고 넘치지 않는다. */
+.evwrap { display: flex; flex-direction: column; }
+.evread {
+  flex: 0 0 auto; padding: 2px 0 14px;
+  border-bottom: 1px solid var(--g);
+  margin-bottom: 14px;
+}
+.evread .note { margin: 0; font-size: 12.5px; line-height: 1.95; color: var(--w); }
+/* 빈 자리의 한가운데. 어두운 스프라이트를 어두운 바닥에 얹는 것이라
+   흐리게 두면 아무것도 안 보인다 — 표식은 표식만큼 보여야 한다. */
+.evart {
+  display: block; margin: auto; image-rendering: pixelated;
+  opacity: .62; filter: drop-shadow(0 3px 0 rgba(0,0,0,.7));
+}
+#event-list { margin-top: auto; display: flex; flex-direction: column; gap: 9px; }
+#event-list .campopt { margin-bottom: 0; }
+
+/* 물음표는 크게. 이 화면이 무엇인지 한 글자로 말한다. */
+#sc-event .evmark {
+  margin-left: auto; font-size: 22px; color: var(--r);
+  letter-spacing: 0; line-height: 1; opacity: .8;
+}
+
+/* 선택지는 슬래브다. 왼쪽 굵은 선이 성격을 말한다 —
+   붉은 것은 걸고, 회색은 그냥 지나간다. */
+#sc-event .campopt {
+  border-left: 4px solid var(--g); padding: 14px 14px 13px;
+  background: linear-gradient(180deg, var(--d), #100e13);
+}
+#sc-event .campopt.wager { border-left-color: var(--R); }
+#sc-event .campopt.poor { opacity: .45; }
+#sc-event .campname { font-size: 16px; }
+/* 얻는 것과 잃는 것을 한 장부로 읽는다. 위에는 값, 아래에는 대가. */
+#sc-event .campdesc.risk {
+  border-top: 1px solid var(--r); padding-top: 6px; margin-top: 7px;
+}
+
 /* A wager reads differently from a choice. The percentage is the
    loudest thing on the button and the losing cost sits under it,
    so nobody gambles without having seen both numbers. */
@@ -587,6 +633,24 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .camptag.odds  { font-size: 13px; color: var(--y); letter-spacing: .04em; }
 .campdesc.risk { display: block; margin-top: 5px; font-size: 11px; color: var(--r); }
 .campopt:active .campdesc.risk, .campopt:active .camptag.odds { color: var(--k); }
+
+/* ── 수레의 기분 ──
+   값이 왜 이런지 한 줄로 말한다. 흔들리는 값에 이유가 없으면
+   그것은 변칙이 아니라 버그로 읽힌다. */
+.shopmood {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 9px 11px; margin: 4px 0 10px;
+  border-left: 3px solid var(--o); background: #171319;
+}
+.shopmood.cut  { border-left-color: var(--E); }
+.shopmood.sour { border-left-color: var(--R); }
+.moodname { font-size: 12.5px; color: var(--o); letter-spacing: .04em; }
+.shopmood.cut .moodname  { color: var(--E); }
+.shopmood.sour .moodname { color: var(--R); }
+.moodtag { font-size: 10.5px; color: var(--G); line-height: 1.6; }
+.shopline.sour { color: var(--R); }
+.shopline.cut  { color: var(--E); }
+.campopt.haggle { margin-bottom: 12px; }
 
 /* Fusion. The chosen two glow; the odds bar reads the same way
    the altar's does, because it is the same kind of bet. */

@@ -5391,7 +5391,7 @@ export function eventOffer() {
   if (!e) return null;
   const api = eventApi();
   return {
-    n: e.n, t: e.t,
+    id: e.id, n: e.n, t: e.t,      // 화면이 사건마다 다른 그림을 고를 수 있게
     opts: e.opts.map((o, i) => ({
       i, n: o.n, t: o.t, can: !o.need || o.need(api), odds: o.odds ?? null,
       risk: o.risk || '',
@@ -5721,6 +5721,73 @@ export function shopStock(shop) {
   return out;
 }
 
+/* ── 행상의 기분 ─────────────────────────────────────────
+   값이 「기본값 × 매력 × 평판」뿐이면 상점은 자판기다. 언제 가도
+   같은 값이면 언제 갈지가 결정이 되지 않는다.
+
+   그래서 행상마다 기분이 있다. 무작위가 아니라 **네 상태를 읽는다** —
+   피를 흘리고 있는지, 불이 꺼져 가는지, 가방이 찼는지, 뒤에서 무엇이
+   쫓아오는지. 그래서 흔들리되 읽을 수 있고, 읽을 수 있으니 「지금
+   갈까 나중에 갈까」가 수가 된다.
+
+   기분은 (행상, 층)으로 정해진다 — 한 층에서 나갔다 들어와도 안 바뀐다.
+   값이 새로고침되면 그것은 흥정이 아니라 도박이다. */
+export const MOODS = [
+  { id:'flush',  n:'주머니가 두둑하다',   t:'사는 값 −25%, 파는 값도 −25%.',
+    buy: () => 0.75, sell: () => 0.75 },
+  { id:'vulture', n:'피 냄새를 맡았다',   t:'다칠수록 비싸게 부른다.',
+    buy: p => 1 + (1 - p.hp / p.maxhp) * 0.8, sell: () => 1 },
+  { id:'dark',   n:'어둠을 무서워한다',   t:'네 불이 꺼져 갈수록 비싸다.',
+    buy: p => G.depth > 0 && p.lightTurns < 200 ? 1.55 : 1.05, sell: () => 1 },
+  { id:'scales', n:'무게를 잰다',        t:'가방이 무거울수록 후하게 사 준다.',
+    buy: () => 1.1, sell: p => 1 + Math.min(0.6, p.pack.length * 0.05) },
+  { id:'deaf',   n:'소란을 안다',        t:'소란이 크면 값을 올린다. 조용하면 깎아 준다.',
+    buy: () => (G.uproar || 0) >= 5 ? 1.45 : 0.9, sell: () => 1 },
+  { id:'steady', n:'셈이 밝다',          t:'정가. 깎이지도 오르지도 않는다.',
+    buy: () => 1, sell: () => 1 },
+];
+
+export function shopMood(shop) {
+  if (!shop) return MOODS[MOODS.length - 1];
+  /* 결정적이다 — 나갔다 들어와도 같은 값. 새로고침되는 값은 흥정이
+     아니라 도박이고, 도박은 아래 haggle이 맡는다. */
+  const k = (shop.id * 31 + (G.depth || 0) * 17 + (G.runSeed || 0)) % MOODS.length;
+  return MOODS[k];
+}
+
+/* ── 흥정 ────────────────────────────────────────────────
+   한 상점에 한 번. 걸면 값이 내려가거나, 상인이 상한다.
+   실패한 상인은 이 방문 동안 사 주지 않는다 — 잃는 것이 금화가
+   아니라 **출구**라서, 가진 것을 팔아 치우려던 계획이 통째로 어긋난다. */
+export const HAGGLE_CUT = 0.72;
+/* 화면이 부르는 확률과 여기서 굴리는 확률은 같은 한 줄이어야 한다.
+   버튼에 적힌 숫자와 실제 굴림이 갈라지면 그것은 도박이 아니라 사기다. */
+export const haggleOdds = () => clamp(0.42 + statB(G.player, 'chr') * 0.06, 0.15, 0.85);
+export function haggle() {
+  const p = G.player, shop = G.shop;
+  if (!shop) return false;
+  G.haggled = G.haggled || {};
+  const key = `${shop.id}:${G.depth}`;
+  if (G.haggled[key]) { say('한 번 흥정한 상대다. 두 번은 안 통한다.', 'warn'); return false; }
+  const odds = haggleOdds();
+  G.haggled[key] = true;
+  if (Math.random() < odds) {
+    G.haggleCut = { key, mult: HAGGLE_CUT };
+    say(`값을 깎았다. 이 수레에서는 ${Math.round((1 - HAGGLE_CUT) * 100)}% 싸다.`, 'good');
+    return true;
+  }
+  G.haggleSour = { key };
+  say('상인이 등을 돌렸다. 이 수레는 오늘 아무것도 사 주지 않는다.', 'hit');
+  return false;
+}
+export const haggleState = () => {
+  const shop = G.shop; if (!shop) return null;
+  const key = `${shop.id}:${G.depth}`;
+  return { done: !!(G.haggled || {})[key],
+           cut: G.haggleCut?.key === key ? G.haggleCut.mult : 1,
+           sour: G.haggleSour?.key === key };
+};
+
 export const priceOf = (item, buying) => {
   const chrB = statB(G.player, 'chr');
   // Same spine as salvage: a +5 sword is worth five upgrades more
@@ -5730,9 +5797,15 @@ export const priceOf = (item, buying) => {
      reputation: robbing a drunk raises it, settling a ledger
      lowers it. Selling prices move the other way. */
   const mk = (1 + (G.player.markup || 0)) * (hasShackle('ledger') ? 1.5 : 1);
+  /* 기분과 흥정이 여기 한 곳에서만 값에 닿는다. 화면이 부르는 값과
+     계산대가 받는 값이 갈라지면 그것은 흥정이 아니라 사기다. */
+  const mood = shopMood(G.shop);
+  const hag = haggleState();
+  const swing = buying ? mood.buy(G.player) * (hag?.cut ?? 1)
+                       : mood.sell(G.player);
   return buying
-    ? Math.max(1, Math.round(base * (1.25 - chrB * 0.03) * mk))
-    : Math.max(1, Math.round(base * (0.42 + chrB * 0.02) / mk));
+    ? Math.max(1, Math.round(base * (1.25 - chrB * 0.03) * mk * swing))
+    : Math.max(1, Math.round(base * (0.42 + chrB * 0.02) / mk * swing));
 };
 
 export function buy(item) {
@@ -5766,6 +5839,7 @@ export function buy(item) {
 export function sell(slotIdx) {
   const p = G.player, slot = p.pack[slotIdx];
   if (!slot) return;
+  if (haggleState()?.sour) { say('상인이 고개를 젓는다. 오늘은 아니다.', 'warn'); return; }
   const gain = priceOf(slot.item, false);
   p.gold += gain;
   removeItem(p, slotIdx);
@@ -5920,6 +5994,8 @@ export function startGame(raceKey, classKey, base) {
   G.regionAt = null;
   G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0; G.fused = 0; G.catUsed = 0;
   G.did = {}; G.act = null; G.lit = {}; G.uproar = 0; G.uproarTier = 0;
+  G.runSeed = Math.floor(Math.random() * 997);   // 판마다 행상의 기분표가 달라진다
+  G.haggled = {}; G.haggleCut = null; G.haggleSour = null;
   G.engraved = 0; G.memories = []; G.relicShelf = null;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;

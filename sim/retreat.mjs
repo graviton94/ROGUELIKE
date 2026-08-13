@@ -36,8 +36,16 @@ function stage(opts = {}) {
   Game.enterDepth(4);
   const L = G.level, p = G.player;
   /* 층 전체를 바위로 덮고 한 줄만 판다 — 다른 방의 것들이 끼어들면
-     재는 것이 후퇴가 아니라 우연이 된다. */
+     재는 것이 후퇴가 아니라 우연이 된다.
+
+     방 정보도 같이 지운다. computeFov에는 「밝은 방 안에 서 있으면
+     방 전체가 보인다」는 두 번째 패스가 있어서, 손으로 판 굴에 생성기의
+     방이 남아 있으면 내가 세운 벽 너머까지 보인다. 여덟 판에 한 판꼴로
+     「자취를 안 잃는다」가 나왔던 원인이 이것이었다 — 게임이 아니라
+     무대에 남은 옛 방이었다. */
   for (let i = 0; i < L.tiles.length; i++) L.tiles[i] = W.ROCK;
+  L.roomOf.fill(-1);
+  for (const r of L.rooms) { r.lit = false; r.bright = false; }
   const y = 10;
   for (let x = 3; x <= 40; x++) L.tiles[W.idx(x, y)] = W.FLOOR;
   if (opts.door) L.tiles[W.idx(opts.door, y)] = W.DOOR_OPEN;
@@ -68,14 +76,18 @@ console.log('\n후퇴 벤치 — 물러선다는 것이 수가 되는가\n');
   L.tiles[W.idx(9, y)] = W.ROCK;
   Game.refreshFov();
   const before = G.monsters.map(m => m.x);
-  /* 20턴을 기다린다. 12턴으로 재다가 한 번 실패했는데 게임이 아니라
-     검사가 짧았다 — 느린 것은 제 차례가 덜 오므로 자취를 잃는 데도
-     더 걸린다. 자취는 「플레이어의 턴」이 아니라 「제 턴」으로 센다. */
-  for (let i = 0; i < 20; i++) Game.step(0, 0);
+  /* 고정된 턴 수로 재지 않는다. 자취는 「플레이어의 턴」이 아니라
+     「제 턴」으로 세는데, 느린 것은 제 차례가 덜 오므로 같은 20턴에도
+     어떤 판은 잊고 어떤 판은 못 잊는다 — 12턴에서 한 번, 20턴에서
+     또 한 번 그렇게 붉게 떴다. 묻는 것은 「몇 턴 안에」가 아니라
+     「끝내 잊는가」이므로, 잊을 때까지 기다리되 상한을 둔다. */
+  let waited = 0;
+  while (waited < 80 && G.monsters.some(m => m.mark)) { Game.step(0, 0); waited++; }
   const marks = G.monsters.filter(m => m.mark).length;
   const moved = G.monsters.map(m => m.x);
   ok(marked0 > 0, '마주 보는 동안에는 내 자리를 안다', `자취를 든 것 ${marked0}/${G.monsters.length}`);
-  ok(marks === 0, '벽으로 시야를 끊으면 마지막 자리를 잊는다', `자취를 든 것 ${marks}/${G.monsters.length}`);
+  ok(marks === 0, '벽으로 시야를 끊으면 마지막 자리를 잊는다',
+     `자취를 든 것 ${marks}/${G.monsters.length} · ${waited}턴 만에`);
   ok(G.lostMe > 0, '자취를 잃은 사건이 실제로 일어났다', `${G.lostMe || 0}회`);
   ok(G.monsters.every(m => m.x > p.x + 1), '벽 너머로 정확히 오지는 못한다',
      `${before.join(',')} → ${moved.join(',')}`);

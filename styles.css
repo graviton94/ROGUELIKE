@@ -461,7 +461,14 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   font-size: 8.5px; line-height: 1; text-align: center; overflow: hidden;
 }
 #acts .spells canvas { width: 15px; height: 15px; flex: 0 0 auto; }
-#acts .spells .sn { white-space: nowrap; overflow: hidden; }
+/* 세 글자가 들어가야 한다. 두 글자로 줄이면 「휩쓸기」가 「휩쓺」이
+   되고 「마무리」가 「마무」가 되는데, 그건 줄인 이름이 아니라 토막이라
+   버튼이 고장 난 것처럼 읽힌다. 좁아지면 글자가 먼저 작아지고,
+   그래도 모자랄 때만 잘린다. */
+#acts .spells .sn {
+  white-space: nowrap; overflow: hidden; max-width: 100%;
+  font-size: clamp(8px, 2.6vw, 10px); letter-spacing: -.02em;
+}
 #acts .spells b { color: var(--B); font-size: 8.5px; margin-left: 2px; }
 /* Three shades of "no": not learned, learned but cold (no mana
    or nothing to aim at), and live. */

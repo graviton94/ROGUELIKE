@@ -854,7 +854,7 @@ export function spellSlots() {
                   || (ART_NEEDS_WATCHER.includes(a.id) && !(G.level && awakeWatchers().length))
                   || (!!a.ammo && (quiver(p)?.qty || 0) < a.ammo);
     return {
-      id: a.id, name: a.name, short: a.short || a.name.slice(0, 2),
+      id: a.id, name: a.name, short: a.short || a.name.slice(0, 3),   // 두 글자로 자르면 「마무」가 된다
       lv: a.lv, cost: a.faith || a.oath || a.shade || a.stam, art: true,
       faith: !!a.faith, oath: !!a.oath, shade: !!a.shade, stam: a.stam || 0,
       locked, silent: false, noTarget,
@@ -875,7 +875,7 @@ export function spellSlots() {
     const cost = spellCost(p, s);
     const noTarget = TARGETED.includes(s.id) && !seen;
     return {
-      id: s.id, name: s.name, short: s.short || s.name.slice(0, 2),
+      id: s.id, name: s.name, short: s.short || s.name.slice(0, 3),
       lv: s.lv, cost, locked, silent, noTarget,
       plus: p.spellPlus?.[s.id] || 0,
       affix: p.spellAffix?.[s.id] || null,

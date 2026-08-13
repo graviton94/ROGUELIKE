@@ -898,7 +898,7 @@ export const ARTS = {
   warrior: [
     { id:'shove',    name:'밀쳐내기', short:'밀침', lv:1,  stam:2,
       desc:'앞의 것을 두 칸 밀어낸다. 벽에 부딪히면 한 턴 무너진다.' },
-    { id:'cleave',   name:'휩쓸기',   short:'휩쓺', lv:3,  stam:3,
+    { id:'cleave',   name:'휩쓸기',   short:'휩쓸기', lv:3,  stam:3,
       desc:'인접한 모든 것을 한 번에 벤다.' },
     /* 버티기 stood here: four turns of taking less and handing
        some back. Measured, a bot pressed it 10.2 times a run at
@@ -909,7 +909,7 @@ export const ARTS = {
        be*. 연타 is the same slot spent forwards. */
     { id:'flurry',   name:'연타',     short:'연타', lv:7,  stam:2,
       desc:'한 호흡에 잇달아 친다. 맞을 때마다 다음 한 대가 무거워지고, 빗나가면 거기서 끝난다.' },
-    { id:'finisher', name:'마무리',   short:'마무', lv:11, stam:4,
+    { id:'finisher', name:'마무리',   short:'마무리', lv:11, stam:4,
       desc:'상대가 잃은 피만큼 무거워지는 한 방.' },
   ],
 
@@ -929,7 +929,7 @@ export const ARTS = {
       desc:'보이는 적의 등 뒤로 건너뛰어 친다. 그 한 대는 기습이다. (그림자 1)' },
     { id:'fan',        name:'칼부채',      short:'부채', lv:4,  stam:2, shade:2,
       desc:'부채꼴로 칼을 던진다. 그 안의 모든 것이 맞는다. (그림자 2)' },
-    { id:'vanish',     name:'어둠 되감기',  short:'되감', lv:8,  stam:2, shade:1,
+    { id:'vanish',     name:'어둠 되감기',  short:'되감기', lv:8,  stam:2, shade:1,
       desc:'싸움 한가운데서 자취를 지운다. 깨어 있던 것들이 너를 놓친다. (그림자 1)' },
     { id:'vitals',     name:'급소',        short:'급소', lv:12, stam:3, shade:3,
       desc:'모은 것을 한 번에 태운다. 갑옷을 지나가는 한 방. (그림자 3)' },

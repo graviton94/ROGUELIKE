@@ -1880,6 +1880,61 @@ export function pushLore(ev) {
   if (!loreAt) showLore();
 }
 
+/* ── 밀어내기 ────────────────────────────────────────────
+   양피지는 저절로 사라지기를 기다리는 것 말고 치울 방법이 없었다.
+   탭은 있었지만, 읽는 중에 잘못 눌릴까 봐 손이 안 가는 자리다.
+   그래서 손가락으로 미는 길을 낸다 — 위로든 옆으로든 40px을 넘기면
+   그쪽으로 날아간다. 40px 미만이면 제자리로 돌아온다.
+
+   선택을 요구하는 창(#ask)에는 붙이지 않는다. 질문을 밀어서 없앨 수
+   있으면 그것은 질문이 아니다. */
+const SWIPE_GO = 40;
+function swipeAway(box, done) {
+  if (box.__swipe) return;
+  box.__swipe = true;
+  let id = null, sx = 0, sy = 0, dx = 0, dy = 0, moved = false;
+  const surface = box.querySelector('.sheet') || box;
+
+  const reset = () => {
+    box.style.transition = 'transform .16s steps(3), opacity .16s steps(3)';
+    box.style.transform = ''; box.style.opacity = '';
+    setTimeout(() => { box.style.transition = ''; }, 180);
+  };
+  surface.addEventListener('pointerdown', e => {
+    if (id !== null) return;
+    id = e.pointerId; sx = e.clientX; sy = e.clientY; dx = dy = 0; moved = false;
+    box.style.transition = '';
+    try { surface.setPointerCapture(id); } catch { /* 마우스에선 없을 수 있다 */ }
+  });
+  surface.addEventListener('pointermove', e => {
+    if (e.pointerId !== id) return;
+    dx = e.clientX - sx; dy = e.clientY - sy;
+    if (Math.hypot(dx, dy) > 6) moved = true;
+    if (!moved) return;
+    /* 아래로는 안 민다 — 아래에 조작부가 있어서, 내려 미는 동작은
+       버튼을 향한 손과 구분이 안 된다. */
+    const useY = Math.min(0, dy);
+    box.style.transform = `translate(${Math.round(dx)}px, ${Math.round(useY)}px)`;
+    box.style.opacity = String(Math.max(0.25, 1 - Math.hypot(dx, useY) / 180));
+  });
+  const finish = e => {
+    if (e.pointerId !== id) return;
+    id = null;
+    const far = Math.max(Math.abs(dx), Math.max(0, -dy));
+    if (!moved) { done(); return; }              // 밀지 않았으면 탭이다
+    if (far < SWIPE_GO) { reset(); return; }
+    const gx = Math.abs(dx) > Math.abs(dy) ? Math.sign(dx) * 460 : 0;
+    const gy = gx ? 0 : -420;
+    box.style.transition = 'transform .18s steps(4), opacity .18s steps(4)';
+    box.style.transform = `translate(${gx}px, ${gy}px)`;
+    box.style.opacity = '0';
+    setTimeout(() => { box.style.transition = ''; box.style.transform = '';
+                       box.style.opacity = ''; done(); }, 190);
+  };
+  surface.addEventListener('pointerup', finish);
+  surface.addEventListener('pointercancel', finish);
+}
+
 function showLore() {
   const box = $('lorecard');
   const ev = loreQueue.shift();
@@ -1904,7 +1959,7 @@ function showLore() {
   /* Long enough to read two sentences at a glance, and tappable
      away before that — it must never be in the way of a fight. */
   loreAt = setTimeout(closeLore, 5200);
-  box.onclick = closeLore;
+  swipeAway(box, closeLore);
 }
 
 function closeLore() {
@@ -3169,6 +3224,7 @@ function showLesson() {
   dressAll();
   $('lesson-text').innerHTML = l.t;
   $('lesson').hidden = false;
+  swipeAway($('lesson'), closeLesson);
 }
 
 function closeLesson() {
@@ -3785,6 +3841,8 @@ export function bindInput() {
 
   $('lesson-ok').onclick = () => closeLesson();
   $('look-close').onclick = () => { $('look').hidden = true; };
+  /* 살펴보기 카드도 밀어서 치운다. 여기는 읽는 창이지 묻는 창이 아니다. */
+  swipeAway($('look'), () => { $('look').hidden = true; });
   $('look').addEventListener('pointerdown', e => {
     if (e.target.id === 'look') $('look').hidden = true;   // tap the backdrop
   });

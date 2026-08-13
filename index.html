@@ -166,13 +166,22 @@
       <div class="track"><i id="hud-stambar" class="st"></i></div>
       <span class="gval" id="hud-stam">0/0</span>
     </div>
+    <!-- 성격이 다른 것을 한 줄에 섞어 두면 긴 쪽이 짧은 쪽을 밀어낸다.
+         왼쪽은 「내가 누구인가」(변하지 않거나 천천히 변하는 것),
+         오른쪽은 「지금 무슨 일이 벌어지고 있나」(매 턴 변하는 것).
+         왼쪽은 좁아지면 말줄임으로 물러서고, 오른쪽은 끝까지 남는다 —
+         급할 때 읽어야 하는 쪽이 오른쪽이기 때문이다. -->
     <div class="hudbot">
-      <span id="hud-name" class="who"></span>
-      <span class="xp">Lv <b id="hud-lv">1</b></span>
-      <span class="xp">AC <b id="hud-ac">0</b></span>
-      <span class="xp">XP <b id="hud-xp">0/0</b></span>
-      <span class="xp" id="hud-oil-wrap">불 <b id="hud-oil">0</b></span>
-      <span id="hud-flags" class="flags"></span>
+      <span class="grp who-grp">
+        <span id="hud-name" class="who"></span>
+        <span class="xp">Lv <b id="hud-lv">1</b></span>
+        <span class="xp">AC <b id="hud-ac">0</b></span>
+        <span class="xp" id="hud-xp-wrap">XP <b id="hud-xp">0/0</b></span>
+      </span>
+      <span class="grp state-grp">
+        <span class="xp" id="hud-oil-wrap">불 <b id="hud-oil">0</b></span>
+        <span id="hud-flags" class="flags"></span>
+      </span>
     </div>
   </header>
 

@@ -1115,10 +1115,16 @@ export function refresh() {
   const strain = Game.strainOf(p);
   if (strain) flags.push(`부담 −${strain.short * 3} 명중`);
   if (p.stuck > 0) flags.push('거미줄');
-  /* 소란은 내가 만든 것이라 보여야 한다. 지금 값이 얼마인지보다
-     「보상이 얼마나 부풀어 있는지」가 결정에 쓰이는 숫자다. */
-  if (G.depth > 0 && (G.uproar || 0) >= 2)
-    flags.push(`소란 ×${Game.uproarMult().toFixed(2)}`);
+  /* 소란은 내가 만든 것이라 보여야 한다. 그런데 배수만 띄우면 그것은
+     도박판이 아니라 그냥 보너스다 — 딴 것만 보이고 건 것이 안 보인다.
+     그래서 값과 위험을 나란히 적는다: 배수, 그리고 지금 이쪽으로
+     오고 있는 것의 수. 둘이 같이 있어야 「더 부를까」가 질문이 된다. */
+  if (G.depth > 0 && (G.uproar || 0) >= 2) {
+    const p2 = G.player;
+    const coming = G.monsters.filter(m => m.awake && !m.disguise
+      && Math.hypot(m.x - p2.x, m.y - p2.y) <= 9).length;
+    flags.push(`소란 ×${Game.uproarMult().toFixed(2)}${coming ? ` · ${coming}체` : ''}`);
+  }
   if (G.depth > 0 && p.lightTurns <= 0) flags.push('암흑');
   else if (G.depth > 0 && p.lightTurns < 80) flags.push('불빛 희미');
   else if (G.depth > 0 && p.lightTurns < 300) flags.push('기름 부족');

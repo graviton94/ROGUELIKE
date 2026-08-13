@@ -291,9 +291,14 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 }
 
 .gauge { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.glabel { font-size: 9.5px; color: var(--G); width: 18px; }
-.gval   { font-size: 10.5px; color: var(--w); width: 62px; text-align: right; }
-.track { position: relative; flex: 1 1 auto; height: 7px; background: var(--k); border: 1px solid var(--g); }
+/* 18px에 「기력」을 넣으면 두 글자가 두 줄이 된다 — 320px 화면에서
+   실제로 그렇게 접혀 있었다. 라벨은 줄어들지도 접히지도 않는다. */
+.glabel { font-size: 9.5px; color: var(--G); width: 28px;
+          flex: 0 0 auto; white-space: nowrap; }
+.gval   { font-size: 10.5px; color: var(--w); width: 62px; text-align: right;
+          flex: 0 0 auto; white-space: nowrap; }
+.track { position: relative; flex: 1 1 auto; min-width: 0; height: 7px;
+         background: var(--k); border: 1px solid var(--g); }
 .track i { display: block; height: 100%; transition: width .16s linear; }
 /* Console gauges come in cells. The ticks are painted over the
    fill in the track's own background colour, so the bar reads as
@@ -306,9 +311,33 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 .track i.mp { background: var(--B); }
 .track i.st { background: var(--E); }
 
-.hudbot { display: flex; align-items: center; gap: 10px; font-size: 10px; color: var(--G); }
+/* 한 줄, 고정 높이, 절대 접히지 않는다. 접히면 그만큼 지도가
+   내려앉고, 그 일이 전투 중에 일어난다. */
+.hudbot {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 10px; color: var(--G);
+  flex-wrap: nowrap; height: 15px; overflow: hidden;
+}
+.hudbot .grp {
+  display: flex; align-items: center; gap: 10px;
+  white-space: nowrap; min-width: 0;
+}
+/* 신원과 성장 — 좁아지면 먼저 물러선다 */
+.hudbot .who-grp { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+/* 지금 벌어지는 일 — 끝까지 남고, 넘치면 옆으로 민다 */
+.hudbot .state-grp {
+  flex: 1 1 auto; justify-content: flex-end;
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.hudbot .state-grp::-webkit-scrollbar { display: none; }
+.hudbot .xp { flex: 0 0 auto; }
+/* 좁은 화면에서는 XP가 글자 가운데서 잘려 「고장」처럼 보였다.
+   반쯤 자를 바에는 내리는 편이 낫다 — 급할 때 읽는 값이 아니고,
+   레벨업은 어차피 소리와 문장으로 알려 준다. */
+@media (max-width: 400px) { #hud-xp-wrap { display: none; } }
 .hudbot .xp b { color: var(--w); }
-.flags { flex: 1 1 auto; text-align: right; color: var(--g); }
+.flags { flex: 0 0 auto; color: var(--g); white-space: nowrap; }
 .flags.on { color: var(--o); }
 
 /* ── map ── */

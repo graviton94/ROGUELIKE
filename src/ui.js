@@ -1115,6 +1115,10 @@ export function refresh() {
   const strain = Game.strainOf(p);
   if (strain) flags.push(`부담 −${strain.short * 3} 명중`);
   if (p.stuck > 0) flags.push('거미줄');
+  /* 소란은 내가 만든 것이라 보여야 한다. 지금 값이 얼마인지보다
+     「보상이 얼마나 부풀어 있는지」가 결정에 쓰이는 숫자다. */
+  if (G.depth > 0 && (G.uproar || 0) >= 2)
+    flags.push(`소란 ×${Game.uproarMult().toFixed(2)}`);
   if (G.depth > 0 && p.lightTurns <= 0) flags.push('암흑');
   else if (G.depth > 0 && p.lightTurns < 80) flags.push('불빛 희미');
   else if (G.depth > 0 && p.lightTurns < 300) flags.push('기름 부족');
@@ -3796,6 +3800,10 @@ export function bindInput() {
   $('btn-down').onclick   = () => { stopAuto(); act(Game.descend); };
   $('btn-up').onclick     = () => { stopAuto(); act(Game.ascend); };
   $('btn-door').onclick   = () => { stopAuto(); act(Game.closeDoor); };
+  /* 밀도를 올리는 유일한 손잡이. 버튼 하나로 두는 이유는, 이것이
+     실수로 눌리면 안 되는 결정이기 때문이다 — 자동 이동을 끊고
+     한 번의 의식적인 누름으로만 나간다. */
+  $('btn-shout').onclick  = () => { stopAuto(); act(Game.shout); };
   $('btn-here').onclick   = () => {
     stopAuto();
     if (Game.openHere()) { setScreen(G.screen); refresh(); }
@@ -3851,6 +3859,7 @@ export function bindInput() {
     else if (e.key === 'i') { stopAuto(); setScreen('inv'); }
     else if (e.key === 'm') { stopAuto(); setScreen('spell'); }
     else if (e.key === 'c') { stopAuto(); act(Game.closeDoor); }
+    else if (e.key === 'y') { stopAuto(); act(Game.shout); }
     else if (e.key === 'Tab') { e.preventDefault(); cycleMini(); }
     // 1–5 cast, q/w/e drink — the same order as the two rows read
     else if (e.key >= '1' && e.key <= '5') {

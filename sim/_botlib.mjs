@@ -92,6 +92,8 @@ function outfit() {
   }
 }
 
+const SHOUT = !!process.env.SHOUT;
+
 function runBot(race, cls, clear, opt = {}) {
   /* Runs in one process are not independent unless this is here.
      meta.js keeps its ledger in a module-level cache, and startGame
@@ -129,7 +131,7 @@ function runBot(race, cls, clear, opt = {}) {
   }
   Game.descend();
   const st = { crits: 0, sneaks: 0, kills: 0, misses: 0, camps: 0, elites: 0, named: 0, shops: 0, broke: 0, events: 0, rolls: 0, branch: {} };
-  let path = null, guard = 0, depthAt = G.depth;
+  let path = null, guard = 0, depthAt = G.depth, lastShout = -99, holdUntil = -1;
   const hist = [];
   let traded = false;   // one visit per floor; the bot has no other reason to stop
 
@@ -366,6 +368,34 @@ function runBot(race, cls, clear, opt = {}) {
       const off = Game.hereOffer();
       const key = idx(p.x, p.y) + ':' + G.depth;
       if (off && !pressed.has(key)) { pressed.add(key); Game.openHere(); continue; }
+    }
+
+    /* 소란을 살 것인가. 이 정책이 있어야 ①(선택에 의한 밀도)을
+       잴 수 있다 — 봇이 외칠 줄 모르면 「불러 모으는 판」이 한 번도
+       측정되지 않는다. SHOUT=1로 켠다.
+
+       사람처럼 고른다: 체력이 넉넉하고, 숨이 붙어 있고, 지금 주위가
+       한산할 때만. 이미 둘러싸였는데 더 부르는 것은 결정이 아니라
+       자살이다. */
+    if (SHOUT && Game.shout && G.depth > 0
+        && G.turn - (lastShout || -99) > 60      // 도배하지 않는다: 판당 2천 번은 정책이 아니다
+        && p.hp > p.maxhp * 0.72 && p.stam >= 3
+        && !G.monsters.some(m => Math.max(Math.abs(m.x-p.x), Math.abs(m.y-p.y)) <= 1)
+        && G.monsters.filter(m => m.awake
+             && Math.hypot(m.x - p.x, m.y - p.y) <= 7).length < 2
+        && (G.uproar || 0) < 6) {
+      /* 부르고 도망치면 밀도를 산 것이 아니다. 첫 측정이 정확히
+         그렇게 나왔다 — 외침을 켰더니 싸움이 17%에서 10%로 떨어졌다.
+         봇이 외쳐 놓고 그대로 걸어가 버렸기 때문이다. 불렀으면
+         버텨야 그 판이 「불러 모아 싸운 판」이 된다. */
+      if (Game.shout()) { lastShout = G.turn; holdUntil = G.turn + 30; continue; }
+    }
+
+    /* 부른 뒤에는 버틴다. 다가오는 것을 맞이하는 것이 이 선택의
+       나머지 절반이다. */
+    if (SHOUT && G.turn < holdUntil) {
+      const seen = G.monsters.filter(m => m.awake && G.level.vis[idx(m.x, m.y)]);
+      if (!seen.length && p.hp > p.maxhp * 0.4) { path = null; Game.step(0, 0); continue; }
     }
 
     /* Loose an arrow rather than walk into a fight you could have

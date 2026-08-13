@@ -558,11 +558,13 @@ export const stealth = p =>
 export const comboMult = () =>
   1 + Math.min(G.combo, 20) * (0.035 + (G.player?.perm?.comboStep || 0));
 
+/* 연격은 기량의 표시가 아니라 상태의 표시다. 문장이 위로 갈수록
+   기뻐지면 이 게임이 아니다 — 손이 풀리는 것이 아니라 손이 굳는다. */
 const COMBO_TIERS = [
-  [5,  '연격 5 — 손이 풀렸다.'],
-  [10, '연격 10 — 멈출 수가 없다.'],
-  [15, '연격 15 — 바닥이 미끄럽다.'],
-  [20, '연격 20 — 무엇도 다가오지 못한다.'],
+  [5,  '연격 5 — 손이 젖었다.'],
+  [10, '연격 10 — 팔이 저 혼자 움직인다.'],
+  [15, '연격 15 — 바닥이 미끄럽다. 네 것인지 아닌지는 모른다.'],
+  [20, '연격 20 — 이제 아무것도 다가오지 않는다. 그것이 더 나쁘다.'],
 ];
 
 function bumpCombo(x, y) {
@@ -2439,6 +2441,9 @@ export const monsterAt = (x, y) => G.monsters.find(m => m.x === x && m.y === y);
 export const itemAt = (x, y) => G.items.find(i => i.x === x && i.y === y);
 
 export function step(dx, dy) {
+  /* 제자리 대기를 걷기로 세면, 「버티는 판」이 「걸어 다니는 판」으로
+     읽힌다 — 소란을 재다가 실제로 그렇게 헛짚었다. */
+  if (!dx && !dy) G.act = 'wait';
   if (!G.running) return;
   const p = G.player, L = G.level;
 
@@ -2661,13 +2666,70 @@ export function closeDoor() {
 function rouse(x, y, radius, volume) {
   let woke = 0;
   for (const m of G.monsters) {
-    if (m.awake) continue;
     const d = Math.hypot(m.x - x, m.y - y);
     if (d > radius) continue;
-    if (Math.random() < volume * (1 - d / (radius + 1))) { m.awake = true; woke++; }
+    /* 소리는 깨우기만 하는 것이 아니라 **부른다**. 몬스터가 본 것만
+       알게 된 뒤로(sim/retreat.mjs) 깨어난 놈은 나를 못 보면 헤맸고,
+       그래서 소음이 아무도 끌어오지 못했다. 소리가 난 자리를 자취로
+       심어 주면 놈들은 그리로 온다 — 그때부터 소음은 미끼가 되고,
+       미끼가 되는 순간 밀도는 내가 정하는 것이 된다. */
+    if (m.awake) { if (!m.mark || Math.random() < 0.5) { m.mark = { x, y }; m.lost = 0; } continue; }
+    /* volume 1은 「반드시」다. 문이 삐걱이거나 상자가 부서지는 것은
+       확률이어야 하지만(사고니까), 대가를 치르고 일부러 지르는
+       소리는 결과가 확실해야 한다 — 11칸에서 25%만 깨우던 동안
+       외침은 결정이 아니라 도박이었고, 도박은 이미 소란이 맡는다. */
+    const heard = volume >= 1 ? true : Math.random() < volume * (1 - d / (radius + 1));
+    if (heard) { m.awake = true; m.mark = { x, y }; m.lost = 0; woke++; }
   }
   if (woke) fx({ t:'noise', x, y, r:radius });
   return woke;
+}
+
+/* ── 소란 ────────────────────────────────────────────────
+   판의 78%가 빈 걷기였고, 그 답은 「몬스터를 더 뿌린다」가 아니었다.
+   그건 그냥 다 늘리는 것이고, 늘린 밀도는 플레이어의 결정이 아니다.
+
+   그래서 밀도를 내가 산다. 깨어 있는 것이 주위에 많을수록 소란이
+   오르고, 소란은 처치 보상을 부풀린다. 조용히 가면 안전하고 가난하고,
+   불러 모으면 위험하고 부유하다. 소란은 혼자가 되면 식는다 — 그래서
+   ③의 후퇴가 「그만두기」가 아니라 「챙기고 빠지기」가 된다. */
+export const UPROAR_MAX = 12;
+export const uproarMult = () => 1 + Math.min(G.uproar || 0, UPROAR_MAX) * 0.085;
+
+function stirUproar() {
+  const p = G.player;
+  const near = G.monsters.filter(m => m.awake && !m.disguise
+    && Math.hypot(m.x - p.x, m.y - p.y) <= 7).length;
+  if (near >= 2) G.uproar = Math.min(UPROAR_MAX, (G.uproar || 0) + (near >= 4 ? 2 : 1));
+  else if (near === 0) G.uproar = Math.max(0, (G.uproar || 0) - 1);
+  const tier = G.uproar >= 9 ? 3 : G.uproar >= 5 ? 2 : G.uproar >= 2 ? 1 : 0;
+  if (tier !== (G.uproarTier || 0)) {
+    G.uproarTier = tier;
+    if (tier === 1) say('사방에서 무언가 일어선다.', 'warn');
+    if (tier === 2) say('층이 깨어났다. 이 소란은 네가 만든 것이다.', 'warn');
+    if (tier === 3) say('전부 이쪽으로 오고 있다. 물러설 자리를 지금 정해라.', 'hit');
+  }
+}
+
+/* 스스로 내는 소리. 이 게임에서 밀도를 올리는 유일한 손잡이다. */
+export const SHOUT_STAM = 2;
+export function shout() {
+  const p = G.player;
+  if (G.depth === 0) { say('여기서 소리쳐 봐야 아무도 오지 않는다.', 'warn'); return false; }
+  if (p.stam < SHOUT_STAM) { say('숨이 차서 소리가 나오지 않는다.', 'warn'); return false; }
+  p.stam -= SHOUT_STAM;
+  G.act = 'shout';                  // 외침은 걷기가 아니다 — 안 적으면 걷기로 세어진다
+  /* 9칸. 13칸을 확정으로 깨우던 동안 외침은 「한 무리를 부르는 것」이
+     아니라 「층을 통째로 여는 것」이었고, 재 보니 도달 층수가 8.1에서
+     5.0으로 떨어졌다. 위험을 사는 것과 판을 버리는 것은 다르다. */
+  const woke = rouse(p.x, p.y, 9, 1);
+  G.shouts = (G.shouts || 0) + 1; G.drawn = (G.drawn || 0) + woke;
+  G.uproar = Math.min(UPROAR_MAX, (G.uproar || 0) + 3);
+  say(woke ? `소리쳤다. ${woke}이(가) 이쪽으로 온다.`
+           : '소리쳤다. 아무 대답도 없다. 그편이 나은지는 모르겠다.', woke ? 'hit' : '');
+  fx({ t:'noise', x:p.x, y:p.y, r:13 });
+  endTurn();
+  return true;
 }
 
 /* ── stepping onto something ──────────────────────────────
@@ -3647,7 +3709,16 @@ export function hurtMonster(m, dmg, source, opt = {}) {
       dropElite(m);
     } else if (m.elite?.length) dropElite(m);
     onKill(m);
-    gainXp(Math.round(m.xp * (G.branch?.xp || 1)));
+    gainXp(Math.round(m.xp * (G.branch?.xp || 1) * uproarMult()));
+    /* 소란이 붙어 있을 때만 시체에서 더 나온다. 경험치만 부풀리면
+       보상이 레벨업까지 미뤄지고, 미뤄진 보상은 위험을 살 이유가
+       되지 못한다 — 걸었으면 그 자리에서 받아야 건 것 같다. */
+    const spoil = Math.round(m.xp * 2.2 * (uproarMult() - 1));
+    if (spoil > 0) {
+      const got = goldGain(spoil);
+      G.player.gold += got;
+      if (got >= 3) say(`소란 속에서 ${got}닢을 주웠다.`, 'good');
+    }
     if (m.boss) victory();
   } else {
     fx({ t:'hit', on:'monster', x:m.x, y:m.y, dmg, crit:!!opt.crit, sneak:!!opt.sneak,
@@ -3688,7 +3759,10 @@ export function unownedRelic() {
    in five leaves the thing that changes the run instead. */
 function dropElite(m) {
   const spot = { x: m.x, y: m.y };
-  if (Math.random() < 0.22) {
+  /* 소란이 클수록 좋은 것이 나온다. 위험을 산 값을 여기서 치른다 —
+     경험치만 부풀리면 「많이 싸우면 레벨이 는다」는 당연한 소리지,
+     걸었다는 느낌이 아니다. */
+  if (Math.random() < 0.22 * uproarMult()) {
     const id = unownedRelic();
     if (id) {
       G.items.push({ kind:'relic', id, spr: relicById(id).spr, n: relicById(id).n, ...spot });
@@ -3800,6 +3874,7 @@ export function endTurn(skipMonsters = false) {
     const band = lightRadiusOf(p);
     (G.lit || (G.lit = {}))[band] = (G.lit[band] || 0) + 1;
     hint('near');
+    stirUproar();
   }
   G.act = null;
   /* How long you have not moved. Cheap to keep and the only
@@ -3849,10 +3924,10 @@ export function endTurn(skipMonsters = false) {
       p.lightTurns -= (G.branch?.drain || 1) * OIL_BURN(G.depth)
         * (hasRelic('famine') ? 3 : hasRelic('hunger') ? 2 : 1)
         + (hasShackle('hunger') && G.turn % 10 < 3 ? 1 : 0);
-    if (p.lightTurns === 640) say('불빛이 한 뼘 줄었다.', 'warn');
+    if (p.lightTurns === 640) say('불빛이 한 뼘 줄었다. 벽이 가까워진 것은 아니다.', 'warn');
     if (p.lightTurns === 360) say('기름이 절반쯤 남았다.', 'warn');
     if (p.lightTurns === 180) say('빛이 팔 길이만큼만 간다.', 'warn');
-    if (p.lightTurns === 60)  say('불빛이 손바닥만큼 줄었다.', 'warn');
+    if (p.lightTurns === 60)  say('불빛이 손바닥만큼 줄었다. 여기서부터는 듣고 걷는다.', 'warn');
     if (p.lightTurns === 0)   say('불이 꺼졌다. 두 칸 앞이 벽인지 아닌지도 모른다.', 'hit');
     if (p.lightTurns < 0) p.lightTurns = 0;
     G.floorTurn++;
@@ -4678,7 +4753,8 @@ export function campRest() {
   p.ail = {};
   p.stuck = 0;
   if (heal) fx({ t:'heal', x:p.x, y:p.y, amt:heal });
-  say(heal ? `불 앞에서 숨을 돌렸다. 체력 +${heal}.` : '불 앞에 앉았지만 이미 멀쩡하다.', 'good');
+  say(heal ? `불 앞에서 숨을 돌렸다. 체력 +${heal}. 이것으로 충분할 리 없다.`
+           : '불 앞에 앉았다. 아직 성한 몸이라는 것이 이상하다.', 'good');
   if (cured.length) say(`${cured.map(k => AILMENTS[k].n).join(' · ')}이(가) 가셨다.`, 'good');
   spendCamp();
 }
@@ -5843,7 +5919,7 @@ export function startGame(raceKey, classKey, base) {
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0; G.kills = 0; G.eventsSeen = 0;
   G.regionAt = null;
   G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0; G.fused = 0; G.catUsed = 0;
-  G.did = {}; G.act = null; G.lit = {};
+  G.did = {}; G.act = null; G.lit = {}; G.uproar = 0; G.uproarTier = 0;
   G.engraved = 0; G.memories = []; G.relicShelf = null;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;

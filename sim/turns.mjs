@@ -22,18 +22,19 @@ Meta.forget();
 
 const N = Number(process.argv[2] || 8);
 const CLASSES = ['warrior', 'rogue', 'mage', 'priest', 'ranger', 'paladin'];
-const NAMES = { walk:'그냥 걸었다', fight:'때렸다', shoot:'쏘았다', cast:'주문을 썼다',
+const NAMES = { walk:'그냥 걸었다', shout:'외쳤다', wait:'기다렸다', fight:'때렸다', shoot:'쏘았다', cast:'주문을 썼다',
                 pick:'주웠다', use:'소모품을 썼다', open:'무언가를 열었다' };
 
 const total = {};
 const perClass = {};
-let runs = 0, depth = 0, turns = 0;
+let runs = 0, depth = 0, turns = 0, shouts = 0, drawn = 0;
 
 for (const cls of CLASSES) {
   const mine = {};
   for (let i = 0; i < N; i++) {
     const r = runBot('human', cls, i % 2 === 0);
     runs++; depth += r.depth; turns += G.turn || 0;
+    shouts += G.shouts || 0; drawn += G.drawn || 0;
     for (const [k, v] of Object.entries(G.did || {})) {
       total[k] = (total[k] || 0) + v;
       mine[k] = (mine[k] || 0) + v;
@@ -55,6 +56,7 @@ for (const [k, v] of Object.entries(total).sort((a, b) => b[1] - a[1])) {
 console.log(`\n걷는 턴 ${total.walk} 중 적이 눈에 있던 것 ${watched} — ${Math.round(watched*100/Math.max(1,total.walk))}%`);
 console.log(`나머지 ${Math.round((total.walk-watched)*100/Math.max(1,total.walk))}%는 아무것도 보이지 않는 채로 걸은 턴이다.`);
 
+console.log(`외침 ${shouts}회 · 불러온 것 ${drawn}`);
 console.log('\n직업별 (걷기 % / 싸움 % — 싸움은 때리기+쏘기+주문):');
 for (const cls of CLASSES) {
   const m = perClass[cls];

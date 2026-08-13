@@ -21,15 +21,20 @@
   font-weight: 700; font-display: swap;
 }
 
+/* 화면 껍데기는 pixels.js의 PALETTE와 같은 값을 쓴다. 한쪽만
+   갈아입히면 갈색 던전이 청보라 액자에 들어앉는다 — 실제로 한
+   판 그렇게 나왔고, 그 액자가 화면에서 가장 튀었다.
+
+   톤은 쇠와 재와 마른 피다. 채도는 상처와 불에만 남긴다. */
 :root {
-  --k:#000000; --d:#181830; --g:#484878; --G:#9090c0;
-  --w:#d8d8c0; --W:#f8f8f8;
-  --r:#a81020; --R:#f84038; --o:#f87c20; --y:#f8d020;
-  --n:#805020; --N:#c89050;
-  --e:#089840; --E:#58e068;
-  --b:#2048c8; --B:#48a8f8;
-  --p:#8028a8; --P:#c868f8;
-  --s:#98a0b8;
+  --k:#0e0b10; --d:#16131a; --g:#3e3a40; --G:#8a8378;
+  --w:#d8cdb4; --W:#fdf7ed;
+  --r:#5e0f1c; --R:#c8322c; --o:#d4741f; --y:#d8b048;
+  --n:#5e3a1c; --N:#c8955c;
+  --e:#254a2a; --E:#6a9a4c;
+  --b:#1c2c4a; --B:#5a7fa8;
+  --p:#472150; --P:#9a6ab0;
+  --s:#8a8378;
 
   --mono: 'Galmuri11', ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo,
           Consolas, "Apple SD Gothic Neo", "Noto Sans KR", monospace;

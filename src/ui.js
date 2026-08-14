@@ -441,23 +441,17 @@ export function draw() {
     if (m._lx != null && m.x !== m._lx) m._face = m.x > m._lx ? 1 : -1;
     m._lx = m.x;
 
-    /* An elite gets a marker so you can decide to walk away from
-       it before you are already in melee with it. Corner brackets
-       out of whole pixels, not a stroked circle — the one shape
-       the tile grid can draw honestly. */
-    if (m.elite?.length && seenNow) {
-      ctx.save();
-      ctx.globalAlpha = 0.55 + Math.sin(performance.now() / 420) * 0.18;
-      ctx.fillStyle = m.elite.length > 1 ? PALETTE.P : PALETTE.o;
-      const u = px1, arm = u * 3;
-      const bx0 = Math.round(mx) - u,  by0 = Math.round(my) - u;
-      const bx1 = Math.round(mx + t),  by1 = Math.round(my + t);
-      ctx.fillRect(bx0, by0, arm, u);           ctx.fillRect(bx0, by0, u, arm);
-      ctx.fillRect(bx1 + u - arm, by0, arm, u); ctx.fillRect(bx1, by0, u, arm);
-      ctx.fillRect(bx0, by1, arm, u);           ctx.fillRect(bx0, by1 + u - arm, u, arm);
-      ctx.fillRect(bx1 + u - arm, by1, arm, u); ctx.fillRect(bx1, by1 + u - arm, u, arm);
-      ctx.restore();
-    }
+    /* 정예 표식. 예전에는 칸 네 귀퉁이에 괄호를 그렸는데, 그것은
+       그 **자리**에 표를 붙인 것이지 그것을 표시한 것이 아니다 —
+       셋이 붙어 서 있으면 어느 괄호가 누구 것인지 모르고, 괄호가
+       옆 칸의 벽·바닥과 겹쳐 읽혔다.
+
+       이제 그것의 테두리 자체를 물들인다. 실루엣 바깥 한 줄이라
+       몸을 한 픽셀도 안 가리고, 몇 마리가 붙어 있든 각자 자기
+       윤곽을 갖는다. 속성 하나면 잉걸, 둘 이상이면 시든 난초.
+       고리는 스프라이트를 그린 **뒤에** 덮는다 — 먼저 그리면
+       스프라이트 자신의 검은 외곽선에 덮여 사라진다. */
+    const eliteInk = m.elite?.length ? (m.elite.length > 1 ? 'P' : 'o') : null;
 
     /* 미믹은 안 어긋난다. 상자인 척하는 것이 떨리면 그건 이 게임에서
        가장 잘 만든 장치를 공짜로 알려 주는 셈이다. */
@@ -474,6 +468,16 @@ export function draw() {
         ctx.restore();
       } else blitGlitch(img, mx, my, t, gl, px1);
     } else blitActor(sprite(m.spr), mx, my, t, o, m._face === -1);
+
+    if (eliteInk && seenNow && hasSprite(`rim:${eliteInk}:${m.spr}`)) {
+      const prevA = ctx.globalAlpha;
+      /* 숨 쉰다. 가만히 있으면 그림의 일부로 읽히고, 그러면 「이 종은
+         원래 테두리가 주황이구나」가 된다. */
+      ctx.globalAlpha = prevA * (0.72 + Math.sin(performance.now() / 380) * 0.24);
+      ctx.drawImage(sprite(`rim:${eliteInk}:${m.spr}`), Math.round(mx), Math.round(my), t, t);
+      ctx.globalAlpha = prevA;
+    }
+
     if (m.disguise) continue;     // no sleep marker, no health bar — it is furniture
 
     /* A sleeping target is a free critical, so say so plainly —

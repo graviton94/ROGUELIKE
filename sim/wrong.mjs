@@ -265,10 +265,18 @@ console.log('\n기형 벤치 — 모두 다 잘못 자랐는가\n');
   /* 같은 자리를 두 번 찍어서 픽셀이 다르면, 화면에서 실제로 무언가
      움직이고 있는 것이다. 걷기·숨쉬기 때문에 이것만으로는 글리치의
      증거가 못 되지만, **아무것도 안 움직이면** 확실히 실패다. */
-  const a = await pg.locator('#stage').screenshot();
-  await pg.waitForTimeout(140);
-  const c = await pg.locator('#stage').screenshot();
-  ok(!a.equals(c), '두 프레임이 다르다 — 화면에서 실제로 어긋나고 있다');
+  /* 두 장만 찍어 비교했더니 네 번에 한 번씩 실패했다. 어긋나는 것은
+     90ms 칸의 39%뿐이고 걸음·숨쉬기도 박자를 타므로, 하필 같은 상태인
+     두 순간을 집을 수 있다. 실패한 것은 게임이 아니라 표본 수였다.
+     여섯 장을 걸쳐 찍어 그중 하나라도 다르면 된다. */
+  const frames = [];
+  for (let i = 0; i < 6; i++) {
+    frames.push(await pg.locator('#stage').screenshot());
+    await pg.waitForTimeout(110);
+  }
+  const moved = frames.some(x => !x.equals(frames[0]));
+  ok(moved, '여섯 프레임 중 달라지는 것이 있다 — 화면에서 실제로 어긋나고 있다',
+     `${frames.filter(x => !x.equals(frames[0])).length}/6장이 첫 장과 다르다`);
 }
 
 /* ── 6. 테두리가 실제로 화면에 있는가 ────────────────────
@@ -386,10 +394,146 @@ console.log('\n기형 벤치 — 모두 다 잘못 자랐는가\n');
     ok(lum.inside > 12,
        '벽 속이 실제로 그려져 있다 — 빈 곳을 재면 0이 나오고 0은 어떤 부등식이든 통과한다',
        `${lum.inside}`);
-    ok(lum.inside > 12 && lum.edge < lum.inside * 0.7,
+    /* 0.7로 잡았다가 네 번에 한 번 52 대 38(0.73)로 떨어졌다. 어두운
+       칸에서는 속과 가장자리의 대비가 눌리기 때문이다. 지웠을 때는
+       비율이 1.02로 나오므로(53/52, 101/99) 0.85로도 두 경우가 확실히
+       갈린다 — 임계값은 실패를 피하려고가 아니라 두 상태가 갈리는
+       자리에 놓아야 한다. */
+    ok(lum.inside > 12 && lum.edge < lum.inside * 0.85,
        '바닥에 면한 벽 가장자리가 벽 속보다 확실히 어둡다 — 벽이 덩어리로 읽힌다',
        `${lum.inside} → ${lum.edge}`);
   }
+}
+
+/* ── 7. 정예는 자기 테두리로 말하는가 ────────────────────
+   예전 표식은 칸 네 귀퉁이의 괄호였다. 셋이 붙어 서 있으면 어느
+   괄호가 누구 것인지 모르고, 벽·바닥과 겹쳐 읽혔다. 이제 그것의
+   윤곽 자체가 물든다 — 그러니 재는 것도 「그 칸에 정예 색이 몇 점
+   있는가」다. 같은 몬스터를 정예로 만들었다 풀었다 하면서 센다. */
+{
+  /* 무대를 세우는 것과 재는 것을 나눈다. 한 번의 호출 안에서 층을
+     갈아 끼우고 바로 픽셀을 읽으면 **직전 층이 그려진 화면**을 읽게
+     되고, 그러면 0점이 나온다 — 벽 테두리에서 똑같이 당했다. */
+  const placed = await pg.evaluate(async () => {
+    const Game = await import('/src/game.js');
+    const D = await import('/src/data.js');
+    const W = await import('/src/world.js');
+    const G = Game.G;
+    Game.enterDepth(4);
+    const L = G.level, p = G.player;
+    p.lightTurns = 900; p.hp = p.maxhp;
+    Game.refreshFov();
+    /* **보이는** 칸에 세운다. 벽 뒤에 세우면 아예 안 그려지고, 그러면
+       테두리 점이 0으로 나온다 — 테두리가 없어서가 아니라 몬스터가
+       없어서. 이 무대에서만 세 번째로 하는 같은 실수다. */
+    let spot = null;
+    for (let dx = -3; dx <= 3 && !spot; dx++)
+      for (let dy = -2; dy <= 2 && !spot; dy++) {
+        const x = p.x + dx, y = p.y + dy;
+        if ((dx === 0 && dy === 0) || L.solid(x, y)) continue;
+        if (!L.vis[W.idx(x, y)]) continue;
+        spot = { x, y };
+      }
+    if (!spot) return false;
+    const spec = D.MONSTERS.find(m => m.spr === 'orc');
+    G.monsters.length = 0;
+    G.monsters.push({ ...spec, hp: spec.hp, maxhp: spec.hp, ...spot, awake: true, energy: 0 });
+    Game.refreshFov();
+    return true;
+  });
+  ok(placed, '보이는 칸에 정예를 세웠다');
+  /* 층을 갈아 끼우면 지역 소개 카드가 떠서 지도 위를 덮는다. 덮인
+     화면을 읽으면 그 칸에 아무것도 안 그려져 있고, 그러면 「테두리가
+     없다」가 아니라 「몬스터가 없다」를 재게 된다 — 두 번에 한 번씩
+     0점이 나오던 이유가 이것이었다. */
+  for (let i = 0; i < 12; i++) {
+    const hit = await pg.evaluate(() => {
+      for (const id of ['lesson-ok', 'ask-ok', 'look-ok']) {
+        const e = document.getElementById(id);
+        if (e && e.getBoundingClientRect().width > 2) { e.click(); return true; }
+      }
+      const card = document.getElementById('lorecard');
+      if (card && !card.hidden) { card.hidden = true; return true; }
+      return false;
+    });
+    if (!hit) break;
+    await pg.waitForTimeout(140);
+  }
+  await pg.waitForTimeout(450);
+  /* 그 칸에 실제로 무언가 그려져 있는가부터 확인한다. 이걸 안 물으면
+     빈 칸을 재고 「테두리가 없다」고 보고한다. */
+  const drawn = await pg.evaluate(async () => {
+    const Game = await import('/src/game.js');
+    const UI = await import('/src/ui.js');
+    const m = Game.G.monsters[0];
+    const cv = document.getElementById('map'), g = cv.getContext('2d'), cam = UI._camera();
+    const px = Math.round((m.x - cam.cx) * cam.t), py = Math.round((m.y - cam.cy) * cam.t);
+    if (px < 0 || py < 0 || px + cam.t >= cv.width || py + cam.t >= cv.height) return -1;
+    const d = g.getImageData(px, py, cam.t, cam.t).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 40 && Math.max(d[i], d[i+1], d[i+2]) > 40) n++;
+    return n;
+  });
+  ok(drawn > 60, '그 칸에 실제로 그것이 그려져 있다 — 빈 칸을 재면 0점이 나오고 그건 테두리 이야기가 아니다',
+     `${drawn}px`);
+
+  const measure = async (elite) => {
+    await pg.evaluate(e => import('/src/game.js').then(M => {
+      const m = M.G.monsters[0]; if (m) m.elite = e;
+    }), elite);
+    await pg.waitForTimeout(140);
+    return pg.evaluate(async (ink) => {
+      const Game = await import('/src/game.js');
+      const UI = await import('/src/ui.js');
+      const P = await import('/src/pixels.js');
+      const m = Game.G.monsters[0];
+      const cv = document.getElementById('map');
+      const g = cv.getContext('2d');
+      const cam = UI._camera();
+      const px = Math.round((m.x - cam.cx) * cam.t), py = Math.round((m.y - cam.cy) * cam.t);
+      if (px < 0 || py < 0 || px + cam.t >= cv.width || py + cam.t >= cv.height) return -1;
+      const n0 = parseInt(P.PALETTE[ink].slice(1), 16);
+      const R = n0 >> 16, G2 = (n0 >> 8) & 255, B = n0 & 255;
+      const d = g.getImageData(px, py, cam.t, cam.t).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i + 3] < 40) continue;
+        if (Math.abs(d[i] - R) < 46 && Math.abs(d[i + 1] - G2) < 46 && Math.abs(d[i + 2] - B) < 46) n++;
+      }
+      return n;
+    }, elite && elite.length > 1 ? 'P' : 'o');
+  };
+  const plainO = await measure(null);
+  const oneO = await measure(['질긴']);
+  const plainP = await pg.evaluate(async () => {
+    const Game = await import('/src/game.js');
+    const UI = await import('/src/ui.js');
+    const P = await import('/src/pixels.js');
+    const m = Game.G.monsters[0]; m.elite = null;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const cv = document.getElementById('map'), g = cv.getContext('2d'), cam = UI._camera();
+    const px = Math.round((m.x - cam.cx) * cam.t), py = Math.round((m.y - cam.cy) * cam.t);
+    const n0 = parseInt(P.PALETTE.P.slice(1), 16);
+    const R = n0 >> 16, G2 = (n0 >> 8) & 255, B = n0 & 255;
+    const d = g.getImageData(px, py, cam.t, cam.t).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 40) continue;
+      if (Math.abs(d[i] - R) < 46 && Math.abs(d[i + 1] - G2) < 46 && Math.abs(d[i + 2] - B) < 46) n++;
+    }
+    return n;
+  });
+  const twoP = await measure(['질긴', '빠른']);
+  const r = { plainO, plainP, oneO, twoP };
+  console.log(`\n      평범할 때 잉걸 ${r.plainO}점 · 난초 ${r.plainP}점`);
+  console.log(`      정예(속성 하나) 잉걸 ${r.oneO}점`);
+  console.log(`      정예(속성 둘)   난초 ${r.twoP}점\n`);
+  ok(r.oneO > r.plainO + 8,
+     '속성 하나짜리 정예는 잉걸빛 테두리를 두른다 — 괄호가 아니라 그것 자체가',
+     `${r.plainO} → ${r.oneO}점`);
+  ok(r.twoP > r.plainP + 8,
+     '속성 둘이면 색이 달라진다 — 얼마나 위험한지가 색으로 읽힌다',
+     `${r.plainP} → ${r.twoP}점`);
 }
 
 ok(errs.length === 0, '콘솔 오류 없음', errs[0] || '');

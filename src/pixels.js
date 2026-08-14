@@ -1396,6 +1396,52 @@ function bakeHero(race, cls) {
   return bakeGrid(merged, CLASS_TINT[cls]);
 }
 
+/* ── 정예의 테두리 ────────────────────────────────────────
+   정예는 몬스터 **종류**가 아니라 아무 몬스터에나 붙는 속성이라, 전용
+   그림을 줄 수가 없다. 지금까지는 칸 네 귀퉁이에 괄호를 그려서 알렸는데,
+   그건 그 자리에 표를 붙인 것이지 **그것**을 표시한 것이 아니다 — 여럿이
+   붙어 있으면 어느 괄호가 누구 것인지 모른다.
+
+   그래서 테두리를 물들인다. 굽는 자리에서 이미 실루엣 바깥 한 줄을
+   외곽선 색으로 칠하고 있으므로, 그 한 줄만 다른 색으로 한 장 더 굽는다.
+   그리는 쪽은 스프라이트를 그린 뒤 이 고리를 덮어 씌우면 된다 —
+   프레임마다 실루엣을 다시 계산하지 않는다.
+
+   두 색뿐이다: 속성 하나면 잉걸, 둘 이상이면 시든 난초. 색이 늘면
+   그건 정보가 아니라 무지개다. */
+export const ELITE_RIM = ['o', 'P'];
+
+function bakeRim(grid, ink) {
+  const c = document.createElement('canvas');
+  c.width = CELL; c.height = CELL;
+  const x = c.getContext('2d');
+  const n = Math.max(1, grid.length);
+  const s = Math.max(1, Math.round(CELL / n));
+  const key = [];
+  for (let row = 0; row < CELL; row++) {
+    const line = grid[Math.min(n - 1, (row / s) | 0)] || '';
+    const out = [];
+    for (let col = 0; col < CELL; col++) {
+      const ch = line[Math.min(line.length - 1, (col / s) | 0)] || '.';
+      out.push(PALETTE[ch] && ch !== 'C' ? ch : (ch === 'C' ? 's' : null));
+    }
+    key.push(out);
+  }
+  const filled = (r, cl) => r >= 0 && cl >= 0 && r < CELL && cl < CELL && !!key[r][cl];
+  x.fillStyle = PALETTE[ink];
+  for (let row = 0; row < CELL; row++)
+    for (let col = 0; col < CELL; col++) {
+      if (key[row][col]) {
+        if (row === 0 || col === 0 || row === CELL - 1 || col === CELL - 1)
+          x.fillRect(col, row, 1, 1);
+        continue;
+      }
+      if (filled(row - 1, col) || filled(row + 1, col)
+       || filled(row, col - 1) || filled(row, col + 1)) x.fillRect(col, row, 1, 1);
+    }
+  return c;
+}
+
 /* 살아 있는 것들의 이름. 표를 여기 손으로 적지 않는다 — data.js의
    MONSTERS에서 그대로 나오므로, 몬스터를 하나 더 넣으면 그것도 자동으로
    비틀린다. 손으로 적은 목록은 언젠가 반드시 어긋난다. */
@@ -1415,8 +1461,12 @@ export function bakeAll(living) {
     } else if (name === 'keeper') {
       SHOP_TINT.forEach((tint, i) => baked.set(`keeper:${i + 1}`, bakeGrid(grid, tint)));
     } else if (flesh.has(name)) {
-      baked.set(name, bakeGrid(deform(grid, name)));
-      baked.set(`wrong:${name}`, bakeGrid(wrongen(deform(grid, name), name)));
+      const bent = deform(grid, name);
+      baked.set(name, bakeGrid(bent));
+      baked.set(`wrong:${name}`, bakeGrid(wrongen(bent, name)));
+      /* 비틀린 그림에서 고리를 뜬다 — 원본에서 뜨면 정예의 테두리만
+         한 픽셀씩 어긋나 몸에서 떠 보인다. */
+      for (const ink of ELITE_RIM) baked.set(`rim:${ink}:${name}`, bakeRim(bent, ink));
     } else {
       baked.set(name, bakeGrid(grid));
     }

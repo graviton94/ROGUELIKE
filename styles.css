@@ -308,6 +308,23 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   background: repeating-linear-gradient(to right, transparent 0 7px, var(--k) 7px 9px);
 }
 .track i.hp { background: var(--R); }
+/* ── 잃어버린 천장 ────────────────────────────────────────
+   상처는 이 게임의 난이도 곡선을 실제로 만드는 장치인데 화면 어디에도
+   없었다. `wound`가 ui.js 전체에 한 번 나오고 그마저 무관한 주석이었다.
+   막대는 `hp / maxhp`로 그려졌고, 그 maxhp가 이미 깎인 천장이라
+   **체력의 40%를 영구히 잃은 몸이 만피와 화면상 완전히 같았다.**
+   플레이어가 겪는 것은 「막대가 꽉 찼으니 한 대 더 맞아도 되겠지」
+   → 두 대에 죽음 → 「방금 만피였는데?」다.
+
+   이제 막대는 **원래 천장**을 기준으로 그리고, 잃은 몫은 오른쪽 끝에
+   죽은 회색으로 남는다. 15/15가 막대의 60%만 채우면 설명 한 줄 없이도
+   몸이 상했다는 것이 손끝으로 온다. */
+.track i.wound {
+  position: absolute; right: 0; top: 0; height: 100%;
+  background: repeating-linear-gradient(-45deg,
+    var(--g) 0 2px, transparent 2px 4px);
+  border-left: 1px solid var(--r);
+}
 .track i.mp { background: var(--B); }
 .track i.st { background: var(--E); }
 

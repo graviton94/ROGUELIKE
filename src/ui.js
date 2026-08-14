@@ -1229,8 +1229,13 @@ export function refresh() {
 
   $('hud-name').textContent  = `${RACES[p.race].name} ${CLASSES[p.cls].name}`;
   $('hud-lv').textContent    = p.lv;
-  $('hud-hp').textContent    = `${p.hp}/${p.maxhp}`;
-  $('hud-hpbar').style.width = `${(p.hp / p.maxhp) * 100}%`;
+  /* 원래 천장을 분모로 쓴다. `p.maxhp`는 이미 상처로 깎인 값이라,
+     그걸로 나누면 상한 40%를 잃은 몸이 만피와 똑같이 100%로 그려진다. */
+  const wound = p.wound || 0;
+  const roof = p.maxhp + wound;
+  $('hud-hp').textContent    = wound ? `${p.hp}/${p.maxhp} (−${wound})` : `${p.hp}/${p.maxhp}`;
+  $('hud-hpbar').style.width = `${(p.hp / roof) * 100}%`;
+  $('hud-wound').style.width = `${(wound / roof) * 100}%`;
   $('hud-ac').textContent    = Game.armourClass(p);
   $('hud-gold').textContent  = p.gold;
   /* The chip says where, not only how deep. "9층"은 숫자고
@@ -3546,6 +3551,15 @@ const LESSONS = [
   { id:'heavy',  t:'<b>붉은 별</b>은 다음 턴에 2.5배로 내리친다는 뜻입니다.<br>' +
                     '<b>같은 방향을 빠르게 두 번</b> 누르면 두 칸 굴러 피합니다(기력 2).' },
   { id:'ground', t:'바닥이 칠해지고 숫자가 뜨면 <b>그 칸이 곧 맞습니다.</b> 숫자는 남은 턴 수입니다. 나가거나 구르세요.' },
+  /* 이 게임의 난이도 곡선을 실제로 만드는 장치인데, 지금까지 화면에
+     한 글자도 없었다. 플레이어가 겪는 것은 「막대가 꽉 찼으니 한 대 더
+     맞아도 되겠지」 → 두 대에 죽음 → 「방금 만피였는데?」다. 갱구에서
+     항아리 확률을 가르치던 카드 한 장을 여기로 옮긴 셈이다 — 판을
+     실제로 죽이는 쪽에. */
+  { id:'wound',  t:'큰 한 방은 <b>견딜 수 있는 몸 자체</b>를 깎습니다.<br>' +
+                    'HP 막대 오른쪽 끝의 <b>빗금 친 회색</b>이 영영 잃은 몫입니다 — ' +
+                    '체력을 다 채워도 그만큼은 안 돌아옵니다.<br>' +
+                    '닫을 수 있는 곳은 <b>모닥불</b>뿐입니다.' },
   { id:'fire',   t:'모닥불은 <b>한 번만</b> 씁니다 — 휴식 · 판돈 · 유물 융합 중 하나.<br>' +
                     '쇠를 두들기는 일(강화 · 인챈트 · 재련)은 <b>모루</b>에서 하고, 모루는 닳지 않습니다.' },
   { id:'fork',   t:'계단이 갈라지면 <b>주는 것과 가져가는 것이 전부 적혀 있습니다.</b> 평범한 계단은 항상 있습니다.' },
@@ -3622,6 +3636,7 @@ function checkLessons() {
   if (G.monsters.some(m => m.awake && m.intent && G.level.vis[idx(m.x, m.y)])) teach('intent');
   if (G.monsters.some(m => m.intent === 'heavy' || m.intent === 'wind')) teach('heavy');
   if (G.hazards.length) teach('ground');
+  if ((G.player.wound || 0) > 0) teach('wound');
   if (G.bank >= 2) teach('bank');
   if (G.player.lightTurns < 320) teach('oil');
   if (G.monsters.some(m => m.thief && G.level.vis[idx(m.x, m.y)])) teach('thief');

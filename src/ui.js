@@ -1068,7 +1068,7 @@ export function refresh() {
   /* The chip says where, not only how deep. "9층"은 숫자고
      "잊힌 성소 9층"은 장소다. */
   $('hud-depth').textContent = G.depth === 0
-    ? '마을' : `${regionOf(G.depth).n} ${G.depth}층`;
+    ? '갱구' : `${regionOf(G.depth).n} ${G.depth}층`;
   $('hud-depth').title = G.depth ? regionOf(G.depth).t : '';
   $('hud-xp').textContent    = `${p.xp}/${xpToLevel(p.lv)}`;
 
@@ -1588,7 +1588,7 @@ export function renderSlots() {
       mid.appendChild(el('span', 'slotwho',
         `${RACES[info.race].name} ${CLASSES[info.cls].name} · Lv ${info.lv}`));
       mid.appendChild(el('span', 'slotmeta',
-        `${info.depth === 0 ? '마을' : info.depth + '층'} · HP ${info.hp}/${info.maxhp}` +
+        `${info.depth === 0 ? '갱구' : info.depth + '층'} · HP ${info.hp}/${info.maxhp}` +
         ` · ${info.turn}턴 · ${RELATIVE(info.savedAt)}`));
     } else {
       mid.appendChild(el('span', 'slotwho', '비어 있음'));
@@ -2099,7 +2099,7 @@ function renderScroll() {
     if (line.depth !== atDepth) {
       atDepth = line.depth; atTurn = null;
       out.appendChild(el('div', 'scrollfloor',
-        atDepth === 0 ? '마을' : `${regionOf(atDepth).n} · ${atDepth}층`));
+        atDepth === 0 ? '갱구' : `${regionOf(atDepth).n} · ${atDepth}층`));
     }
     if (line.turn !== atTurn || !para) {
       atTurn = line.turn;
@@ -2912,7 +2912,7 @@ let anvilCat = null;
 
 export function renderAnvil() {
   const p = G.player;
-  $('anvil-depth').textContent = G.depth ? `${G.depth}층` : '마을';
+  $('anvil-depth').textContent = G.depth ? `${G.depth}층` : '갱구';
   const m = Game.mats();
   $('anvil-lead').textContent =
     `모루는 닳지 않는다. 재료가 남아 있는 만큼 두들길 수 있다. ` +
@@ -3715,9 +3715,15 @@ function renderEnd() {
   const m = Meta.read();
 
   $('end-title').textContent = e.win ? '대군주가 무너졌다' : '당신은 죽었다';
+  /* 죽음이 끝이 아니라 「다음 사람」이라는 것을, 사망 화면이 말한다.
+     메타 진행(기억)이 왜 남는지가 이 한 줄로 설명된다 — 남는 것은
+     네 실력이 아니라 네 시체를 본 다음 놈의 학습이다. */
+  const nextLine = el('p', 'note',
+    e.win ? '쇠가 벗겨졌다. 그런 일은 없었던 것으로 되어 있다.'
+          : '도르래가 한 번 더 감긴다. 다음 사람이 내려간다.');
   $('end-sub').textContent = e.win
     ? `${MAX_DEPTH}층에서, 등불을 든 채로.`
-    : `${s.depth === 0 ? '마을' : s.depth + '층'}에서 ${e.by}에게.`;
+    : `${s.depth === 0 ? '갱구' : s.depth + '층'}에서 ${e.by}에게.`;
 
   const box = $('end-body');
   box.innerHTML = '';
@@ -3740,6 +3746,16 @@ function renderEnd() {
   line('최고 연격', `${s.combo}`, s.combo >= 10 ? 'y' : '');
   line('처치 · 상자 · 사건', `${s.kills || 0} · ${s.opened || 0} · ${s.events || 0}`);
   line('금화 · 턴', `${s.gold}닢 · ${s.turn}턴`);
+  /* 빚. 금화를 점수가 아니라 「얼마나 갚았나」로 다시 읽는 줄이다 —
+     이 한 줄이 있으면 판 내내 주운 동전에 이유가 생긴다. 아무도
+     다 갚지 못했고, 그것도 세계관의 일부다. */
+  if (s.debt) {
+    /* **번** 금화로 센다. 가진 것으로 세면 상점과 모루에 쓰는 것이
+       점수를 깎는 일이 되어, 이야기 한 줄이 경제를 뒤집는다. */
+    const paid = Math.min(100, Math.floor((s.earned || 0) * 100 / s.debt));
+    line('빚', `${s.earned || 0} / ${s.debt}닢 — ${paid}% 갚았다`,
+         paid >= 100 ? 'W' : paid >= 25 ? 'y' : 'R');
+  }
   if (s.forged) line('벼려 올린 +', `${s.forged}단계`, 'y');
   if (s.broke) line('불에 잃은 장비', `${s.broke}점`, 'R');
   if (s.perfects) line('절단', `${s.perfects}번`, 'W');
@@ -3751,6 +3767,8 @@ function renderEnd() {
   if (s.trans) line('초월', `${s.trans}점 — 이 판을 기억하시오.`, 'W');
   if (s.bank >= 2) line('잃은 판돈', `${s.bank}층치`, 'R');
   if (s.waves) line('심연의 습격', `${s.waves}번`, 'R');
+
+  box.appendChild(nextLine);
 
   if (s.tail?.length) {
     const tail = el('div', 'endtail');

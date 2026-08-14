@@ -114,7 +114,20 @@ export class Level {
     return t === ROCK || t === SHOP || isShut(t);
   }
 
-  /* ── town: a place people built, not a plan ─────────────
+  /* ── 갱구 야영지 ────────────────────────────────────────
+     예전에는 마을이었다. 지붕이 무너진 집들과 골목과 수레들 —
+     잘 만들어져 있었지만, 이 게임은 아래로 파는 게임이다. 위로
+     돌아갈 수 없게 만든 이상 마을은 판 시작에 한 번 지나가는
+     곳이 되고, 그러면 골목이니 폐허니 하는 것은 전부 한 번
+     보고 마는 배경이다.
+
+     그래서 야외로 바꿨다. 지붕도 벽도 없다. 재에 덮인 빈 땅
+     한가운데 큰 불이 하나 타고, 그 둘레에 수레 여섯 대가 등을
+     밖으로 돌리고 서 있고, 한쪽에 갱구가 입을 벌리고 있다.
+     여기 있는 것들은 여기 사는 것이 아니라 여기서 기다린다 —
+     내려간 것이 뭘 들고 올라오는지를.
+
+     ── town: a place people built, not a plan ─────────────
      The old one was a rectangle of floor with six identical
      shopfronts pinned to its rim at even spacing, a scatter of
      rubble, and the stairs bare in the middle. It read as a
@@ -133,7 +146,15 @@ export class Level {
      a shopping mall, and the one thing this town is supposed to
      say is that most of the people who lived here have gone. */
   buildTown() {
-    const x0 = 3, y0 = 3, w = MW - 6, h = MH - 6;
+    /* 좁게. 예전에는 판 전체(46×26, 걸을 수 있는 땅 1154칸)를 썼는데,
+       한 번 지나가는 곳에 그만한 넓이는 「빈 땅을 가로지르는 시간」
+       외에 아무것도 아니다. 갱구 둘레만 남긴다 — 불에서 갱구까지
+       열 걸음, 수레 여섯 대는 그 사이에.
+
+       바깥은 바위다. 야영지 밖으로 나갈 이유가 없고, 나갈 수 있으면
+       화면이 「어디까지가 여기인가」를 말하지 못한다. */
+    const w = Math.min(MW - 6, 27), h = Math.min(MH - 6, 17);
+    const x0 = ((MW - w) >> 1), y0 = ((MH - h) >> 1);
     const inb = (x, y) => x > x0 && y > y0 && x < x0 + w - 1 && y < y0 + h - 1;
     const at = (x, y) => (inb(x, y) ? this.tiles[idx(x, y)] : ROCK);
 
@@ -159,41 +180,27 @@ export class Level {
        같은 밀도로 따라온다. */
     const AREA = w * h, LOT = AREA / 2040;      // 예전 60×34을 1로 친다
 
-    /* Ruins, not houses. Nothing here is a building you go into —
-       the roofs are down, the walls are open on at least one
-       side, and what is inside is what fell off the walls. A dozen
-       of them, not thirty: the point is that the streets between
-       are empty, and thirty shells is a maze, not a graveyard. */
-    /* 크기도 같이 줄인다. 큰 껍데기를 좁은 자리에 우겨넣으면 자리를
-       못 찾아 아예 안 서거나, 서더라도 골목을 막는다. */
-    for (let t = 0; t < 900 && this.rooms.length < Math.max(4, Math.round(9 * LOT)); t++) {
-      const bw = 5 + rnd(3 + Math.round(LOT)), bh = 4 + rnd(2 + Math.round(LOT));
+    /* 지붕이 남은 것은 하나도 없다 — 이제는 아예 집이 없다.
+       예전 폐허 다섯 채 대신, 재에 파묻힌 잔해 무더기 몇 개만
+       남긴다. 벽으로 서 있는 것은 갱구를 판 쪽이 쌓아 둔 버력
+       더미뿐이고, 그것도 낮아서 시야를 막지 않는다.
+
+       야외라는 것이 규칙으로도 읽혀야 한다: 여기에는 골목이 없고,
+       어디서든 불이 보이고, 갱구도 보인다. 그래서 이 화면에서
+       할 일은 「길 찾기」가 아니라 「내려가기 전에 무엇을 살까」다. */
+    let heaps = 0;
+    for (let t = 0; t < 400 && heaps < Math.max(3, Math.round(6 * LOT)); t++) {
+      const bw = 3 + rnd(4), bh = 2 + rnd(3);
       const bx = x0 + 2 + rnd(w - bw - 4), by = y0 + 2 + rnd(h - bh - 4);
       let ok = true;
       for (let y = by - 1; y <= by + bh && ok; y++)
         for (let x = bx - 1; x <= bx + bw && ok; x++)
           if (!inb(x, y) || at(x, y) !== FLOOR || camp(x, y) || yard(x, y)) ok = false;
       if (!ok) continue;
-      /* One corner of every shell is simply gone, and the rest of
-         the wall has holes in it. Standing masonry reads as SHOP
-         (the renderer's wall); everything else is walkable, so a
-         ruin is something you can wander into rather than a solid
-         block you route around. */
-      const gx = Math.random() < 0.5 ? bx : bx + bw - 1;
-      const gy = Math.random() < 0.5 ? by : by + bh - 1;
       for (let y = by; y < by + bh; y++)
-        for (let x = bx; x < bx + bw; x++) {
-          const edge = x === bx || x === bx + bw - 1 || y === by || y === by + bh - 1;
-          /* One corner is gone and the rest of the wall stands.
-             Punching random holes all along it turned every ruin
-             into a scatter of loose bricks that read as litter
-             rather than as a building. */
-          const collapsed = Math.abs(x - gx) + Math.abs(y - gy) <= 3;
-          this.tiles[idx(x, y)] = edge && !collapsed
-            ? SHOP
-            : (Math.random() < 0.28 ? RUBBLE : FLOOR);
-        }
-      this.rooms.push({ x: bx, y: by, w: bw, h: bh, lit: true, ruin: true });
+        for (let x = bx; x < bx + bw; x++)
+          this.tiles[idx(x, y)] = Math.random() < 0.34 ? SHOP : RUBBLE;
+      heaps++;
     }
 
     /* The camp itself: two facing rows of stalls with a lane
@@ -230,15 +237,19 @@ export class Level {
       return true;
     };
 
-    // fires at both ends of the trading lane, and the well behind it
+    /* 야영지의 불. 수레 줄 양 끝과, 갱구 어귀에. 갱구 쪽 둘은
+       특히 중요하다 — 화면에서 마지막으로 밝은 것이 내려가는
+       구멍이어야 「저기로 간다」가 말 없이 읽힌다. */
     place(cx - 6, cy, 'brazier'); place(cx + 6, cy, 'brazier');
     place(cx - 6, cy - 3, 'brazier'); place(cx + 6, cy + 3, 'brazier');
     place(cx + 8, cy - 4, 'well') || place(cx - 8, cy + 4, 'well');
-    // two more where the way down is, so the last lit thing is the stair
     place(gateX - 3, gateY - 2, 'brazier'); place(gateX + 3, gateY + 2, 'brazier');
+    place(gateX - 2, gateY + 2, 'brazier'); place(gateX + 2, gateY - 2, 'brazier');
     // and a handful guttering out in the empty streets
     let lamps = 0;
-    const LAMPS = Math.max(2, Math.round(4 * LOT));
+    /* 어두운 야영지라 불이 더 필요하다 — 화로는 이제 장식이 아니라
+       「여기가 야영지다」를 그리는 유일한 선이다. */
+    const LAMPS = Math.max(5, Math.round(9 * LOT));
     for (let t = 0; t < 90 && lamps < LAMPS; t++)
       if (place(x0 + 2 + rnd(w - 4), y0 + 2 + rnd(h - 4), 'brazier')) lamps++;
     /* A few, not a field of them. Sixty barrels and skulls turned
@@ -261,6 +272,17 @@ export class Level {
       if (wall >= 1 && Math.random() < 0.4) this.tiles[idx(x, y)] = RUBBLE;
     }
 
+    /* 갱구. 구멍 하나만 찍어 두면 던전 계단과 똑같이 보인다 —
+       여기는 야외이고 저것은 땅에 뚫린 입이므로, 둘레에 버력을
+       둘러 「파낸 자리」로 읽히게 한다. 어귀 자체는 비워 둔다. */
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const d = Math.abs(dx) + Math.abs(dy);
+      if (d < 2 || d > 3) continue;
+      const x = gateX + dx, y = gateY + dy;
+      if (!inb(x, y) || this.tiles[idx(x, y)] !== FLOOR) continue;
+      if (this.shopAt.has(idx(x, y))) continue;
+      this.tiles[idx(x, y)] = RUBBLE;
+    }
     this.tiles[idx(gateX, gateY)] = DOWN;
     this.entry = { x: gateX, y: gateY };
     for (const [ex, ey] of [[gateX, gateY + 2], [gateX, gateY - 2], [gateX + 2, gateY], [gateX - 2, gateY]])
@@ -270,7 +292,12 @@ export class Level {
        the far end of the street instead of guttering out two
        tiles from the hero the way torchlight does. It goes in
        first so the ruins above keep their own indices. */
-    this.rooms.unshift({ x: x0, y: y0, w, h, lit: true, bright: true });
+    /* 그리고 어둡게. 예전에는 야영지 전체가 한 덩어리의 밝은 방이라
+       발을 딛는 순간 전부 드러났다 — 낮의 광장이었다. 이제 밝지
+       않다: 보이는 것은 네 등불이 닿는 데까지고, 그 너머에서
+       화로들이 점처럼 탄다. 아래로 내려가면 어떤 곳인지를 이
+       화면이 미리 한 번 말해 주는 셈이다. */
+    this.rooms.unshift({ x: x0, y: y0, w, h, lit: false, bright: false });
     for (let y = y0; y < y0 + h; y++)
       for (let x = x0; x < x0 + w; x++) this.roomOf[idx(x, y)] = 0;
     this.theme = { id:'town' };
@@ -331,6 +358,9 @@ export class Level {
 
     const start = this.centre(this.rooms[0]);
     this.entry = start;
+    /* 내려온 자리. 예전에는 올라가는 계단이었다 — 이제 등 뒤에서
+       무너진 구멍이라, 밟아도 아무 데도 가지 않는다. 타일은 남긴다:
+       「여기로 들어왔다」는 표시가 지도에 있어야 방향 감각이 선다. */
     this.tiles[idx(start.x, start.y)] = UP;
 
     let far = this.rooms[this.rooms.length - 1], best = -1;

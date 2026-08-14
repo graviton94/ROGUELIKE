@@ -1248,7 +1248,7 @@ export function useItem(slotIdx) {
        are standing. That is what you want when the floor has
        started feeding and the stairs are on the far side of it. */
     case 'flee':
-      if (G.depth === 0) { say('마을에서는 쓸 데가 없다.', 'warn'); spent = false; break; }
+      if (G.depth === 0) { say('여기서는 쓸 데가 없다.', 'warn'); spent = false; break; }
       if (G.depth >= MAX_DEPTH) { say('더 내려갈 곳이 없다.', 'warn'); spent = false; break; }
       say('발밑이 열리고, 한 층을 미끄러져 내려간다.', 'warn');
       enterDepth(G.depth + 1, false, BRANCHES[0]);
@@ -2576,7 +2576,10 @@ export const DARK_SIGHT = 7;
 export const DARK_AIM = 0.70;
 
 export const lightRadiusOf = p => {
-  if (G.depth === 0) return 12;
+  /* 갱구도 밝지 않다. 여기는 재에 덮인 빈 땅이고 해는 오래전에
+     졌다 — 12칸은 낮의 광장이었다. 아래보다는 넉넉하되(수레를
+     찾아 헤매게 만들 이유는 없다) 전부 보이지는 않는다. */
+  if (G.depth === 0) return 7;
   const t = p.lightTurns;
   return t <= 0 ? 2 : t < 60 ? 3 : t < 180 ? 4 : t < 360 ? 5 : t < 640 ? 6 : 7;
 };
@@ -2794,14 +2797,15 @@ export function stairHere() {
   const p = G.player, L = G.level;
   if (!p || !L || !G.running) return null;
   const t = L.tiles[idx(p.x, p.y)];
-  return t === DOWN ? 'down' : t === UP ? 'up' : null;
+  // 올라가는 계단은 더 이상 어디에도 없다. 남은 것은 내려가는 것뿐.
+  return t === DOWN ? 'down' : null;
 }
 
 export function hereOffer() {
   const p = G.player, L = G.level;
   if (!p || !L || !G.running) return null;
   const here = idx(p.x, p.y);
-  /* 수레는 타일이 아니라 자리로 표시된다 — 마을에는 문이 없고,
+  /* 수레는 타일이 아니라 자리로 표시된다 — 야영지에는 문이 없고,
      흥정하는 칸은 좌판 앞의 땅바닥이다. 그래서 타일 표에서 찾지
      않고 따로 묻는다. */
   const shopId = L.shopAt.get(here);
@@ -3705,10 +3709,24 @@ function swing(m, scale, opt = {}) {
 
 /* 뱃사공의 동전 doubles it, 서기의 깃펜 shaves it. One funnel so
    the two can never be applied twice or missed once. */
-export const goldGain = n => Math.max(0, Math.round(
-  n * (SHACKLES[G.abyss || 0] || SHACKLES[0]).gold
-    * (hasRelic('toll') || hasRelic('ledger') ? 2 : 1) * (hasRelic('quill') ? 0.75 : 1)
-    * (hasBoon('hoard') ? 1.6 : 1)));
+/* 들어온 금화가 지나가는 단 하나의 자리. 배수도 여기서만 붙고,
+   「이 판이 구덩이에서 얼마나 꺼내 왔는가」도 여기서만 센다.
+
+   ── 왜 「가진 금화」가 아니라 「번 금화」인가 ──
+   빚을 끝 화면에서 「가진 금화 / 빚」으로 읽으려 했다가 물렸다.
+   그러면 상점과 모루에 쓰는 것이 곧 점수를 깎는 일이 되고, 방금
+   더 극단으로 만든 강화·인챈트를 쓰지 않는 쪽이 이득이 된다 —
+   이야기 한 줄을 붙이려다 경제 전체를 뒤집는 셈이다.
+   번 것으로 세면 쓰는 것은 여전히 공짜다. 구덩이가 네게 준 것이
+   얼마인가를 세는 것이지, 네가 얼마나 아꼈나를 세는 게 아니다. */
+export const goldGain = n => {
+  const got = Math.max(0, Math.round(
+    n * (SHACKLES[G.abyss || 0] || SHACKLES[0]).gold
+      * (hasRelic('toll') || hasRelic('ledger') ? 2 : 1) * (hasRelic('quill') ? 0.75 : 1)
+      * (hasBoon('hoard') ? 1.6 : 1)));
+  G.goldEarned = (G.goldEarned || 0) + got;
+  return got;
+};
 
 /* Relics that pay on a kill. 굶주린 칼날 is the aggression
    engine — it out-heals a room only if you keep killing — and
@@ -4167,12 +4185,21 @@ function takeStairs(branch) {
   endTurn(true);
 }
 
+/* ── 올라가는 길은 없다 ────────────────────────────────────
+   이 게임은 아래로 파는 게임이다. 그런데 올라갈 수 있으면, 아무리
+   잘 만든 야영지라도 플레이어는 곧 계산을 한다 — 세 층을 되짚어
+   올라가 물약을 사고 다시 세 층을 내려오는 것이 이득인가. 이득이면
+   그 왕복이 최적 플레이가 되고, 판의 상당 부분이 「이미 지나온
+   빈 층을 다시 걷는 것」으로 채워진다. 이득이 아니면 계단은 그냥
+   눌리지 않는 버튼이다. 어느 쪽이든 자리값을 못 한다.
+
+   그래서 내려온 구멍은 닫힌다. 아래에서 만나는 모닥불·행상인·모루가
+   유일한 보급이 되고, 「지금 살까 말까」가 진짜 결정이 된다.
+
+   그리고 이것이 이 게임의 이야기이기도 하다. 당신은 팔려 왔다.
+   위에서 아무도 당신이 돌아오기를 기다리지 않는다. */
 export function ascend() {
-  const L = G.level, p = G.player;
-  if (L.tiles[idx(p.x, p.y)] !== UP) { say('여기엔 올라가는 계단이 없다.'); return; }
-  enterDepth(G.depth - 1, true);
-  say(G.depth === 0 ? '햇빛이 눈을 찌른다. 마을이다.' : `던전 ${G.depth}층.`, 'warn');
-  endTurn(true);
+  say('올라가는 길은 없다. 내려온 구멍은 등 뒤에서 닫혔다.', 'warn');
 }
 
 export function endTurn(skipMonsters = false) {
@@ -5032,6 +5059,14 @@ export const CAMP_HEAL = 0.28;
 export const MAX_PLUS = 10;   // 8에서 올렸다 — 위쪽 네 칸이 벼랑이다
 /* 정예가 남기는 것의 수. 셋을 굴려 놓고 하나만 가져간다. */
 export const SPOIL_PICKS = 3;
+
+/* ── 빚 ────────────────────────────────────────────────────
+   당신은 스스로 온 것이 아니다. 목에 채운 것이 그 값이고, 갚기
+   전에는 위로 올라갈 수 없다 — 정확히는, 올라가는 길이 없다.
+   숫자 하나가 「왜 내려가는가」와 「왜 금화를 줍는가」를 동시에
+   설명한다. 아무도 25층까지 가서 갚지 못했다. */
+export const DEBT_BASE = 12000;
+export const DEBT_PER_ABYSS = 4000;
 export const MAX_SPELL_PLUS = 5;
 const capFor = t => (t.type === 'spell' || t.kind === 'spell' ? MAX_SPELL_PLUS : MAX_PLUS);
 
@@ -6421,6 +6456,10 @@ export function summarise(win, by) {
     race: p.race, cls: p.cls, lv: p.lv,
     depth: G.depth, turn: G.turn,
     gold: p.gold, combo: G.bestCombo || 0,
+    debt: G.debt || 0,
+    /* 가진 것이 아니라 번 것. 가진 것으로 세면 쓰는 것이 점수를
+       깎는 일이 되고, 그러면 모루와 상점을 안 쓰는 쪽이 이득이 된다. */
+    earned: G.goldEarned || 0,
     hp: p.hp, maxhp: p.maxhp,
     relics: [...(p.relics || [])],
     weapon: p.equip.weapon ? affixName(p.equip.weapon) : null,
@@ -6565,7 +6604,12 @@ export function startGame(raceKey, classKey, base) {
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
   G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.snares = []; G.sanctum = null; G.bank = 0;
+  G.goldEarned = 0;
   G.tally = 0; G.hushUntil = -1; G.resoFound = 0; G.forced = {}; G.uniques = {};
+  /* 목에 채운 값. 이 판을 시작하게 만든 숫자이고, 끝 화면에서
+     「얼마나 갚았나」로 다시 읽힌다 — 금화가 점수가 아니라 빚이
+     되는 지점이다. 심연이 깊을수록 더 비싸게 팔려 왔다. */
+  G.debt = DEBT_BASE + (G.abyss || 0) * DEBT_PER_ABYSS;
   G.pendingAltar = null;
   shuffleAppearances(G.player);
 
@@ -6592,7 +6636,18 @@ export function startGame(raceKey, classKey, base) {
   if (G.memories.includes('digger')) G.player.gold += 300;
 
   enterDepth(0);
-  say('지붕이 남은 집이 없다. 수레 여섯 대가 한 골목에 모여 있고, 그 너머 폐허 끝에 내려가는 자리가 있다.', 'warn');
+  /* ── 여기서부터 이야기가 시작된다 ────────────────────────
+     여태 이 게임에는 계기가 없었다. 왜 내려가는지, 누가 보냈는지,
+     안 내려가면 어떻게 되는지 — 아무것도. 「던전이 있으니 들어간다」는
+     설명이 아니라 설명의 부재다.
+
+     빚이다. 당신은 스스로 온 것이 아니라 팔려 왔다. 목에 채운 것이
+     그 값이고, 위에서는 아무도 당신이 돌아오기를 기다리지 않는다.
+     이 세 줄이 「올라갈 수 없다」와 「죽으면 다음 사람이 내려간다」를
+     동시에 설명한다 — 규칙이 곧 이야기가 되는 자리다. */
+  say('갱구다. 여기서부터는 네 발로 간다.', 'warn');
+  say(`목의 쇠가 차다. ${G.debt}닢 — 갚거나, 아래에 남거나.`, 'bad');
+  say('뒤에서 도르래가 감기는 소리. 아무도 배웅하지 않는다.', '');
   if (G.memories.length)
     say(`기억이 남아 있다 — ${G.memories.map(id => MEMORIES.find(x => x.id === id).n).join(' · ')}.`, 'good');
   if (G.abyss)

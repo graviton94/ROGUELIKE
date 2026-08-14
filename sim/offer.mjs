@@ -58,8 +58,9 @@ for (const s of SIZES) {
     ['모닥불',  'camp'], ['제단', 'altar'], ['수상한 자리', 'event'],
     ['모루',    'anvil'], ['가장 긴 수레 이름', 'shop'],
     /* 계단도 이 자리가 맡는다. 예전에는 제 줄을 통째로 쓰는 두 개의
-       버튼이었고, 둘 다 0.1%의 턴에만 살아 있었다. */
-    ['내려가는 계단', 'down'], ['올라가는 계단', 'up'],
+       버튼이었고, 둘 다 0.1%의 턴에만 살아 있었다.
+       올라가는 쪽은 아예 없어졌다 — 아래 따로 잰다. */
+    ['내려가는 계단', 'down'],
   ];
   for (const [name, kind] of CASES) {
     const out = await pg.evaluate(async (k) => {
@@ -105,6 +106,33 @@ for (const s of SIZES) {
     ok(out.wide > out.rowWide * 0.9, `${name} — 제 줄을 다 쓴다`,
        `${Math.round(out.wide)}/${Math.round(out.rowWide)}px`);
   }
+  /* 내려온 자리. 예전에는 「▲ 올라가기」가 떴다. 이제 이 게임은
+     편도다 — 밟아도 아무 일도 없어야 하고, 버튼이 살아나서도
+     안 된다. 「눌리지 않는 버튼」은 자리값을 못 하는 정도지만,
+     「눌리는데 아무 일도 안 하는 버튼」은 고장이다. */
+  {
+    const out = await pg.evaluate(async () => {
+      const Game = await import('/src/game.js');
+      const W = await import('/src/world.js');
+      const UI = await import('/src/ui.js');
+      const G = Game.G, L = G.level, p = G.player;
+      const i = W.idx(p.x, p.y);
+      L.shopAt.delete(i);
+      L.tiles[i] = W.UP;
+      UI.refresh();
+      const btn = document.getElementById('btn-here');
+      const before = { d: G.depth };
+      Game.ascend();
+      return { dead: btn.disabled, text: btn.textContent,
+               stair: Game.stairHere(), depth: G.depth, was: before.d,
+               said: (G.log[G.log.length - 1] || {}).text || '' };
+    });
+    ok(out.stair === null, '올라가는 계단은 이제 발밑의 것이 아니다', `${out.stair}`);
+    ok(out.dead, '버튼이 살아나지 않는다', `「${out.text}」`);
+    ok(out.depth === out.was, '올라가려 해도 층이 안 바뀐다', `${out.was} → ${out.depth}`);
+    ok(/올라가는 길은 없다/.test(out.said), '대신 왜 안 되는지를 말한다', `「${out.said}」`);
+  }
+
   /* 그리고 비어 있을 때. 자리는 남되 금색은 아니어야 한다 — 빈 자리가
      빛나면 그 색은 「지금 뭔가 있다」는 뜻을 잃는다. 그리고 사라지면
      지도가 매 걸음 밀린다. */

@@ -4,7 +4,7 @@
    in the DOM; only the map is pixels.
    ═══════════════════════════════════════════════════════════ */
 
-import { sprite, wallTile, floorTile, CELL_SIZE, PALETTE, setTerrainTheme } from './pixels.js';
+import { sprite, hasSprite, wallTile, floorTile, CELL_SIZE, PALETTE, setTerrainTheme } from './pixels.js';
 import * as Pix from './pixels.js';
 import {
   RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS, statRange,
@@ -441,7 +441,21 @@ export function draw() {
       ctx.restore();
     }
 
-    blitActor(sprite(m.spr), mx, my, t, o, m._face === -1);
+    /* 미믹은 안 어긋난다. 상자인 척하는 것이 떨리면 그건 이 게임에서
+       가장 잘 만든 장치를 공짜로 알려 주는 셈이다. */
+    const gl = m.disguise ? null : glitchNow(m, glitchOf(m));
+    if (gl) {
+      /* sprite()는 못 찾으면 돌무더기를 돌려준다 — 「|| sprite(m.spr)」로는
+         못 막는다. 대군주가 한 프레임 동안 돌무더기가 될 뻔했다. */
+      const img = gl.other && hasSprite(`wrong:${m.spr}`)
+        ? sprite(`wrong:${m.spr}`) : sprite(m.spr);
+      if (m._face === -1) {
+        ctx.save();
+        ctx.translate(mx + t / 2, 0); ctx.scale(-1, 1); ctx.translate(-(mx + t / 2), 0);
+        blitGlitch(img, mx, my, t, gl, px1);
+        ctx.restore();
+      } else blitGlitch(img, mx, my, t, gl, px1);
+    } else blitActor(sprite(m.spr), mx, my, t, o, m._face === -1);
     if (m.disguise) continue;     // no sleep marker, no health bar — it is furniture
 
     /* A sleeping target is a free critical, so say so plainly —
@@ -1000,6 +1014,83 @@ export const heroSprite = p =>
    pass that whitens it for a few frames when it takes a hit.
    `flip` mirrors around the sprite's own centre line — the same
    baked canvas serves both directions. */
+/* ── 글리치 ───────────────────────────────────────────────
+   「실제 그래픽도 반영될 정도로 글리치하게.」
+
+   그런데 화면 전체에 노이즈를 씌우면 그건 필터지 공포가 아니다.
+   무서운 것은 **그것만** 잘못 보이는 것이다. 그래서 어긋나는 것은
+   몬스터 한 마리씩이고, 얼마나 어긋나는지는 장식이 아니라 판의
+   상태에서 나온다:
+
+     · 깊이 — 아래로 갈수록 보이는 것을 믿을 수 없다
+     · 불   — 기름이 줄면 심해진다. 이 게임의 모든 것이 그렇듯이
+     · 상처 — 몸이 상할수록 심해진다
+     · 그것 자체 — 이름 있는 것, 정예, 그리고 「서 있는 것」은 바닥값이 높다
+
+   시간은 90ms 칸으로 끊는다. 프레임마다 새로 뽑으면 60Hz로 떨려서
+   눈이 아프고, 그건 불쾌한 게 아니라 그냥 못 만든 것이다. 한 칸
+   동안은 같은 모양으로 어긋나 있어야 사람이 그것을 **본다**. */
+const GLITCH_MS = 90;
+const glitchHash = (s, q) => {
+  let h = q | 0;
+  for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) & 0x7fffffff;
+  return h;
+};
+
+function glitchOf(m) {
+  const p = G.player;
+  if (!p) return 0;
+  let a = (G.depth || 0) / 15 * 0.45;
+  /* 기름. lightRadius가 줄면 그만큼 올라간다 — 7칸이 온전한 상태다. */
+  a += (1 - Math.min(1, (G.lightRadius || 7) / 7)) * 0.30;
+  if (p.maxhp) a += (1 - p.hp / p.maxhp) * 0.15;
+  if (m.ai === 'unseen') a = Math.max(a, 0.85);
+  else if (m.boss) a = Math.max(a, 0.7);
+  else if (m.named) a = Math.max(a, 0.5);
+  else if (m.elite?.length) a = Math.max(a, 0.35);
+  return Math.min(1, a);
+}
+
+/* 한 마리, 한 칸(90ms) 동안의 어긋남. 값이 아니라 결정이라서 그리는
+   쪽에서 매번 다시 뽑지 않는다. */
+function glitchNow(m, amount) {
+  if (amount <= 0.02) return null;
+  const q = Math.floor(performance.now() / GLITCH_MS);
+  const h = glitchHash(m.spr || '?', q + m.x * 7 + m.y * 13);
+  /* 얼마나 자주 어긋나는가. 최대치에서도 한 칸 걸러 한 칸이다 —
+     내내 어긋나 있으면 그건 그냥 그렇게 생긴 것이 된다. */
+  if ((h % 1000) / 1000 > amount * 0.5) return null;
+  const kind = h % 100;
+  return {
+    /* 줄 하나가 옆으로 밀린다. 가장 싸고 가장 확실한 것. */
+    shear: 1 + (h >> 3) % 2,
+    row: (h >> 5) % 6 + 1,
+    dir: (h >> 9) % 2 ? 1 : -1,
+    /* 색이 갈라진다 — 붉은 쪽이 한 칸 뒤처진다. */
+    split: amount > 0.35,
+    /* 그리고 아주 가끔, 한 칸 동안만 통째로 다른 것이 된다. */
+    other: kind < 4 && amount > 0.5,
+  };
+}
+
+/* 어긋난 채로 그린다. 스프라이트를 세 조각(위·어긋난 줄·아래)으로
+   잘라 가운데만 밀어 놓는다 — 캔버스 세 번이지, 픽셀을 만지지 않는다. */
+function blitGlitch(img, px, py, t, g, unit) {
+  const u = t / CELL_SIZE;                 // 스프라이트 한 픽셀의 화면 크기
+  const y0 = g.row, y1 = Math.min(CELL_SIZE, g.row + g.shear);
+  const off = g.dir * unit;
+  if (g.split) {
+    const a = ctx.globalAlpha;
+    ctx.globalAlpha = a * 0.35;
+    ctx.drawImage(img, px - unit, py, t, t);
+    ctx.globalAlpha = a;
+  }
+  ctx.drawImage(img, 0, 0, CELL_SIZE, y0, px, py, t, y0 * u);
+  ctx.drawImage(img, 0, y0, CELL_SIZE, y1 - y0, px + off, py + y0 * u, t, (y1 - y0) * u);
+  ctx.drawImage(img, 0, y1, CELL_SIZE, CELL_SIZE - y1,
+                px, py + y1 * u, t, (CELL_SIZE - y1) * u);
+}
+
 function blitActor(img, px, py, t, o, flip = false) {
   if (flip) {
     ctx.save();
@@ -4463,3 +4554,6 @@ function bindMapGestures() {
 }
 
 export { pick };
+/* 탐침용. 화면을 찍어서 글리치를 세면 재고 있는 것이 글리치가 아니라
+   바닥 무늬가 된다 — 그리는 쪽이 부르는 그 함수를 그대로 내준다. */
+export { glitchOf as _glitchOf, glitchNow as _glitchNow };

@@ -1121,6 +1121,139 @@ function bakeGrid(grid, tint) {
   return c;
 }
 
+/* ── 잘못 자란 것 ─────────────────────────────────────────
+   「몬스터도 모두 다 기괴하게.」
+
+   서른 장을 손으로 다시 그리는 방법도 있지만, 8×8에서 기괴함은
+   그림 실력이 아니라 **규칙 위반**에서 나온다. 대칭인 것에서 한쪽이
+   없고, 눈이 둘이어야 할 자리에 셋이 있고, 살 한 점이 뼈 색이면
+   그때 사람이 「뭔가 잘못됐다」고 읽는다. 그래서 표를 하나 더 만들지
+   않고 **구우면서 비튼다**.
+
+   종류마다 언제나 같은 방식으로 비틀린다. 판마다 바뀌면 그건 기형이
+   아니라 잡음이고, 잡음은 무섭지 않다 — 같은 것을 두 번 만났을 때
+   같은 자리가 없어야 「이 종은 원래 이렇게 생겼다」가 된다.
+
+   그리고 실루엣은 건드리지 않는다. 세 픽셀 안쪽만 바꾸므로 무엇인지는
+   그대로 읽히고, 자세히 본 사람만 잘못된 것을 본다. 알아볼 수 없게
+   만드는 것은 기괴한 것이 아니라 그냥 망가진 것이다. */
+const WRONG_MAX = 3;                       // 한 종이 잃거나 얻는 픽셀 수
+
+const hashOf = s => {
+  let h = 0;
+  for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) & 0x7fffffff;
+  return h;
+};
+
+function deform(grid, name) {
+  const g = grid.map(r => (r || '').padEnd(CELL, '.').slice(0, CELL).split(''));
+  const filled = [];
+  for (let r = 0; r < CELL; r++)
+    for (let c = 0; c < CELL; c++)
+      if (g[r][c] !== '.' && PALETTE[g[r][c]]) filled.push([r, c]);
+  if (filled.length < 8) return grid;       // 너무 작은 것은 비틀 여지가 없다
+
+  const h = hashOf(name);
+  const at = (r, c) => (r >= 0 && r < CELL && c >= 0 && c < CELL) ? g[r][c] : '.';
+
+  /* ── 첫 겹: 윤곽이 잘못됐다 ────────────────────────────
+     처음에는 세 가지 중 하나만 골라 걸었더니 26종 중 10종만 실루엣이
+     달라졌다 — 나머지는 안쪽 색만 바뀌어서, 멀리서 보면 원래 그림
+     그대로였다. 「모두 다」가 아니었다. 이제 윤곽은 **언제나** 한 번
+     비틀고, 그 위에 안쪽을 한 번 더 비튼다. */
+  if (h % 2 === 0) {
+    /* 한쪽이 없다. 좌우로 짝이 맞는 칸 중 한쪽만 지운다 — 다리 하나가
+       짧거나 어깨 한쪽이 없다. 대칭이 깨지는 것이 8×8에서 가장 싸게
+       살 수 있는 「사람은 이렇게 안 선다」이다. */
+    const pairs = filled.filter(([r, c]) => c < CELL / 2 && g[r][CELL - 1 - c] === g[r][c]);
+    const spots = pairs.length ? pairs : filled;
+    for (let i = 0; i < WRONG_MAX && spots.length; i++) {
+      const [r, c] = spots[(h >> (i * 3)) % spots.length];
+      g[r][pairs.length ? CELL - 1 - c : c] = '.';
+    }
+  } else {
+    /* 하나 더 났다. 몸 가장자리에서 바깥으로 한 칸 자란다 — 가시,
+       혹, 없어야 할 다리. 자란 것은 몸 색 그대로라서 무엇인지는
+       그대로 읽히고, 윤곽만 틀린다. */
+    const rim = filled.filter(([r, c]) =>
+      at(r - 1, c) === '.' || at(r + 1, c) === '.' ||
+      at(r, c - 1) === '.' || at(r, c + 1) === '.');
+    const spots = rim.length ? rim : filled;
+    const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    let grew = 0;
+    for (let i = 0; i < spots.length && grew < WRONG_MAX; i++) {
+      const [r, c] = spots[(h >> (i * 3)) % spots.length];
+      const [dr, dc] = dirs[(h >> (i * 2 + 1)) % 4];
+      const rr = r + dr, cc = c + dc;
+      if (rr < 0 || rr >= CELL || cc < 0 || cc >= CELL) continue;
+      if (g[rr][cc] !== '.') continue;
+      g[rr][cc] = g[r][c];
+      grew++;
+    }
+  }
+
+  /* ── 둘째 겹: 눈이 하나 더 있다 ────────────────────────
+     이것도 처음에는 반반으로 갈라 걸었다. 그런데 시트를 뽑아 놓고
+     보니 8×8에서 확실하게 불쾌한 것은 이것 하나뿐이었다 — 나머지는
+     이 크기에서 「좀 상했나」로 읽힌다. 그래서 전부에 건다.
+     눈이 없는 것(곰팡이·젤리·잿더미)에는 없던 구멍이 하나 생기는데,
+     형체 없는 것에 눈이 생기는 쪽이 오히려 낫다.
+
+     비대칭으로 붙인다. 좌우가 맞는 눈 셋은 그냥 무늬지만, 한쪽에만
+     붙은 셋째는 얼굴이 아니다. */
+  {
+    const eyes = filled.filter(([r, c]) => g[r][c] === 'k' || g[r][c] === 'R');
+    const dark = eyes.length ? eyes[(h >> 5) % eyes.length] : null;
+    const host = filled[(h >> 7) % filled.length];
+    const [r, c] = dark || host;
+    const ink = dark ? g[r][c] : 'k';
+    for (const [dr, dc] of [[-1, -1], [1, 1], [-1, 1]]) {
+      const rr = r + dr, cc = c + dc;
+      if (at(rr, cc) !== '.' && g[rr][cc] !== ink) { g[rr][cc] = ink; break; }
+    }
+  }
+
+  /* ── 셋째 겹: 살 한 점이 뼈다 ──────────────────────────
+     몸 안쪽만 바꾸므로 실루엣은 그대로다 — 멀리서는 멀쩡하고,
+     가까이서 본 사람만 뼈가 나온 자리를 본다. */
+  {
+    const inner = filled.filter(([r, c]) =>
+      at(r - 1, c) !== '.' && at(r + 1, c) !== '.'
+      && at(r, c - 1) !== '.' && at(r, c + 1) !== '.');
+    const spots = inner.length ? inner : filled;
+    const ink = ['w', 'R', 'w'][(h >> 4) % 3];
+    for (let i = 0; i < WRONG_MAX - 1 && spots.length; i++) {
+      const [r, c] = spots[(h >> (i * 4)) % spots.length];
+      g[r][c] = ink;
+    }
+  }
+  return g.map(r => r.join(''));
+}
+
+/* 그리고 한 장 더 굽는다: **더 잘못된** 판. 화면에서 아주 가끔,
+   한 프레임만 이쪽으로 바뀐다 — 눈을 비비게 만드는 것이 목적이므로
+   여기서는 실루엣을 건드려도 된다. 다시 보면 원래대로다. */
+function wrongen(grid, name) {
+  const g = grid.map(r => (r || '').padEnd(CELL, '.').slice(0, CELL).split(''));
+  const h = hashOf(name + '!');
+  const filled = [];
+  for (let r = 0; r < CELL; r++)
+    for (let c = 0; c < CELL; c++)
+      if (g[r][c] !== '.' && PALETTE[g[r][c]]) filled.push([r, c]);
+  if (!filled.length) return grid;
+  /* 줄 하나가 통째로 어긋난다. */
+  const row = 1 + (h % (CELL - 2));
+  const line = g[row].slice();
+  const shift = (h >> 3) % 2 ? 1 : -1;
+  for (let c = 0; c < CELL; c++) g[row][c] = line[(c - shift + CELL) % CELL];
+  /* 그리고 몇 점이 흰 섬광이 된다 — 안쪽에서 무언가 켜진 것처럼. */
+  for (let i = 0; i < 3; i++) {
+    const [r, c] = filled[(h >> (i * 6)) % filled.length];
+    g[r][c] = 'W';
+  }
+  return g.map(r => r.join(''));
+}
+
 /* One keeper per shop, so the six of them are not identical. */
 export const SHOP_TINT = ['e', 's', 'r', 'W', 'P', 'b'];
 
@@ -1141,7 +1274,13 @@ function bakeHero(race, cls) {
   return bakeGrid(merged, CLASS_TINT[cls]);
 }
 
-export function bakeAll() {
+/* 살아 있는 것들의 이름. 표를 여기 손으로 적지 않는다 — data.js의
+   MONSTERS에서 그대로 나오므로, 몬스터를 하나 더 넣으면 그것도 자동으로
+   비틀린다. 손으로 적은 목록은 언젠가 반드시 어긋난다. */
+let flesh = new Set();
+
+export function bakeAll(living) {
+  if (living) flesh = living instanceof Set ? living : new Set(living);
   for (const race of Object.keys(RACE_BODY))
     for (const cls of Object.keys(CLASS_KIT))
       baked.set(`hero:${race}:${cls}`, bakeHero(race, cls));
@@ -1153,6 +1292,9 @@ export function bakeAll() {
         baked.set(`hero:${cls}`, bakeGrid(grid, tint));
     } else if (name === 'keeper') {
       SHOP_TINT.forEach((tint, i) => baked.set(`keeper:${i + 1}`, bakeGrid(grid, tint)));
+    } else if (flesh.has(name)) {
+      baked.set(name, bakeGrid(deform(grid, name)));
+      baked.set(`wrong:${name}`, bakeGrid(wrongen(deform(grid, name), name)));
     } else {
       baked.set(name, bakeGrid(grid));
     }
@@ -1160,6 +1302,14 @@ export function bakeAll() {
 }
 
 export const sprite = name => baked.get(name) || baked.get('rubble');
+/* 탐침용. 비틀기 전의 격자를 같은 방식으로 구워 준다 — 그래야
+   「몇 칸이 달라졌는가」를 램프까지 포함해 정확히 셀 수 있다.
+   탐침이 굽는 방식을 따로 흉내 내면 재는 것이 기형이 아니라 흉내가
+   맞았는지가 된다. */
+export const _bakeRaw = grid => bakeGrid(grid);
+/* 있는지 없는지. sprite()는 없으면 돌무더기를 돌려주므로 그것만으로는
+   물어볼 수가 없다. */
+export const hasSprite = name => baked.has(name);
 
 /* ── particle stock ───────────────────────────────────────
    When something dies we throw its own pixels across the

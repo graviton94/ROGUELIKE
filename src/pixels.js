@@ -77,15 +77,30 @@ export const SPRITES = {
   ],
 
   /* vermin */
+  /* ── 열여섯으로 다시 그린 것 ────────────────────────
+     표에 8줄짜리와 16줄짜리가 섞여 있어도 된다 — 굽는 쪽이 원본
+     줄 수를 보고 맞춘다. 그래서 한 마리씩 옮길 수 있다.
+
+     여덟 칸에서는 쥐가 「귀 둘, 눈 둘, 다리 넷」이 전부였다.
+     열여섯 칸에서는 주둥이가 나오고, 앞니가 보이고, 꼬리가 몸
+     뒤로 감긴다 — 같은 짐승인데 이제 무엇을 하고 있는지가 보인다. */
   rat: [
-    '........',
-    '........',
-    '.n....n.',
-    'nNNnnNNn',
-    'NNkNNkNN',
-    '.NNNNNN.',
-    'nn.nn.nn',
-    '......nn',
+    '................',
+    '................',
+    '..nn........nn..',
+    '.nNNn......nNNn.',
+    '.nNrNn....nNrNn.',
+    '..nNNnnnnnnNNn..',
+    '..nNNNNNNNNNNn..',
+    '.nNNNNNNNNNNNNn.',
+    '.nNkNNNNNNNNkNn.',
+    '.nNNNNwwwwNNNNn.',
+    '.nNNNNNwwNNNNNn.',
+    '..nNNNNNNNNNNn..',
+    '..nNNnNNNNnNNn..',
+    '..nn.nnnnnn.nn..',
+    '...........nnnn.',
+    '................',
   ],
   /* 굶은 들쥐 — the same animal after a bad month. Longer, greyer,
      ribs showing, and one red eye, so a glance at the tile says
@@ -164,15 +179,26 @@ export const SPRITES = {
     '..n..n..',
     '..n..n..',
   ],
+  /* 오크도 열여섯으로. 여덟에서는 「초록 머리 + 갈색 몸통」이라
+     오우거·트롤과 실루엣이 같았다. 이제 어깨가 넓고, 아래턱니가
+     나오고, 한 손에 쇠를 들었다 — 실루엣만으로 구분된다. */
   orc: [
-    '..eeee..',
-    '.eEEEEe.',
-    '.eRwwRe.',
-    '..ewwe..',
-    '.nnNNnn.',
-    'sn.NN.ns',
-    '..n..n..',
-    '..s..s..',
+    '................',
+    '.....eeeee......',
+    '....eEEEEEe.....',
+    '...eEEEEEEEe....',
+    '...eERREERRe....',
+    '...eEEEEEEEe....',
+    '...eEwEEEwEe....',
+    '....eEEEEEe.....',
+    '.....eeeee......',
+    '..nnnNNNNNnnn...',
+    '.nnNNNNNNNNNnn..',
+    'sn.nNNNNNNNn.ns.',
+    'ss..nNNNNNn..ss.',
+    '.....nn.nn......',
+    '....nnn.nnn.....',
+    '....sss.sss.....',
   ],
   dog: [
     '........',
@@ -1065,59 +1091,86 @@ export const CLASS_TINT = {
   rogue:   'd', ranger: 'e', paladin:'y',
 };
 
-const CELL = 8;
+/* ── 칸 하나가 몇 픽셀인가 ────────────────────────────────
+   여덟이었다. 여덟에서는 두 가지가 동시에 불가능했다.
+
+   하나. 바깥에 테두리를 두를 자리가 없다. 8×8은 몸이 곧 칸이라
+   선을 두르면 칸을 넘치고, 그래서 지금까지는 **안쪽** 가장자리를
+   눌러서 어둡게 했다 — 그런데 8×8에서 「투명한 이웃이 있는 픽셀」은
+   몸의 63%다. 테두리를 그린 게 아니라 몸을 갉아먹고 있었다.
+   「외곽선이 배경이랑 식별이 안 된다」와 「픽셀이 얼룩덜룩하다」가
+   둘 다 여기서 나왔다: 안쪽이 제각기 다른 비율로 어두워지니까
+   재질이 아니라 얼룩으로 읽힌다.
+
+   둘. 여덟 칸으로는 얼굴과 몸과 무기를 동시에 그릴 수 없다. 열 몇
+   마리가 같은 실루엣을 쓰게 된 것도 이 때문이다.
+
+   그래서 열여섯으로 올린다. 화면 배치는 한 칸도 안 바뀐다 — 렌더는
+   이미 타일 크기 t로 스케일해서 그리므로, CELL은 「타일 안의 해상도」
+   일 뿐이다. 지금 있는 8×8 그림은 구울 때 2배로 늘려서 그대로 살리고
+   (화면에서 완전히 동일하다), 새로 그리는 것만 16줄로 적으면 된다.
+   한 표에 8줄짜리와 16줄짜리가 섞여 있어도 된다. */
+const CELL = 16;
 const baked = new Map();
 
 /* ── 테두리 ──────────────────────────────────────────────
-   0x72 시트를 같은 자로 재 보니 우리와 갈린 곳은 한 군데였다:
-   그쪽은 외곽 픽셀의 94%가 V<64이고 내부보다 평균 85 어둡다.
-   우리는 5%에 20이었다 — 다시 말해 **테두리가 없었다.** 그래서
-   배경에서 떨어지지 않고 납작하게 보였다.
+   0x72 시트를 같은 자로 재 보니 갈린 곳은 한 군데였다: 그쪽은 외곽
+   픽셀의 94%가 V<64이고 내부보다 평균 85 어둡다. 우리는 5%에 20 —
+   테두리가 없었다.
 
-   8×8에 바깥으로 선을 두르면 칸을 넘치고, 안쪽을 통째로 한 색
-   외곽선으로 채우면 6×6만 남아 형태가 뭉갠다. 그래서 실루엣
-   가장자리를 **눌러서** 어둡게 한다 — 색은 자기 색을 유지한 채
-   어두워지므로 재질은 남고 윤곽만 선다.
-
-   투명한 이웃이 있는 픽셀에만 적용한다. 칸을 꽉 채우는 스프라이트는
-   배경과 겹칠 일이 없으니 테두리도 필요 없다. */
-const RIM = 0.42;                 // 가장자리가 자기 색의 몇 배로 어두워지는가
-function rimColor(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  const r = Math.round((n >> 16) * RIM), g = Math.round(((n >> 8) & 255) * RIM), b = Math.round((n & 255) * RIM);
-  return `rgb(${r},${g},${b})`;
-}
-
+   이제 열여섯 칸이므로 진짜로 **바깥에** 두른다. 몸에 닿은 빈 칸을
+   외곽선 색으로 칠하는 것이라 몸은 한 픽셀도 안 잃고, 선은 언제나
+   한 픽셀이다. 몸이 칸 끝에 닿은 자리에서만 그 한 줄을 몸에서
+   가져온다 — 열여섯 중 하나이므로 6%이고, 예전 63%와 비교할 것이
+   못 된다. */
 function bakeGrid(grid, tint) {
   const c = document.createElement('canvas');
   c.width = CELL; c.height = CELL;
   const x = c.getContext('2d');
 
-  /* 먼저 어느 칸이 차 있는지 알아야 가장자리를 판별할 수 있다. */
+  /* 원본이 몇 줄짜리든 받는다 — 8줄이면 2배로, 16줄이면 그대로.
+     이 한 줄 덕분에 표를 한꺼번에 갈아엎지 않고 한 마리씩 다시
+     그릴 수 있다. */
+  const n = Math.max(1, grid.length);
+  const s = Math.max(1, Math.round(CELL / n));
+
+  /* 화면 해상도(CELL)로 펼친 채움 지도. 테두리는 여기서 판별해야
+     원본이 8줄이든 16줄이든 선 굵기가 언제나 한 픽셀이다. */
   const key = [];
   for (let row = 0; row < CELL; row++) {
-    const line = grid[row] || '';
+    const line = grid[Math.min(n - 1, (row / s) | 0)] || '';
     const out = [];
     for (let col = 0; col < CELL; col++) {
-      let ch = line[col] || '.';
+      let ch = line[Math.min(line.length - 1, (col / s) | 0)] || '.';
       if (ch === 'C') ch = tint || 's';
       out.push(PALETTE[ch] ? ch : null);
     }
     key.push(out);
   }
-  const empty = (r, cl) => r < 0 || cl < 0 || r >= CELL || cl >= CELL || !key[r][cl];
+  const inside = (r, cl) => r >= 0 && cl >= 0 && r < CELL && cl < CELL;
+  const filled = (r, cl) => inside(r, cl) && !!key[r][cl];
 
-  for (let row = 0; row < CELL; row++) {
+  /* 몸 먼저. 자기 색 그대로 — 누르지 않는다. */
+  for (let row = 0; row < CELL; row++)
     for (let col = 0; col < CELL; col++) {
       const ch = key[row][col];
       if (!ch) continue;
-      const color = PALETTE[ch];
-      const edge = empty(row - 1, col) || empty(row + 1, col)
-                || empty(row, col - 1) || empty(row, col + 1);
-      x.fillStyle = edge ? rimColor(color) : color;
+      x.fillStyle = PALETTE[ch];
       x.fillRect(col, row, 1, 1);
     }
-  }
+
+  /* 그 다음 테두리. 몸에 닿은 빈 칸, 그리고 칸 끝에 닿은 몸 한 줄. */
+  x.fillStyle = PALETTE.k;
+  for (let row = 0; row < CELL; row++)
+    for (let col = 0; col < CELL; col++) {
+      if (key[row][col]) {
+        const atEdge = row === 0 || col === 0 || row === CELL - 1 || col === CELL - 1;
+        if (atEdge) x.fillRect(col, row, 1, 1);
+        continue;
+      }
+      if (filled(row - 1, col) || filled(row + 1, col)
+       || filled(row, col - 1) || filled(row, col + 1)) x.fillRect(col, row, 1, 1);
+    }
   return c;
 }
 
@@ -1146,15 +1199,19 @@ const hashOf = s => {
 };
 
 function deform(grid, name) {
-  const g = grid.map(r => (r || '').padEnd(CELL, '.').slice(0, CELL).split(''));
+  /* 원본 격자의 크기로 센다. CELL로 세면 8줄짜리 그림을 16칸 격자로
+     읽어서 절반이 빈칸이 되고, 그러면 비틀 자리를 못 찾는다 —
+     칸을 16으로 올린 날 이 함수가 조용히 아무것도 안 할 뻔했다. */
+  const N = Math.max(1, grid.length);
+  const g = grid.map(r => (r || '').padEnd(N, '.').slice(0, N).split(''));
   const filled = [];
-  for (let r = 0; r < CELL; r++)
-    for (let c = 0; c < CELL; c++)
+  for (let r = 0; r < N; r++)
+    for (let c = 0; c < N; c++)
       if (g[r][c] !== '.' && PALETTE[g[r][c]]) filled.push([r, c]);
   if (filled.length < 8) return grid;       // 너무 작은 것은 비틀 여지가 없다
 
   const h = hashOf(name);
-  const at = (r, c) => (r >= 0 && r < CELL && c >= 0 && c < CELL) ? g[r][c] : '.';
+  const at = (r, c) => (r >= 0 && r < N && c >= 0 && c < N) ? g[r][c] : '.';
 
   /* ── 첫 겹: 윤곽이 잘못됐다 ────────────────────────────
      처음에는 세 가지 중 하나만 골라 걸었더니 26종 중 10종만 실루엣이
@@ -1165,11 +1222,11 @@ function deform(grid, name) {
     /* 한쪽이 없다. 좌우로 짝이 맞는 칸 중 한쪽만 지운다 — 다리 하나가
        짧거나 어깨 한쪽이 없다. 대칭이 깨지는 것이 8×8에서 가장 싸게
        살 수 있는 「사람은 이렇게 안 선다」이다. */
-    const pairs = filled.filter(([r, c]) => c < CELL / 2 && g[r][CELL - 1 - c] === g[r][c]);
+    const pairs = filled.filter(([r, c]) => c < N / 2 && g[r][N - 1 - c] === g[r][c]);
     const spots = pairs.length ? pairs : filled;
     for (let i = 0; i < WRONG_MAX && spots.length; i++) {
       const [r, c] = spots[(h >> (i * 3)) % spots.length];
-      g[r][pairs.length ? CELL - 1 - c : c] = '.';
+      g[r][pairs.length ? N - 1 - c : c] = '.';
     }
   } else {
     /* 하나 더 났다. 몸 가장자리에서 바깥으로 한 칸 자란다 — 가시,
@@ -1185,7 +1242,7 @@ function deform(grid, name) {
       const [r, c] = spots[(h >> (i * 3)) % spots.length];
       const [dr, dc] = dirs[(h >> (i * 2 + 1)) % 4];
       const rr = r + dr, cc = c + dc;
-      if (rr < 0 || rr >= CELL || cc < 0 || cc >= CELL) continue;
+      if (rr < 0 || rr >= N || cc < 0 || cc >= N) continue;
       if (g[rr][cc] !== '.') continue;
       g[rr][cc] = g[r][c];
       grew++;
@@ -1234,18 +1291,19 @@ function deform(grid, name) {
    한 프레임만 이쪽으로 바뀐다 — 눈을 비비게 만드는 것이 목적이므로
    여기서는 실루엣을 건드려도 된다. 다시 보면 원래대로다. */
 function wrongen(grid, name) {
-  const g = grid.map(r => (r || '').padEnd(CELL, '.').slice(0, CELL).split(''));
+  const N = Math.max(1, grid.length);
+  const g = grid.map(r => (r || '').padEnd(N, '.').slice(0, N).split(''));
   const h = hashOf(name + '!');
   const filled = [];
-  for (let r = 0; r < CELL; r++)
-    for (let c = 0; c < CELL; c++)
+  for (let r = 0; r < N; r++)
+    for (let c = 0; c < N; c++)
       if (g[r][c] !== '.' && PALETTE[g[r][c]]) filled.push([r, c]);
   if (!filled.length) return grid;
   /* 줄 하나가 통째로 어긋난다. */
-  const row = 1 + (h % (CELL - 2));
+  const row = 1 + (h % Math.max(1, N - 2));
   const line = g[row].slice();
   const shift = (h >> 3) % 2 ? 1 : -1;
-  for (let c = 0; c < CELL; c++) g[row][c] = line[(c - shift + CELL) % CELL];
+  for (let c = 0; c < N; c++) g[row][c] = line[(c - shift + N) % N];
   /* 그리고 몇 점이 흰 섬광이 된다 — 안쪽에서 무언가 켜진 것처럼. */
   for (let i = 0; i < 3; i++) {
     const [r, c] = filled[(h >> (i * 6)) % filled.length];
@@ -1262,10 +1320,13 @@ export const SHOP_TINT = ['e', 's', 'r', 'W', 'P', 'b'];
 function bakeHero(race, cls) {
   const body = RACE_BODY[race] || RACE_BODY.human;
   const kit = CLASS_KIT[cls] || CLASS_KIT.warrior;
+  /* 몸과 장비는 같은 크기로 그려져 있다. 그 크기로 겹친다 —
+     8줄짜리 몸을 16칸으로 훑으면 절반이 빈칸이 된다. */
+  const N = Math.max(body.length, kit.length);
   const merged = [];
-  for (let row = 0; row < CELL; row++) {
+  for (let row = 0; row < N; row++) {
     let line = '';
-    for (let col = 0; col < CELL; col++) {
+    for (let col = 0; col < N; col++) {
       const over = (kit[row] || '')[col] || '.';
       line += over !== '.' ? over : ((body[row] || '')[col] || '.');
     }
@@ -1428,48 +1489,57 @@ function bakeTerrain(kind, variant) {
   if (terrainCache.has(key)) return terrainCache.get(key);
 
   const T = TERRAIN[theme] || TERRAIN.plain;
+  /* 칸을 16으로 올렸으니 지형도 16으로 그린다. 처음에는 8로 그려서
+     두 배로 늘렸는데, 그러면 결 한 점이 2×2 덩어리가 된다 — 「픽셀이
+     얼룩덜룩하다」가 오히려 심해졌다. 무늬의 **구조**(이음매, 켜)는
+     U배로 키우고, **결**은 한 픽셀로 둔다. 구조는 커야 읽히고 결은
+     작아야 결이다. */
   const c = document.createElement('canvas');
   c.width = CELL; c.height = CELL;
   const x = c.getContext('2d');
+  const U = CELL / 8;                    // 옛 8칸 좌표 한 칸의 크기
+  const u = (a, b, w, h) => x.fillRect(a * U, b * U, w * U, h * U);
   let rs = (variant * 2654435761 + theme.length * 7919) % 2147483647;
   const rr = () => (rs = (rs * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  /* 결 한 점 — 언제나 한 픽셀. 칸이 넓어졌으니 점은 조금 더 뿌려도
+     같은 밀도가 아니라 더 성기게 남는다. */
+  const grit = n => { for (let i = 0; i < n; i++)
+    x.fillRect((rr() * CELL) | 0, (rr() * CELL) | 0, 1, 1); };
 
   if (kind === 'wall') {
     x.fillStyle = PALETTE[T.base]; x.fillRect(0, 0, CELL, CELL);
     /* 결은 드물어야 결이다. 일곱 점은 무늬가 아니라 잡음이었다. */
     x.fillStyle = PALETTE[T.grain];
-    for (let i = 0; i < 3; i++) x.fillRect((rr() * 8) | 0, (rr() * 8) | 0, 1, 1);
+    grit(5);
     x.fillStyle = PALETTE[T.mortar];
     if (T.style === 'brick') {
       // Running bond: one course line, staggered head joints.
-      x.fillRect(0, (variant % 2 ? 3 : 4), CELL, 1);
-      x.fillRect(variant % 2 ? 2 : 5, 0, 1, 4);
-      x.fillRect(variant % 2 ? 6 : 1, 4, 1, 4);
+      u(0, (variant % 2 ? 3 : 4), 8, 0.5);
+      u(variant % 2 ? 2 : 5, 0, 0.5, 4);
+      u(variant % 2 ? 6 : 1, 4, 0.5, 4);
     } else if (T.style === 'ashlar') {
       // Big dressed blocks: two courses, joints lined up.
-      x.fillRect(0, 3, CELL, 1);
-      x.fillRect(0, 7, CELL, 1);
-      x.fillRect(variant % 2 ? 3 : 6, 0, 1, 3);
-      x.fillRect(variant % 2 ? 6 : 3, 4, 1, 3);
+      u(0, 3, 8, 0.5);
+      u(0, 7.5, 8, 0.5);
+      u(variant % 2 ? 3 : 6, 0, 0.5, 3);
+      u(variant % 2 ? 6 : 3, 4, 0.5, 3);
     } else if (T.style === 'streak') {
       // Water has been running down this for a long time.
-      for (let i = 0; i < 3; i++) {
-        const cx = (rr() * 8) | 0;
-        x.fillRect(cx, (rr() * 4) | 0, 1, 3 + ((rr() * 4) | 0));
-      }
+      for (let i = 0; i < 3; i++)
+        u((rr() * 8) | 0, (rr() * 4) | 0, 0.5, 3 + ((rr() * 4) | 0));
     } else {
       // rough: no courses, just broken edges and bite marks.
-      for (let i = 0; i < 6; i++) x.fillRect((rr() * 8) | 0, (rr() * 8) | 0, 1 + ((rr() * 2) | 0), 1);
+      for (let i = 0; i < 6; i++)
+        u((rr() * 8) | 0, (rr() * 8) | 0, 0.5 + ((rr() * 2) | 0), 0.5);
     }
   } else {
     x.fillStyle = PALETTE[T.floor]; x.fillRect(0, 0, CELL, CELL);
     /* 바닥은 조용해야 한다. 배우가 서는 무대이지 무대가 배우는 아니다.
        칸마다 점을 넷씩 뿌리면 수백 칸이 모여 텔레비전 노이즈가 된다 —
-       여섯 변종 중 셋만, 그것도 한두 점만 받는다. */
+       여섯 변종 중 셋만, 그것도 두어 점만 받는다. */
     if (variant % 2 === 0) {
       x.fillStyle = PALETTE[T.dust];
-      const dots = 1 + ((rr() * 2) | 0);
-      for (let i = 0; i < dots; i++) x.fillRect((rr() * 8) | 0, (rr() * 8) | 0, 1, 1);
+      grit(2 + ((rr() * 2) | 0));
     }
   }
   /* 그리고 온도. 무늬를 다 그린 뒤에 얇게 덮으므로, 결도 이음매도

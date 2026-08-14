@@ -71,7 +71,11 @@ console.log('\n기형 벤치 — 모두 다 잘못 자랐는가\n');
          내야 하고, 그러면 재는 것이 기형이 아니라 흉내가 맞았는지가
          된다. */
       const was = readBaked(P._bakeRaw(grid));
-      const filled = orig.filter(Boolean).length;
+      /* 분모는 **구운 그림**에서 센다. 원본 격자(8줄)의 칸 수로 나누면
+         칸을 16으로 올린 순간 분모만 그대로라 비율이 네 배로 뛴다 —
+         실제로 7%가 60%가 되어 「알아볼 수 없다」로 떨어졌다. 그림은
+         한 픽셀도 안 바뀌었는데. */
+      const filled = was.filter(Boolean).length;
       /* 실루엣: 차 있음/비어 있음이 뒤바뀐 칸. 색: 있던 자리의 색이
          달라진 칸 — 눈 하나 더, 뼈 한 점이 여기서 잡힌다. */
       let shape = 0, colour = 0;

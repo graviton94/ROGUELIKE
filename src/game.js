@@ -3081,9 +3081,12 @@ function pickUp() {
 
    A prop takes two or three blows because a single tap would make
    them scenery you clear rather than scenery you decide about. */
+/* 여기 열쇠가 빠지면 「undefined이(가) 삐걱인다」가 나간다. 좌판과
+   우물이 그렇게 빠져 있었다 — 표는 가구가 늘 때 같이 늘지 않는다. */
 export const PROP_NAME = {
   barrel:'낡은 통', brazier:'화로', pillar:'무너진 기둥',
   bones:'뼈 무더기', urn:'봉인된 항아리',
+  stall:'좌판', well:'마른 우물',
 };
 
 /* Returns whether the bump cost a turn. */
@@ -3945,7 +3948,10 @@ function gainXp(n) {
       ? `레벨 ${p.lv}. 뼈가 굵어졌다 — 최대 체력 +${gain}.`
       : `레벨 ${p.lv}. 몸이 단단해진다. (체력 +${gain})`, 'level');
     const learned = spellList(p).filter(s => s.lv === p.lv);
-    for (const s of learned) say(`새 주문을 익혔다 — ${s.n}`, 'level');
+    /* 주문은 `name`을 쓴다 — 물건만 `n`이다. 여기 한 줄이 `s.n`이라
+       마법사·사제·성기사가 주문을 배울 때마다 「새 주문을 익혔다 —
+       undefined」가 나가고 있었다. 판당 여덟 번씩. */
+    for (const s of learned) say(`새 주문을 익혔다 — ${s.name}`, 'level');
   }
 }
 

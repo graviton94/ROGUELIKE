@@ -145,7 +145,15 @@ for (const s of SIZES) {
                      text: (el.textContent || '').trim().slice(0, 22) });
       }
     }
-    return { spill, state: window.__fitState || null,
+    /* 넘침을 재는 김에 글도 읽는다 — 놀이 화면 쪽. 「undefined」류는
+       규칙의 로그뿐 아니라 HUD 칩과 버튼 이름에도 난다. */
+    const holes = [];
+    for (const el of document.querySelectorAll('#hud *, #controls *, #log *, #acts *')) {
+      if (el.children.length) continue;
+      const t = (el.textContent || '').trim();
+      if (t && /undefined|NaN|\[object |\bnull\b/.test(t)) holes.push(t.slice(0, 40));
+    }
+    return { spill, holes, state: window.__fitState || null,
       pageScrollX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       pageScrollY: document.documentElement.scrollHeight - document.documentElement.clientHeight };
   }, FRAMES);
@@ -154,6 +162,9 @@ for (const s of SIZES) {
   console.log(`  (잰 상태: ${JSON.stringify(out.state)})`);
   if (out.pageScrollX > 1) { console.log(`  ✗ 화면이 가로로 ${out.pageScrollX}px 넘친다`); bad++; }
   if (out.pageScrollY > 1) { console.log(`  ✗ 화면이 세로로 ${out.pageScrollY}px 넘친다`); bad++; }
+  for (const h of [...new Set(out.holes || [])].slice(0, 3)) {
+    console.log(`  ✗ 글에 구멍 — 「${h}」`); bad++;
+  }
   if (!out.spill.length && out.pageScrollX <= 1 && out.pageScrollY <= 1)
     console.log('  · 넘치는 것 없음');
   for (const v of out.spill.slice(0, 8)) {

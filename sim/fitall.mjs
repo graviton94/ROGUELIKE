@@ -144,12 +144,23 @@ for (const s of SIZES) {
                        px: Math.round(over), text: (el.textContent || '').trim().slice(0, 20) });
         }
       }
-      return { spill,
+      /* 넘침을 재는 김에 글도 읽는다. 「undefined이(가) 삐걱인다」류는
+         규칙 파일의 로그가 아니라 화면에 그려진 글에도 난다 — 그쪽은
+         헤드리스 벤치가 영영 못 본다. 화면을 이미 가장 붐비는 상태로
+         열어 두었으니, 여기가 그 글을 읽을 수 있는 유일한 자리다. */
+      const holes = [];
+      for (const el of root.querySelectorAll('*')) {
+        if (el.children.length) continue;            // 잎만 — 부모는 자식 글을 겹쳐 센다
+        const t = (el.textContent || '').trim();
+        if (t && /undefined|NaN|\[object |\bnull\b/.test(t)) holes.push(t.slice(0, 40));
+      }
+      return { spill, holes,
         sx: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         sy: document.documentElement.scrollHeight - document.documentElement.clientHeight };
     }, id);
 
     const notes = [];
+    for (const h of [...new Set(out.holes)].slice(0, 3)) notes.push(`글에 구멍 — 「${h}」`);
     if (out.sx > 1) notes.push(`가로로 ${out.sx}px 넘침`);
     if (out.sy > 1) notes.push(`세로로 ${out.sy}px 넘침`);
     for (const v of out.spill.slice(0, 4)) notes.push(`${v.box} 안의 ${v.who}가 ${v.px}px — 「${v.text}」`);

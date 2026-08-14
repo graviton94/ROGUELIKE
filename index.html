@@ -220,6 +220,13 @@
   <div id="log" aria-live="polite"></div>
 
   <div id="controls">
+    <!-- 기술·주문 줄은 격자 밖, 화면 전체 폭을 쓴다. d-pad 옆의 좁은
+         칸에 두었더니 320px에서 다섯 칸이 29px씩이 되어 「치유」가
+         「치듀」로 잘렸다. 손가락 하나가 44px인데. 폭을 두 배로
+         주면 같은 다섯 칸이 56px가 된다 — 배치를 다시 짜는 것이
+         아니라 줄을 격자에서 꺼내는 것뿐이다. -->
+    <div class="pair spells wide" id="art-row" hidden></div>
+    <div class="pair spells wide" id="spell-row" hidden></div>
     <div id="dpad">
       <button data-dir="-1,-1" aria-label="북서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.9 5.9 L21.9 14.3 L14.1 14.1 L14.3 21.9 Z"/></svg></button>
       <button data-dir="0,-1" aria-label="북"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4 L17.4 20.6 L12 14.9 L6.6 20.6 Z"/></svg></button>
@@ -233,8 +240,11 @@
     </div>
     <div id="acts">
       <div class="pair quick" id="quick-row"></div>
-      <div class="pair spells" id="spell-row" hidden></div>
-      <button id="btn-inv">배낭 · 장비</button>
+      <!-- 기술과 주문을 갈랐다. 한 줄에 몰아넣었더니 팔라딘처럼 둘 다
+           가진 직업에서 아홉 칸이 되어 「돌진 Lv4 Lv8 Lv1 치듀 Lv3…」
+           로 글자가 토막 났다. 자원이 다르면(기력·맹세 / 마나) 줄도
+           다르다 — 눈이 한 줄을 한 종류로 읽는다. -->
+      <button id="btn-inv" class="slim">배낭 · 장비</button>
       <!-- Paired so the new spell row pays for itself: the book is
            now a reference screen, not the thing you tap every turn. -->
       <!-- 늘 있는 네 가지. 봇 137,276턴을 재 보니 주문서와 외침은

@@ -384,6 +384,7 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   flex: 0 0 auto;
   display: grid; grid-template-columns: min(150px, 40vw) minmax(0, 1fr);
   gap: 12px; align-items: start;
+  grid-auto-rows: min-content;
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
   background: var(--d); border-top: 2px solid var(--g);
   overflow: hidden;
@@ -493,6 +494,31 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
    position of 서리 폭발 is the same at level 1 as at level 30.
    Declared after `.pair button` on purpose — same specificity,
    so the later rule is the one that lands. */
+/* 배낭은 이름과 숫자 하나뿐인데 한 줄을 통째로, 그것도 두껍게 쓰고
+   있었다. 자주 누르는 버튼이 아니다 — 얇게 만들어 그만큼을 지도에
+   돌려준다. */
+#acts button.slim { padding: 6px 8px; font-size: 11px; }
+
+/* 격자를 가로지르는 줄. 두 칸을 다 쓰므로 슬롯 하나가 두 배로 넓다. */
+#controls .spells.wide {
+  grid-column: 1 / -1;
+  display: flex; gap: 5px; min-width: 0;
+}
+#controls .spells.wide button {
+  flex: 1 1 0; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 1px; padding: 5px 2px;
+  font-size: 8.5px; line-height: 1; text-align: center; overflow: hidden;
+}
+#controls .spells.wide canvas { width: 17px; height: 17px; flex: 0 0 auto; }
+#controls .spells.wide .sn {
+  white-space: nowrap; overflow: hidden; max-width: 100%;
+  font-size: clamp(9px, 2.9vw, 11px); letter-spacing: -.02em;
+}
+#controls .spells.wide b { color: var(--B); font-size: 8.5px; margin-left: 2px; }
+#controls .spells.wide button.locked { opacity: .22; }
+#controls .spells.wide button.cold { opacity: .45; }
+#controls .spells.wide button.cold b { color: var(--G); }
+
 #acts .spells button {
   flex: 1 1 0; display: flex; flex-direction: column; align-items: center;
   justify-content: center; gap: 1px; padding: 3px 1px;
@@ -546,6 +572,18 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
    높이는 기기마다 **고정**이다. 줄이 나타났다 사라지면 지도가 매 걸음
    밀리고, 그러면 누르려던 것이 아닌 것이 눌린다. */
 @media (max-height: 700px) {
+  /* 두 줄을 쓰는 직업(사제·팔라딘)은 이 줄들만으로 90px를 먹어서
+     작은 폰에서 지도가 30%까지 내려갔다. 아이콘과 이름을 세로로
+     쌓지 말고 한 줄에 눕힌다 — 칸의 **폭**은 그대로이므로 읽히는
+     것은 유지되고, 높이만 절반이 된다. */
+  #controls .spells.wide button { flex-direction: row; gap: 4px; padding: 3px 3px; }
+  #controls .spells.wide canvas { width: 13px; height: 13px; }
+  #controls .spells.wide .sn { font-size: clamp(9px, 2.7vw, 10.5px); }
+  #controls { gap: 6px; }
+  /* 세 칸짜리 빠른 슬롯도 같이 눕힌다 — 아이콘 위에 이름을 쌓을
+     자리가 여기서는 없다. */
+  #acts .quick button { padding: 2px 2px; }
+  #acts .quick canvas { width: 14px; height: 14px; }
   #log { height: 3.6em; padding: 4px 12px; }
   #hud .hudbot { display: none; }
   #controls { padding: 7px 10px calc(7px + env(safe-area-inset-bottom)); gap: 8px; }

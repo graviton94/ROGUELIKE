@@ -1383,9 +1383,19 @@ function renderQuick() {
 
    `주문서` stays: names, descriptions, affixes and enhancement
    live there. This row is only the trigger. */
+/* 기술과 주문을 갈라 그린다. 한 줄에 몰아넣었더니 팔라딘처럼 둘 다
+   가진 직업에서 아홉 칸이 되었고, 320px에서 칸 하나가 30px가 안 돼
+   「치유」가 「치듀」로 잘렸다. 자원이 다르면(기력·맹세 / 마나) 줄도
+   다른 편이 낫다 — 눈이 한 줄을 한 종류로 읽는다.
+   줄 수는 직업이 정하고 판 중에 안 바뀌므로, 나타났다 사라지며 지도를
+   미는 문제는 생기지 않는다. */
 function renderSpellRow() {
-  const row = $('spell-row');
-  const slots = Game.spellSlots();
+  const all = Game.spellSlots();
+  paintSlotRow($('art-row'), all.filter(s => s.art));
+  paintSlotRow($('spell-row'), all.filter(s => !s.art));
+}
+
+function paintSlotRow(row, slots) {
   row.hidden = !slots.length;
   if (!slots.length) return;
   if (row.children.length !== slots.length) {

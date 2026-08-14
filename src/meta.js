@@ -46,6 +46,15 @@ const EMPTY = {
      knowledge you paid for in ogres. */
   bodies: {},
   reso: {},        // named combinations ever lit
+  /* ── 붉게 고쳐 쓴 줄 ───────────────────────────────────
+     앞선 자들이 적어 놓은 규칙 중에는 틀린 줄이 있고, 그것이 눈앞에서
+     들통나는 순간이 있다. 그 순간을 여기 적는다: `spr:열쇠` 하나가
+     「이 종류의 이 규칙은 내가 두 눈으로 봤다」다.
+
+     판을 넘어 남는다. 이 게임에서 판을 넘어 남는 것은 언제나 힘이
+     아니라 **앎**이고(bodies가 그렇듯), 규칙서를 고쳐 쓴 것은 정확히
+     그 종류다 — 다음 판의 나는 더 세지 않고 덜 속는다. */
+  redwrit: {},
   /* Cumulative across every run, for the memories that ask for a
      total rather than a first sighting. */
   totals: { forged: 0, opened: 0, engraved: 0, kills: 0, depth: 0 },
@@ -68,21 +77,35 @@ const EMPTY = {
 /* 몇 명까지 기억하는가. 드물어야 사건이다. */
 export const FALLEN_KEEP = 3;
 
+/* EMPTY의 속표(속이 빈 객체들)는 참조 하나뿐이다. `{ ...EMPTY }`는
+   얕은 복사이므로 그 참조가 그대로 딸려 오고, 거기에 한 줄이라도
+   쓰면 **기본값 자체가** 오염된다 — forget()으로 지워도 안 지워지는
+   칸이 생긴다. 실제로 redwrit을 새로 넣자마자 그 일이 났고(벤치가
+   「어둠 속에서는 안 고쳐진다」로 잡았다), read()와 forget()이 각자
+   손으로 나열하던 표를 하나로 합치지 않으면 다음에 또 난다. */
+const TABLES = ['relics', 'events', 'monsters', 'weapons', 'branches', 'taught',
+                'fusions', 'regions', 'items', 'bodies', 'reso', 'redwrit'];
+const blank = () => {
+  const m = { ...EMPTY, fallen: [],
+              best: { ...EMPTY.best }, totals: { ...EMPTY.totals } };
+  for (const k of TABLES) m[k] = {};
+  return m;
+};
+
 let cache = null;
 
 export function read() {
   if (cache) return cache;
   try {
     const raw = localStorage.getItem(KEY);
-    cache = raw ? { ...EMPTY, ...JSON.parse(raw) } : { ...EMPTY };
+    cache = raw ? { ...blank(), ...JSON.parse(raw) } : blank();
     // Nested objects need their own defaults after a spread.
-    for (const k of ['relics', 'events', 'monsters', 'weapons', 'branches', 'taught', 'fusions', 'regions', 'items', 'bodies', 'reso'])
-      cache[k] = cache[k] || {};
+    for (const k of TABLES) cache[k] = cache[k] || {};
     cache.fallen = Array.isArray(cache.fallen) ? cache.fallen : [];
     cache.best = { ...EMPTY.best, ...(cache.best || {}) };
     cache.totals = { ...EMPTY.totals, ...(cache.totals || {}) };
     cache.abyss = cache.abyss || 0;
-  } catch { cache = { ...EMPTY }; }
+  } catch { cache = blank(); }
   return cache;
 }
 
@@ -117,6 +140,20 @@ export function slew(name) {
   return m.bodies[name];
 }
 export const bodies = name => read().bodies?.[name] || 0;
+
+/* 붉게 고쳐 쓴 줄. 열쇠는 `spr:k` — 판을 넘어 남고, 한 번 고친 줄은
+   다시 안 고쳐진다. 두 번째로 그 장면을 봤을 때 게임이 또 「그 기록은
+   틀렸다」고 말하면 그건 발견이 아니라 잡음이다. */
+export const corrected = (spr, k) => !!read().redwrit?.[`${spr}:${k}`];
+export function correct(spr, k) {
+  if (!spr || !k) return false;
+  const m = read();
+  const key = `${spr}:${k}`;
+  if (m.redwrit[key]) return false;
+  m.redwrit[key] = true;
+  write();
+  return true;                       // true = 이번에 처음 고쳐 썼다
+}
 
 /* Recorded at the end of a run, win or lose. */
 export function finish(summary) {
@@ -189,10 +226,7 @@ export function clearedAt(n) {
 export const isNewcomer = () => read().runs === 0;
 
 export function forget() {
-  cache = { ...EMPTY };
-  for (const k of ['relics', 'events', 'monsters', 'weapons', 'branches', 'taught', 'fusions', 'regions', 'items', 'bodies', 'reso']) cache[k] = {};
-  cache.best = { ...EMPTY.best };
-  cache.totals = { ...EMPTY.totals };
+  cache = blank();
   cache.abyss = 0;
   cache.cleared = null;
   write();

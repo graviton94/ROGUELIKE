@@ -877,23 +877,24 @@ export function tellsOf(m) {
    먼저 「그 기록은 틀렸다」고 말하고, 그 자리에서 붉게 고쳐 쓴다.
 
    `k`는 목격 열쇠다. game.js가 그 사건이 일어나는 단 한 자리에서
-   같은 열쇠로 witness()를 부른다. */
+   같은 열쇠로 witness()를 부른다.
+
+   그리고 여기에는 **정본이 안 적혀 있다.** 거짓 한 줄과, 그 줄이
+   어느 자리를 덮는지(`mark`)만 있다. 정본은 언제나 tellsOf가 규칙에서
+   뽑아 준 그 줄이다 — 여기에 참말을 한 벌 더 적어 두면 표가 두 벌이
+   되고, 언젠가 속도 하나를 고쳤을 때 「정본」 쪽이 거짓말을 하게 된다.
+   거짓말은 한 군데에만 있어야 한다. */
 export const HEARSAY = [
-  { k:'door',  when: m => m.door === 'smash',
-    lie:'문을 열지 못한다 — 문 닫기가 확실히 통한다.',
-    truth:'문을 부순다 — 문으로는 막을 수 없다.' },
-  { k:'door',  when: m => !m.door,
-    lie:'문을 부순다 — 문으로는 막을 수 없다.',
-    truth:'문을 열지 못한다 — 문 닫기가 확실히 통한다.' },
-  { k:'speed', when: m => (m.spd || 1) >= 1.2,
-    lie:'당신보다 느리다 — 걸어서 떨어뜨릴 수 있다.',
-    truth:'당신보다 빠르다 — 등을 보이면 따라붙는다.' },
-  { k:'heavy', when: m => m.heavy,
-    lie:'예고 없이 때린다 — 물러설 틈이 없다.',
-    truth:'때리기 전에 한 턴 팔을 당긴다 — 그 턴에 물러서면 헛손질이다.' },
-  { k:'regen', when: m => m.regen,
-    lie:'한 번 낸 상처는 아물지 않는다 — 오래 끌어도 된다.',
-    truth:'턴마다 아문다 — 오래 끌면 진다.' },
+  { k:'door',  when: m => m.door === 'smash', mark: /^문을/,
+    lie:'문을 열지 못한다 — 문 닫기가 확실히 통한다.' },
+  { k:'door',  when: m => !m.door,            mark: /^문을/,
+    lie:'문을 부순다 — 문으로는 막을 수 없다.' },
+  { k:'speed', when: m => (m.spd || 1) >= 1.2, mark: /등을 보이면/,
+    lie:'당신보다 느리다 — 걸어서 떨어뜨릴 수 있다.' },
+  { k:'heavy', when: m => m.heavy,             mark: /팔을 당긴다/,
+    lie:'예고 없이 때린다 — 물러설 틈이 없다.' },
+  { k:'regen', when: m => m.regen,             mark: /아문다/,
+    lie:'한 번 낸 상처는 아물지 않는다 — 오래 끌어도 된다.' },
 ];
 
 /* 이 몬스터에 대해 앞선 자들이 적어 놓은 틀린 줄. 무엇이 틀렸는지는
@@ -909,6 +910,24 @@ export function hearsayFor(m) {
   for (const ch of m.spr) h = (h * 31 + ch.charCodeAt(0)) & 0x7fffffff;
   if (h % 100 < 45) return null;              // 절반 남짓은 정직한 기록이다
   return pool[h % pool.length];
+}
+
+/* 규칙서 한 장. tellsOf가 뽑아 준 참말 줄들을 받아, 아직 못 본 거짓
+   한 줄이 있으면 그 자리를 덮어 쓴다.
+     · 'true'    — 규칙에서 바로 나온 줄
+     · 'hearsay' — 앞선 자가 적어 놓은 줄. 이 중 하나가 거짓이다
+     · 'redwrit' — 네가 두 눈으로 봐서 붉게 고쳐 쓴 줄
+   덮을 자리를 못 찾으면 아무것도 안 한다. 표가 어긋났을 때 조용히
+   거짓을 **추가**하는 것이 이 시스템에서 가장 나쁜 실패다. */
+export function rulebook(m, corrected) {
+  const out = tellsOf(m).map(t => ({ text: t, kind: 'true' }));
+  const h = hearsayFor(m);
+  if (!h) return out;
+  const i = out.findIndex(l => h.mark.test(l.text));
+  if (i < 0) return out;
+  if (corrected) { out[i].kind = 'redwrit'; return out; }
+  out[i] = { text: h.lie, kind: 'hearsay', k: h.k };
+  return out;
 }
 
 /* ── the wager ────────────────────────────────────────────

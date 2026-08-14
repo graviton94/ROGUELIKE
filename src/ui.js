@@ -13,7 +13,7 @@ import {
   RARITY, CURSED_TONE, rarityOf, isCursed,
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
   MONSTERS, BRANCHES, SPELLS, boonById, FUSIONS, engraveById, ENGRAVE_AT, ENGRAVE_PENALTY, NAMED,
-  BOSS, tellsOf, tellsNeeded, CONSUMABLES, RESONANCE,
+  BOSS, tellsOf, tellsNeeded, rulebook, hearsayFor, CONSUMABLES, RESONANCE,
   REGIONS, regionOf, MEMORIES, memoryEarned, SHACKLES, MAX_SHACKLE, josa,
   UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS, FUSE_ODDS, FUSE_COST,
   xpToLevel, statBonus, FAITH_MAX, OATH_MAX,
@@ -1530,6 +1530,21 @@ export function setScreen(name) {
   if (name === 'codex')  renderCodex();
 }
 
+/* ── 규칙서 한 장 ─────────────────────────────────────────
+   도감의 「버릇」 칸에 들어가는 줄들. 세 종류가 섞인다:
+     · 그냥 참말
+     · 앞선 자가 적어 놓은 줄 — 이 중 하나가 거짓이고, 앞에 「전해
+       들음」이 붙는다. 붙어 있지 않으면 나중에 「이거 버그인가」가 된다
+     · 붉게 고쳐 쓴 줄 — 네가 두 눈으로 봐서 정본이 된 것
+   어느 줄이 거짓인지는 절대 미리 말하지 않는다. 말해 주면 그건
+   퀴즈지 규칙서가 아니다. */
+function bookLines(m) {
+  const h = hearsayFor(m);
+  return rulebook(m, h ? Meta.corrected(m.spr, h.k) : false)
+    .map(l => l.kind === 'hearsay'  ? { ...l, text: `전해 들음 — ${l.text}` }
+            : l.kind === 'redwrit'  ? { ...l, text: `고쳐 씀 — ${l.text}` } : l);
+}
+
 /* The telegraph is only a mechanic if the player can read it.
    Same draw call as the map uses, so the key can never drift
    from what the map actually shows. */
@@ -2282,7 +2297,8 @@ function renderCodex() {
          page you read once over the map can be read again. */
       const body = [
         known && m.lore ? m.lore : '',
-        known && n >= need ? tellsOf(m).join('\n') : known ? `버릇까지 ${need - n}마리` : '',
+        known && n >= need ? bookLines(m).map(l => l.text).join('\n')
+          : known ? `버릇까지 ${need - n}마리` : '',
       ].filter(Boolean).join('\n');
       row(m.spr, m.n, sub, body, known);
     }
@@ -3263,12 +3279,19 @@ export function inspect(x, y) {
         : m.elite?.length ? '정예' : m.thief ? '도둑' : '';
     rows.push(['체력', `${m.hp} / ${m.maxhp}`]);
     rows.push(['공격 · 방어', `${m.atk} · ${m.ac}`]);
-    rows.push(['속도', `${(m.spd || 1).toFixed(2)}× ${m.spd > 1 ? '(당신보다 빠름)' : m.spd < 1 ? '(느림)' : ''}`]);
+    /* 앞선 자가 틀리게 적어 둔 그 한 가지는 여기서 숫자로 새어
+       나가면 안 된다. 「문: 부순다」를 두 줄 위에 적어 놓고 아래에서
+       「문을 열지 못한다고 전해 들었다」를 보여 주면, 거짓말이
+       스스로를 반박한다 — 그러면 남는 것은 긴장이 아니라 오타처럼
+       보이는 화면이다. 두 눈으로 보고 나면 그 줄이 돌아온다. */
+    const lying = k => hearsayFor(m)?.k === k && !Meta.corrected(m.spr, k);
+    rows.push(['속도', lying('speed') ? '적힌 것이 없다'
+      : `${(m.spd || 1).toFixed(2)}× ${m.spd > 1 ? '(당신보다 빠름)' : m.spd < 1 ? '(느림)' : ''}`]);
     if (m.rng) rows.push(['사거리', `${m.rng}칸에서 쏜다`]);
     if (AILMENTS[m.on]) rows.push(['맞으면', AILMENTS[m.on].n]);
-    if (m.regen) rows.push(['재생', `턴마다 ${m.regen}`]);
-    if (m.door) rows.push(['문', m.door === 'smash' ? '부순다' : '연다']);
-    if (m.heavy) rows.push(['내리치기', '한 턴 당긴 뒤 2.5배']);
+    if (m.regen && !lying('regen')) rows.push(['재생', `턴마다 ${m.regen}`]);
+    if (m.door && !lying('door')) rows.push(['문', m.door === 'smash' ? '부순다' : '연다']);
+    if (m.heavy && !lying('heavy')) rows.push(['내리치기', '한 턴 당긴 뒤 2.5배']);
     if (m.casts?.length)
       rows.push(['바닥 공격', m.casts.map(k => PATTERNS[k].n).join(' · ')]);
     if (m.elite?.length) rows.push(['정예 속성', m.elite.join(' · ')]);
@@ -3285,7 +3308,9 @@ export function inspect(x, y) {
        appears once you have paid for it. */
     const body = Meta.bodies(m.n), need = tellsNeeded(Meta.read());
     // Labelled once. Four rows all saying 버릇 reads like a bug.
-    if (body >= need) tellsOf(m).forEach((t, i) => rows.push([i ? '' : '버릇', t]));
+    if (body >= need)
+      bookLines(m).forEach((l, i) => rows.push([i ? '' : '버릇', l.text,
+        l.kind === 'true' ? '' : l.kind]));
     else rows.push(['버릇', `${need}마리를 잡으면 버릇이 보인다 (${body}/${need})`]);
     if (m.intent) {
       const name = INTENT_NAMES.find(([k]) => k === m.intent);
@@ -3348,10 +3373,10 @@ export function inspect(x, y) {
       box0.innerHTML = '';
       $('look-name').textContent = title;
       $('look-sub').textContent = sub;
-      for (const [k, v] of rows) {
+      for (const [k, v, cls] of rows) {
         const row = el('div', 'endrow');
         row.appendChild(el('span', 'endlabel', k));
-        row.appendChild(el('span', 'endval', v));
+        row.appendChild(el('span', 'endval' + (cls ? ' ' + cls : ''), v));
         box0.appendChild(row);
       }
       dressAll();
@@ -3372,10 +3397,10 @@ export function inspect(x, y) {
   box.innerHTML = '';
   $('look-name').textContent = title;
   $('look-sub').textContent = sub;
-  for (const [k, v] of rows) {
+  for (const [k, v, cls] of rows) {
     const row = el('div', 'endrow');
     row.appendChild(el('span', 'endlabel', k));
-    row.appendChild(el('span', 'endval', v));
+    row.appendChild(el('span', 'endval' + (cls ? ' ' + cls : ''), v));
     box.appendChild(row);
   }
   dressAll();
@@ -3692,7 +3717,9 @@ export function renderStairs() {
        gets the briefing. Knowledge earned in bodies, handed back
        on the one screen where it changes a decision. */
     if (Game.hasMemory('warden'))
-      bits.push('<span class="tellline">' + tellsOf(named).join('<br>') + '</span>');
+      bits.push('<span class="tellline">' + bookLines(named)
+        .map(l => l.kind === 'redwrit' ? `<i class="redwrit">${l.text}</i>` : l.text)
+        .join('<br>') + '</span>');
   }
   warn.hidden = !bits.length;
   warn.innerHTML = bits.join('<br>');

@@ -373,6 +373,9 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 #log p.good  { color: var(--E); }
 #log p.warn  { color: var(--o); }
 #log p.level { color: var(--y); }
+/* 붉게 고쳐 쓴 줄. 로그에서 가장 붉고, 피격(--R)보다도 붉다 —
+   맞은 것은 자주 있는 일이고 규칙서가 고쳐지는 것은 판에 몇 번 없다. */
+#log p.redwrit { color: #ff5a44; font-weight: 700; }
 
 /* ── controls ── */
 /* Grid rather than flex, and both tracks allowed to shrink. As a
@@ -614,6 +617,12 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 .endrow { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 12px; }
 .endlabel { flex: 0 0 92px; color: var(--G); font-size: 10.5px; text-align: left; }
 .endval { flex: 1 1 auto; color: var(--w); text-align: left; }
+/* 규칙서의 두 겹. 전해 들은 줄은 흐리고 기울어 있다 — 이것이 남의
+   말이라는 표시이고, 나중에 「이거 버그인가」를 막는 것이 이 한 줄이다.
+   고쳐 쓴 줄은 붉다. */
+.endval.hearsay { color: var(--G); font-style: italic; }
+.endval.redwrit { color: #ff5a44; }
+.tellline .redwrit { color: #ff5a44; font-style: normal; }
 .endtail {
   margin: 14px 0 0; padding: 10px 12px;
   border-left: 2px solid var(--g); background: var(--d); text-align: left;
@@ -979,6 +988,8 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .scrollturn .good { color: #2f5c34; }
 .scrollturn .level{ color: #8a5a12; }
 .scrollturn .warn { color: #6a4a12; }
+/* 양피지 위에서는 잉크가 아니라 피다. */
+.scrollturn .redwrit { color: #9e1b0e; font-weight: 700; }
 #lorecard.out { animation: dropout .28s ease-in forwards; }
 @keyframes dropin  { from { transform: translateY(-110%); } to { transform: none; } }
 @keyframes dropout { from { transform: none; } to { transform: translateY(-115%); } }

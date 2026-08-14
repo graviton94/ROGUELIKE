@@ -42,6 +42,7 @@ import {
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
   strikeLine, takenLine, pickLine, MISS_BY, MISS_AT, FELLED,
+  hearsayFor, rulebook,
 } from './data.js';
 import {
   Level, computeFov, lineClear, idx, rnd, roll, clamp, MW, MH,
@@ -4587,6 +4588,30 @@ function spawnWave() {
   }
 }
 
+/* ── 붉게 고쳐 쓰기 ────────────────────────────────────────
+   앞선 자들이 적어 놓은 규칙 한 줄이 눈앞에서 틀리는 순간, 그 자리에서
+   게임이 먼저 말한다: 「그 기록은 틀렸다」. 그리고 규칙서를 붉게
+   고쳐 쓴다.
+
+   이 함수가 그 단 하나의 깔때기다. 부르는 자리는 네 곳뿐이고, 전부
+   **플레이어가 보고 있을 때만** 부른다 — 못 본 것을 고쳐 주면 그건
+   발견이 아니라 그냥 알림이다. 「속았음이 자명할 때」가 조건이다.
+
+   정본은 여기서 안 쓴다. rulebook이 tellsOf에서 뽑아 준다 — 참말은
+   언제나 규칙이 실제로 읽는 값에서만 나온다. */
+export function witness(m, key) {
+  if (!m || !m.spr) return false;
+  const h = hearsayFor(m);
+  if (!h || h.k !== key) return false;
+  if (!Meta.correct(m.spr, key)) return false;     // 이미 고쳐 쓴 줄
+  const fixed = rulebook(m, true).find(l => l.kind === 'redwrit');
+  if (!fixed) return true;                         // 덮을 자리가 없으면 조용히
+  say(`앞선 자는 「${h.lie}」라고 적어 두었다.`, 'warn');
+  say(`그 줄은 틀렸다. ${m.n} — ${fixed.text}`, 'redwrit');
+  fx({ t:'redwrit', x:m.x, y:m.y });
+  return true;
+}
+
 /* Speed is an energy budget rather than a turn order: a wolf at
    1.5 gets a second move every other turn, an ogre at 0.75 skips
    one in four, and 둔화 doubles everyone else's allowance. */
@@ -4602,6 +4627,9 @@ function runMonsters() {
       acts++;
       monsterTurn(m);
       if (!G.running) return;
+      /* 한 턴에 두 번 움직이는 것을 두 눈으로 봤다. 「당신보다
+         느리다」고 적힌 줄이 있었다면 여기서 끝난다. */
+      if (acts >= 2 && G.level?.vis[idx(m.x, m.y)]) witness(m, 'speed');
     }
   }
 }
@@ -4654,7 +4682,12 @@ function monsterTurn(m) {
     if (!G.monsters.includes(m)) return;
   }
   // 파문: nothing mends. Regen, drain and the troll's whole idea.
-  if (m.regen && !m.cursed && m.hp < m.maxhp) m.hp = Math.min(m.maxhp, m.hp + m.regen);
+  if (m.regen && !m.cursed && m.hp < m.maxhp) {
+    m.hp = Math.min(m.maxhp, m.hp + m.regen);
+    /* 상처가 아무는 것을 보고 있다. 「한 번 낸 상처는 아물지
+       않는다」는 여기서 무너진다. */
+    if (L.vis[idx(m.x, m.y)]) witness(m, 'regen');
+  }
 
   if (!m.awake) {
     if (!L.vis[idx(m.x, m.y)] || dist2 > 110) return;
@@ -4765,6 +4798,10 @@ function monsterTurn(m) {
       m.wind = 1;
       say(`${m.n}이(가) 크게 팔을 당긴다.`, 'warn');
       fx({ t:'wake', x:m.x, y:m.y });
+      /* 팔을 당기는 것을 봤다 — 「예고 없이 때린다」가 무너지는
+         자리이자, 이 게임에서 가장 값진 오정정이다. 예고가 있다는
+         것을 알면 그 턴에 물러설 수 있다. */
+      if (L.vis[idx(m.x, m.y)]) witness(m, 'heavy');
       return;
     }
     monsterMelee(m);
@@ -5018,11 +5055,31 @@ function advance(m, sx, sy) {
 
     const t = L.tiles[idx(nx, ny)];
     if (isShut(t)) {
-      if (!m.door) return false;
+      if (!m.door) {
+        /* 문 앞에서 멈춰 선 것. 「문을 부순다 — 문으로는 막을 수
+           없다」고 적혀 있었다면, 그 줄은 방금 끝났다. 이쪽이 두
+           거짓 중 좋은 쪽이다: 겁을 준 기록이 틀렸다는 것을 알게
+           되고, 그래서 문 하나가 답이 된다.
+
+           보는 것은 **문**이지 그것이 아니다. 닫힌 문은 시야를
+           끊으므로 문 너머의 것은 애초에 안 보인다 — 것을 봐야
+           한다고 걸었더니 이 줄은 영영 안 고쳐졌다. 문 뒤에 숨어
+           문을 지켜보는 것, 그게 이 장면의 실제 모습이다. */
+        if (L.vis[idx(nx, ny)] && hearsayFor(m)?.k === 'door') {
+          say(`문 너머에서 무언가가 문을 두드리다 만다.`, 'warn');
+          witness(m, 'door');
+        }
+        return false;
+      }
       if (t === DOOR_LOCKED && m.door !== 'smash') return false;
       L.tiles[idx(nx, ny)] = m.door === 'smash' ? DOOR_BROKEN : DOOR_OPEN;
       say(`${m.n}이(가) 문을 ${m.door === 'smash' ? '부쉈다' : '열었다'}.`, 'warn');
       fx({ t:'door', x:nx, y:ny, state: m.door === 'smash' ? 'broken' : 'open' });
+      /* 문이 부서지는 것을 봤다 — 「문 닫기가 확실히 통한다」가
+         무너지는 자리. 이쪽은 나쁜 소식이고, 나쁜 소식이어야 한다.
+         여기서도 보는 것은 문이다: 닫힌 문 너머의 것은 안 보이고,
+         그래서 「것이 보일 때만」으로 걸면 이 줄도 영영 안 고쳐진다. */
+      if (L.vis[idx(nx, ny)]) witness(m, 'door');
       return true;                    // opening costs the move
     }
     if (L.solid(nx, ny)) return false;

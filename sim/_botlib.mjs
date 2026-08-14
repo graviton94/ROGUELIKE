@@ -409,6 +409,12 @@ function runBot(race, cls, clear, opt = {}) {
     if (Game.canShoot()) {
       const t = Game.shotTarget();
       if (t && Math.hypot(t.x - p.x, t.y - p.y) > 1.6) { Game.shoot(); continue; }
+      /* 붙었을 때도 쏜다 — 레인저에 한해서. 이제 붙은 것에게 쏘면
+         한 발 물러나므로, 그것이 이 직업이 거리를 **만드는** 유일한
+         수다. 규칙에 붙여 놓고 봇 정책을 안 고치면, 재는 것은
+         새 규칙이 아니라 옛 습관이다 — 처음 재고 「4.8 → 4.7,
+         효과 없음」이라고 적을 뻔했다. */
+      if (t && p.cls === 'ranger') { Game.shoot(); continue; }
     }
 
     const spells = Game.spellList(p);
@@ -693,7 +699,11 @@ function runBot(race, cls, clear, opt = {}) {
            hp10: hist.length >= 11 ? hist[hist.length - 11] : null,
            adjAtEnd: G.monsters.filter(m => !m.disguise
              && Math.abs(m.x - G.player.x) <= 1 && Math.abs(m.y - G.player.y) <= 1).length,
-           arrowsAtEnd: 0,
+           /* 화살은 떨어지지 않는다 — 화살통은 소모품이 아니라 장비
+              한 칸이다. 여기 0이 박혀 있어서 「화살 0으로 끝난 판
+              30/30」이라는 측정값이 나왔고, 그걸 두 번이나 그대로
+              보고했다. 상수는 측정이 아니다. */
+           arrowsAtEnd: null,
            ...st };
 }
 

@@ -146,5 +146,34 @@ console.log('\n후퇴 벤치 — 물러선다는 것이 수가 되는가\n');
   ok(G.lightRadius === 2, '불이 꺼진 상태였다', `반경 ${G.lightRadius}칸`);
 }
 
+/* ── 6. 어둠은 은신이 아니다 ───────────────────────────── */
+{
+  /* 여기가 뒤집혀 있었다. 놈들이 「보는가」를 L.vis로 물었는데,
+     L.vis는 **네 횃불이 닿는 칸**이다. 불을 끄면 그 칸이 반경 2로
+     쪼그라들고, 세 칸 밖의 모든 것이 너를 잃었다 — 불을 끄는 것이
+     가장 싸고 확실한 은신이었다. 봇이 턴의 62%를 꺼진 채로 보낸
+     것은 이상해서가 아니라 그게 최적이어서였다. */
+  const { L, p, y } = stage({ oil: 0 });        // 불이 꺼졌다
+  Game.refreshFov();
+  for (let i = 0; i < 3; i++) Game.step(0, 0);
+  const far = G.monsters.map(m => Math.abs(m.x - p.x));
+  ok(G.monsters.every(m => !L.vis[W.idx(m.x, m.y)]),
+     '불이 꺼져 내 눈에는 아무것도 안 보인다', `반경 ${G.lightRadius}칸`);
+  ok(G.monsters.every(m => m.mark), '그래도 놈들은 내 자리를 안다 — 여기 사는 것들이다',
+     `자취를 든 것 ${G.monsters.filter(m => m.mark).length}/${G.monsters.length}`);
+  for (let i = 0; i < 6; i++) Game.step(0, 0);
+  const near = G.monsters.map(m => Math.abs(m.x - p.x));
+  ok(Math.min(...near) < Math.min(...far), '어둠 속에서도 다가온다',
+     `${far.join(',')} → ${near.join(',')}`);
+
+  /* 그리고 너무 멀면 어둠 밖이다 — 어둠이 전지가 되면 그것대로 고장이다. */
+  const { L: L2, p: p2, y: y2 } = stage({ oil: 0 });
+  for (const m of G.monsters) { m.x = 3 + G.monsters.indexOf(m); m.y = y2; m.mark = null; }
+  p2.x = 38; Game.refreshFov();
+  for (let i = 0; i < 8; i++) Game.step(0, 0);
+  ok(G.monsters.every(m => !m.mark), `${Game.DARK_SIGHT}칸 밖은 어둠 속에서도 모른다`,
+     `자취를 든 것 ${G.monsters.filter(m => m.mark).length}/${G.monsters.length}`);
+}
+
 console.log(bad ? `\n후퇴 벤치: ${bad}건 실패\n` : '\n후퇴 벤치: 전부 통과\n');
 process.exit(bad ? 1 : 0);

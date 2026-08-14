@@ -22,14 +22,14 @@ for (const cls of (process.argv[3] || 'ranger,rogue,warrior').split(',')) {
     if (r.hp5 != null) { hp5 += r.hp5; n5++; }
     if (r.hp10 != null) { hp10 += r.hp10; n10++; }
     adj += r.adjAtEnd || 0;
-    if ((r.arrowsAtEnd || 0) === 0) dry++;
+    // 화살은 떨어지지 않는다. 세던 것 자체가 옛 설계의 잔해였다.
   }
   const top = [...killers.entries()].sort((a,b)=>b[1]-a[1]).slice(0, 5);
   console.log(`── ${cls} ${N}판 · 평균 ${(depth/runs).toFixed(1)}층`);
   console.log(`   끝나기 10턴 전 체력 ${(100*hp10/Math.max(1,n10)).toFixed(0)}%`
             + ` · 5턴 전 ${(100*hp5/Math.max(1,n5)).toFixed(0)}%`);
   console.log(`   마지막 순간 붙어 있던 것 ${(adj/Math.max(1,n5||1)).toFixed(1)}마리`
-            + (cls === 'ranger' ? ` · 화살 0으로 끝난 판 ${dry}/${N}` : ''));
+            );
   console.log(`   ${top.map(([k,v])=>`${k} ${v}`).join(' · ')}`);
   console.log('');
 }

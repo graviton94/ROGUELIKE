@@ -1962,17 +1962,46 @@ export const isMilestone = plus => ENGRAVE_AT.includes((plus || 0) + 1);
    should be the thing a player tells someone about. Spells stay
    capped at 5: spell power multiplies rather than adds, and 5
    is already ×2.1.                                           */
-const UPGRADE_ODDS = [1, 1, 0.92, 0.80, 0.66, 0.52, 0.40, 0.30, 0.22];
-export const upgradeOdds = plus => UPGRADE_ODDS[plus] ?? 0.16;
+/* ── 더 멀리, 더 가파르게 ──────────────────────────────────
+   +8이 천장이고 +6부터 30%로 부서졌다. 나쁘지 않지만 「끝」이 너무
+   가까웠다 — 판이 무르익을 때쯤엔 벼릴 것이 남지 않는다.
+
+   천장을 10으로 올리고, 그 대신 위쪽 네 칸을 진짜 벼랑으로 만든다.
+   +8을 넘기려면 다섯 번에 한 번, +9는 여덟 번에 한 번이고, 실패하면
+   절반 가까이가 파괴다. 아래쪽은 건드리지 않았다 — 처음 만나는
+   화면에서 1%짜리 실패를 가르치면 안 된다는 원칙은 그대로다. */
+const UPGRADE_ODDS = [1, 1, 0.92, 0.80, 0.66, 0.52, 0.40, 0.30, 0.22, 0.16, 0.11];
+export const upgradeOdds = plus => UPGRADE_ODDS[plus] ?? 0.09;
 
 export const upgradeRisk = plus =>
-  plus >= 6 ? { down: 1, breakPct: 0.30 }
+  plus >= 8 ? { down: 1, breakPct: 0.46 }
+: plus >= 6 ? { down: 1, breakPct: 0.30 }
 : plus >= 4 ? { down: 1, breakPct: 0 }
 :             { down: 0, breakPct: 0 };
 
+/* 그리고 위쪽에서는 실패가 저주까지 부른다. +7 위로 과감하게 치는
+   것은 「부서질 수 있다」가 아니라 「망가진 채로 남을 수 있다」다 —
+   부서지면 다시 구하면 되지만, 저주는 들고 다녀야 한다. */
+export const UPGRADE_HEX_FROM = 7;
+export const UPGRADE_HEX_PCT  = 0.22;
+
 export const UPGRADE_CRIT   = 0.125;  // 과감: two steps instead of one
+/* 그리고 아주 드물게 세 단계. 여덟 번에 한 번의 두 단계가 「가끔
+   좋은 일」이라면, 이쪽은 판을 기억하게 만드는 쪽이다. +5 아래에서는
+   나오지 않는다 — 초반에 터지면 그 뒤가 전부 심심해진다. */
+export const UPGRADE_SURGE     = 0.035;
+export const UPGRADE_SURGE_FROM = 5;
 export const CAREFUL_MULT   = 2;      // 신중: price
 export const CAREFUL_BONUS  = 0.18;   // 신중: added success chance
+
+/* 인챈트도 붙을수록 위험해진다. 빈 물건에 거는 것은 싸고 안전하고,
+   이미 둘 다 붙은 물건을 다시 건드리는 것은 도박이다 — 그래야
+   「지금 멈출까」가 매번 결정이 된다. */
+export const ENCHANT_CURSE      = 0.20;
+export const ENCHANT_CURSE_STEP = 0.13;   // 이미 붙어 있는 속성 하나마다
+/* 저주가 안 붙었을 때, 아주 드물게 두 슬롯이 한 번에 붙는다.
+   분광석이 사던 것을 운으로도 살 수 있게 — 촉매는 여전히 확실하다. */
+export const ENCHANT_TWIN = 0.07;
 
 export const ENCHANT_COST = { dust: 4, gold: 130 };
 export const REROLL_COST  = { essence: 1, dust: 2, gold: 220 };

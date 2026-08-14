@@ -10,6 +10,8 @@ import {
   ENGRAVINGS, engraveById, engraveSlots, isMilestone, ENGRAVE_PENALTY,
   CATALYSTS, catalystById, makeCatalyst,
   upgradeOdds, upgradeRisk, UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS,
+  UPGRADE_SURGE, UPGRADE_SURGE_FROM, UPGRADE_HEX_FROM, UPGRADE_HEX_PCT,
+  ENCHANT_CURSE, ENCHANT_CURSE_STEP, ENCHANT_TWIN,
   BOONS, boonById, transChance,
   FUSIONS, fusionOf, FUSE_ODDS, FUSE_COST,
   ALTAR_OFFERS, rarityOf, isCursed, RARITY, TEMPLE_SHARE,
@@ -86,9 +88,18 @@ export function takeRelic(id) {
   p.relics.push(id);
   const r = relicById(id);
   const first = Meta.see('relics', id);
-  say(`${r.n} — ${r.t}${first ? ' (처음 본 유물)' : ''}`, 'level');
-  if (first) lore('처음 든 유물', r.n, r.t, r.spr);
+  say(`${r.n} — ${r.t}`, 'level');
+  /* 유물은 규칙을 바꾸는 물건인데, 처음 보는 것일 때만 카드가 떴다.
+     두 번째로 든 「굶주린 칼날」도 그 판에서는 처음이고, 무엇을
+     들었는지 읽지 않고 지나가면 판이 어떻게 달라졌는지 모른 채로
+     계속 걷게 된다. 이제 언제나 멈춘다 — 판에 예닐곱 번뿐인 일이다. */
+  lore(first ? '처음 든 유물' : '유물', r.n, r.t, r.spr);
+  /* 그리고 다른 득템과 같은 자로 연출한다. 여태 유물만 제단 반짝임을
+     빌려 쓰고 있었다 — 이 게임에서 가장 큰 획득이 가장 다른 소리를
+     냈다는 뜻이다. */
+  fx({ t:'found', x:p.x, y:p.y, rar:3 });
   fx({ t:'altar', x:p.x, y:p.y, good:true });
+  G.rareFound = (G.rareFound || 0) + 1;
   recalc(p);
   return true;
 }
@@ -1133,6 +1144,15 @@ function spend(cost) {
   const p = G.player;
   p.gold -= cost.gold || 0;
   for (const k of ['scrap', 'dust', 'essence']) p.mats[k] -= cost[k] || 0;
+}
+
+/* 값을 물린다. 막는 판정이 값보다 앞에 있어야 하는 것이 원칙이지만,
+   접사 뽑기처럼 값을 치른 뒤에야 「나올 것이 없다」를 알 수 있는
+   자리가 하나 있다. 거기서는 되돌려준다. */
+function refund(cost) {
+  const p = G.player;
+  p.gold += cost.gold || 0;
+  for (const k of ['scrap', 'dust', 'essence']) p.mats[k] += cost[k] || 0;
 }
 
 export const costText = cost => [
@@ -2547,6 +2567,14 @@ export const OIL_BURN = depth => depth >= 11 ? 3 : depth >= 6 ? 2 : 1;
    마지막 순간까지 아무것도 느끼지 못했다. 판의 90%를 가장 밝은
    반경에서 보낸 이유가 그것이다 (sim/oil.mjs). 좁혀 오는 것이
    보여야 경로를 바꿀 마음이 생긴다. */
+/* 불이 꺼졌을 때 놈들이 너를 보는 거리. 네 반경 2보다 넉넉하다 —
+   여기 사는 것들은 여기서 살고, 눈이 먼 쪽은 너다. */
+export const DARK_SIGHT = 7;
+/* 그리고 어둠 속의 손. 0.78이었는데, 어둠이 은신이던 시절에는 그것이
+   유일한 벌이었다. 이제 어둠은 그 자체로 위험하므로 손은 조금 더
+   무뎌져도 된다 — 「불을 켤까」가 매번 계산이 되어야 한다. */
+export const DARK_AIM = 0.70;
+
 export const lightRadiusOf = p => {
   if (G.depth === 0) return 12;
   const t = p.lightTurns;
@@ -3014,7 +3042,10 @@ function scanForTraps() {
      spots what is under its nose; a ranger reads the ground two
      rooms out, which is the difference between disarming a floor
      and surviving it. */
-  const reach = p.cls === 'ranger' ? 4 : p.cls === 'rogue' ? 3 : 2;
+  let reach = p.cls === 'ranger' ? 4 : p.cls === 'rogue' ? 3 : 2;
+  /* 어둠 속에서는 바닥이 안 보인다. 함정을 밟는 것이 어둠의 값 중
+     하나여야지, 불이 꺼진 채로 걷는 것이 공짜면 안 된다. */
+  if (G.depth > 0 && p.lightTurns <= 0 && !hasRelic('nighteye')) reach = 1;
   for (let dy = -reach; dy <= reach; dy++) for (let dx = -reach; dx <= reach; dx++) {
     const x = p.x + dx, y = p.y + dy;
     if (x < 0 || y < 0 || x >= MW || y >= MH) continue;
@@ -3436,6 +3467,27 @@ export function shoot() {
     say('몸이 굳어 말을 듣지 않는다.', 'warn');
     fx({ t:'struggle', x:p.x, y:p.y }); endTurn(); return;
   }
+  /* ── 물러서며 쏜다 ────────────────────────────────────
+     레인저의 지시는 「거리를 두고 잡아라」인데, 이 게임의 모든 것은
+     너와 같은 속도로 걷는다 — 즉 거리를 **만들** 방법이 없었다.
+     재 보니 판당 근접 87번, 사격 48번. 활잡이가 판의 대부분을
+     활로 두들겨 패고 있었고, 그래서 사냥꾼의 몫(두 칸 밖 처치)도
+     표적 누적도 거의 켜지지 않았다.
+
+     붙은 것에게 쏘면 한 발 물러난다. 뒤가 막혔으면 못 물러난다 —
+     구석에 몰리는 것은 여전히 벌이다. 기술이 아니라 기본 사격에
+     붙인다: 8레벨에 열리는 덫으로는 1층부터 12층까지의 문제를
+     풀 수 없다. */
+  if (p.cls === 'ranger' && Math.hypot(m.x - p.x, m.y - p.y) <= 1.5) {
+    const bx = p.x - Math.sign(m.x - p.x), by = p.y - Math.sign(m.y - p.y);
+    if (!G.level.solid(bx, by) && !monsterAt(bx, by)
+        && G.level.tiles[idx(bx, by)] !== WEB) {
+      p.x = bx; p.y = by;
+      refreshFov();
+      say('한 발 물러서며 시위를 놓았다.', 'good');
+      fx({ t:'dodge', x:p.x, y:p.y });
+    }
+  }
   G.hushShot = true;
   loose(m, 1);
   /* 두 번 우는 활: a second arrow at half, out of the same nock.
@@ -3482,7 +3534,7 @@ function swing(m, scale, opt = {}) {
      예외 — 어둠 속에서 자는 것을 찾아낸 것은 오히려 공이다. */
   const blind = G.depth > 0 && p.lightTurns <= 0 && !hasRelic('nighteye');
   const chance = asleep ? 1
-    : clamp((0.44 + (toHit(p) * aim - armour) / 55) * (blind ? 0.78 : 1), 0.14, 0.95);
+    : clamp((0.44 + (toHit(p) * aim - armour) / 55) * (blind ? DARK_AIM : 1), 0.14, 0.95);
   if (Math.random() > chance) {
     say(pickLine(MISS_AT, m.n, nextLine()));
     fx({ t:'miss', x:m.x, y:m.y });
@@ -4467,7 +4519,24 @@ function monsterTurn(m) {
      이름 있는 것과 정예는 예외다. 그것은 네가 고른 싸움이고,
      고른 싸움에서 걸어 나갈 수 있으면 고른 것이 아니다. */
   const keen = m.named || m.boss || m.elite?.length;
-  const sees = keen || dist <= 1.5 || L.vis[idx(m.x, m.y)];
+  /* ── 그런데 어둠이 은신이 되어 버렸다 ────────────────────
+     L.vis는 「네 빛이 닿는 칸」이다. 불이 꺼지면 그 칸이 반경 2로
+     쪼그라들고, 그러면 세 칸 밖의 모든 것이 너를 잃는다 — 불을 끄는
+     것이 이 게임에서 가장 싸고 확실한 은신이었다. 재 보니 턴의
+     62%를 꺼진 채로 보내고 있었고, 그건 플레이어가 이상해서가
+     아니라 그게 최적이어서였다.
+
+     여기 사는 것들은 여기서 산다. 네 횃불이 꺼졌다고 눈이 머는 것은
+     너지 놈들이 아니다. 불이 꺼져 있으면 놈들은 제 눈으로 본다 —
+     시선이 통하고 DARK_SIGHT 안이면 계속 안다.
+
+     불이 켜져 있을 때의 규칙은 그대로다: 서로 보이면 안다. 그래야
+     「벽 뒤로 돌아 시야를 끊는다」는 후퇴가 남는다. 어둠은 이제
+     후퇴의 수단이 아니라 후퇴해야 하는 이유다. */
+  const dark = G.depth > 0 && p.lightTurns <= 0;
+  const ownEyes = dark && dist <= DARK_SIGHT && lineClear(L, m.x, m.y, p.x, p.y);
+  const sees = keen || dist <= 1.5 || ownEyes
+            || (!dark && L.vis[idx(m.x, m.y)]);
   if (sees) { m.mark = { x: p.x, y: p.y }; m.lost = 0; }
   else {
     m.lost = (m.lost || 0) + 1;
@@ -4893,9 +4962,37 @@ function readIntents() {
 export const CAMP_HEAL = 0.28;
 /* Gear climbs to 8 now that the odds gate it; a spell's plus is
    a multiplier, so it stays where it was. */
-export const MAX_PLUS = 8;
+export const MAX_PLUS = 10;   // 8에서 올렸다 — 위쪽 네 칸이 벼랑이다
 export const MAX_SPELL_PLUS = 5;
 const capFor = t => (t.type === 'spell' || t.kind === 'spell' ? MAX_SPELL_PLUS : MAX_PLUS);
+
+/* ── 모루가 손댈 수 있는 것 ────────────────────────────────
+   화면과 규칙이 서로 다른 답을 내고 있었다. 화면은 이름 붙은 물건을
+   `capped: true`로 막아 놓고 「최대 +8」이라고 적었는데(+0인 물건에
+   대고 하는 거짓말이다), 규칙 쪽 anvilStrike·anvilEnchant에는 unique
+   검사가 아예 없었다. 실제로 재 보니 《약속》이 강화도 되고 인챈트도
+   먹었다 — 데이터에 「접사가 붙지 않고, 벼려지지 않는다」고 적어 둔
+   바로 그 물건이.
+
+   그래서 판정을 한 자리로 모은다. 화면이 읽는 값과 규칙이 쓰는 값이
+   같은 함수에서 나오면 둘이 갈릴 수가 없다. 그리고 막을 때는 **값을
+   치르기 전에** 막는다 — 재료만 먹고 아무 일도 안 일어나는 것이
+   이 화면에서 가장 나쁜 일이다. */
+export function forgeBlock(t, mode) {
+  if (!t) return '고를 수 있는 것이 없다';
+  const it = t.type === 'item' ? t.item : (t.item || null);
+  if (t.type === 'spell' || t.kind === 'spell') {
+    if (mode === 'enchant' || mode === 'reroll') return null;
+    return (plusOf(t) >= MAX_SPELL_PLUS) ? `더 연마할 수 없다 (최대 +${MAX_SPELL_PLUS})` : null;
+  }
+  if (!it) return '고를 수 있는 것이 없다';
+  /* 이름 붙은 것은 이미 제 모습이다. 여기서 한 줄로 막고, 화면도
+     같은 줄을 읽어 「왜 안 되는지」를 그대로 보여 준다. */
+  if (it.unique) return '이름이 붙은 것은 벼려지지도, 물들지도 않는다';
+  if (mode === 'reroll' && !it.pre && !it.suf) return '다시 굴릴 속성이 없다';
+  if (mode === 'upgrade' && (it.plus || 0) >= MAX_PLUS) return `더 벼릴 수 없다 (최대 +${MAX_PLUS})`;
+  return null;
+}
 
 export function campTargets() {
   const p = G.player, out = [];
@@ -4903,10 +5000,21 @@ export function campTargets() {
     const it = p.equip[slot];
     // A named weapon is already what it is: the anvil has nothing
     // to add and everything to lose.
-    if (it) out.push({
-      key: `eq:${slot}`, label, name: affixName(it), kind: it.kind, item: it,
-      plus: it.plus || 0, capped: !!it.unique || (it.plus || 0) >= MAX_PLUS, cap: MAX_PLUS,
-    });
+    if (it) {
+      const t = { type:'item', item: it };
+      out.push({
+        key: `eq:${slot}`, label, name: affixName(it), kind: it.kind, item: it,
+        plus: it.plus || 0, cap: MAX_PLUS,
+        /* 모드마다 막히는 이유가 다르다. 화면은 이 세 줄을 그대로
+           읽어서 「최대 +8」 같은 거짓말 대신 진짜 이유를 적는다. */
+        block: {
+          upgrade: forgeBlock(t, 'upgrade'),
+          enchant: forgeBlock(t, 'enchant'),
+          reroll:  forgeBlock(t, 'reroll'),
+        },
+        capped: !!forgeBlock(t, 'upgrade'),
+      });
+    }
   }
   for (const s of spellList(p)) {
     const plus = p.spellPlus?.[s.id] || 0;
@@ -4916,6 +5024,10 @@ export function campTargets() {
       key: `sp:${s.id}`, label: '주문', kind: 'spell', spell: s,
       name: `${plus ? `+${plus} ` : ''}${affN ? affN + ' ' : ''}${s.name}`,
       plus, capped: plus >= MAX_SPELL_PLUS, cap: MAX_SPELL_PLUS,
+      block: {
+        upgrade: plus >= MAX_SPELL_PLUS ? `더 연마할 수 없다 (최대 +${MAX_SPELL_PLUS})` : null,
+        enchant: null, reroll: null,
+      },
     });
   }
   return out;
@@ -5045,6 +5157,9 @@ export function upgradeOddsFor(key, careful = false, cat = null) {
     // one makes the expensive one pointless.
     breakPct: c === 'ward' ? 0
             : t.type === 'item' && t.item?.boon !== 'aegis' ? risk.breakPct : 0,
+    /* 화면이 「무엇을 걸고 있는지」를 전부 읽을 수 있어야 한다.
+       저주도 판돈의 일부다. */
+    hexPct: !careful && t.type === 'item' && plus >= UPGRADE_HEX_FROM ? UPGRADE_HEX_PCT : 0,
     cat: c,
   };
 }
@@ -5061,17 +5176,16 @@ export function upgradeOddsFor(key, careful = false, cat = null) {
 export function anvilStrike(key, careful = false, cat = null) {
   const p = G.player, t = targetOf(key);
   if (!t) return;
-  const cost = upgradeCostFor(key, careful);
-  if (!canAfford(cost)) { say(`재료가 모자란다 — ${costText(cost)}.`, 'warn'); return; }
   const cap = capFor(t);
   const name = t.type === 'item'
     ? (t.item ? affixName(t.item) : null)
     : (spellList(p).find(s => s.id === t.id)?.name || '주문');
-  if (t.type === 'item' && !t.item) return;
-  if (plusOf(t) >= cap) {
-    say(t.type === 'item' ? `${name}은(는) 더 벼릴 수 없다.` : '그 주문은 더 연마할 수 없다.', 'warn');
-    return;
-  }
+  /* 막는 것이 먼저, 값은 그다음. 순서가 뒤집혀 있으면 「재료만 먹고
+     아무 일도 없었다」가 된다. */
+  const why = forgeBlock(t, 'upgrade');
+  if (why) { say(`${name} — ${why}.`, 'warn'); return; }
+  const cost = upgradeCostFor(key, careful);
+  if (!canAfford(cost)) { say(`재료가 모자란다 — ${costText(cost)}.`, 'warn'); return; }
 
   const c = useCatalyst(cat, 'upgrade');
   const bet = upgradeOddsFor(key, careful, c?.id);
@@ -5082,7 +5196,10 @@ export function anvilStrike(key, careful = false, cat = null) {
     // 과감 pays double one time in eight; 폭주의 불씨 makes it
     // certain. That is the whole reason to take the risky strike
     // when the safe one is affordable.
-    const step = (c?.id === 'surge' || Math.random() < bet.crit) ? 2 : 1;
+    /* 두 단계, 그리고 아주 드물게 세 단계. 세 번째 칸은 +5 위에서만
+       열린다 — 초반에 터지면 그 뒤가 전부 심심해진다. */
+    let step = (c?.id === 'surge' || Math.random() < bet.crit) ? 2 : 1;
+    if (step === 2 && bet.plus >= UPGRADE_SURGE_FROM && Math.random() < UPGRADE_SURGE) step = 3;
     if (t.type === 'item') {
       t.item.plus = Math.min(cap, (t.item.plus || 0) + step);
       recalc(p);
@@ -5093,7 +5210,10 @@ export function anvilStrike(key, careful = false, cat = null) {
     G.forged = (G.forged || 0) + step;
     // Every milestone crossed by this strike cuts its engraving.
     if (t.type === 'item') engraveUpTo(t.item);
-    if (step === 2) {
+    if (step >= 3) {
+      say(`${name} — 쇠가 울부짖는다. 세 단계 올랐다.`, 'level');
+      fx({ t:'forge', x:p.x, y:p.y, big:true, surge:true });
+    } else if (step === 2) {
       say(`${name} — 쇠가 노래한다. 두 단계 올랐다.`, 'level');
       fx({ t:'forge', x:p.x, y:p.y, big:true });
     } else {
@@ -5114,6 +5234,19 @@ export function anvilStrike(key, careful = false, cat = null) {
     else p.spellPlus[t.id] = Math.max(0, (p.spellPlus[t.id] || 0) - 1);
     say(`${name} — 금이 갔다. 한 단계 물러섰다.`, 'warn');
     fx({ t:'forge', x:p.x, y:p.y, fail:true });
+    /* 그리고 위쪽에서는 망가진 채로 남을 수 있다. 부서지면 다시
+       구하면 되지만 저주는 들고 다녀야 한다 — 「신중」은 이것도
+       사 준다(down이 0이므로 여기에 오지 않는다). */
+    if (bet.hexPct && Math.random() < bet.hexPct) {
+      const table = Math.random() < 0.5 ? PREFIXES : SUFFIXES;
+      const a = pickAffixFor(table, t.item.kind, true);
+      if (a) {
+        t.item[table === PREFIXES ? 'pre' : 'suf'] = a.id;
+        recalc(p);
+        say(`식은 자리에 검은 것이 앉았다 — ${a.n}.`, 'bad');
+        fx({ t:'enchant', x:p.x, y:p.y, cursed:true });
+      }
+    }
   } else {
     say(`${name} — 불꽃이 사그라든다. 아무 일도 없었다.`, 'warn');
     fx({ t:'forge', x:p.x, y:p.y, fail:true });
@@ -5279,6 +5412,11 @@ function breakItem(it) {
 export function anvilEnchant(key, reroll, cat = null) {
   const p = G.player, t = targetOf(key);
   if (!t) return;
+  const label = t.type === 'item'
+    ? (t.item ? affixName(t.item) : '그것')
+    : (spellList(p).find(s => s.id === t.id)?.name || '주문');
+  const why = forgeBlock(t, reroll ? 'reroll' : 'enchant');
+  if (why) { say(`${label} — ${why}.`, 'warn'); return; }
   const cost = reroll ? REROLL_COST : ENCHANT_COST;
   if (!canAfford(cost)) { say(`재료가 모자란다 — ${costText(cost)}.`, 'warn'); return; }
   const c = useCatalyst(cat, 'enchant');
@@ -5303,7 +5441,11 @@ export function anvilEnchant(key, reroll, cat = null) {
   const tag = it.kind;
   // A reroll never inflicts a curse — it is the cure for one,
   // which is what keeps the enchant gamble survivable.
-  const cursed = !reroll && c?.id !== 'seal' && Math.random() < 0.20;
+  /* 빈 물건에 거는 것은 싸고 안전하고, 이미 둘 다 붙은 물건을 다시
+     건드리는 것은 도박이다. 그래야 「지금 멈출까」가 매번 결정이 된다. */
+  const worn = (it.pre ? 1 : 0) + (it.suf ? 1 : 0);
+  const cursed = !reroll && c?.id !== 'seal'
+              && Math.random() < ENCHANT_CURSE + ENCHANT_CURSE_STEP * worn;
 
   let usePrefix = Math.random() < 0.5;
   if (reroll) {
@@ -5314,7 +5456,9 @@ export function anvilEnchant(key, reroll, cat = null) {
   }
   const table = usePrefix ? PREFIXES : SUFFIXES;
   const a = pickAffixFor(table, tag, cursed);
-  if (!a) { say('불꽃이 사그라들 뿐이다.', 'warn'); return; }
+  /* 여기까지 와서 빈손이면 이미 값을 치른 뒤다. 되돌려준다 —
+     「불꽃이 사그라들 뿐이다」가 유료였다. */
+  if (!a) { refund(cost); say('불꽃이 사그라들 뿐이다. 값은 돌려받았다.', 'warn'); return; }
 
   const slotKey = usePrefix ? 'pre' : 'suf';
   const replaced = it[slotKey];
@@ -5329,7 +5473,18 @@ export function anvilEnchant(key, reroll, cat = null) {
     say(`${affixName(it)} — 새 성질이 깃들었다.`, 'level');
   }
   /* 분광석 pays for both slots at once — the only way to land a
-     prefix and a suffix from one roll. */
+     prefix and a suffix from one roll. 그리고 아주 드물게 운으로도
+     같은 일이 일어난다 — 촉매는 여전히 「확실하게」를 판다. */
+  if (!cursed && !reroll && c?.id !== 'prism' && Math.random() < ENCHANT_TWIN) {
+    const other = usePrefix ? SUFFIXES : PREFIXES;
+    const b = pickAffixFor(other, tag, false);
+    if (b) {
+      it[usePrefix ? 'suf' : 'pre'] = b.id;
+      recalc(p);
+      say(`불이 두 번 갈라졌다 — ${affixName(it)}.`, 'level');
+      fx({ t:'enchant', x:p.x, y:p.y, cursed:false, twin:true });
+    }
+  }
   if (c?.id === 'prism') {
     const other = usePrefix ? SUFFIXES : PREFIXES;
     const b = pickAffixFor(other, tag, false);

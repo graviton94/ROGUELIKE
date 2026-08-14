@@ -150,5 +150,32 @@ console.log('\n득템 벤치 — 좋은 것이 떨어졌을 때 티가 나는가
      rows.map(r => `${r[0]}:${r[2]}`).join(' '));
 }
 
+/* ── 6. 유물도 같은 자로 ───────────────────────────────── */
+{
+  /* 유물은 pickUp의 물건 경로를 안 탄다 — takeRelic이 따로 처리한다.
+     그래서 위의 다섯 급을 다 고쳐 놓고도 유물만 조용할 수 있다.
+     실제로 그랬다: 카드는 「처음 보는 것」일 때만 떴고, 연출은 제단
+     반짝임을 빌려 쓰고 있었다. */
+  const p = stage();
+  p.relics = [];
+  G.fx.length = 0;
+  Game.takeRelic('pact');
+  ok(p.relics.includes('pact'), '유물을 들었다');
+  ok(G.fx.some(e => e.t === 'found' && e.rar >= 3),
+     '다른 득템과 같은 연출을 탄다', JSON.stringify(G.fx.find(e => e.t === 'found')));
+  ok(G.fx.some(e => e.t === 'lore'), '처음 보는 것이든 아니든 화면이 멈춘다');
+
+  /* 두 번째 판에서 다시 들어도 멈춰야 한다 — 그 판에서는 처음이다. */
+  const q = stage();
+  q.relics = [];
+  G.fx.length = 0;
+  Game.takeRelic('pact');
+  ok(G.fx.some(e => e.t === 'lore'),
+     '이미 본 적 있는 유물도 이번 판에는 처음이므로 멈춘다');
+
+  /* 바닥에 떨어진 유물이 빛기둥을 세우는가 — rarityOf가 알아보는가. */
+  ok(D.rarityOf({ kind:'relic', id:'echo' }) >= 3, '바닥의 유물이 빛기둥 등급을 받는다');
+}
+
 console.log(bad ? `\n득템 벤치: ${bad}건 실패\n` : '\n득템 벤치: 전부 통과\n');
 process.exit(bad ? 1 : 0);

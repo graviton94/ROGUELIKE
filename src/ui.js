@@ -9,6 +9,7 @@ import * as Pix from './pixels.js';
 import {
   RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS, statRange,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName, MATS, ENCHANT_COST, REROLL_COST,
+  ENCHANT_CURSE, ENCHANT_CURSE_STEP,
   RARITY, CURSED_TONE, rarityOf, isCursed,
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
   MONSTERS, BRANCHES, SPELLS, boonById, FUSIONS, engraveById, ENGRAVE_AT, ENGRAVE_PENALTY, NAMED,
@@ -2934,7 +2935,9 @@ export function renderAnvil() {
 
   $('anvil-note').textContent =
     anvilMode === 'enchant'
-      ? `무작위 속성을 건다. 다섯에 하나는 저주. ${Game.costText(ENCHANT_COST)}`
+      ? `무작위 속성을 건다. 이미 붙은 것이 많을수록 저주가 잦다 — ` +
+        `${Math.round(ENCHANT_CURSE * 100)}% / ${Math.round((ENCHANT_CURSE + ENCHANT_CURSE_STEP) * 100)}% / ` +
+        `${Math.round((ENCHANT_CURSE + ENCHANT_CURSE_STEP * 2) * 100)}%. ${Game.costText(ENCHANT_COST)}`
       : anvilMode === 'reroll'
       ? `이미 붙은 속성을 다시 굴린다. 저주는 절대 붙지 않는다. ${Game.costText(REROLL_COST)}`
       : campCareful
@@ -2991,23 +2994,37 @@ function renderAnvilTargets() {
     row.appendChild(mid);
 
     let blocked = false, label = '?';
+    /* 왜 안 되는지는 규칙이 안다. 화면이 따로 판정하면 둘이 갈리고,
+       실제로 갈려 있었다 — 화면은 이름 붙은 물건에 「최대 +8」이라고
+       적었고(+0인 물건에 대고), 규칙은 그걸 벼려 주고 있었다. */
+    const why = t.block?.[anvilMode] || null;
+    if (why) {
+      mid.appendChild(el('span', 'idesc', why));
+      row.appendChild(el('span', 'iact', '—'));
+      row.classList.add('poor'); row.disabled = true;
+      list.appendChild(row);
+      continue;
+    }
     if (anvilMode === 'upgrade') {
       const cost = Game.upgradeCostFor(t.key, campCareful);
       const bet = Game.upgradeOddsFor(t.key, campCareful, anvilCat);
-      blocked = t.capped || !Game.canAfford(cost);
-      if (t.capped) label = `최대 +${t.cap}`;
-      else {
+      blocked = !Game.canAfford(cost);
+      {
         /* The bet, printed. Odds on the right where the price used
            to be, and what a failure costs written into the row —
            the altar taught this game that a gamble is only fun
            when you can see its shape before you take it. */
         label = `${Math.round(bet.odds * 100)}%`;
+        /* 판돈은 전부 적는다. 저주가 판돈에 들어왔는데 화면이 그걸
+           안 말하면, 그건 도박이 아니라 함정이다. */
         const risk = bet.breakPct ? `실패 시 −1 또는 ${Math.round(bet.breakPct * 100)}% 파괴`
                    : bet.down     ? '실패 시 −1'
                    : '실패해도 손해는 값뿐';
         const line = el('span', 'idesc bet',
-          `+${t.plus} → +${t.plus + (bet.crit >= 1 ? 2 : 1)} · ${risk} · ${Game.costText(cost)}`);
-        if (bet.breakPct) line.classList.add('danger');
+          `+${t.plus} → +${t.plus + (bet.crit >= 1 ? 2 : 1)} · ${risk}`
+          + (bet.hexPct ? ` · ${Math.round(bet.hexPct * 100)}% 저주` : '')
+          + ` · ${Game.costText(cost)}`);
+        if (bet.breakPct || bet.hexPct) line.classList.add('danger');
         mid.appendChild(line);
         /* The milestone gets its own line and its own colour. It
            is the only strike where success changes what the item
@@ -3020,9 +3037,8 @@ function renderAnvilTargets() {
         }
       }
     } else if (anvilMode === 'reroll') {
-      blocked = (t.kind === 'spell' ? false : !(t.item?.pre || t.item?.suf))
-             || !Game.canAfford(REROLL_COST);
-      label = blocked ? (Game.canAfford(REROLL_COST) ? '속성 없음' : '재료 부족') : '재련';
+      blocked = !Game.canAfford(REROLL_COST);
+      label = blocked ? '재료 부족' : '재련';
     } else {
       blocked = !Game.canAfford(ENCHANT_COST);
       label = blocked ? '재료 부족' : '인챈트';

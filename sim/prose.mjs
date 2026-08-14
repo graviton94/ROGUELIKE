@@ -199,5 +199,33 @@ console.log('\n문장 벤치 — 화면에 나가는 글에 구멍이 있는가\
      holes.slice(before3, before3 + 4).join(' · ') || '전부 깨끗함');
 }
 
+/* ── 6. 링크 미리보기 ──────────────────────────────────────
+   페이지 밖으로 나가는 유일한 글이다. 여기가 비어 있으면 링크는
+   주소만 덩그러니 뜨고, 그림이 없으면 다른 서비스가 아무 이미지나
+   골라 붙인다. 그림이 실제로 있는지, 크기가 태그가 약속한 값과
+   같은지까지 본다 — 어긋나면 카드가 잘린다. */
+{
+  const fs = await import('node:fs');
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const need = ['og:title', 'og:description', 'og:image', 'og:url',
+                'og:image:width', 'og:image:height', 'twitter:card'];
+  const missing = need.filter(k => !html.includes(`"${k}"`));
+  ok(missing.length === 0, '링크 미리보기 태그가 전부 있다', missing.join(', ') || `${need.length}개`);
+
+  const url = new URL('../og.png', import.meta.url);
+  const has = fs.existsSync(url);
+  ok(has, '미리보기 그림이 저장소에 있다', has ? `${(fs.statSync(url).size / 1024) | 0}KB` : '없음 — node sim/og.mjs');
+  if (has) {
+    /* PNG의 폭·높이는 IHDR 청크의 고정 자리에 있다. 이미지 라이브러리
+       없이 열여섯 바이트만 읽으면 된다. */
+    const buf = fs.readFileSync(url);
+    const w = buf.readUInt32BE(16), h = buf.readUInt32BE(20);
+    const wantW = +(html.match(/"og:image:width" content="(\d+)"/)?.[1] || 0);
+    const wantH = +(html.match(/"og:image:height" content="(\d+)"/)?.[1] || 0);
+    ok(w === wantW && h === wantH, '태그가 약속한 크기와 그림이 같다',
+       `그림 ${w}×${h} · 태그 ${wantW}×${wantH}`);
+  }
+}
+
 console.log(bad ? `\n문장 벤치: ${bad}건 실패\n` : '\n문장 벤치: 전부 통과\n');
 process.exit(bad ? 1 : 0);

@@ -80,9 +80,21 @@ console.log('\n밀어내기 벤치 — 양피지를 손으로 치울 수 있는�
   await pg.evaluate(async () => { const G = await import('/src/game.js'); G.enterDepth(4); });
   await pg.waitForTimeout(600);
   const up = await visible('#lesson');
-  if (up) { await drag('#lesson', 0, -110);
-    const gone = !(await visible('#lesson'));
-    ok(gone, '안내 카드를 위로 민다', gone ? '사라졌다' : '남아 있다'); }
+  if (up) {
+    /* 여기도 「사라졌는가」가 아니라 「이 안내가 치워졌는가」다.
+       배운 것이 한 턴에 둘이면 하나를 민 자리에 다음 안내가 바로
+       올라오는데, 그것은 안 밀린 것이 아니라 다음 장이다. 여덟 번에
+       한 번꼴로 붉게 뜨던 이유가 이것이었다 — 아래 배너에는 이미
+       같은 규칙을 적용해 놓고 여기만 빠져 있었다. */
+    const text = () => pg.evaluate(() => document.getElementById('lesson-text')?.textContent || '');
+    const was = await text();
+    await drag('#lesson', 0, -110);
+    const shown = await visible('#lesson');
+    const now = await text();
+    const cleared = !shown || now !== was;
+    ok(cleared, '안내 카드를 위로 민다',
+       !shown ? '사라졌다' : `다음 안내로 넘어갔다 (${was.slice(0, 14)}… → ${now.slice(0, 14)}…)`);
+  }
   else ok(true, '안내 카드가 이미 없다 (검사 생략)');
 }
 await trial('층 배너를 위로 민다',   0, -90);

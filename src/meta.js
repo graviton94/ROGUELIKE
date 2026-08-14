@@ -51,10 +51,22 @@ const EMPTY = {
   totals: { forged: 0, opened: 0, engraved: 0, kills: 0, depth: 0 },
   abyss: 0,       // the rung of the shackle ladder being played, 0..8
   cleared: null,  // highest rung ever won; null = never asked, -1 = never won
+  /* ── 앞서 간 사람들 ────────────────────────────────────
+     이 게임의 이야기는 「아무도 돌아오지 못했다」다. 그런데 그
+     사람들이 실제로 어디에 있는지는 게임 어디에도 없었다 — 문장으로만
+     있었다. 여기 넣는다: 죽은 자리, 죽인 것, 들고 있던 것.
+     다음 판의 그 층에 그대로 놓인다.
+
+     셋만 남긴다. 무한정 쌓으면 열 판쯤 뒤에 층마다 시체가 널려
+     「앞서 간 자」가 배경 소품이 된다 — 드물어야 사건이다. */
+  fallen: [],
   runs: 0, wins: 0,
   best: { depth: 0, lv: 0, combo: 0, gold: 0, turn: 0 },
   last: null,     // the previous run's summary, for the title screen
 };
+
+/* 몇 명까지 기억하는가. 드물어야 사건이다. */
+export const FALLEN_KEEP = 3;
 
 let cache = null;
 
@@ -66,6 +78,7 @@ export function read() {
     // Nested objects need their own defaults after a spread.
     for (const k of ['relics', 'events', 'monsters', 'weapons', 'branches', 'taught', 'fusions', 'regions', 'items', 'bodies', 'reso'])
       cache[k] = cache[k] || {};
+    cache.fallen = Array.isArray(cache.fallen) ? cache.fallen : [];
     cache.best = { ...EMPTY.best, ...(cache.best || {}) };
     cache.totals = { ...EMPTY.totals, ...(cache.totals || {}) };
     cache.abyss = cache.abyss || 0;
@@ -126,6 +139,18 @@ export function finish(summary) {
   t.kills    += summary.kills || 0;
   t.depth    += summary.depth || 0;
   m.last = summary;
+  /* 시체를 남긴다. 완주는 안 남긴다 — 걸어 나간 사람은 아래에 없다. */
+  if (!summary.win && summary.depth > 0) {
+    m.fallen = [{
+      sent: summary.sent || m.runs,
+      depth: summary.depth,
+      by: summary.by || null,
+      cls: summary.cls, race: summary.race, lv: summary.lv,
+      weapon: summary.weaponItem || null,
+      gold: Math.round((summary.gold || 0) * 0.6),
+      relic: (summary.relics || [])[0] || null,
+    }, ...(m.fallen || [])].slice(0, FALLEN_KEEP);
+  }
   write();
   return m;
 }

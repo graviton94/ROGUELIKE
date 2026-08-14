@@ -1,7 +1,7 @@
 {
   "name": "깊은 곳 · Deepdelve",
   "short_name": "Deepdelve",
-  "description": "도트와 텍스트로 만든 25층짜리 던전 로그라이크",
+  "description": "아래에 있는 것이 세상을 먹고 있다. 아무도 돌아오지 못했다. 15층짜리 던전 로그라이크",
   "start_url": "./index.html",
   "scope": "./",
   "display": "fullscreen",

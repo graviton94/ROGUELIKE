@@ -1219,12 +1219,30 @@ export const TERRAIN = {
 
    섞는 비율은 낮게 잡았다 — 색을 입히는 것이 아니라 데우는 것이고,
    진해지면 여섯 지형 무늬가 전부 같은 색 덩어리로 뭉개진다. */
+/* ── 그런데 첫 판이 자책골이었다 ──────────────────────────
+   두 가지가 동시에 틀렸다.
+
+   하나. 화로의 tone `#d4741f`는 PALETTE.o와 **글자 하나까지 같은
+   값**이고, 잿불의 `#c8322c`는 PALETTE.R과 같다. 그런데 아래 다섯
+   층의 배우들 — 재의 사냥개·화로지기·잿물 먹는 것·화로의 사제·
+   대군주 — 이 전부 그 두 키로 그려져 있다. 클라이맥스를 주황 위의
+   주황으로 칠하고 있었다는 뜻이다. 실측 명암비 R 대 화로 바닥
+   2.66:1, 여기에 안개 알파까지 곱하면 사실상 소실이다.
+
+   둘. 덮는 방식이 source-over라 **명도를 올린다**. 재 보니 화로
+   바닥의 상대 휘도가 성채의 3.4배였다 — 가장 깊은 곳이 가장 밝았다.
+   무대가 배우 위로 올라온 것이다.
+
+   그래서 벽과 바닥을 가른다. 배경(벽)은 달아오르고, 무대(바닥)는
+   식은 채로 어두워진다. tone은 전부 어둡고 채도 높은 값이라 명도는
+   안 올리고 색조만 민다. 밝은 잉걸불 키(o, y)는 여기 안 쓴다 —
+   그건 불이 내는 색이지 돌이 내는 색이 아니다. */
 export const REGION_HEAT = [
-  { tone:null,      wall:0,    floor:0    },   // 무너진 성채 — 식은 돌
-  { tone:'#5e3a1c', wall:0.13, floor:0.10 },   // 드워프 갱도 — 파낸 흙
-  { tone:'#d8cdb4', wall:0.10, floor:0.07 },   // 잊힌 성소 — 바랜 뼈
-  { tone:'#c8322c', wall:0.16, floor:0.12 },   // 잿불 아래 — 아래가 붉다
-  { tone:'#d4741f', wall:0.26, floor:0.20 },   // 대군주의 화로 — 달아올랐다
+  { wallTone:null,      floorTone:null,      wall:0,    floor:0    },  // 무너진 성채 — 식은 돌
+  { wallTone:'#5e3a1c', floorTone:'#2e1b0c', wall:0.16, floor:0.10 },  // 드워프 갱도 — 파낸 흙
+  { wallTone:'#d8cdb4', floorTone:'#6b6350', wall:0.13, floor:0.08 },  // 잊힌 성소 — 바랜 뼈
+  { wallTone:'#8e1f1c', floorTone:'#4a0f14', wall:0.20, floor:0.13 },  // 잿불 아래 — 벽이 붉다
+  { wallTone:'#a8460e', floorTone:'#5c1c08', wall:0.30, floor:0.18 },  // 대군주의 화로 — 벽이 탄다
 ];
 
 let terrainTheme = 'plain';
@@ -1292,11 +1310,12 @@ function bakeTerrain(kind, variant) {
   /* 그리고 온도. 무늬를 다 그린 뒤에 얇게 덮으므로, 결도 이음매도
      사라지지 않고 색만 옮겨 간다. */
   const H = REGION_HEAT[heat];
-  if (H && H.tone) {
-    const a = kind === 'wall' ? H.wall : H.floor;
-    if (a > 0) {
+  if (H) {
+    const tone = kind === 'wall' ? H.wallTone : H.floorTone;
+    const a    = kind === 'wall' ? H.wall     : H.floor;
+    if (tone && a > 0) {
       x.globalAlpha = a;
-      x.fillStyle = H.tone;
+      x.fillStyle = tone;
       x.fillRect(0, 0, CELL, CELL);
       x.globalAlpha = 1;
     }

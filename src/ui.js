@@ -3335,6 +3335,10 @@ export function inspect(x, y) {
    this is someone's first time. */
 const LESSONS = [
   { id:'move',   t:'방향을 <b>꾹 누르면</b> 계속 걷습니다. 가본 곳을 <b>탭하면</b> 거기까지 걸어갑니다.' },
+  /* 갱구에서만 뜬다. 「여기가 마지막 가게다」를 아무도 말해 주지 않아서
+     처음 하는 사람은 250닢을 그대로 들고 1층에 들어간다. */
+  { id:'town',   t:'여기가 <b>마지막 가게</b>입니다. 아래에는 상인이 드물고, <b>올라오는 길은 없습니다</b>.<br>' +
+                    '금화를 두고 갈 이유가 없습니다 — 회복 물약과 <b>기름</b>부터 챙기세요.' },
   { id:'fight',  t:'적에게 <b>부딪치면</b> 공격입니다. 잠든 적(z)을 치면 <b>무조건 치명타</b>입니다 — 돌아가서라도 먼저 치세요.' },
   { id:'intent', t:'깨어난 적은 머리 위에 <b>다음 턴에 할 일</b>을 겁니다. 도움말의 그림표에 전부 있습니다.' },
   { id:'heavy',  t:'<b>붉은 별</b>은 다음 턴에 2.5배로 내리친다는 뜻입니다.<br>' +
@@ -3351,7 +3355,8 @@ const LESSONS = [
                     '화로는 <b>기름을 아껴 주지만 주변을 깨웁니다.</b> 항아리는 다섯에 하나가 터집니다. ' +
                     '<b>탭해서 살펴보면</b> 확률이 적혀 있습니다.' },
   { id:'thief',  t:'<b>금빛 도둑</b>은 보자마자 달아납니다. 걸어서는 절대 못 잡습니다 — 구르거나 주문을 쓰거나, 보내주거나.' },
-  { id:'cast',   t:'주문은 <b>아래 줄의 아이콘을 눌러 바로</b> 씁니다(단축키 <b>1~5</b>).<br>' +
+  /* 단축키 이야기를 뺐다. 이 게임이 만들어진 기기에는 숫자키가 없다. */
+  { id:'cast',   t:'주문과 기술은 <b>아래 줄의 아이콘을 눌러</b> 바로 씁니다.<br>' +
                     '어두운 칸은 아직 못 배웠거나, 마나가 모자라거나, <b>쏠 대상이 없다</b>는 뜻입니다.' },
   { id:'fuse',   t:'유물 <b>둘</b>을 불에 넣으면 하나가 나옵니다 — 보통은 확률표대로.<br>' +
                     '하지만 <b>서로를 알아보는 짝</b>이 여섯 있습니다. 목록은 없습니다. ' +
@@ -3392,11 +3397,26 @@ function closeLesson() {
 
 /* Read once per frame from the loop: the rules layer sets flags
    on G and never has to know a teaching system exists. */
-export function checkLessons() {
+export /* 순서가 곧 대기줄이다. 그리고 그 줄이 뒤집혀 있었다 — 처음 켠
+   사람이 보는 첫 카드가 「주문은 아래 줄 아이콘… (단축키 1~5)」였다.
+   전사로, 터치 화면에서, 한 걸음도 걷기 전에.
+
+   원인 둘. 하나는 걷기 수업이 `G.depth > 0` 뒤에 숨어 있어서 갱구
+   내내 안 나온다는 것 — 그런데 처음 하는 사람의 첫 화면이 갱구다.
+   다른 하나는 주문 수업이 싸움보다 먼저 놓여 있고, 기본 직업인 전사가
+   1레벨에 밀침을 가지고 있다는 것.
+
+   걷기가 먼저다. 그리고 갱구에서는 갱구 이야기를 한다 — 여기가 마지막
+   가게라는 것을 아무도 말해 주지 않아서, 처음 하는 사람은 지갑을 그대로
+   들고 1층에 들어간다. 벤치가 이미 그 값을 안다: 봇에게 장 보는 것을
+   빼먹고 쟀더니 잰 난이도가 전부 「물약을 한 병도 안 산 영웅」의
+   숫자였다(sim/README.md). 사람은 매번 그 영웅이다. */
+function checkLessons() {
   if (!Meta.isNewcomer() || !G.player || G.screen !== 'play') return;
-  if (G.depth > 0) teach('move');
-  if (Game.spellSlots().length) teach('cast');
+  teach('move');
+  if (G.depth === 0) teach('town');
   if (G.monsters.some(m => G.level.vis[idx(m.x, m.y)])) teach('fight');
+  if (Game.spellSlots().length) teach('cast');
   if (G.monsters.some(m => m.awake && m.intent && G.level.vis[idx(m.x, m.y)])) teach('intent');
   if (G.monsters.some(m => m.intent === 'heavy' || m.intent === 'wind')) teach('heavy');
   if (G.hazards.length) teach('ground');
@@ -3425,7 +3445,8 @@ export function renderEvent() {
   /* 사건마다 그림이 따로 있지는 않다. 있는 것을 쓴다 — 사건의 성격에
      가까운 스프라이트를 골라 크게 앉히고, 없으면 물음표 타일. */
   const ART = { seep:'potion', wickseller:'torch', blackroom:'door',
-                eggs:'web', anvil:'anvil', shrine:'altar', spoils:'chest' };
+                eggs:'web', anvil:'anvil', shrine:'altar', spoils:'chest',
+                fallen:'bones' };
   const art = $('event-art');
   if (art) {
     const S = CELL_SIZE * 9;
@@ -3479,6 +3500,8 @@ export function renderEvent() {
 
   /* 셋 다 쓸모없을 때가 있다. 억지로 하나를 집게 하면 배낭 한 칸이
      벌이 된다 — 두고 갈 수 있어야 고르는 것이 결정이 된다. */
+  /* 시체 앞에서는 「두고 간다」가 선택지 안에 이미 있다 — 눈을 감겨
+     주는 것이 그 자리의 마지막 예의이므로 규칙이 들고 있다. */
   if (offer.spoils) {
     const out = el('button', 'campopt');
     out.appendChild(el('span', 'campname', '두고 간다'));
@@ -3500,15 +3523,21 @@ export function renderEvent() {
 
    숫자는 전부 summarise()가 이미 만들어 둔 것에서 읽는다. 여기서
    다시 세면 화면과 기록이 갈린다. */
-const LADDER = ['▓', '▒', '░'];
+/* 칸은 이모지다. ▓░ 같은 괘선 문자는 CJK 폰트에서 폭이 애매해서,
+   보내는 쪽과 받는 쪽의 기기가 다르면 사다리가 어긋난다. 게다가
+   채팅 목록에서 회색 덩어리로 묻힌다 — 워들이 🟩을 쓴 것은 취향이
+   아니라 그 이유였다. 여기서는 구역의 색을 그대로 쓴다: 성채·갱도는
+   갈색, 성소는 흰색, 잿불부터는 붉게, 화로는 주황.
+   못 간 층은 검정 — 아래가 아직 어둡다는 뜻이다. */
+const RUNG = ['🟫', '🟫', '🟫', '⬜', '⬜', '⬜', '⬜', '🟥', '🟥', '🟥', '🟥', '🟥', '🟥', '🟥', '🟧'];
+const DARK = '⬛';
 export function runCard(s, by) {
   const max = MAX_DEPTH;
   const got = Math.max(0, Math.min(max, s.depth || 0));
-  /* 사다리. 간 만큼 채우고 못 간 만큼 비운다. 열다섯 칸이면 한 줄에
-     들어가고, 채운 칸 수가 곧 자랑거리다. */
-  const bar = LADDER[0].repeat(got) + LADDER[2].repeat(max - got);
+  let bar = '';
+  for (let i = 0; i < max; i++) bar += i < got ? (RUNG[i] || '🟥') : DARK;
   const where = got > 0 ? regionOf(got).n : '갱구';
-  const how = s.win ? '불을 껐다'
+  const how = s.win ? '불을 껐다 — 처음으로.'
             : by ? `${where}에서 ${by}에게` : `${where}에서`;
   const bits = [];
   if (s.relics?.length) bits.push(`유물 ${s.relics.length}`);
@@ -3516,11 +3545,16 @@ export function runCard(s, by) {
   if (s.forged) bits.push(`+${s.forged}`);
   bits.push(`${s.turn}턴`);
   return [
-    `깊은 곳 — ${s.sent || 1}번째`,
+    /* 첫 줄이 훅이다. 「23번째가 죽었다」가 이 게임에서 가장 좋은
+       문장인데 넷째 줄에 묻혀 있었다. */
+    `${s.sent || 1}번째가 ${s.win ? '내려갔다' : '죽었다'} — 깊은 곳`,
     `${bar} ${got}/${max}층`,
     how,
     bits.join(' · '),
-    'graviton94.github.io/ROGUELIKE',
+    /* 주소는 scheme이 있어야 자동으로 링크가 된다. 없으면 그냥 글자로
+       붙고, 링크가 아니면 미리보기 카드(og.png)도 안 뜬다 — 가장 공들인
+       그림이 정작 필요한 순간에 안 보이는 것이다. */
+    'https://graviton94.github.io/ROGUELIKE/',
   ].join('\n');
 }
 
@@ -3556,7 +3590,7 @@ export async function shareRun() {
   const ok = await copyText(text);
   if (btn) {
     btn.textContent = ok ? '복사됐다' : '복사 실패';
-    setTimeout(() => { btn.textContent = '기록 복사'; }, 1600);
+    setTimeout(() => { btn.textContent = '자랑하기'; }, 1600);
   }
 }
 
@@ -4066,10 +4100,15 @@ function single(dx, dy) {
    already taught the player, and it costs stamina rather than a
    cooldown so it stays a decision.
 
-   The window is deliberately short. A player walking with taps
-   must not roll by accident, and 260ms is faster than a walking
-   cadence but comfortably within a deliberate double-tap. */
-const DOUBLE_TAP = 260;
+   창은 짧아야 한다 — 였는데, 260ms는 안 짧았다. 탭 간격 100·150·
+   200ms에서 전부 굴렀다. 그게 사람이 걸으려고 누르는 속도다. 주석은
+   「걷는 박자보다 빠르다」고 적혀 있었는데, 그건 **누르고 있을 때**의
+   박자(HOLD_FIRST 190ms)이지 탭 박자가 아니다. 그리고 처음 하는
+   사람은 누르고 있는 법을 알기 전에 탭부터 한다.
+
+   두 겹으로 좁힌다: 창을 200ms로 줄이고, **피할 것이 있을 때만**
+   구른다. 아무것도 없는 복도에서 구르는 것을 의도한 사람은 없다. */
+const DOUBLE_TAP = 200;
 let lastTap = { dx: 0, dy: 0, at: -1e9 };
 
 function press(dx, dy) {
@@ -4077,7 +4116,8 @@ function press(dx, dy) {
 
   if (dx || dy) {
     const now = performance.now();
-    if (lastTap.dx === dx && lastTap.dy === dy && now - lastTap.at < DOUBLE_TAP) {
+    if (lastTap.dx === dx && lastTap.dy === dy && now - lastTap.at < DOUBLE_TAP
+        && Game.threatened()) {
       lastTap.at = -1e9;                   // one roll per double-tap, not a chain
       if (Game.canRoll()) {
         held = null;

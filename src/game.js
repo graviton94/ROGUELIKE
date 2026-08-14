@@ -2137,6 +2137,7 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     }
   }
   if (depth > 0 && L.theme?.n) say(`${L.theme.n}이다.`, 'warn');
+  placeFallen(L, depth);
 
   // 심연의 눈 pays out the moment you arrive, which is the only
   // moment a whole map is worth anything.
@@ -2618,6 +2619,114 @@ export function refreshFov() {
   G.lightRadius = radius;
 }
 
+/* ── 앞서 간 사람 ──────────────────────────────────────────
+   이 게임의 이야기는 「아무도 돌아오지 못했다」이고, 지금까지 그 말은
+   문장으로만 있었다. 지역 문장이 말하고 사건 하나가 흉내 냈지만,
+   거기 누워 있는 것은 아무도 아니었다 — 생성기가 만든 익명의 시체다.
+
+   이제 진짜다. 지난 판에서 **당신이** 죽은 층, 그 층에 당신이 놓인다.
+   들고 있던 무기와 유물 하나를 그대로 쥔 채로.
+
+   세 가지가 한꺼번에 붙는다:
+     · 이야기 — 「다음 사람이 내려간다」가 규칙이 된다
+     · 보상 — 잘 벼려 놓은 무기를 되찾을 수 있다. 죽음이 완전한
+       손실이 아니게 되고, 그러면 죽고 나서 한 판 더 누를 이유가
+       하나 생긴다
+     · 위험 — 그것을 일으켜 세울 수도 있다. 재를 먹은 것은 살아 있던
+       때보다 세다
+
+   완주한 판은 안 남는다 — 걸어 나간 사람은 아래에 없다. */
+function placeFallen(L, depth) {
+  if (depth < 1) return;
+  const rec = (Meta.read().fallen || []).find(f => f.depth === depth);
+  if (!rec || (G.fallenSeen || {})[rec.sent]) return;
+  for (let t = 0; t < 80; t++) {
+    const r = L.rooms[rnd(L.rooms.length)];
+    if (!r) return;
+    const x = r.x + rnd(r.w), y = r.y + rnd(r.h);
+    const i = idx(x, y);
+    if (L.tiles[i] !== FLOOR || L.traps.has(i)) continue;
+    if (G.items.some(o => o.x === x && o.y === y)) continue;
+    G.items.push({ kind:'fallen', spr:'bones', n:'앞서 간 자', rec, x, y, rar:2 });
+    (G.fallenSeen = G.fallenSeen || {})[rec.sent] = true;
+    say(`${rec.sent}번째가 이 층에서 멈췄다. 어딘가에 있다.`, 'warn');
+    return;
+  }
+}
+
+/* 무엇을 고를 수 있는가. 화면은 이걸 읽고, 규칙도 이걸 읽는다. */
+export function fallenOffer(rec) {
+  const wep = rec.weapon ? affixName(rec.weapon) : null;
+  const opts = [];
+  if (wep) opts.push({ id:'take', n:`${wep}을(를) 거둔다`,
+    t:'그가 마지막까지 쥐고 있던 것이다. 손에 익은 무게일 것이다.' });
+  if (rec.gold) opts.push({ id:'purse', n:`주머니 (${rec.gold}닢)`,
+    t:'여기까지 벌어 온 것이다. 쓸 사람이 없어졌다.' });
+  if (rec.relic) opts.push({ id:'relic', n:`${relicById(rec.relic)?.n || '유물'}`,
+    t:'목에 걸려 있다. 그를 여기까지 데려온 것일 수도, 여기서 멈추게 한 것일 수도.' });
+  /* 그리고 도박. 재를 먹은 것은 살아 있던 때보다 세다 — 대신
+     남은 것을 **전부** 준다. 셋 중 하나가 아니라 전부다. */
+  opts.push({ id:'raise', n:'일으켜 세운다',
+    t:'재를 털면 일어난다. 살아 있던 때보다 셀 것이다. 쓰러뜨리면 남긴 것을 전부 가져간다.' });
+  opts.push({ id:'leave', n:'그대로 둔다', t:'눈을 감겨 주고 지나간다.' });
+  return { n:`${rec.sent}번째`, rec,
+    t: `${RACES[rec.race]?.name || ''} ${CLASSES[rec.cls]?.name || ''} · Lv ${rec.lv}. `
+     + `${rec.by ? `${rec.by}에게 여기서 멈췄다.` : '여기서 멈췄다.'} `
+     + '당신보다 앞서 내려간 사람이다.',
+    opts };
+}
+
+export function fallenTake(id) {
+  const p = G.player, sp = G.fallen;
+  if (!sp) { G.screen = 'play'; return; }
+  const rec = sp.rec;
+  const drop = () => {
+    const i = G.items.findIndex(o => o.kind === 'fallen' && o.x === p.x && o.y === p.y);
+    if (i >= 0) G.items.splice(i, 1);
+  };
+  G.fallen = null;
+  G.screen = 'play';
+  G.act = 'open';
+  if (id === 'leave') { drop(); say('눈을 감겨 주고 지나갔다.'); endTurn(); return; }
+
+  if (id === 'raise') {
+    drop();
+    /* 살아 있던 때보다 세다. 층이 아니라 **그 사람의 레벨**로 세우므로,
+       깊이 갔던 판일수록 무섭다 — 잘 풀린 판의 시체가 가장 위험하다. */
+    const base = MONSTERS.filter(m => m.d <= G.depth + 3).slice(-1)[0] || MONSTERS[0];
+    const m = { ...base, spr:'wraith', n:`${rec.sent}번째였던 것`,
+      hp: 40 + rec.lv * 14, maxhp: 40 + rec.lv * 14,
+      atk: 10 + rec.lv * 2, ac: 6 + rec.lv, xp: 120 + rec.lv * 40,
+      ai:'hunt', named:true, awake:true, provoked:true, energy:0,
+      x: p.x, y: p.y, drops: rec };
+    const spot = freeSpotNear(p.x, p.y);
+    if (spot) { m.x = spot.x; m.y = spot.y; }
+    G.monsters.push(m);
+    say(`${rec.sent}번째가 일어섰다. 재가 흘러내린다.`, 'bad');
+    fx({ t:'ail', x:m.x, y:m.y, kind:'fear' });
+    endTurn();
+    return;
+  }
+
+  if (id === 'take' && rec.weapon) {
+    const it = { ...rec.weapon };
+    if (packRoom(p, it)) { addItem(p, it); say(`${affixName(it)}을(를) 거뒀다.`, 'level'); }
+    else { G.items.push({ ...it, x:p.x, y:p.y }); say('배낭이 차서 발밑에 두었다.', 'warn'); }
+    fx({ t:'found', x:p.x, y:p.y, rar: rarityOf(it) });
+  } else if (id === 'purse') {
+    p.gold += rec.gold;
+    G.goldEarned = (G.goldEarned || 0) + rec.gold;
+    say(`${rec.gold}닢을 거뒀다.`, 'good');
+    fx({ t:'found', x:p.x, y:p.y, rar:1 });
+  } else if (id === 'relic' && rec.relic) {
+    if (!takeRelic(rec.relic) && G.screen !== 'relic') { say('가져갈 자리가 없다.', 'warn'); }
+  }
+  /* 하나만 가져간다. 나머지는 그와 함께 남는다 — 전부 가져가려면
+     일으켜 세워야 하고, 그게 이 자리의 결정이다. */
+  drop();
+  endTurn();
+}
+
 /* ── movement and turns ─────────────────────────────────── */
 export const monsterAt = (x, y) => G.monsters.find(m => m.x === x && m.y === y);
 export const itemAt = (x, y) => G.items.find(i => i.x === x && i.y === y);
@@ -2838,6 +2947,8 @@ export function hereOffer() {
      따로 묻는다 — 수레와 같은 이유다. */
   const pile = G.items.find(o => o.kind === 'spoils' && o.x === p.x && o.y === p.y);
   if (pile) return { screen:'event', n:'전리품 더미', spoils: pile };
+  const body = G.items.find(o => o.kind === 'fallen' && o.x === p.x && o.y === p.y);
+  if (body) return { screen:'event', n:`${body.rec.sent}번째`, fallen: body.rec };
   const t = L.tiles[here];
   if (t === EVENT && !L.eventId) return null;      // already taken
   const screen = OFFER_SCREEN[t];
@@ -2851,6 +2962,7 @@ export function openHere() {
   G.act = 'open';
   if (o.shop) G.shop = o.shop;
   if (o.spoils) G.spoils = { picks: o.spoils.picks };
+  if (o.fallen) G.fallen = fallenOffer(o.fallen);
   G.screen = o.screen;
   return true;
 }
@@ -3109,6 +3221,10 @@ function pickUp() {
      되풀이할 이유는 없다. 발밑 버튼이 기다린다. */
   if (it.kind === 'spoils') {
     say('전리품 더미 위에 섰다.', 'good');
+    return;
+  }
+  if (it.kind === 'fallen') {
+    say(`${it.rec.sent}번째 위에 섰다.`, 'warn');
     return;
   }
   if (it.kind === 'relic') {
@@ -4002,6 +4118,22 @@ export function hurtMonster(m, dmg, source, opt = {}) {
       for (const k of ['scrap', 'dust', 'essence']) who.mats[k] += purse[k] || 0;
       say(`자루가 터졌다 — 금화 ${goldGain(purse.gold)}닢과 재료가 쏟아진다.`, 'level');
       fx({ t:'altar', x:m.x, y:m.y, result:'대성공' });
+    }
+    /* 일으켜 세운 앞사람. 쓰러뜨리면 그가 남긴 것을 **전부** 준다 —
+       그게 이 도박의 값이다. 하나만 집을 수도 있었는데 전부를 걸었다. */
+    if (m.drops) {
+      const rec = m.drops;
+      if (rec.weapon) {
+        G.items.push({ ...rec.weapon, x:m.x, y:m.y });
+        fx({ t:'drop', x:m.x, y:m.y, rar: rarityOf(rec.weapon) });
+      }
+      if (rec.gold) { G.player.gold += rec.gold; G.goldEarned = (G.goldEarned || 0) + rec.gold; }
+      if (rec.relic) {
+        const at = freeSpotNear(m.x, m.y);
+        if (at) G.items.push({ kind:'relic', id:rec.relic, spr: relicById(rec.relic).spr,
+                               n: relicById(rec.relic).n, ...at });
+      }
+      say(`${rec.sent}번째가 다시 누웠다. 남긴 것을 전부 거뒀다.`, 'level');
     }
     if (m.named) {
       const id = unownedRelic();
@@ -4998,6 +5130,30 @@ export function canRoll() {
   return !!p && p.stam >= rollCost() && !has(p, 'paralyze') && !(p.stuck > 0);
 }
 
+/* ── 피할 것이 있는가 ──────────────────────────────────────
+   구르기는 같은 방향을 빠르게 두 번 눌러 나간다. 그런데 재 보니
+   260ms 창이 **보통 사람이 걸으려고 탭하는 속도**와 겹친다 — 탭 간격
+   100·150·200ms에서 전부 굴렀고, 세 칸을 가고 기력이 2 빠졌다.
+   그리고 기력은 두 턴에 하나씩 찬다. 즉 걸으려고 두 번 누를 때마다
+   네 턴어치 방어 자원이 아무것도 아닌 곳에 나갔고, 스무 턴 뒤 오우거가
+   붉은 별을 띄웠을 때 구를 기력이 없다. 오발과 벌이 스무 턴 떨어져
+   있어서, 플레이어는 자기가 잘못 눌렀다고 생각하지 않는다 — 게임이
+   고장 났다고 생각한다.
+
+   피할 것이 없으면 구르지 않는다. 아무것도 없는 복도에서 구르는 것을
+   의도한 사람은 없다. 거미줄·구덩이에 걸린 경우(stuck)는 예외 —
+   그때는 구르기가 탈출 수단이다.
+
+   판정은 규칙 쪽에 둔다. 화면이 「위협」을 따로 정의하면 두 곳이
+   갈린다. */
+export const threatened = () => {
+  const p = G.player, L = G.level;
+  if (!p || !L) return false;
+  if (p.stuck > 0) return true;
+  return G.monsters.some(m => m.awake && L.vis[idx(m.x, m.y)]
+    && Math.max(Math.abs(m.x - p.x), Math.abs(m.y - p.y)) <= 3);
+};
+
 export function dodgeRoll(dx, dy) {
   const p = G.player, L = G.level;
   if (!dx && !dy) return false;
@@ -5017,6 +5173,9 @@ export function dodgeRoll(dx, dy) {
   p.stam -= rollCost();
   p.iframe = 1;
   p.stuck = 0;
+  /* 굴렀다고 말한다. 여태 아무 말도 없어서, 실수로 구른 사람은 자기가
+     세 칸 간 것도 기력이 빠진 것도 모른 채 지나갔다. */
+  say(`몸을 던져 ${moved}칸 굴렀다. (기력 −${rollCost()})`, 'good');
   // …and a roll is one of the three things that earns a shade.
   gainShadow(1, 'roll');
   fx({ t:'roll', x:p.x, y:p.y, dx, dy, dist:moved });
@@ -5957,6 +6116,11 @@ export function rollEvent() {
 export function eventOffer() {
   /* 전리품 더미가 먼저다. 사건 자리에서 정예를 잡으면 둘이 겹칠 수
      있는데, 그때 화면에 뜬 것과 고른 것이 갈리면 안 된다. */
+  if (G.fallen) {
+    const f = G.fallen;
+    return { id:'fallen', n:f.n, fallenOffer:true, t:f.t,
+      opts: f.opts.map((o, i) => ({ i, id:o.id, n:o.n, t:o.t, can:true, odds:null, risk:'' })) };
+  }
   if (G.spoils) {
     return {
       id: 'spoils', n: '전리품 더미', spoils: true,
@@ -6022,6 +6186,7 @@ export function spoilsLeave() {
 
 export function eventChoose(i) {
   const L = G.level;
+  if (G.fallen) return fallenTake(G.fallen.opts[i]?.id);
   if (G.spoils) return spoilsTake(i);
   const e = EVENTS.find(x => x.id === L?.eventId);
   if (!e) { G.screen = 'play'; return; }
@@ -6513,6 +6678,9 @@ export function summarise(win, by) {
     hp: p.hp, maxhp: p.maxhp,
     relics: [...(p.relics || [])],
     weapon: p.equip.weapon ? affixName(p.equip.weapon) : null,
+    /* 이름이 아니라 물건 자체. 다음 판의 시체가 이걸 쥐고 있어야
+       하는데, 이름만 남기면 그 물건을 다시 만들 수가 없다. */
+    weaponItem: p.equip.weapon ? { ...p.equip.weapon } : null,
     weaponType: p.equip.weapon?.t || null,
     branch: G.branch?.n || null,
     bank: G.bank || 0,
@@ -6655,6 +6823,10 @@ export function startGame(raceKey, classKey, base) {
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
   G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.snares = []; G.sanctum = null; G.bank = 0;
   G.goldEarned = 0;
+  /* 한 판에 한 번씩만 만난다는 표시. 판이 바뀌면 비워야 한다 —
+     안 비웠더니 두 번째 판에서 앞사람이 안 나왔고, 벤치가 그걸
+     잡았다. 「한 번만」의 범위가 판인지 세션인지가 갈리는 자리다. */
+  G.fallenSeen = {};
   G.tally = 0; G.hushUntil = -1; G.resoFound = 0; G.forced = {}; G.uniques = {};
   /* 몇 번째로 내려가는 사람인가. 끝 화면이 이 숫자를 다시 읽는다 —
      앞의 것들이 전부 여기 어딘가에 있다는 뜻이고, 그래서 이 판의

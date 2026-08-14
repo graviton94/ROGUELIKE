@@ -136,6 +136,10 @@ function runBot(race, cls, clear, opt = {}) {
   let traded = false;   // one visit per floor; the bot has no other reason to stop
 
   while (G.running && guard++ < 60000) {
+    /* 판이 도는 동안 바깥에서 들여다볼 수 있는 자리. 규칙 파일에
+       탐침용 배열을 심지 않기 위해 여기 둔다 — game.js는 규칙만
+       알아야 하고, 무엇을 재고 싶은지는 재는 쪽 사정이다. */
+    if (opt.onTurn) opt.onTurn(G);
     for (const e of (G.fx || [])) {
       if (e.t === 'hit' && e.crit) st.crits++;
       if (e.t === 'hit' && e.sneak) st.sneaks++;

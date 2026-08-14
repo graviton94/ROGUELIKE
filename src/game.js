@@ -231,6 +231,9 @@ export function createHero(raceKey, classKey, base) {
 /* 한 방에 최대 체력의 이만큼을 잃으면 상처가 남는다. 스치는 것마다
    상처가 되면 그것은 상처가 아니라 그냥 피해다. */
 export const WOUND_AT = 0.10;
+/* 한 방이 지금 당장 가져갈 수 있는 최대치. 넘은 몫은 사라지지
+   않고 상처로 옮겨 간다 — 총량은 같고, 오는 속도만 달라진다. */
+export const BLOW_CAP = 0.32;
 export const WOUND_SHARE = 0.50;      // 그 피해의 몇 할이 천장에서 깎이는가
 export const WOUND_CAP = 0.45;        // 천장은 절반 아래로는 안 내려간다
 
@@ -718,7 +721,41 @@ function quarry(m) {
     fx({ t:'quarry', x:p.x, y:p.y, hp: p.hp - before });
 }
 
-function tookHit(dmg = 0) {
+/* ── 피가 깎이는 단 한 자리 ──────────────────────────────
+   여섯 군데가 저마다 `p.hp -= dmg`를 하고 저마다 tookHit을 불렀다.
+   그중 넷은 인자 없이 불러서 화살도, 장판도, ? 방의 피해도 상처를
+   남기지 않았다 — 「큰 한 방은 상처가 된다」가 근접 공격에만
+   조용히 참이었던 셈이다.
+
+   이제 피는 여기서만 깎인다. 상한도, 상처도, 숨 잠금도 한 자리에
+   있으므로 새 피해원이 생겨도 규칙을 다시 적을 일이 없다.
+   돌려주는 값은 「실제로 깎인 만큼」이라, 부르는 쪽은 그것을 그대로
+   로그와 이펙트에 쓰면 된다 — 50을 맞았다고 적어 놓고 32만 깎는
+   것은 연출이 아니라 거짓말이다.
+
+   ── 절벽을 비탈로 ──
+   죽기 10턴 전 체력 70%, 5턴 전 68%, 그리고 죽음. 이 판의 죽음은
+   말라 죽는 것이 아니라 다섯 턴짜리 절벽이었고, 그래서 판의
+   대부분을 멀쩡한 몸으로 걷게 된다 — 멀쩡하면 결정이 없다.
+
+   한 방이 최대 체력의 BLOW_CAP을 넘으면 넘은 몫은 지금 깎이지
+   않는다. 대신 그만큼이 통째로 상처가 된다. 빼앗기는 총량은 같다.
+   달라지는 것은 그 총량이 한 턴에 오느냐 남은 판 내내 따라오느냐고,
+   그 차이가 절벽과 비탈의 차이다. */
+export function hurtPlayer(dmg, opt = {}) {
+  const p = G.player;
+  if (!p) return 0;
+  let taken = Math.max(1, Math.round(dmg));
+  let over = 0;
+  const cap = Math.max(1, Math.round(p.maxhp * BLOW_CAP));
+  if (taken > cap) { over = taken - cap; taken = cap; }
+  p.hp -= taken;
+  if (opt.combo !== false) breakCombo(false);
+  tookHit(taken, over);
+  return taken;
+}
+
+function tookHit(dmg = 0, over = 0) {
   const p = G.player;
   /* You cannot catch your breath while something is hitting you.
      Stamped here rather than at the two damage sites so an arrow
@@ -727,8 +764,8 @@ function tookHit(dmg = 0) {
   /* 상처도 같은 자리에서 남는다. 큰 한 방만 천장을 깎는다 —
      스치는 것마다 상처가 되면 그것은 상처가 아니라 그냥 피해다.
      천장은 recalc이 다시 세우므로 여기서는 값만 얹는다. */
-  if (dmg >= p.maxhp * WOUND_AT) {
-    const w = Math.max(1, Math.round(dmg * WOUND_SHARE));
+  if (over > 0 || dmg >= p.maxhp * WOUND_AT) {
+    const w = Math.max(1, Math.round(dmg * WOUND_SHARE) + over);
     p.wound = (p.wound || 0) + w;
     recalc(p);
     say(`상처가 남았다. 견딜 수 있는 몸이 ${w}만큼 줄었다.`, 'hit');
@@ -2663,9 +2700,7 @@ function forceDoor(x, y) {
                      + tries * 0.05, 0.04, 0.85);
   if (p.stam >= FORCE_STAM) p.stam -= FORCE_STAM;
   else {
-    const hurt = FORCE_HURT + Math.floor(G.depth / 2);
-    p.hp -= hurt;
-    tookHit();
+    const hurt = hurtPlayer(FORCE_HURT + Math.floor(G.depth / 2), { combo:false });
     say(`어깨로 밀어붙였다. 숨이 없어 몸이 대신 받는다. (−${hurt})`, 'hit');
     fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg:hurt, who:'잠긴 문', severe:false });
     if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'잠긴 문' }); return; }
@@ -3109,8 +3144,7 @@ function bumpProp(x, y) {
          are worth breaking, a fifth of them bite. */
       const r = Math.random();
       if (r < 0.20) {
-        const dmg = roll(2, 4 + Math.floor(G.depth * 0.8));
-        p.hp -= dmg; breakCombo(false); tookHit(dmg);
+        const dmg = hurtPlayer(roll(2, 4 + Math.floor(G.depth * 0.8)));
         say(`항아리에서 검은 것이 터져 나왔다. ${dmg}의 피해.`, 'bad');
         fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, severe: dmg >= p.maxhp * 0.18 });
         afflict(p, 'poison', 10 + rnd(8));
@@ -4447,8 +4481,7 @@ function monsterMelee(m) {
     (roll(2, Math.max(3, Math.floor(m.atk * 0.72))) - Math.floor(ac / 5))
     * (heavy ? 2.5 : 1) * (1 + (p.perm?.takeMore || 0))) - gearBonus(p).flatDR);
   dmg = sanctumSoak(dmg);
-  p.hp -= Math.max(1, dmg);
-  breakCombo(false); tookHit(dmg); faithForBlow(dmg);
+  dmg = hurtPlayer(dmg); faithForBlow(dmg);
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        who:m.n, spr:m.spr, severe: dmg >= p.maxhp * 0.18 });
   say(`${heavy ? '당겼던 것이 떨어졌다. ' : ''}${takenLine(m.n, dmg, p.maxhp, nextLine())} (${dmg})`, 'hit');
@@ -4518,10 +4551,9 @@ function monsterShoot(m) {
     fx({ t:'miss', x:p.x, y:p.y });
     return;
   }
-  const dmg = sanctumSoak(Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.6)))
-    - Math.floor(ac / 6) - gearBonus(p).flatDR));
-  p.hp -= dmg;
-  breakCombo(false); tookHit(); faithForBlow(dmg);
+  const dmg = hurtPlayer(sanctumSoak(Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.6)))
+    - Math.floor(ac / 6) - gearBonus(p).flatDR)));
+  faithForBlow(dmg);
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        who:m.n, spr:m.spr, arrow:true, severe: dmg >= p.maxhp * 0.18 });
   say(`멀리서 날아왔다. ${takenLine(m.n, dmg, p.maxhp, nextLine())} (${dmg})`, 'hit');
@@ -4669,9 +4701,7 @@ function resolveHazard(h) {
       fx({ t:'resist', x:p.x, y:p.y });
     } else {
       const ac = armourClass(p);
-      const dmg = Math.max(1, Math.round((h.dmg - ac * 0.25) * (1 + (p.perm?.takeMore || 0))));
-      p.hp -= dmg;
-      breakCombo(false); tookHit();
+      const dmg = hurtPlayer(Math.max(1, Math.round((h.dmg - ac * 0.25) * (1 + (p.perm?.takeMore || 0)))));
       fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, who:PATTERNS[h.key].n, spr:'trap',
            low: p.hp <= p.maxhp * 0.25 && p.hp + dmg > p.maxhp * 0.25, severe:true });
       say(`${h.owner}의 ${PATTERNS[h.key].n}에 ${dmg}의 피해.`, 'hit');
@@ -5307,7 +5337,7 @@ function eventApi() {
       say(`체력 +${got}.`, 'good');
     },
     hurt: (n, from) => {
-      p.hp -= n; breakCombo(false); tookHit();
+      n = hurtPlayer(n);
       /* `dmg` was a name from the site this was copied out of and
          has never existed here. It threw the moment a ? room dealt
          damage that pushed you across the quarter-health line —

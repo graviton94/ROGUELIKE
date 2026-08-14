@@ -1373,7 +1373,28 @@ function showRelicList() {
 }
 
 /* ── screens ────────────────────────────────────────────── */
+/* ── 손가락 밑에서 열리는 창 ──────────────────────────────
+   ? 자리를 밟으면 사건 화면이 뜬다. 그 화면은 방금 밟은 자리 위에,
+   즉 손가락 바로 밑에 열린다. 이동 버튼을 꾹 누르고 있었다면 손은
+   아직 내려가 있고, 떼는 순간의 click은 새로 생긴 선택지로 간다 —
+   읽지도 않은 선택을 누른 셈이 된다. 계단·모닥불·제단도 같은 방식으로
+   당했다.
+
+   두 겹으로 막는다.
+     · 창이 열리고 ARM_MS 동안은 어떤 선택도 받지 않는다.
+     · 그 뒤에도, 그 버튼 위에서 시작하지 않은 누름은 무시한다.
+   두 번째가 없으면 꾹 누른 손가락이 350ms를 그냥 넘겨 버린다.
+   반대로 첫 번째가 없으면 창이 열리자마자 새로 찍는 손을 못 막는다. */
+export const ARM_MS = 350;
+let armUntil = 0;
+export const armScreens = () => { armUntil = Date.now() + ARM_MS; };
+export const armed = () => Date.now() >= armUntil;
+
 export function setScreen(name) {
+  /* 같은 화면을 다시 그리는 것은 새로 열리는 것이 아니다 — d-pad가
+     모닥불 화면을 매 걸음 다시 그리므로, 여기서 구분하지 않으면
+     불 앞에서는 아무 버튼도 영영 눌리지 않는다. */
+  if (name !== G.screen) armScreens();
   G.screen = name;
   if (name !== 'play') stopAuto();
   /* Paper floats over the map rather than inside a screen, so it
@@ -3919,7 +3940,35 @@ function press(dx, dy) {
 
 const release = () => { held = null; heldCount = 0; };
 
+/* 위의 두 겹을 실제로 거는 자리. 캡처 단계에서 잡아채므로 개별
+   버튼의 onclick은 이 규칙을 몰라도 되고, 새 화면을 만들 때 이걸
+   붙이는 걸 잊을 일도 없다.
+
+   키보드로 누른 click(detail === 0)은 통과시킨다 — 손가락이 없었던
+   누름은 손가락 때문에 생기는 사고와 무관하고, 헤드리스 벤치가
+   화면을 두드리는 방법도 이것이다. */
+const GUARDED = ['sc-camp', 'sc-altar', 'sc-stairs', 'sc-event', 'sc-relic',
+                 'sc-anvil', 'sc-shop', 'sc-inv', 'sc-spell', 'ask'];
+function guardScreens() {
+  const boxOf = t => (t?.closest ? t.closest(GUARDED.map(id => `#${id}`).join(',')) : null);
+  let downOn = null;
+  document.addEventListener('pointerdown', e => {
+    if (!boxOf(e.target)) { downOn = null; return; }
+    if (!armed()) { e.preventDefault(); e.stopPropagation(); downOn = null; return; }
+    downOn = e.target.closest('button') || e.target;
+  }, true);
+  document.addEventListener('click', e => {
+    const btn = boxOf(e.target) && e.target.closest?.('button');
+    if (!btn) return;
+    if (e.detail === 0) return;                 // 키보드·벤치
+    if (armed() && downOn === btn) { downOn = null; return; }
+    e.preventDefault(); e.stopPropagation();
+    downOn = null;
+  }, true);
+}
+
 export function bindInput() {
+  guardScreens();
   for (const btn of document.querySelectorAll('#dpad button')) {
     const [dx, dy] = btn.dataset.dir.split(',').map(Number);
     btn.addEventListener('pointerdown', e => {

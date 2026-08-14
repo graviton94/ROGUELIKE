@@ -121,14 +121,14 @@ await pg.evaluate(async ({ W, H }) => {
 
   c.save();
   c.shadowColor = 'rgba(0,0,0,0.85)'; c.shadowBlur = 14;
-  line('사람이 판 것이 셋, 그 아래에서 깨어난 것이 하나.', 328, 28, PALETTE.G);
+  line('아래에 있는 것이 세상을 먹고 있다. 아무도 돌아오지 못했다.', 328, 25, PALETTE.G);
   c.restore();
 
   /* 아래 한 줄은 「무엇인가」를 정확히 말한다. 미리보기를 보는
      사람은 이 한 줄로 열지 말지를 정한다. */
   c.save();
   c.shadowColor = 'rgba(0,0,0,0.9)'; c.shadowBlur = 18;
-  line('25층 · 여섯 직업 · 죽으면 끝', H - 36, 27, PALETTE.y);
+  line('15층 · 여섯 직업 · 올라가는 길은 없다', H - 36, 26, PALETTE.y);
   c.restore();
 
   /* ── 테두리 ────────────────────────────────────────────

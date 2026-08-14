@@ -39,6 +39,49 @@
 const pct = (api, f) => Math.max(1, Math.round(api.p.maxhp * f));
 
 export const EVENTS = [
+  /* ── 앞서 내려간 자들 ─────────────────────────────────────
+     이 게임의 세계관은 한 줄이다: 아래에 있는 것이 세상을 먹고
+     있고, 그것을 죽이는 것 말고는 방법이 없고, 아무도 돌아오지
+     못했다. 앞의 둘은 지역 문장이 말한다. 세 번째는 **여기서**
+     말해야 한다 — 앞서 죽은 자를 실제로 만나야 「아무도 돌아오지
+     못했다」가 통계가 아니라 시체가 된다.
+
+     셋 다 같은 것을 준다: 앞 사람이 들고 있던 것. 다른 것은
+     그것을 가져가는 값이다. 그리고 셋 다 「그냥 묻어 준다」를
+     남겨 둔다 — 아무것도 안 하는 선택지가 있어야 가져가는 것이
+     결정이 된다. */
+  {
+    id:'thelast', n:'앞서 간 자', w:9,
+    t:'벽에 기대 앉은 채로 말라 있다. 무릎 위에 배낭이 그대로 있고, 손은 아직 그것을 쥐고 있다. 목에 걸린 패에 번호가 찍혀 있다 — 당신 것보다 작은 숫자다.',
+    opts:[
+      { n:'배낭을 연다', t:'그가 여기까지 들고 온 것을 가져간다.',
+        run: api => {
+          api.mats({ scrap: 4 + api.rnd(6), dust: 2 + api.rnd(3) });
+          api.gold(40 + api.rnd(60));
+          api.say('쓸 만한 것이 남아 있었다. 그는 여기까지 잘 왔다.', 'good');
+        } },
+      { n:'손에 쥔 것을 편다', t:'끝까지 놓지 않은 것이다. 굳은 손가락을 펴야 한다.',
+        odds:0.62, risk:'뼈가 부러지는 소리에 층이 깨어난다',
+        run: api => { api.item(6); api.say('그가 마지막까지 쥐고 있던 것이다.', 'level'); },
+        fail: api => { api.rouse(11); api.say('마른 뼈가 부러졌다. 그 소리가 멀리 갔다.', 'bad'); } },
+      { n:'패를 떼어 묻어 준다', t:'가져갈 것은 없다. 대신 다음이 덜 무섭다.',
+        run: api => { api.heal(pct(api, 0.10)); api.say('번호를 주머니에 넣었다. 위로 가져갈 사람이 있을지도 모른다.', 'good'); } },
+    ],
+  },
+  {
+    id:'scratch', n:'벽에 긁어 놓은 것', w:8,
+    t:'돌에 손톱으로 판 글씨다. 이름 여섯과, 그 아래 한 줄. 「여기서부터는 불을 끄지 마라.」 마지막 이름 옆에는 아무것도 없다.',
+    opts:[
+      { n:'읽고 새긴다', t:'앞 사람들이 알아낸 것을 믿는다.',
+        run: api => { api.oil(260); api.say('기름통을 다시 채웠다. 그들이 옳았기를.', 'good'); } },
+      { n:'내 이름도 새긴다', t:'다음 사람이 여기까지 왔다는 것을 알게 된다.',
+        run: api => {
+          api.xp(30 + api.depth * 10);
+          api.say('일곱 번째 이름을 팠다. 손톱이 갈라졌지만 팔 만했다.', 'level');
+        } },
+      { n:'지나친다', t:'읽을 시간이 없다.', run: api => api.say('글씨를 등지고 걸었다.') },
+    ],
+  },
   /* ── open to anyone ─────────────────────────────────────── */
   {
     id:'well', n:'말라붙은 우물', w:10,
@@ -204,7 +247,7 @@ export const EVENTS = [
         run: api => { api.heal(pct(api, 0.18)); api.spendClock(20);
                       api.say('독한 술이었다. 정신을 차리니 한참 지나 있었다.', 'good'); } },
       { n:'털어버린다', t:'금화를 빼앗는다. 상인들이 알게 된다.',
-        run: api => { const g = 90 + api.rnd(140); api.p.gold += api.gold(g); api.infamy(0.35); api.say(`${g}닢을 빼앗았다. 소문이 빠를 것이다.`, 'warn'); } },
+        run: api => { const g = 90 + api.rnd(140); api.gold(g); api.infamy(0.35); api.say(`${g}닢을 빼앗았다. 소문이 빠를 것이다.`, 'warn'); } },
     ],
   },
   {
@@ -226,7 +269,7 @@ export const EVENTS = [
       { n:'열어 본다', t:'물약 셋. 그중 하나는 나쁜 것이다.',
         run: api => { api.givePotion(3, true); api.say('세 병이 굴러 나왔다.', 'good'); } },
       { n:'상인에게 팔 셈으로 챙긴다', t:'금화. 무거워서 이 층 시계가 25턴 줄어든다.',
-        run: api => { const g = 120 + api.rnd(120); api.p.gold += api.gold(g); api.spendClock(25);
+        run: api => { const g = 120 + api.rnd(120); api.gold(g); api.spendClock(25);
                       api.say(`무겁지만 값은 됐다. ${g}닢.`, 'good'); } },
     ],
   },
@@ -274,7 +317,7 @@ export const EVENTS = [
       { n:'표식을 따라간다', t:'이 층 상자 전부의 위치를 알고, 내용이 한 번 더 늘어난다.',
         run: api => { api.revealChests(true); api.say('벽마다 표식이 이어져 있었다.', 'level'); } },
       { n:'표식을 지운다', t:'금화. 다음 층 상자가 두 배.',
-        run: api => { api.p.gold += api.gold(150 + api.rnd(150)); api.nextFloor({ chests: 2 }); api.say('지운 자리에 당신 매듭을 남겼다.', 'good'); } },
+        run: api => { api.gold(150 + api.rnd(150)); api.nextFloor({ chests: 2 }); api.say('지운 자리에 당신 매듭을 남겼다.', 'good'); } },
     ],
   },
   {

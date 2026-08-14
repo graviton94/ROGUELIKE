@@ -2124,7 +2124,12 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     if (region.n !== G.regionAt) {
       G.regionAt = region.n;
       say(region.line, 'level');
-      if (Meta.see('regions', region.n)) lore('처음 밟는 곳', region.n, region.t, 'stairsDown');
+      /* 그리고 왜 여기 있는지. 구역이 바뀔 때마다 위의 소식이
+         한 줄 나빠지고, 앞서 내려간 자들의 흔적이 한 줄 줄어든다.
+         이 게임에서 유일하게 「밖」을 말하는 자리다. */
+      if (region.stake) say(region.stake, 'warn');
+      if (Meta.see('regions', region.n))
+        lore('처음 밟는 곳', region.n, `${region.t}\n\n${region.stake || ''}`, 'stairsDown');
     }
   }
   if (depth > 0 && L.theme?.n) say(`${L.theme.n}이다.`, 'warn');
@@ -4196,10 +4201,11 @@ function takeStairs(branch) {
    그래서 내려온 구멍은 닫힌다. 아래에서 만나는 모닥불·행상인·모루가
    유일한 보급이 되고, 「지금 살까 말까」가 진짜 결정이 된다.
 
-   그리고 이것이 이 게임의 이야기이기도 하다. 당신은 팔려 왔다.
-   위에서 아무도 당신이 돌아오기를 기다리지 않는다. */
+   그리고 이것이 이 게임의 이야기이기도 하다. 도르래는 내려보내는
+   데만 쓴다 — 지금까지 그것으로 올라온 사람이 없었으므로, 아무도
+   올리는 쪽을 만들어 두지 않았다. */
 export function ascend() {
-  say('올라가는 길은 없다. 내려온 구멍은 등 뒤에서 닫혔다.', 'warn');
+  say('올라가는 길은 없다. 도르래는 내려보내는 데만 쓴다.', 'warn');
 }
 
 export function endTurn(skipMonsters = false) {
@@ -5060,13 +5066,19 @@ export const MAX_PLUS = 10;   // 8에서 올렸다 — 위쪽 네 칸이 벼랑�
 /* 정예가 남기는 것의 수. 셋을 굴려 놓고 하나만 가져간다. */
 export const SPOIL_PICKS = 3;
 
-/* ── 빚 ────────────────────────────────────────────────────
-   당신은 스스로 온 것이 아니다. 목에 채운 것이 그 값이고, 갚기
-   전에는 위로 올라갈 수 없다 — 정확히는, 올라가는 길이 없다.
-   숫자 하나가 「왜 내려가는가」와 「왜 금화를 줍는가」를 동시에
-   설명한다. 아무도 25층까지 가서 갚지 못했다. */
-export const DEBT_BASE = 12000;
-export const DEBT_PER_ABYSS = 4000;
+/* ── 왜 내려가는가 ─────────────────────────────────────────
+   아래에 있는 것이 세상을 먹고 있다. 그것을 죽이는 것 말고는
+   방법이 없고, 그래서 사람들은 계속 내려보낸다. 아무도 돌아오지
+   못했다 — 한 사람도.
+
+   그래서 당신은 「모험가」가 아니라 「이번 사람」이다. 앞의 것들이
+   어디까지 갔는지는 그들이 남긴 것으로만 안다. 이것이 기억(메타
+   진행)이 왜 남는지도 같이 설명한다: 남는 것은 네 실력이 아니라
+   앞서 죽은 자들이 벽에 긁어 놓은 것이다.
+
+   빚 이야기를 한 번 썼다가 물렸다. 사명감이 있어야 이 가혹함이
+   비극이 되지, 팔려 온 사람의 이야기면 그냥 불행이다. */
+export const sentDown = () => (Meta.read().runs || 0) + 1;
 export const MAX_SPELL_PLUS = 5;
 const capFor = t => (t.type === 'spell' || t.kind === 'spell' ? MAX_SPELL_PLUS : MAX_PLUS);
 
@@ -5698,7 +5710,23 @@ function eventApi() {
       }
       if (parts.length) say(`${parts.join(' · ')}을(를) 얻었다.`, 'good');
     },
-    gold: n => goldGain(n),
+    /* 여기 있는 `gold`는 **주는** 함수여야 한다. 여태 값만 계산해
+       돌려주고 지갑에는 손을 안 댔고, 그래서 부르는 쪽마다
+       `api.p.gold += api.gold(g)`라고 적어야 했다 — 그 한 조각을
+       빠뜨린 사건은 조용히 아무것도 주지 않는다. 실제로 새로 쓴
+       사건에서 바로 그렇게 됐다. 이제 여기서 넣는다. */
+    gold: n => { const got = goldGain(n); p.gold += got; return got; },
+    /* 물건 하나. 깊이를 받아 굴리고, 배낭이 차 있으면 발밑에 둔다 —
+       사건이 준 것이 「배낭이 가득 찼다」 한 줄로 사라지면 안 된다. */
+    item: (depth = G.depth + 2, affix = true) => {
+      const it = pickItem(depth);
+      if (!it) return null;
+      if (affix) rollAffixes(it, depth + 4, true);
+      if (packRoom(p, it)) addItem(p, it);
+      else { G.items.push({ ...it, x: p.x, y: p.y }); say('배낭이 차서 발밑에 두었다.', 'warn'); }
+      fx({ t:'found', x:p.x, y:p.y, rar: rarityOf(it) });
+      return it;
+    },
 
     /* body */
     heal: n => {
@@ -6456,7 +6484,7 @@ export function summarise(win, by) {
     race: p.race, cls: p.cls, lv: p.lv,
     depth: G.depth, turn: G.turn,
     gold: p.gold, combo: G.bestCombo || 0,
-    debt: G.debt || 0,
+    sent: G.sent || 1,          // 몇 번째로 내려간 사람이었나
     /* 가진 것이 아니라 번 것. 가진 것으로 세면 쓰는 것이 점수를
        깎는 일이 되고, 그러면 모루와 상점을 안 쓰는 쪽이 이득이 된다. */
     earned: G.goldEarned || 0,
@@ -6606,10 +6634,10 @@ export function startGame(raceKey, classKey, base) {
   G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.snares = []; G.sanctum = null; G.bank = 0;
   G.goldEarned = 0;
   G.tally = 0; G.hushUntil = -1; G.resoFound = 0; G.forced = {}; G.uniques = {};
-  /* 목에 채운 값. 이 판을 시작하게 만든 숫자이고, 끝 화면에서
-     「얼마나 갚았나」로 다시 읽힌다 — 금화가 점수가 아니라 빚이
-     되는 지점이다. 심연이 깊을수록 더 비싸게 팔려 왔다. */
-  G.debt = DEBT_BASE + (G.abyss || 0) * DEBT_PER_ABYSS;
+  /* 몇 번째로 내려가는 사람인가. 끝 화면이 이 숫자를 다시 읽는다 —
+     앞의 것들이 전부 여기 어딘가에 있다는 뜻이고, 그래서 이 판의
+     실패도 다음 사람에게는 자료가 된다. */
+  G.sent = sentDown();
   G.pendingAltar = null;
   shuffleAppearances(G.player);
 
@@ -6645,9 +6673,14 @@ export function startGame(raceKey, classKey, base) {
      그 값이고, 위에서는 아무도 당신이 돌아오기를 기다리지 않는다.
      이 세 줄이 「올라갈 수 없다」와 「죽으면 다음 사람이 내려간다」를
      동시에 설명한다 — 규칙이 곧 이야기가 되는 자리다. */
-  say('갱구다. 여기서부터는 네 발로 간다.', 'warn');
-  say(`목의 쇠가 차다. ${G.debt}닢 — 갚거나, 아래에 남거나.`, 'bad');
-  say('뒤에서 도르래가 감기는 소리. 아무도 배웅하지 않는다.', '');
+  say('갱구다. 아래에 있는 것이 세상을 먹고 있다.', 'warn');
+  /* 첫 판에서 「앞의 0은 돌아오지 않았다」가 나왔다. 숫자를 그냥
+     끼워 넣으면 이런 문장이 나온다 — 첫 사람에게는 첫 사람의 말이
+     있어야 한다. */
+  say(G.sent === 1
+    ? '아무도 이 아래를 본 적이 없다. 네가 처음이다.'
+    : `${G.sent}번째다. 앞의 ${G.sent - 1}명 중 아무도 돌아오지 않았다.`, 'bad');
+  say('배웅은 없다. 배웅할 사람들은 이미 이 일에 지쳤다.', '');
   if (G.memories.length)
     say(`기억이 남아 있다 — ${G.memories.map(id => MEMORIES.find(x => x.id === id).n).join(' · ')}.`, 'good');
   if (G.abyss)

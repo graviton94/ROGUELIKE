@@ -151,21 +151,33 @@ export const SHACKLE_STAT = 1.22;
    Everything the player finds is one of those three layers
    leaking into the others — dwarf masonry with cinders in the
    mortar, a shrine with the wrong god's name filed off.       */
+/* `stake`는 이 구역에서 「위가 어떻게 되고 있는가」와 「앞서 내려간
+   자들이 어디까지 왔는가」를 한 줄로 말한다. 층 이름과 분위기는
+   이미 있었는데 **이유**가 없었다 — 왜 내려가는지, 안 내려가면
+   어떻게 되는지가 어디에도 안 적혀 있었다.
+
+   깊어질수록 두 가지가 같이 변한다: 위의 소식은 나빠지고, 앞선
+   자들의 흔적은 줄어든다. 마지막 구역에는 흔적이 없다. */
 export const REGIONS = [
   { from:1,  to:3,  n:'무너진 성채',
     t:'사람이 지은 마지막 층들이다. 계단은 넓고 문에는 아직 경첩이 남아 있다.',
-    line:'무너진 성채 — 사람이 지은 마지막 곳이다. 여기까지는 지도가 있었다.' },
+    line:'무너진 성채 — 사람이 지은 마지막 곳이다. 여기까지는 지도가 있었다.',
+    stake:'여기까지는 다들 왔다. 벽에 긁어 놓은 이름이 많다.' },
   { from:4,  to:7,  n:'드워프 갱도',
     t:'성채 아래를 파고 들어간 갱도. 다듬은 돌이 끝나고 파낸 흙이 시작된다.',
-    line:'드워프 갱도 — 다듬은 돌이 끝났다. 여기부터는 파낸 자국뿐이다.' },
+    line:'드워프 갱도 — 다듬은 돌이 끝났다. 여기부터는 파낸 자국뿐이다.',
+    stake:'이름이 드물어진다. 대신 물건이 늘어난다 — 놓고 간 것이 아니라 떨어뜨린 것들이다.' },
   { from:8,  to:10, n:'잊힌 성소',
     t:'갱도가 뚫고 들어간 것. 누구를 모시던 곳인지는 벽에서 긁어내져 있다.',
-    line:'잊힌 성소 — 벽마다 이름이 긁혀 있다. 무엇을 모셨는지 아무도 적어두지 않았다.' },
+    line:'잊힌 성소 — 벽마다 이름이 긁혀 있다. 무엇을 모셨는지 아무도 적어두지 않았다.',
+    stake:'여기부터는 소문으로만 안다. 여기를 보고 올라간 사람이 없다.' },
   { from:11, to:14, n:'잿불 아래',
     t:'돌이 따뜻하다. 이 아래에서 무언가가 아주 오래 타고 있다.',
-    line:'잿불 아래 — 돌이 따뜻하다. 발밑에서 무언가가 아직 타고 있다.' },
+    line:'잿불 아래 — 돌이 따뜻하다. 발밑에서 무언가가 아직 타고 있다.',
+    stake:'위의 강이 마르기 시작한 것이 이 무렵부터라고 했다. 아래에서 무언가가 마시고 있다.' },
   { from:15, to:15, n:'대군주의 화로',
     t:'타고 있는 것의 한가운데.',
+    stake:'여기에는 이름이 없다. 아무도 이만큼 오지 못했다.',
     line:'대군주의 화로 — 여기가 타고 있는 것의 한가운데다.' },
 ];
 
@@ -373,7 +385,7 @@ export const IMMUNE = {
    regen: hp regained per turn                                */
 export const MONSTERS = [
   { spr:'rat',     n:'커다란 쥐',        d:1,  rar:10, hp:5,   atk:3,  ac:1,  xp:2,   ai:'hunt',    grp:[1,3],
-    lore:'성채가 사람 것이던 시절부터 여기 있었다. 사람이 먼저 나갔을 뿐이다.' },
+    lore:'성채가 사람 것이던 시절부터 여기 있었다. 요즘은 내려오는 사람이 많아 잘 먹는다.' },
   { spr:'bat',     n:'과일 박쥐',        d:1,  rar:9,  hp:6,   atk:3,  ac:3,  xp:3,   ai:'erratic', spd:1.7,
     lore:'과일은 오래전에 없어졌는데 이름만 남았다. 지금은 다른 걸 먹는다.' },
   { spr:'mold',    n:'회색 곰팡이',      d:1,  rar:5,  hp:14,  atk:5,  ac:1,  xp:5,   ai:'still',   on:'poison',
@@ -398,17 +410,17 @@ export const MONSTERS = [
   { spr:'kobold',  n:'코볼드 투석꾼',    d:2,  rar:7,  hp:9,   atk:5,  ac:3,  xp:11,  ai:'ranged',  rng:5, spd:0.65, grp:[1,2], door:'open',
     lore:'던질 것이 떨어지면 자기 이빨을 뽑아 던진다는 말이 있다. 확인한 사람은 없다.' },
   { spr:'dog',     n:'들개',             d:2,  rar:9,  hp:11,  atk:6,  ac:3,  xp:9,   ai:'coward',  spd:1.3, grp:[2,3],
-    lore:'누군가 데리고 내려왔던 개들이다. 데리고 올라간 사람은 없었다.' },
+    lore:'누군가 데리고 내려왔던 개들이다. 개는 남고 사람은 남지 않았다.' },
   { spr:'jelly',   n:'푸른 젤리',        d:3,  rar:5,  hp:34,  atk:8,  ac:1,  xp:20,  ai:'still',   on:'slow',
-    lore:'다 녹인 뒤에도 자기가 무엇을 녹였는지 안쪽에 남긴다. 반지가 떠 있는 것을 본 적 있다.' },
+    lore:'다 녹인 뒤에도 자기가 무엇을 녹였는지 안쪽에 남긴다. 번호가 찍힌 패가 떠 있는 것을 본 적 있다.' },
   { spr:'spider',  n:'동굴 거미',        d:3,  rar:8,  hp:16,  atk:8,  ac:5,  xp:16,  ai:'hunt',    spd:1.3, on:'poison', web:true,
     lore:'줄을 치는 것이 아니라 길을 짜는 것에 가깝다. 자기 길은 걸어서 지난다.' },
   { spr:'orc',     n:'오크 병사',        d:3,  rar:11, hp:24,  atk:10, ac:7,  xp:24,  ai:'hunt',    grp:[2,4], door:'open',
     lore:'갱도를 파던 드워프를 밀어낸 쪽. 그래서 곡괭이 자국이 남은 갑옷을 입는다.' },
   { spr:'orc',     n:'오크 궁수',        d:4,  rar:7,  hp:20,  atk:9,  ac:6,  xp:28,  ai:'ranged',  rng:6, spd:0.7, grp:[1,2], door:'open',
-    lore:'활보다 사거리를 잘 안다. 붙으면 물러나며 쏘는 법을 누가 가르쳤다.' },
+    lore:'활보다 사거리를 잘 안다. 물러나며 쏘는 법은 내려온 것들에게서 배웠을 것이다.' },
   { spr:'orc',     n:'검은 오크',        d:5,  rar:9,  hp:36,  atk:13, ac:9,  xp:42,  ai:'hunt',    grp:[2,4], door:'open',
-    lore:'검게 그을린 것이 아니라 원래 그렇다. 아래쪽에서 올라온 무리다.' },
+    lore:'검게 그을린 것이 아니라 원래 그렇다. 아래쪽에서 올라온 무리이고, 아래쪽은 계속 올려보낸다.' },
   { spr:'dog',     n:'늑대',             d:5,  rar:8,  hp:30,  atk:12, ac:6,  xp:38,  ai:'hunt',    spd:1.35, grp:[2,4],
     lore:'갱도의 소리를 듣고 위에서 내려왔다. 여기서는 무리를 이루는 편이 오래 산다.' },
   /* The lore promised a wind-up for four months and the field was
@@ -451,13 +463,13 @@ export const MONSTERS = [
      deeper floor should ask a different question, not the same
      question with bigger numbers. */
   { spr:'ashhound', n:'재의 사냥개',      d:10, rar:8,  hp:62,  atk:22, ac:15, xp:140, ai:'hunt',    spd:1.45, grp:[3,5], door:'open',
-    lore:'화로 둘레를 도는 것들. 한 마리를 보았다면 이미 세 마리가 뒤에 있다.' },
+    lore:'화로 둘레를 도는 것들. 저 불이 커질수록 수가 는다 — 위에서 강이 마르는 것과 같은 속도로.' },
   { spr:'warden',   n:'화로지기',         d:10, rar:7,  hp:130, atk:15, ac:21, xp:240, ai:'hunt',    spd:0.6,  door:'smash', heavy:true,
-    lore:'불을 지키라는 명령만 남고 명령한 자는 없다. 팔을 당기는 데 한 박자가 걸린다.' },
+    lore:'불을 지키라는 명령만 남고 명령한 자는 없다. 그 불이 지금 세상을 먹고 있다.' },
   { spr:'ashen',    n:'잿물 먹는 것',     d:12, rar:6,  hp:110, atk:27, ac:16, xp:300, ai:'hunt',    spd:0.9,  drain:0.45, on:'slow',
-    lore:'상처를 삼켜서 제 것으로 만든다. 오래 붙어 있을수록 저쪽이 낫는다.' },
+    lore:'상처를 삼켜서 제 것으로 만든다. 이 아래의 모든 것이 같은 방식으로 산다.' },
   { spr:'thief',    n:'잿불 도굴꾼',      d:12, rar:5,  hp:70,  atk:20, ac:19, xp:260, ai:'coward',  spd:1.5,  thief:true, door:'open',
-    lore:'아래에서 무엇을 파내는지는 아무도 모른다. 자루가 늘 무겁다는 것만 안다.' },
+    lore:'아래에서 무엇을 파내는지는 아무도 모른다. 자루에서 이따금 사람 것이 나온다.' },
   { spr:'emberpriest', n:'화로의 사제',   d:13, rar:5,  hp:105, atk:24, ac:18, xp:400, ai:'hunt',    spd:0.85, casts:['zone','wave'], cool:4, door:'open',
     lore:'화로에 무엇을 바쳤는지 벽에 적혀 있었으나 그 벽도 탔다. 바닥에 먼저 그린다.' },
   { spr:'ashheap',  n:'잿더미 속의 것',   d:15, rar:4,  hp:160, atk:40, ac:26, xp:560, ai:'still',   on:'fear',
@@ -577,8 +589,12 @@ export const NAMED = [
 
    `set` replaces a field outright, `add` adds to it. Both are
    announced before they land. */
+/* 아래에 있는 것. 이것이 세상을 먹고 있고, 이것을 죽이는 것 말고는
+   방법이 없다 — 그래서 사람들은 계속 내려보낸다. 열다섯 층 내내
+   따뜻해지던 돌의 출처이고, 위의 강이 마른 이유다. */
 export const BOSS = {
   spr:'balemperor', n:'잿불의 대군주', hp:780, atk:46, ac:30, xp:5000,
+  lore:'불을 피우는 것이 아니라 먹는다. 위의 강이 마른 것도, 이 돌이 따뜻한 것도 같은 이유다.',
   ai:'hunt', spd:1.15, on:'fear', door:'smash', regen:4, boss:true, heavy:true,
   casts:['beam', 'wave', 'zone', 'quake'], cool:3,
   phases: [

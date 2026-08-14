@@ -388,6 +388,70 @@ export const SPRITES = {
     '..rrrr....rrrr..',
   ],
 
+  /* ── 이름 있는 것 셋 ────────────────────────────────────
+     지금까지 이 셋은 오우거·망령·큰뱀 그림을 그대로 빌려 쓰고 있었다.
+     여섯 층을 걸어 내려와 만나는 「뼈를 씹는 자」가 조금 전에 열
+     마리쯤 잡은 오우거와 같은 그림이면, 이름이 붙어 있다는 사실이
+     화면에는 없는 것이다 — 이름은 로그에만 있었다.
+
+     대군주와 같은 규칙으로 그린다: 열여섯 칸, 음각은 두 칸부터.
+     그리고 셋의 실루엣이 서로 달라야 한다 — 넓적한 것, 길쭉한 것,
+     감긴 것. */
+  bonechewer: [
+    '................',
+    '....nnnnnnnn....',
+    '...nNNNNNNNNn...',
+    '...nNRNNNNRNn...',
+    '...nNNNNNNNNn...',
+    '...nNwwwwwwNn...',
+    '....nNNNNNNn....',
+    '..nnnNNNNNNnnn..',
+    '.nNNNNNNNNNNNNn.',
+    'nNNNNNNNNNNNNNNn',
+    'nNNNwwNNwwNNNNNn',
+    'nNNNNNNNNNNNNNNn',
+    '.nNNNNNNNNNNNNn.',
+    '..nNNNNNNNNNNn..',
+    '..nNNn....nNNn..',
+    '..nnnn....nnnn..',
+  ],
+  ashpriest: [
+    '................',
+    '.....gggggg.....',
+    '....gGGGGGGg....',
+    '...gGGGGGGGGg...',
+    '...gGGBGGBGGg...',
+    '...gGGGGGGGGg...',
+    '....gGwwwwGg....',
+    '.....gGGGGg.....',
+    '...ggGGGGGGgg...',
+    '..gGGGGGGGGGGg..',
+    '..gGGGwwwwGGGg..',
+    '..gGGGGGGGGGGg..',
+    '...gGGGGGGGGg...',
+    '....gGGGGGGg....',
+    '.....gg..gg.....',
+    '....ggg..ggg....',
+  ],
+  forgecoil: [
+    '................',
+    '...rrrrrrrrrr...',
+    '..rroooooooorr..',
+    '.rroRRRRRRRRorr.',
+    '.roRRrrrrrrRRor.',
+    '.roRrroooorrRor.',
+    '.roRroyyyyorRor.',
+    '.roRroyWWyorRor.',
+    '.roRroyyyyorRor.',
+    '.roRrroooorrRor.',
+    '.roRRrrrrrrRRor.',
+    '.rroRRRRRRRRorr.',
+    '..rroooooooorr..',
+    '...rrrrrrrrrr...',
+    '....rr....rr....',
+    '................',
+  ],
+
   /* items */
   potion: [
     '...ww...',

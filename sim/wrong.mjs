@@ -369,9 +369,14 @@ console.log('\n기형 벤치 — 모두 다 잘못 자랐는가\n');
     const strip = [];
     for (let k = 0; k < t; k++) strip.push(lumAt(k));
     const u = Math.max(1, Math.round(t / 16));
-    /* 벽 속은 가운데, 가장자리는 맨 아랫줄. */
-    const inside = strip[Math.round(t / 2)];
-    const edge = strip[t - 1];
+    /* 한 줄만 집어 재면 화면 흔들림(shakeVec) 몇 픽셀에 값이 뒤집힌다 —
+       81 대 61이 나와서 실패한 적이 있는데, 테두리는 멀쩡히 있었고
+       집은 자리가 두 픽셀 어긋나 있었다. 아래쪽 띠에서 가장 어두운
+       줄과, 속의 중앙값을 비교한다. */
+    const band = strip.slice(Math.max(0, t - u - 2), t);
+    const edge = Math.min(...band);
+    const core = strip.slice(u + 2, t - u - 3).sort((a, b) => a - b);
+    const inside = core[core.length >> 1] || 0;
     return { at: `${best.x},${best.y}`, t, u, inside, edge, strip };
   });
   ok(!!lum, '아래가 바닥인 벽을 화면에서 찾았다', lum?.at);

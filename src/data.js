@@ -553,12 +553,12 @@ export const PATTERNS = {
    arriving together; putting the first named fight on the same
    step made three staircases out of one. */
 export const NAMED = [
-  { at:6,  spr:'ogre',  n:'뼈를 씹는 자', hp:185, atk:14, ac:14, xp:700,
+  { at:6,  spr:'bonechewer', n:'뼈를 씹는 자', hp:185, atk:14, ac:14, xp:700,
     ai:'hunt', spd:0.9, door:'smash', regen:2, heavy:true, named:true,
     casts:['quake', 'zone'], cool:5,
     warn:'뼈를 씹는 자가 아래에서 기다린다',
     intro:'무언가 커다란 것이 이 층에서 기다리고 있다.' },
-  { at:10, spr:'wraith', n:'재 속의 사제', hp:250, atk:20, ac:22, xp:1800,
+  { at:10, spr:'ashpriest', n:'재 속의 사제', hp:250, atk:20, ac:22, xp:1800,
     ai:'hunt', spd:1.1, on:'fear', door:'open', regen:3, heavy:true, named:true,
     casts:['cross', 'wave'], cool:4,
     warn:'재 속의 사제가 아래에서 기다린다',
@@ -577,7 +577,7 @@ export const NAMED = [
      faster, which is its whole identity: kill it quickly or it
      kills you. It sits in its own lair, so the fight is a
      decision the player makes rather than a toll they pay. */
-  { at:13, spr:'wyrm', n:'화로를 감은 것', hp:450, atk:59, ac:32, xp:2600,
+  { at:13, spr:'forgecoil', n:'화로를 감은 것', hp:450, atk:59, ac:32, xp:2600,
     ai:'hunt', spd:1.35, on:'blind', door:'smash', regen:3, heavy:true, named:true,
     casts:['beam', 'wave', 'quake'], cool:3,
     warn:'화로를 감은 것이 아래에서 기다린다',
@@ -2364,6 +2364,15 @@ export const FUSIONS = [
   { a:'toll',   b:'quill',    out:'ledger'  },
   { a:'drum',   b:'echo',     out:'march'   },
 ];
+
+/* 이미 한쪽을 들고 있을 때, 다음에 나오는 유물이 **나머지 한쪽**일
+   확률. 마흔 종에 짝이 여섯 쌍뿐이라, 이것 없이는 융합이 설계가
+   아니라 전설이다 — 서른 판을 돌려 0번 일어났다.
+
+   확실하게(1.0) 하지 않는 이유: 확실하면 그건 조합이 아니라 진행이다.
+   반쯤 걸어 두면 「이 유물을 들고 다니면 짝이 온다」가 되고, 그게
+   들고 다닐 이유가 된다. */
+export const FUSE_PULL = 0.55;
 
 export const fusionOf = (x, y) =>
   FUSIONS.find(f => (f.a === x && f.b === y) || (f.a === y && f.b === x)) || null;

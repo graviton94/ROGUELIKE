@@ -129,6 +129,16 @@ function runBot(race, cls, clear, opt = {}) {
     if (bow) Game.addItem(G.player, bow, 1);
     Game.recalc(G.player);
   }
+  /* 재기 위한 손잡이 하나. 봇은 보통 3~4층에서 죽는데, 「한 판에
+     몇 개가 나오는가」를 물으려면 열다섯 층을 걸어 본 판이 있어야
+     한다. 체력만 올린다 — 낙하 확률은 손대지 않으므로 층당 비율은
+     그대로이고, 다만 층을 더 밟는다. 밸런스를 재는 데는 절대 쓰지 말
+     것: 이건 「오래 사는 사람이 무엇을 줍는가」 전용이다. */
+  if (opt.tough) {
+    G.player.maxhp = Math.round(G.player.maxhp * opt.tough);
+    G.player.hp = G.player.maxhp;
+    Game.recalc(G.player);
+  }
   Game.descend();
   const st = { crits: 0, sneaks: 0, kills: 0, misses: 0, camps: 0, elites: 0, named: 0, shops: 0, broke: 0, events: 0, rolls: 0, branch: {} };
   let path = null, guard = 0, depthAt = G.depth, lastShout = -99, holdUntil = -1;
@@ -140,6 +150,7 @@ function runBot(race, cls, clear, opt = {}) {
        탐침용 배열을 심지 않기 위해 여기 둔다 — game.js는 규칙만
        알아야 하고, 무엇을 재고 싶은지는 재는 쪽 사정이다. */
     if (opt.onTurn) opt.onTurn(G);
+    if (opt.tough && G.player) G.player.hp = G.player.maxhp;
     for (const e of (G.fx || [])) {
       if (e.t === 'hit' && e.crit) st.crits++;
       if (e.t === 'hit' && e.sneak) st.sneaks++;
@@ -685,6 +696,23 @@ function runBot(race, cls, clear, opt = {}) {
   return { depth: G.depth, lv: G.player.lv, win: !!G.ending?.win, turn: G.turn,
            killer: G.ending?.by || '?',
            relics: (G.player.relics || []).length, waves: G.waves || 0,
+           /* 끝에 들고 있는 개수와 판 내내 나온 개수는 다르다.
+              「너무 많이 나온다」를 재려면 나온 쪽을 세야 한다. */
+           relicsTaken: G.relicsTaken || 0, fused: G.fused || 0,
+           relicSrc: G.relicSrc || {},
+           /* 융합은 모닥불에서 재료를 내고 **직접 하는** 행동이라 봇은
+              평생 한 번도 안 한다. 그러니 「0/25판에서 융합」은 게임이
+              아니라 봇을 잰 값이다. 물어야 할 것은 「기회가 있었는가」다:
+              끝에 든 유물 중에 짝이 맞는 쌍이 있는가. */
+           fusable: (() => {
+             const R = (G.player.relics || []);
+             for (let i = 0; i < R.length; i++)
+               for (let j = i + 1; j < R.length; j++)
+                 if (BOWDATA.fusionOf(R[i], R[j])) return 1;
+             return 0;
+           })(),
+           uniques: Object.keys(G.uniques || {}).length,
+           gearTaken: G.gearTaken || 0, rareTaken: G.rareTaken || 0,
            best: G.bestCombo || 0, stuck: guard >= 60000,
            gear: [G.player.equip.weapon, G.player.equip.body, G.player.equip.shield]
                    .filter(Boolean).filter(i => i.pre || i.suf || i.plus).length,

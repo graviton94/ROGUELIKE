@@ -13,7 +13,7 @@ import {
   UPGRADE_SURGE, UPGRADE_SURGE_FROM, UPGRADE_HEX_FROM, UPGRADE_HEX_PCT,
   ENCHANT_CURSE, ENCHANT_CURSE_STEP, ENCHANT_TWIN,
   BOONS, boonById, transChance,
-  FUSIONS, fusionOf, FUSE_ODDS, FUSE_COST,
+  FUSIONS, fusionOf, FUSE_ODDS, FUSE_COST, FUSE_PULL,
   ALTAR_OFFERS, rarityOf, isCursed, RARITY, TEMPLE_SHARE, JACKPOT,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   RELICS, RELIC_SLOTS, relicSlots, relicById, BRANCHES,
@@ -87,6 +87,10 @@ export function takeRelic(id) {
   p.relics = p.relics || [];
   if (p.relics.length >= slotCount()) { G.pendingRelic = id; G.screen = 'relic'; return false; }
   p.relics.push(id);
+  /* 이 판에서 손에 들어온 유물의 총수. 끝에 들고 있는 개수(relics)와는
+     다르다 — 자리가 모자라 버린 것, 융합으로 합쳐진 것이 여기 남는다.
+     「너무 많이 나온다」를 재려면 나온 쪽을 세야 한다. */
+  G.relicsTaken = (G.relicsTaken || 0) + 1;
   const r = relicById(id);
   const first = Meta.see('relics', id);
   say(`${r.n} — ${r.t}`, 'level');
@@ -125,6 +129,7 @@ export function swapRelic(dropIdx) {
        screen into a trap. */
     const r = relicById(id);
     G.items.push({ kind:'relic', id, spr:r.spr, n:r.n, x:p.x, y:p.y });
+    relicFrom('자리없음');
     say(`${r.n}을(를) 발치에 두었다. 마음이 바뀌면 다시 밟으시오.`);
   }
   G.pendingRelic = null;
@@ -1026,6 +1031,13 @@ export function addItem(p, item, qty = 1) {
   }
   if (packUsed(p) + slotCost({ item }) > PACK_MAX) { say('배낭이 가득 찼다.', 'warn'); return false; }
   p.pack.push({ item, qty });
+  /* 이 판에 손에 들어온 장비와, 그중 흔치 않은 것. 「희귀장비도 너무
+     많이 나옴」은 확률표가 아니라 여기서 세야 하는 말이다 — 한 판을
+     끝까지 살면 표에 적힌 3.5%도 열다섯 층 동안 곱해진다. */
+  if (item.kind === 'weapon' || item.kind === 'armour') {
+    G.gearTaken = (G.gearTaken || 0) + 1;
+    if (item.unique || item.pre || item.suf) G.rareTaken = (G.rareTaken || 0) + 1;
+  }
   return true;
 }
 
@@ -2305,8 +2317,9 @@ function populate(depth) {
   if (br.relic) {
     const spot = L.randomFloor(busy);
     const id = unownedRelic();
-    if (spot && id) G.items.push({ kind:'relic', id, spr: relicById(id).spr,
+    if (spot && id) { G.items.push({ kind:'relic', id, spr: relicById(id).spr,
                                    n: relicById(id).n, x: spot.x, y: spot.y });
+      relicFrom('갈림길'); }
   }
 
   /* Chests, and the thing that is pretending to be one. The
@@ -2535,7 +2548,12 @@ export function rollAffixes(item, depth, guaranteed) {
      So the pieces circulate more. Raw power is not what goes up
      — worthOf already prices an affix into what a thing sells and
      salvages for, so the economy takes its own correction. */
-  const odds = clamp(0.11 + depth * 0.033 + luck, 0.04, 0.70);
+  /* 0.11 + 층×0.033이었다. 이유는 맞았지만(한 판에 접사 하나로는
+     조합이 성립하지 않는다) 재 보니 주운 장비의 53%에 접두나 접미가
+     붙어 있었다 — 절반이 희귀하면 희귀한 것이 없는 것이다.
+     기울기를 절반으로 낮춘다. 깊은 층에서 붙는다는 성질은 남기고,
+     얕은 층의 바닥값을 내렸다. */
+  const odds = clamp(0.05 + depth * 0.019 + luck, 0.03, 0.45);
   if (guaranteed || Math.random() < odds) {
     const a = pickAffix(PREFIXES, tag, false);
     if (a) item.pre = a.id;
@@ -4134,8 +4152,9 @@ export function hurtMonster(m, dmg, source, opt = {}) {
       if (rec.gold) { G.player.gold += rec.gold; G.goldEarned = (G.goldEarned || 0) + rec.gold; }
       if (rec.relic) {
         const at = freeSpotNear(m.x, m.y);
-        if (at) G.items.push({ kind:'relic', id:rec.relic, spr: relicById(rec.relic).spr,
+        if (at) { G.items.push({ kind:'relic', id:rec.relic, spr: relicById(rec.relic).spr,
                                n: relicById(rec.relic).n, ...at });
+          relicFrom('앞선자'); }
       }
       say(`${rec.sent}번째가 다시 누웠다. 남긴 것을 전부 거뒀다.`, 'level');
     }
@@ -4143,6 +4162,7 @@ export function hurtMonster(m, dmg, source, opt = {}) {
       const id = unownedRelic();
       if (id) {
         G.items.push({ kind:'relic', id, spr: relicById(id).spr, n: relicById(id).n, x:m.x, y:m.y });
+        relicFrom('이름있는것');
         say(`${relicById(id).n}이(가) 남았다.`, 'level');
         fx({ t:'drop', x:m.x, y:m.y, relic:true, rar:3 });
       }
@@ -4179,6 +4199,16 @@ export function hurtMonster(m, dmg, source, opt = {}) {
 
 /* Relics never repeat within a run — a second 뼈 목걸이 is not a
    choice, it is filler. */
+/* 유물이 어디서 나오는지를 판마다 센다. 「너무 많이 나온다」를 고치려면
+   먼저 **어디서** 나오는지를 알아야 하는데, 정예 낙하 확률을 절반 이하로
+   내려도 층당 개수가 0.85에서 0.83으로밖에 안 떨어졌다 — 정예가 주범이
+   아니었다는 뜻이고, 그걸 모른 채로 숫자를 더 깎았으면 엉뚱한 손잡이만
+   부러뜨렸을 것이다. */
+export function relicFrom(src) {
+  G.relicSrc = G.relicSrc || {};
+  G.relicSrc[src] = (G.relicSrc[src] || 0) + 1;
+}
+
 export function unownedRelic() {
   const held = new Set(G.player?.relics || []);
   // Fused relics are never on a floor and never in a shop. The
@@ -4188,6 +4218,27 @@ export function unownedRelic() {
   const pool = RELICS.filter(r => !held.has(r.id) && !r.fused
     && (!r.myth || G.depth >= 8));
   if (!pool.length) return null;
+  /* ── 짝을 맞춰 준다 ─────────────────────────────────────
+     융합은 유물 **둘을 동시에** 들고 있어야 일어난다. 마흔 종에서
+     짝이 여섯 쌍이니, 손에 다섯을 들고 있어도 짝이 맞을 확률은
+     사실상 없다 — 서른 판을 돌려서 융합이 0번 일어났다. 그래서
+     융합은 설계가 아니라 전설이었다.
+
+     유물 수를 줄이면서 이걸 그대로 두면 영영 못 본다. 그래서 이미
+     한쪽을 들고 있으면, 나오는 유물이 **나머지 한쪽일 확률을 크게
+     올린다.** 개수가 아니라 적중률로 조합을 만든다 — 그리고 이건
+     플레이어에게 「이 유물을 들고 있으면 짝이 온다」는, 들고 다닐
+     이유를 준다.
+
+     확실하게는 안 한다. 확실하면 그건 조합이 아니라 진행이다. */
+  if (held.size) {
+    const wanted = [];
+    for (const f of FUSIONS) {
+      if (held.has(f.a) && !held.has(f.b) && pool.some(r => r.id === f.b)) wanted.push(f.b);
+      if (held.has(f.b) && !held.has(f.a) && pool.some(r => r.id === f.a)) wanted.push(f.a);
+    }
+    if (wanted.length && Math.random() < FUSE_PULL) return wanted[rnd(wanted.length)];
+  }
   for (let guard = 0; guard < 12; guard++) {
     const r = pool[rnd(pool.length)];
     if (!r.myth || Math.random() < 0.25) return r.id;
@@ -4213,14 +4264,35 @@ function dropElite(m) {
   /* 소란이 클수록 좋은 것이 나온다. 위험을 산 값을 여기서 치른다 —
      경험치만 부풀리면 「많이 싸우면 레벨이 는다」는 당연한 소리지,
      걸었다는 느낌이 아니다. */
-  /* 0.22였다. 유물은 이 게임에서 유일하게 규칙을 바꾸는 물건인데,
-     한 판에 서넛 들고 끝나니 「고르는 물건」이 아니라 「가끔 줍는
-     물건」이었다. 자리가 일곱까지 늘어나는 손을 채우려면 나오는
-     쪽도 같이 늘어야 한다. */
-  if (Math.random() < 0.34 * uproarMult()) {
+  /* 0.22 → 0.34로 올렸다가, 재 보고 0.15로 내렸다.
+
+     올린 이유는 맞았다(한 판에 서넛으로는 「고르는 물건」이 안 된다).
+     그런데 sim/drops.mjs로 오래 사는 판을 재 보니 층당 0.85개가
+     나오고 있었다 — 열다섯 층이면 열두 개, 유물 표 마흔 종의 30%를
+     한 판에 본다. 규칙을 바꾸는 물건이 그 정도로 나오면 그건 규칙을
+     바꾸는 물건이 아니라 그냥 장비다.
+
+     대신 나오는 것이 **쓸모 있을** 확률을 올렸다(unownedRelic).
+     개수를 줄이고 적중률을 올리는 쪽이, 개수로 밀어붙이는 것보다
+     「고르는 물건」에 가깝다. */
+  /* ── 층당 하나 ────────────────────────────────────────
+     확률만 깎아서는 안 된다는 것을 재고 나서 알았다. 0.34에서 0.15로
+     내렸는데 층당 개수가 0.85에서 0.83으로밖에 안 떨어졌다 — 오래
+     사는 판은 한 판에 정예를 서른 마리씩 잡으므로, 한 마리당 확률을
+     반으로 깎아도 서른 번 굴리면 그대로 나온다. 곱셈을 확률로 이기려
+     한 것이다.
+
+     그래서 **층마다 하나**로 잠근다. 많이 싸운 사람이 더 갖는 것은
+     맞지만, 그것은 금화와 재료로 갚아야지 규칙을 바꾸는 물건으로
+     갚을 것이 아니다. 그리고 이 편이 층 하나하나에 「여기서 하나
+     나왔나」라는 상태를 만든다. */
+  const gotHere = G.relicFloorAt === G.depth;
+  if (!gotHere && Math.random() < 0.30 * uproarMult()) {
     const id = unownedRelic();
     if (id) {
       G.items.push({ kind:'relic', id, spr: relicById(id).spr, n: relicById(id).n, ...spot });
+      G.relicFloorAt = G.depth;
+      relicFrom('정예');
       say(`${relicById(id).n}이(가) 굴러떨어졌다.`, 'level');
       fx({ t:'drop', x: spot.x, y: spot.y, relic:true, rar:3 });
       /* 대박. 아주 드물게 둘이 나온다 — 유물 자리가 일곱까지 늘어나는
@@ -4230,6 +4302,7 @@ function dropElite(m) {
         const at = freeSpotNear(spot.x, spot.y);
         if (two && at) {
           G.items.push({ kind:'relic', id: two, spr: relicById(two).spr, n: relicById(two).n, ...at });
+          relicFrom('대박');
           say('— 하나가 아니었다.', 'level');
           fx({ t:'drop', x: at.x, y: at.y, relic:true, rar:4 });
         }
@@ -6926,6 +6999,8 @@ export function startGame(raceKey, classKey, base) {
      잡았다. 「한 번만」의 범위가 판인지 세션인지가 갈리는 자리다. */
   G.fallenSeen = {};
   G.tally = 0; G.hushUntil = -1; G.resoFound = 0; G.forced = {}; G.uniques = {};
+  G.relicsTaken = 0; G.fused = 0; G.gearTaken = 0; G.rareTaken = 0; G.relicSrc = {};
+  G.relicFloorAt = -1;
   /* 몇 번째로 내려가는 사람인가. 끝 화면이 이 숫자를 다시 읽는다 —
      앞의 것들이 전부 여기 어딘가에 있다는 뜻이고, 그래서 이 판의
      실패도 다음 사람에게는 자료가 된다. */

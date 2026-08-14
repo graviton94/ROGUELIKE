@@ -14,7 +14,7 @@ import {
   ENCHANT_CURSE, ENCHANT_CURSE_STEP, ENCHANT_TWIN,
   BOONS, boonById, transChance,
   FUSIONS, fusionOf, FUSE_ODDS, FUSE_COST,
-  ALTAR_OFFERS, rarityOf, isCursed, RARITY, TEMPLE_SHARE,
+  ALTAR_OFFERS, rarityOf, isCursed, RARITY, TEMPLE_SHARE, JACKPOT,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   RELICS, RELIC_SLOTS, relicSlots, relicById, BRANCHES,
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH, REGIONS, regionOf,
@@ -2809,6 +2809,10 @@ export function hereOffer() {
     const shop = SHOPS.find(s => s.id === shopId);
     if (shop) return { screen:'shop', n: shop.n, shop };
   }
+  /* 전리품 더미도 발밑의 것이다. 타일이 아니라 바닥에 놓인 물건이라
+     따로 묻는다 — 수레와 같은 이유다. */
+  const pile = G.items.find(o => o.kind === 'spoils' && o.x === p.x && o.y === p.y);
+  if (pile) return { screen:'event', n:'전리품 더미', spoils: pile };
   const t = L.tiles[here];
   if (t === EVENT && !L.eventId) return null;      // already taken
   const screen = OFFER_SCREEN[t];
@@ -2821,6 +2825,7 @@ export function openHere() {
   if (!o) return false;
   G.act = 'open';
   if (o.shop) G.shop = o.shop;
+  if (o.spoils) G.spoils = { picks: o.spoils.picks };
   G.screen = o.screen;
   return true;
 }
@@ -3070,6 +3075,17 @@ function pickUp() {
   G.act = 'pick';
   const it = G.items[i];
   if (it.kind === 'chest') { openChest(i, it); return; }
+  /* 전리품 더미는 줍는 것이 아니라 여는 것이다. 사건 화면을 빌려
+     쓴다 — 「여러 줄 중 하나를 고른다」는 화면이 이미 있는데 똑같은
+     것을 하나 더 만들면, 다음에 고칠 때 한쪽만 고쳐진다. */
+  /* 밟는 순간 화면을 띄우지 않는다. 걷는 손가락 아래로 시트가
+     올라오면 다음 반복 입력이 버튼을 눌러 버린다 — 모닥불·제단·
+     수레에서 이미 겪은 일이고, 새로 만드는 것이 같은 실수를
+     되풀이할 이유는 없다. 발밑 버튼이 기다린다. */
+  if (it.kind === 'spoils') {
+    say('전리품 더미 위에 섰다.', 'good');
+    return;
+  }
   if (it.kind === 'relic') {
     // Leave it lying there if the swap screen is refused, so the
     // choice can be walked away from and come back to.
@@ -4006,6 +4022,17 @@ export function unownedRelic() {
 
 /* An elite always leaves something with a name on it — and one
    in five leaves the thing that changes the run instead. */
+/* 바로 옆의 빈 칸. 같은 칸에 둘을 겹치면 하나가 영영 안 주워진다. */
+function freeSpotNear(x, y) {
+  for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]]) {
+    const nx = x + dx, ny = y + dy;
+    if (G.level.solid(nx, ny)) continue;
+    if (G.items.some(o => o.x === nx && o.y === ny)) continue;
+    return { x: nx, y: ny };
+  }
+  return null;
+}
+
 function dropElite(m) {
   const spot = { x: m.x, y: m.y };
   /* 소란이 클수록 좋은 것이 나온다. 위험을 산 값을 여기서 치른다 —
@@ -4021,18 +4048,58 @@ function dropElite(m) {
       G.items.push({ kind:'relic', id, spr: relicById(id).spr, n: relicById(id).n, ...spot });
       say(`${relicById(id).n}이(가) 굴러떨어졌다.`, 'level');
       fx({ t:'drop', x: spot.x, y: spot.y, relic:true, rar:3 });
+      /* 대박. 아주 드물게 둘이 나온다 — 유물 자리가 일곱까지 늘어나는
+         판에서, 한 번에 둘은 그 판의 방향을 정해 버린다. */
+      if (Math.random() < JACKPOT.relic) {
+        const two = unownedRelic();
+        const at = freeSpotNear(spot.x, spot.y);
+        if (two && at) {
+          G.items.push({ kind:'relic', id: two, spr: relicById(two).spr, n: relicById(two).n, ...at });
+          say('— 하나가 아니었다.', 'level');
+          fx({ t:'drop', x: at.x, y: at.y, relic:true, rar:4 });
+        }
+      }
       return;
     }
   }
-  const it = pickItem(G.depth + 4);
-  if (!it) return;
-  rollAffixes(it, G.depth + 8, true);
-  if (Math.random() < 0.45) it.plus = 1 + rnd(2);
-  G.items.push({ ...it, ...spot });
-  /* 낙하는 등급을 싣고 나간다. 여태 평범한 단검과 초월 무기가 똑같은
-     노란 고리 하나에 「전리품」 세 글자였다 — 무엇이 떨어졌는지를
-     주워서 배낭을 열어야 알 수 있으면, 그건 득템이 아니라 심부름이다. */
-  fx({ t:'drop', x: spot.x, y: spot.y, rar: rarityOf(it) });
+  /* ── 셋을 남기고, 하나를 고르게 한다 ──────────────────
+     여태 정예는 물건 하나를 떨어뜨렸다. 좋으면 끼우고 아니면
+     지나치는데, 그건 결정이 아니라 통보다. 파밍이 재미없다는
+     말의 절반이 여기 있었다.
+
+     셋을 굴려 놓고 하나만 가져가게 하면, 나머지 둘이 값이 된다 —
+     피해가 큰 것과 속성이 좋은 것 사이에서 고르는 순간이 곧
+     「이 판을 어떻게 끌고 갈까」다. 굴림은 여기서 끝내 놓는다.
+     화면을 열 때마다 다시 굴리면, 열었다 닫았다 하는 것이 수가
+     된다 — 그건 고르는 게 아니라 재굴림이다. */
+  const picks = [];
+  for (let i = 0; i < SPOIL_PICKS; i++) {
+    const it = pickItem(G.depth + 4);
+    if (!it) continue;
+    rollAffixes(it, G.depth + 8, true);
+    if (Math.random() < 0.45) it.plus = 1 + rnd(2);
+    /* 대박은 여기서도 열린다 — 셋 중 하나가 훨씬 깊은 곳의 물건일
+       때가 있다. 자주 열리면 그건 대박이 아니라 기본값이다. */
+    if (Math.random() < JACKPOT.spoil) {
+      const deep = pickItem(G.depth + 20);
+      if (deep) {
+        rollAffixes(deep, G.depth + 30, true);
+        deep.plus = 2 + rnd(3);
+        picks.push(deep);
+        continue;
+      }
+    }
+    picks.push(it);
+  }
+  if (!picks.length) return;
+  if (picks.length === 1) {
+    G.items.push({ ...picks[0], ...spot });
+    fx({ t:'drop', x: spot.x, y: spot.y, rar: rarityOf(picks[0]) });
+    return;
+  }
+  const best = Math.max(...picks.map(rarityOf));
+  G.items.push({ kind:'spoils', spr:'chest', n:'전리품 더미', picks, rar: best, ...spot });
+  fx({ t:'drop', x: spot.x, y: spot.y, rar: best, pile:true });
 }
 
 function gainXp(n) {
@@ -4963,6 +5030,8 @@ export const CAMP_HEAL = 0.28;
 /* Gear climbs to 8 now that the odds gate it; a spell's plus is
    a multiplier, so it stays where it was. */
 export const MAX_PLUS = 10;   // 8에서 올렸다 — 위쪽 네 칸이 벼랑이다
+/* 정예가 남기는 것의 수. 셋을 굴려 놓고 하나만 가져간다. */
+export const SPOIL_PICKS = 3;
 export const MAX_SPELL_PLUS = 5;
 const capFor = t => (t.type === 'spell' || t.kind === 'spell' ? MAX_SPELL_PLUS : MAX_PLUS);
 
@@ -5223,6 +5292,24 @@ export function anvilStrike(key, careful = false, cat = null) {
     return;
   }
 
+  /* 대박. 실패한 손이 되레 맞는 일이 아주 드물게 있다. 부서지기
+     직전까지 갔다가 살아 돌아오는 것이 이 화면에서 가장 기억에
+     남는 순간이고, 그 순간은 만들어 줘야 생긴다. */
+  if (Math.random() < JACKPOT.forge) {
+    if (t.type === 'item') {
+      t.item.plus = Math.min(cap, (t.item.plus || 0) + 1);
+      engraveUpTo(t.item);
+      recalc(p);
+    } else {
+      p.spellPlus = p.spellPlus || {};
+      p.spellPlus[t.id] = Math.min(cap, (p.spellPlus[t.id] || 0) + 1);
+    }
+    G.forged = (G.forged || 0) + 1;
+    say(`${name} — 꺼진 줄 알았던 불이 되살아났다.`, 'level');
+    fx({ t:'forge', x:p.x, y:p.y, big:true, surge:true });
+    return;
+  }
+
   /* The strike failed. What that costs depends on how far out on
      the limb you already were — and on what you threw in with it. */
   if (bet.breakPct && Math.random() < bet.breakPct) {
@@ -5472,6 +5559,21 @@ export function anvilEnchant(key, reroll, cat = null) {
   } else {
     say(`${affixName(it)} — 새 성질이 깃들었다.`, 'level');
   }
+  /* 대박. 두 슬롯이 다 좋은 것으로 차고, 거기에 한 단계까지 얹힌다.
+     몇 판에 한 번 나오라고 둔 숫자다 — 자주 나오면 그건 대박이
+     아니라 기본값이고, 그러면 인챈트가 도박이 아니라 절차가 된다. */
+  if (!cursed && !reroll && Math.random() < JACKPOT.enchant) {
+    for (const [table, key] of [[PREFIXES, 'pre'], [SUFFIXES, 'suf']]) {
+      const g = pickAffixFor(table, tag, false);
+      if (g) it[key] = g.id;
+    }
+    it.plus = Math.min(MAX_PLUS, (it.plus || 0) + 1);
+    recalc(p);
+    say(`불이 하얗게 탄다 — ${affixName(it)}.`, 'level');
+    fx({ t:'transcend', x:p.x, y:p.y });
+    return;
+  }
+
   /* 분광석 pays for both slots at once — the only way to land a
      prefix and a suffix from one roll. 그리고 아주 드물게 운으로도
      같은 일이 일어난다 — 촉매는 여전히 「확실하게」를 판다. */
@@ -5774,6 +5876,19 @@ export function rollEvent() {
 }
 
 export function eventOffer() {
+  /* 전리품 더미가 먼저다. 사건 자리에서 정예를 잡으면 둘이 겹칠 수
+     있는데, 그때 화면에 뜬 것과 고른 것이 갈리면 안 된다. */
+  if (G.spoils) {
+    return {
+      id: 'spoils', n: '전리품 더미', spoils: true,
+      t: '쓰러진 것이 남긴 것들이다. 가져갈 수 있는 것은 하나뿐이고, 나머지는 여기 두고 간다.',
+      opts: G.spoils.picks.map((it, i) => ({
+        i, n: affixName(it), t: itemBlurb(it).split('\n').join(' · '),
+        can: true, odds: null, risk: '',
+        rar: rarityOf(it), spr: it.spr,
+      })),
+    };
+  }
   const e = EVENTS.find(x => x.id === G.level?.eventId);
   if (!e) return null;
   const api = eventApi();
@@ -5786,8 +5901,49 @@ export function eventOffer() {
   };
 }
 
+/* 하나를 집고, 나머지는 두고 간다. 배낭이 가득 차 있으면 아무것도
+   집히지 않는데, 그때 더미를 없애 버리면 나머지 둘까지 같이 사라진다
+   — 「배낭이 가득 찼다」가 물건 셋을 지우는 문장이 되면 안 된다. */
+function spoilsTake(i) {
+  const p = G.player, sp = G.spoils;
+  if (!sp) { G.screen = 'play'; return; }
+  const it = sp.picks[i];
+  if (!it) return;
+  if (!packRoom(p, it)) {
+    say(`배낭이 가득 찼다 — ${nameOf(it)}은(는) 더미에 그대로 있다.`, 'warn');
+    return;
+  }
+  const idxAt = G.items.findIndex(o => o.kind === 'spoils' && o.x === p.x && o.y === p.y);
+  if (idxAt >= 0) G.items.splice(idxAt, 1);
+  G.spoils = null;
+  G.screen = 'play';
+  G.act = 'pick';
+  addItem(p, it);
+  const grade = rarityOf(it);
+  if (grade >= 2) {
+    G.rareFound = (G.rareFound || 0) + 1;
+    fx({ t:'found', x:p.x, y:p.y, rar:grade });
+    lore(RARITY[grade].n, affixName(it), itemBlurb(it), it.spr);
+  } else {
+    fx({ t:'found', x:p.x, y:p.y, rar:grade });
+  }
+  const left = sp.picks.filter((_, k) => k !== i).map(o => affixName(o)).join(', ');
+  say(`${affixName(it)}을(를) 골랐다. ${left}은(는) 두고 간다.`, grade >= 2 ? 'level' : 'good');
+  endTurn();
+}
+
+/* 더미를 안 열고 돌아설 수도 있어야 한다. 셋 다 쓸모없을 때가
+   있고, 그때 억지로 하나를 집게 하면 배낭 한 칸이 벌이 된다. */
+export function spoilsLeave() {
+  if (!G.spoils) return;
+  G.spoils = null;
+  G.screen = 'play';
+  say('더미를 그대로 두고 돌아섰다.');
+}
+
 export function eventChoose(i) {
   const L = G.level;
+  if (G.spoils) return spoilsTake(i);
   const e = EVENTS.find(x => x.id === L?.eventId);
   if (!e) { G.screen = 'play'; return; }
   const opt = e.opts[i];
@@ -5924,6 +6080,27 @@ function grantBoon(result, weight, gave = 'blood') {
   }
 
   if (result === '허탕') { say('아무 일도 일어나지 않았다.', ''); return; }
+
+  /* 대박. 대성공 위의 한 칸 — 기적. 제단은 이 판에서 가장 큰 도박인데
+     가장 좋은 결과가 「좋은 물건 하나」에서 멈춰 있었다. 몇 판에 한 번,
+     제단이 판을 통째로 바꾸는 일이 있어야 그 앞에 설 때 손이 떨린다. */
+  if (result === '대성공' && Math.random() < JACKPOT.altar) {
+    const id = unownedRelic();
+    if (id) takeRelic(id);
+    const it = pickItem(d + 18);
+    if (it) {
+      rollAffixes(it, d + 26, true);
+      it.plus = 3 + rnd(3);
+      addItem(p, it);
+      say(`돌이 갈라지고 ${affixName(it)}이(가) 드러났다.`, 'level');
+    }
+    // permHp는 recalc이 이미 읽는 자리다 — 새 필드를 만들면 한 곳이 더 갈린다.
+    p.permHp = (p.permHp || 0) + 12;
+    recalc(p);
+    say('— 기적. 제단이 대답 이상의 것을 했다.', 'level');
+    fx({ t:'transcend', x:p.x, y:p.y });
+    return;
+  }
 
   if (result === '대성공') {
     /* Half of every jackpot is a relic. This is the luck route

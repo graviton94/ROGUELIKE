@@ -177,5 +177,81 @@ console.log('\n득템 벤치 — 좋은 것이 떨어졌을 때 티가 나는가
   ok(D.rarityOf({ kind:'relic', id:'echo' }) >= 3, '바닥의 유물이 빛기둥 등급을 받는다');
 }
 
+/* ── 7. 셋 중 하나를 고른다 ────────────────────────────── */
+{
+  const p = stage();
+  /* 정예를 하나 세워 놓고 잡는다. 손으로 더미를 만들면 「생성기가
+     실제로 더미를 남기는가」를 안 재게 된다. */
+  let pile = null;
+  for (let t = 0; t < 400 && !pile; t++) {
+    const q = stage();
+    const m = G.monsters[0];
+    if (!m) continue;
+    m.elite = ['swift'];
+    m.x = q.x + 1; m.y = q.y; m.hp = 1;
+    Game.step(1, 0);
+    pile = G.items.find(o => o.kind === 'spoils');
+  }
+  ok(!!pile, '정예가 전리품 더미를 남긴다', pile ? `${pile.picks.length}점` : '못 만듦');
+  if (pile) {
+    ok(pile.picks.length === Game.SPOIL_PICKS, `셋을 굴려 놓는다`, `${pile.picks.length}점`);
+    const q = G.player;
+    q.x = pile.x; q.y = pile.y;
+    Game.refreshFov();
+
+    /* 밟는 순간 화면이 열리면 안 된다 — 걷는 손가락 아래로 시트가
+       올라오면 다음 반복 입력이 버튼을 눌러 버린다. */
+    ok(G.screen !== 'event', '밟았다고 화면이 열리지는 않는다', `화면 ${G.screen}`);
+    const offerHere = Game.hereOffer();
+    ok(offerHere?.screen === 'event', '발밑 버튼이 더미를 가리킨다', offerHere?.n);
+
+    ok(Game.openHere() && G.screen === 'event', '눌러야 열린다');
+    const offer = Game.eventOffer();
+    ok(offer?.spoils && offer.opts.length === Game.SPOIL_PICKS,
+       '셋이 나란히 뜬다', `${offer?.opts.length}줄`);
+    ok(offer.opts.every(o => typeof o.rar === 'number'),
+       '줄마다 등급이 실린다 — 색으로 고를 수 있어야 한다',
+       offer.opts.map(o => o.rar).join(','));
+
+    const want = offer.opts[1].n;
+    const before = q.pack.length;
+    Game.eventChoose(1);
+    ok(q.pack.length === before + 1, '고른 하나만 들어온다', `${before} → ${q.pack.length}줄`);
+    ok(!G.items.some(o => o.kind === 'spoils'), '나머지는 두고 간다 — 더미가 사라진다');
+    ok(G.screen === 'play', '고르고 나면 지도로 돌아온다', G.screen);
+  }
+}
+
+/* ── 8. 두고 갈 수도 있다 ──────────────────────────────── */
+{
+  const p = stage();
+  G.items.push({ kind:'spoils', spr:'chest', n:'전리품 더미', rar:1,
+                 picks:[base(), base(), base()], x:p.x, y:p.y });
+  Game.openHere();
+  const before = p.pack.length;
+  Game.spoilsLeave();
+  ok(p.pack.length === before, '두고 가면 아무것도 안 들어온다');
+  ok(G.items.some(o => o.kind === 'spoils'), '더미는 그대로 남는다 — 마음이 바뀌면 다시 연다');
+  ok(G.screen === 'play', '지도로 돌아온다', G.screen);
+}
+
+/* ── 9. 대박은 대박인가 ────────────────────────────────── */
+{
+  /* 「가끔 좋은 일」과 「대박」은 다르다. 앞의 것은 한 판에 서너 번,
+     뒤의 것은 몇 판에 한 번이다. 표가 흩어지면 어떤 자리는 5%를
+     대박이라 부르고 어떤 자리는 0.1%를 부르게 되므로, 값이 한 표에
+     모여 있는지와 그 값이 실제로 낮은지를 같이 본다. */
+  const J = D.JACKPOT;
+  const rows = Object.entries(J);
+  for (const [k, v] of rows) console.log(`      ${k.padEnd(8)} ${(v * 100).toFixed(1)}%`);
+  ok(rows.length >= 5, '대박이 붙은 자리가 다섯 군데다', `${rows.length}곳`);
+  ok(rows.every(([, v]) => v > 0 && v <= 0.05),
+     '전부 5% 아래다 — 자주 나오면 그건 대박이 아니라 기본값이다',
+     rows.map(([k, v]) => `${(v * 100).toFixed(1)}%`).join(' '));
+  ok(rows.every(([, v]) => v >= 0.005),
+     '그렇다고 영영 안 나오지도 않는다 — 0.5% 위',
+     `${(Math.min(...rows.map(r => r[1])) * 100).toFixed(1)}%`);
+}
+
 console.log(bad ? `\n득템 벤치: ${bad}건 실패\n` : '\n득템 벤치: 전부 통과\n');
 process.exit(bad ? 1 : 0);

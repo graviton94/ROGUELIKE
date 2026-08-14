@@ -3419,7 +3419,7 @@ export function renderEvent() {
   /* 사건마다 그림이 따로 있지는 않다. 있는 것을 쓴다 — 사건의 성격에
      가까운 스프라이트를 골라 크게 앉히고, 없으면 물음표 타일. */
   const ART = { seep:'potion', wickseller:'torch', blackroom:'door',
-                eggs:'web', anvil:'anvil', shrine:'altar' };
+                eggs:'web', anvil:'anvil', shrine:'altar', spoils:'chest' };
   const art = $('event-art');
   if (art) {
     const S = CELL_SIZE * 9;
@@ -3436,7 +3436,15 @@ export function renderEvent() {
     const row = el('button', 'campopt' + (o.can ? '' : ' poor'));
     if (!o.can) row.disabled = true;
     const head = el('div', 'camphead');
-    head.appendChild(el('span', 'campname', o.n));
+    const nm = el('span', 'campname', o.n);
+    /* 전리품은 이름의 색이 곧 등급이다. 셋을 나란히 놓고 고르게 하는
+       화면에서 셋이 다 같은 색이면, 고르는 근거가 글줄뿐이 된다. */
+    if (o.rar != null) {
+      nm.style.color = `var(--${RARITY[o.rar].tone})`;
+      if (o.rar === 4) nm.classList.add('transcend');
+    }
+    head.appendChild(nm);
+    if (o.rar != null) head.appendChild(el('span', 'camptag', RARITY[o.rar].n));
     /* The odds go on the button, in the same slot the altar uses.
        A wager you cannot price is not a decision — and the number
        shown here is the number game.js rolls, because the roll
@@ -3461,6 +3469,16 @@ export function renderEvent() {
       refresh();
     };
     list.appendChild(row);
+  }
+
+  /* 셋 다 쓸모없을 때가 있다. 억지로 하나를 집게 하면 배낭 한 칸이
+     벌이 된다 — 두고 갈 수 있어야 고르는 것이 결정이 된다. */
+  if (offer.spoils) {
+    const out = el('button', 'campopt');
+    out.appendChild(el('span', 'campname', '두고 간다'));
+    out.appendChild(el('span', 'campdesc', '더미는 그대로 남는다. 마음이 바뀌면 다시 열 수 있다.'));
+    out.onclick = () => { Game.spoilsLeave(); setScreen('play'); refresh(); };
+    list.appendChild(out);
   }
 }
 

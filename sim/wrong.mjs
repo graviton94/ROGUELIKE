@@ -269,14 +269,35 @@ console.log('\n기형 벤치 — 모두 다 잘못 자랐는가\n');
      90ms 칸의 39%뿐이고 걸음·숨쉬기도 박자를 타므로, 하필 같은 상태인
      두 순간을 집을 수 있다. 실패한 것은 게임이 아니라 표본 수였다.
      여섯 장을 걸쳐 찍어 그중 하나라도 다르면 된다. */
-  const frames = [];
-  for (let i = 0; i < 6; i++) {
-    frames.push(await pg.locator('#stage').screenshot());
-    await pg.waitForTimeout(110);
+  /* 먼저 지도가 실제로 그려지고 있는지 확인한다. 카드가 덮여 있거나
+     판이 끝나 있으면 캔버스가 멈추고, 그러면 「프레임이 안 달라진다」가
+     나온다 — 글리치가 없어서가 아니라 아무것도 안 그리고 있어서.
+     0/6이 나온 세 번이 전부 이 경우였다. */
+  for (let i = 0; i < 12; i++) {
+    const hit = await pg.evaluate(() => {
+      for (const id of ['lesson-ok', 'ask-ok', 'look-ok']) {
+        const e = document.getElementById(id);
+        if (e && e.getBoundingClientRect().width > 2) { e.click(); return true; }
+      }
+      const card = document.getElementById('lorecard');
+      if (card && !card.hidden) { card.hidden = true; return true; }
+      return false;
+    });
+    if (!hit) break;
+    await pg.waitForTimeout(120);
   }
-  const moved = frames.some(x => !x.equals(frames[0]));
-  ok(moved, '여섯 프레임 중 달라지는 것이 있다 — 화면에서 실제로 어긋나고 있다',
-     `${frames.filter(x => !x.equals(frames[0])).length}/6장이 첫 장과 다르다`);
+  const live = await pg.evaluate(async () =>
+    (await import('/src/game.js')).G.running === true);
+  ok(live, '판이 아직 돌고 있다 — 멈춘 화면을 재면 「안 어긋난다」가 나온다');
+
+  const frames = [];
+  for (let i = 0; i < 12; i++) {
+    frames.push(await pg.locator('#stage').screenshot());
+    await pg.waitForTimeout(100);
+  }
+  const moved = frames.filter(x => !x.equals(frames[0])).length;
+  ok(moved > 0, '열두 프레임 중 달라지는 것이 있다 — 화면에서 실제로 어긋나고 있다',
+     `${moved}/12장이 첫 장과 다르다`);
 }
 
 /* ── 6. 테두리가 실제로 화면에 있는가 ────────────────────
@@ -477,53 +498,77 @@ console.log('\n기형 벤치 — 모두 다 잘못 자랐는가\n');
   ok(drawn > 60, '그 칸에 실제로 그것이 그려져 있다 — 빈 칸을 재면 0점이 나오고 그건 테두리 이야기가 아니다',
      `${drawn}px`);
 
-  const measure = async (elite) => {
+  /* 재는 방법은 하나여야 한다. 처음에는 「평범할 때 난초」만 따로
+     RGB 거리로 재고 나머지는 색상으로 쟀는데, 그건 자가 두 벌이라는
+     뜻이고 이 프로젝트가 게임 쪽에서 내내 경계해 온 바로 그 실수다.
+     기준선도 측정도 같은 함수를 지난다. */
+  const sample = (ink) => pg.evaluate(async (ink2) => {
+    const Game = await import('/src/game.js');
+    const UI = await import('/src/ui.js');
+    const P = await import('/src/pixels.js');
+    const m = Game.G.monsters[0];
+    const cv = document.getElementById('map'), g = cv.getContext('2d');
+    const cam = UI._camera();
+    const px = Math.round((m.x - cam.cx) * cam.t), py = Math.round((m.y - cam.cy) * cam.t);
+    if (px < 0 || py < 0 || px + cam.t >= cv.width || py + cam.t >= cv.height) return -1;
+    const d = g.getImageData(px, py, cam.t, cam.t).data;
+    /* **색상(hue)으로 센다.** 처음에는 팔레트 값과의 RGB 거리로 셌는데,
+       테두리는 사인파로 숨을 쉬므로 알파가 0.48~0.96 사이를 오간다 —
+       알파 0.74면 R이 212에서 157로 내려가 허용치 ±46을 벗어난다.
+       아무것도 안 바꾸고 같은 화면을 열네 번 재니
+       112 112 98 98 92 59 0 0 0 0 0 0 0 0 이 나왔다. 판정을
+       performance.now()가 하고 있었던 것이다. 알파 블렌딩은 밝기를
+       바꾸지 색상은 거의 안 바꾼다. */
+    const hueOf = (r2, g2, b2) => {
+      const mx = Math.max(r2, g2, b2), mn = Math.min(r2, g2, b2), c = mx - mn;
+      if (!c) return null;
+      let h;
+      if (mx === r2) h = ((g2 - b2) / c) % 6;
+      else if (mx === g2) h = (b2 - r2) / c + 2;
+      else h = (r2 - g2) / c + 4;
+      h *= 60; if (h < 0) h += 360;
+      return { h, s: mx ? c / mx : 0, v: mx / 255 };
+    };
+    const n0 = parseInt(P.PALETTE[ink2].slice(1), 16);
+    const want = hueOf(n0 >> 16, (n0 >> 8) & 255, n0 & 255);
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 40) continue;
+      const c = hueOf(d[i], d[i + 1], d[i + 2]);
+      if (!c) continue;
+      let dh = Math.abs(c.h - want.h); if (dh > 180) dh = 360 - dh;
+      /* 명도도 걸러야 한다. 좁은 굴의 바닥(#2a1a0e)은 색상이 30°로
+         잉걸(28°)과 사실상 같아서, 색상만 보면 **바닥이 테두리로
+         잡힌다** — 실제로 평범한 몬스터에서 1737점이 나왔고 정예가
+         1773점이라 둘이 구별되지 않았다. 바닥은 명도 0.16이고
+         테두리는 골짜기에서도 0.4를 넘으므로 여기서 갈린다.
+         (시든 난초는 원래 채도가 0.40뿐이라 채도 문턱은 넉넉하게.) */
+      if (dh < 18 && c.s > 0.22 && c.v > 0.45) n++;
+    }
+    return n;
+  }, ink);
+
+  /* 테두리는 380ms 주기로 숨을 쉰다. 한 순간만 재면 그 순간의 알파가
+     판정을 하므로, 한 주기를 덮도록 열 번 재서 가장 큰 값을 쓴다 —
+     물어야 할 것은 「지금 이 순간 보이는가」가 아니라 「보이는 순간이
+     있는가」다. */
+  const measure = async (elite, ink) => {
     await pg.evaluate(e => import('/src/game.js').then(M => {
       const m = M.G.monsters[0]; if (m) m.elite = e;
     }), elite);
     await pg.waitForTimeout(140);
-    return pg.evaluate(async (ink) => {
-      const Game = await import('/src/game.js');
-      const UI = await import('/src/ui.js');
-      const P = await import('/src/pixels.js');
-      const m = Game.G.monsters[0];
-      const cv = document.getElementById('map');
-      const g = cv.getContext('2d');
-      const cam = UI._camera();
-      const px = Math.round((m.x - cam.cx) * cam.t), py = Math.round((m.y - cam.cy) * cam.t);
-      if (px < 0 || py < 0 || px + cam.t >= cv.width || py + cam.t >= cv.height) return -1;
-      const n0 = parseInt(P.PALETTE[ink].slice(1), 16);
-      const R = n0 >> 16, G2 = (n0 >> 8) & 255, B = n0 & 255;
-      const d = g.getImageData(px, py, cam.t, cam.t).data;
-      let n = 0;
-      for (let i = 0; i < d.length; i += 4) {
-        if (d[i + 3] < 40) continue;
-        if (Math.abs(d[i] - R) < 46 && Math.abs(d[i + 1] - G2) < 46 && Math.abs(d[i + 2] - B) < 46) n++;
-      }
-      return n;
-    }, elite && elite.length > 1 ? 'P' : 'o');
-  };
-  const plainO = await measure(null);
-  const oneO = await measure(['질긴']);
-  const plainP = await pg.evaluate(async () => {
-    const Game = await import('/src/game.js');
-    const UI = await import('/src/ui.js');
-    const P = await import('/src/pixels.js');
-    const m = Game.G.monsters[0]; m.elite = null;
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    const cv = document.getElementById('map'), g = cv.getContext('2d'), cam = UI._camera();
-    const px = Math.round((m.x - cam.cx) * cam.t), py = Math.round((m.y - cam.cy) * cam.t);
-    const n0 = parseInt(P.PALETTE.P.slice(1), 16);
-    const R = n0 >> 16, G2 = (n0 >> 8) & 255, B = n0 & 255;
-    const d = g.getImageData(px, py, cam.t, cam.t).data;
-    let n = 0;
-    for (let i = 0; i < d.length; i += 4) {
-      if (d[i + 3] < 40) continue;
-      if (Math.abs(d[i] - R) < 46 && Math.abs(d[i + 1] - G2) < 46 && Math.abs(d[i + 2] - B) < 46) n++;
+    let best = 0;
+    for (let k = 0; k < 10; k++) {
+      best = Math.max(best, await sample(ink));
+      await pg.waitForTimeout(60);
     }
-    return n;
-  });
-  const twoP = await measure(['질긴', '빠른']);
+    return best;
+  };
+
+  const plainO = await measure(null, 'o');
+  const plainP = await measure(null, 'P');
+  const oneO   = await measure(['질긴'], 'o');
+  const twoP   = await measure(['질긴', '빠른'], 'P');
   const r = { plainO, plainP, oneO, twoP };
   console.log(`\n      평범할 때 잉걸 ${r.plainO}점 · 난초 ${r.plainP}점`);
   console.log(`      정예(속성 하나) 잉걸 ${r.oneO}점`);

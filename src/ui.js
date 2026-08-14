@@ -1171,11 +1171,21 @@ export function refresh() {
   /* The offer underfoot waits to be pressed rather than opening
      itself. Labelled with what it is, so the player never presses
      it blind. */
+  /* 발밑에 있는 것 하나. 모닥불·제단·모루·?·수레에 더해 계단까지
+     이 한 자리가 맡는다 — 봇 137,276턴에서 내려가기·올라가기·발밑이
+     서로 동시에 살아 있는 일은 0.0%였다. 셋 다 「지금 이 칸에 있는
+     것」을 말하는 같은 동사이므로, 한 자리에 두어도 잃는 것이 없다.
+     비어 있어도 숨기지 않는다: 사라지는 줄은 지도를 매 걸음 밀어
+     올리고, 그러면 누르려던 것이 아닌 것이 눌린다. */
   const here = Game.hereOffer();
+  const stair = Game.stairHere();
   const hb = $('btn-here');
-  hb.hidden = !here;
-  // 수레는 「여는」 것이 아니라 「거래하는」 것이다.
-  if (here) hb.textContent = here.shop ? `${here.n}${wa(here.n)} 거래` : `${here.n} 열기`;
+  hb.disabled = !here && !stair;
+  hb.classList.toggle('live', !!(here || stair));
+  hb.textContent = here ? (here.shop ? `${here.n}${wa(here.n)} 거래` : `${here.n} 열기`)
+                 : stair === 'down' ? '▼ 내려가기'
+                 : stair === 'up'   ? '▲ 올라가기'
+                 : '발밑에 아무것도 없다';
 
   const logBox = $('log');
   logBox.innerHTML = '';
@@ -1192,10 +1202,16 @@ export function refresh() {
   const bowed = Game.weaponType(G.player) === 'bow';
   const q = Game.quiver();
   const shootBtn = $('btn-shoot');
-  shootBtn.hidden = !bowed;
+  /* 활이 없으면 사라지던 자리다. 1.9%의 턴에만 살아 있는 버튼이
+     제 줄을 통째로 썼다 없앴다 하면 지도가 매번 밀린다 — 이제
+     고정된 칸에서 어두워지기만 한다. */
+  shootBtn.disabled = !bowed || !Game.canShoot();
+  if (!bowed) $('shoot-n').textContent = '';
   if (bowed) {
-    shootBtn.disabled = !Game.canShoot();
-    $('shoot-n').textContent = q ? (q.n.length > 6 ? q.n.slice(0, 5) + '…' : q.n) : '맨 화살';
+    /* 화살통 **이름**이 아니라 남은 수. 넷이 한 줄을 나눠 쓰는
+       칸에 「사슴뿔 화살」은 안 들어가고, 쏠지 말지를 정하는 것은
+       어차피 이름이 아니라 숫자다. 이름은 길게 눌러 보는 설명에 있다. */
+    $('shoot-n').textContent = q ? String(q.qty ?? '') : '';
     shootBtn.title = !Game.shotTarget() ? '사선이 막혔거나 사거리 밖이다'
                    : q ? `${q.n} · ${q.desc}` : '화살통이 없다 — 평범한 화살이 나간다';
   }
@@ -4025,8 +4041,6 @@ export function bindInput() {
 
   $('btn-inv').onclick    = () => { stopAuto(); setScreen('inv'); };
   $('btn-cast').onclick   = () => { stopAuto(); setScreen('spell'); };
-  $('btn-down').onclick   = () => { stopAuto(); act(Game.descend); };
-  $('btn-up').onclick     = () => { stopAuto(); act(Game.ascend); };
   $('btn-door').onclick   = () => { stopAuto(); act(Game.closeDoor); };
   /* 밀도를 올리는 유일한 손잡이. 버튼 하나로 두는 이유는, 이것이
      실수로 눌리면 안 되는 결정이기 때문이다 — 자동 이동을 끊고
@@ -4034,7 +4048,12 @@ export function bindInput() {
   $('btn-shout').onclick  = () => { stopAuto(); act(Game.shout); };
   $('btn-here').onclick   = () => {
     stopAuto();
-    if (Game.openHere()) { setScreen(G.screen); refresh(); }
+    /* 발밑의 것이 먼저다. 계단 위에는 다른 것이 놓이지 않으므로
+       둘이 부딪칠 일은 없지만, 순서는 적어 두는 편이 낫다. */
+    if (Game.openHere()) { setScreen(G.screen); refresh(); return; }
+    const stair = Game.stairHere();
+    if (stair === 'down') act(Game.descend);
+    else if (stair === 'up') act(Game.ascend);
   };
   $('btn-shoot').onclick  = () => { stopAuto(); act(Game.shoot); };
   for (const b of [$('btn-help'), $('btn-help2')])

@@ -57,6 +57,9 @@ for (const s of SIZES) {
   const CASES = [
     ['모닥불',  'camp'], ['제단', 'altar'], ['수상한 자리', 'event'],
     ['모루',    'anvil'], ['가장 긴 수레 이름', 'shop'],
+    /* 계단도 이 자리가 맡는다. 예전에는 제 줄을 통째로 쓰는 두 개의
+       버튼이었고, 둘 다 0.1%의 턴에만 살아 있었다. */
+    ['내려가는 계단', 'down'], ['올라가는 계단', 'up'],
   ];
   for (const [name, kind] of CASES) {
     const out = await pg.evaluate(async (k) => {
@@ -74,7 +77,8 @@ for (const s of SIZES) {
         const longest = D.SHOPS.slice().sort((a, c) => c.n.length - a.n.length)[0];
         L.shopAt.set(i, longest.id);
       } else {
-        L.tiles[i] = { camp: W.CAMP, altar: W.ALTAR, event: W.EVENT, anvil: W.ANVIL }[k];
+        L.tiles[i] = { camp: W.CAMP, altar: W.ALTAR, event: W.EVENT, anvil: W.ANVIL,
+                       down: W.DOWN, up: W.UP }[k];
         if (k === 'event') L.eventId = L.eventId || 'seep';
       }
       UI.refresh();
@@ -83,7 +87,7 @@ for (const s of SIZES) {
       const others = [...document.querySelectorAll('#acts .pair button')]
         .map(e => getComputedStyle(e).backgroundColor);
       return {
-        hidden: btn.hidden,
+        hidden: btn.hidden || btn.disabled,
         text: btn.textContent,
         clipped: btn.scrollWidth > btn.clientWidth + 1,
         scroll: btn.scrollWidth, client: btn.clientWidth,
@@ -100,6 +104,32 @@ for (const s of SIZES) {
     ok(!out.sameAsOthers, `${name} — 나머지 버튼과 다른 색이다`, out.bg);
     ok(out.wide > out.rowWide * 0.9, `${name} — 제 줄을 다 쓴다`,
        `${Math.round(out.wide)}/${Math.round(out.rowWide)}px`);
+  }
+  /* 그리고 비어 있을 때. 자리는 남되 금색은 아니어야 한다 — 빈 자리가
+     빛나면 그 색은 「지금 뭔가 있다」는 뜻을 잃는다. 그리고 사라지면
+     지도가 매 걸음 밀린다. */
+  {
+    const out = await pg.evaluate(async () => {
+      const Game = await import('/src/game.js');
+      const W = await import('/src/world.js');
+      const UI = await import('/src/ui.js');
+      const G = Game.G, L = G.level, p = G.player;
+      const i = W.idx(p.x, p.y);
+      L.shopAt.delete(i); L.tiles[i] = W.FLOOR;
+      UI.refresh();
+      const btn = document.getElementById('btn-here');
+      const cs = getComputedStyle(btn);
+      const others = [...document.querySelectorAll('#acts .pair button')]
+        .map(e => getComputedStyle(e).backgroundColor);
+      return { gone: btn.hidden || btn.getBoundingClientRect().height < 4,
+               dead: btn.disabled, bg: cs.backgroundColor,
+               plain: others.includes(cs.backgroundColor), text: btn.textContent,
+               rows: document.getElementById('acts').children.length };
+    });
+    ok(!out.gone, '발밑이 비어도 자리는 남는다 — 줄이 사라지면 지도가 밀린다', `「${out.text}」`);
+    ok(out.dead, '비었을 때는 눌리지 않는다');
+    ok(out.plain, '비었을 때는 금색이 아니다', out.bg);
+    ok(out.rows <= 5, '아래 줄이 다섯 줄을 넘지 않는다', `${out.rows}줄`);
   }
   if (errs.length) { ok(false, '콘솔 오류', errs[0]); }
   await pg.screenshot({ path: `/tmp/offer-${s.w}.png` });

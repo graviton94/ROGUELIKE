@@ -2752,6 +2752,17 @@ function wearPicks() {
 export const OFFER_NAME = { [CAMP]:'모닥불', [ALTAR]:'제단', [EVENT]:'수상한 자리', [ANVIL]:'모루' };
 const OFFER_SCREEN = { [CAMP]:'camp', [ALTAR]:'altar', [EVENT]:'event', [ANVIL]:'anvil' };
 
+/* 발밑이 계단인가. 화면이 「내려가기」와 「올라가기」를 각각 한 칸씩
+   차지하고 늘 띄우고 있었는데, 재 보니 각각 0.1%의 턴에만 살아 있고
+   둘이 동시에 사는 일은 없다 — 한 칸에 두 계단은 없으므로 당연하다.
+   판정을 규칙 쪽에 두어야 화면이 타일 상수를 알 필요가 없다. */
+export function stairHere() {
+  const p = G.player, L = G.level;
+  if (!p || !L || !G.running) return null;
+  const t = L.tiles[idx(p.x, p.y)];
+  return t === DOWN ? 'down' : t === UP ? 'up' : null;
+}
+
 export function hereOffer() {
   const p = G.player, L = G.level;
   if (!p || !L || !G.running) return null;

@@ -504,12 +504,16 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   grid-column: 1 / -1;
   display: flex; gap: 5px; min-width: 0;
 }
+/* 눕힌다. 폭을 넓히려던 것이지 높이를 두 배로 만들려던 게 아니었는데,
+   아이콘 위에 이름을 쌓은 채로 폭만 넓히니 줄 하나가 55px가 되고 두
+   줄이면 110px다 — 화면의 13%를 잠긴 칸(Lv4·Lv8·Lv12)이 먹는다.
+   가로로 누이면 같은 폭에 높이는 절반이다. */
 #controls .spells.wide button {
-  flex: 1 1 0; display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 1px; padding: 5px 2px;
+  flex: 1 1 0; display: flex; flex-direction: row; align-items: center;
+  justify-content: center; gap: 4px; padding: 4px 3px;
   font-size: 8.5px; line-height: 1; text-align: center; overflow: hidden;
 }
-#controls .spells.wide canvas { width: 17px; height: 17px; flex: 0 0 auto; }
+#controls .spells.wide canvas { width: 15px; height: 15px; flex: 0 0 auto; }
 #controls .spells.wide .sn {
   white-space: nowrap; overflow: hidden; max-width: 100%;
   font-size: clamp(9px, 2.9vw, 11px); letter-spacing: -.02em;
@@ -576,7 +580,7 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
      작은 폰에서 지도가 30%까지 내려갔다. 아이콘과 이름을 세로로
      쌓지 말고 한 줄에 눕힌다 — 칸의 **폭**은 그대로이므로 읽히는
      것은 유지되고, 높이만 절반이 된다. */
-  #controls .spells.wide button { flex-direction: row; gap: 4px; padding: 3px 3px; }
+  #controls .spells.wide button { padding: 2px 3px; }
   #controls .spells.wide canvas { width: 13px; height: 13px; }
   #controls .spells.wide .sn { font-size: clamp(9px, 2.7vw, 10.5px); }
   #controls { gap: 6px; }

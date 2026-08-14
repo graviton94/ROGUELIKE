@@ -145,7 +145,33 @@ function runBot(race, cls, clear, opt = {}) {
   const hist = [];
   let traded = false;   // one visit per floor; the bot has no other reason to stop
 
+  /* ── 제자리걸음 감시 ──────────────────────────────────────
+     이 루프는 guard로만 막혀 있었는데, 게임 턴을 소비하지 않는 반복이
+     섞여 있다(장비 교체, 해체, 실패하는 행동). 그래서 **죽지 않았는데
+     guard가 먼저 닳아 끝나는 판**이 생기고, 그 판의 도달 층이 「거기서
+     죽었다」와 똑같이 평균에 섞였다 — 60판에 7판(12%)이었고, 12층까지
+     갔다가 멈춘 판도 있었다. 도달 층을 쓰는 벤치 전부가 검열된 표본을
+     보고 있었다는 뜻이다.
+
+     턴이 안 흐른 채로 반복이 쌓이면 걸음으로 끊는다. 걸음도 안 먹으면
+     그때는 진짜로 갇힌 것이므로 stuck으로 표시하고 나온다 — 조용히
+     끝나는 것보다 시끄럽게 끝나는 편이 낫다. */
+  const STALL = 40;
+  let stallTurn = -1, stalled = 0, jammed = false;
+
   while (G.running && guard++ < 60000) {
+    if (G.turn === stallTurn) {
+      if (++stalled > STALL) {
+        /* 아무 방향으로나 한 걸음 — 턴을 흐르게 하는 것이 목적이다. */
+        const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]];
+        const d = dirs[stalled % dirs.length];
+        const was = G.turn;
+        try { Game.step(d[0], d[1]); } catch { /* 화면이 열려 있을 수 있다 */ }
+        if (G.turn === was) { try { Game.step(0, 0); } catch { /* 대기도 막혔다 */ } }
+        if (G.turn === was) { jammed = true; break; }
+        stalled = 0;
+      }
+    } else { stallTurn = G.turn; stalled = 0; }
     /* 판이 도는 동안 바깥에서 들여다볼 수 있는 자리. 규칙 파일에
        탐침용 배열을 심지 않기 위해 여기 둔다 — game.js는 규칙만
        알아야 하고, 무엇을 재고 싶은지는 재는 쪽 사정이다. */
@@ -713,7 +739,7 @@ function runBot(race, cls, clear, opt = {}) {
            })(),
            uniques: Object.keys(G.uniques || {}).length,
            gearTaken: G.gearTaken || 0, rareTaken: G.rareTaken || 0,
-           best: G.bestCombo || 0, stuck: guard >= 60000,
+           best: G.bestCombo || 0, stuck: jammed || guard >= 60000,
            gear: [G.player.equip.weapon, G.player.equip.body, G.player.equip.shield]
                    .filter(Boolean).filter(i => i.pre || i.suf || i.plus).length,
            plus: (G.player.equip.weapon?.plus || 0) + (G.player.equip.body?.plus || 0),

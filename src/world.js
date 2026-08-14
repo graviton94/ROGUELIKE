@@ -94,8 +94,17 @@ export class Level {
        anything routing through it looped forever. */
     if (t === PROP) {
       const k = this.props.get(idx(x, y))?.kind;
-      return k === 'pillar' || k === 'brazier';
+      /* 좌판과 우물도 여기 들어간다. 좌판은 hp 8짜리 부술 수 있는
+         가구로 서 있었다 — 상인의 가판을 세 대 치면 부서지고, 간판도
+         같이 사라졌다. 우물도 마찬가지. 둘 다 지나갈 수 없고 부술
+         수도 없는 것이 맞다. */
+      return k === 'pillar' || k === 'brazier' || k === 'stall' || k === 'well';
     }
+    /* 그리고 사람. 마을의 여섯 주인은 그려지기만 하고 몸이 없어서
+       그대로 통과해 걸을 수 있었다. 마을에서만이다 — 던전의 떠돌이
+       행상은 흥정하는 칸과 서 있는 칸이 같은 한 칸이라, 여기서
+       막으면 그와는 영영 거래할 수 없게 된다. */
+    if (this.depth === 0 && this.keeperAt.has(idx(x, y))) return true;
     return t === ROCK || t === SHOP || isShut(t);
   }
 
@@ -140,13 +149,25 @@ export class Level {
     const camp = (x, y) => Math.abs(x - cx) <= 7 && Math.abs(y - cy) <= 4;
     const yard = (x, y) => Math.hypot(x - gateX, y - gateY) < 4.5;
 
+    /* 마을은 던전과 달리 좌표를 손으로 박아 만든 곳이라, 판 크기가
+       66×40에서 52×32로 줄었을 때 여기 상수들만 그대로 남았다.
+       폐허는 아홉 채를 노리는데 여섯 채밖에 안 들어가고 (들어가다
+       만 것은 벽 조각으로 보인다), 돌무더기 마흔아홉 칸과 잡동사니
+       일곱이 좁아진 거리에 그대로 쏟아졌다 — 주석이 경계하던 바로
+       그 「틀린 그림 찾기」가 크기 때문에 되살아난 것이다.
+       그래서 이제 개수를 넓이에서 뽑는다. 다음에 판을 또 줄여도
+       같은 밀도로 따라온다. */
+    const AREA = w * h, LOT = AREA / 2040;      // 예전 60×34을 1로 친다
+
     /* Ruins, not houses. Nothing here is a building you go into —
        the roofs are down, the walls are open on at least one
        side, and what is inside is what fell off the walls. A dozen
        of them, not thirty: the point is that the streets between
        are empty, and thirty shells is a maze, not a graveyard. */
-    for (let t = 0; t < 900 && this.rooms.length < 9; t++) {
-      const bw = 6 + rnd(4), bh = 5 + rnd(3);
+    /* 크기도 같이 줄인다. 큰 껍데기를 좁은 자리에 우겨넣으면 자리를
+       못 찾아 아예 안 서거나, 서더라도 골목을 막는다. */
+    for (let t = 0; t < 900 && this.rooms.length < Math.max(4, Math.round(9 * LOT)); t++) {
+      const bw = 5 + rnd(3 + Math.round(LOT)), bh = 4 + rnd(2 + Math.round(LOT));
       const bx = x0 + 2 + rnd(w - bw - 4), by = y0 + 2 + rnd(h - bh - 4);
       let ok = true;
       for (let y = by - 1; y <= by + bh && ok; y++)
@@ -217,12 +238,14 @@ export class Level {
     place(gateX - 3, gateY - 2, 'brazier'); place(gateX + 3, gateY + 2, 'brazier');
     // and a handful guttering out in the empty streets
     let lamps = 0;
-    for (let t = 0; t < 90 && lamps < 4; t++)
+    const LAMPS = Math.max(2, Math.round(4 * LOT));
+    for (let t = 0; t < 90 && lamps < LAMPS; t++)
       if (place(x0 + 2 + rnd(w - 4), y0 + 2 + rnd(h - 4), 'brazier')) lamps++;
     /* A few, not a field of them. Sixty barrels and skulls turned
        the streets into a spot-the-difference puzzle. */
     let junk = 0;
-    for (let t = 0; t < 80 && junk < 7; t++) {
+    const JUNK = Math.max(3, Math.round(7 * LOT));
+    for (let t = 0; t < 80 && junk < JUNK; t++) {
       const x = x0 + rnd(w), y = y0 + rnd(h);
       if (camp(x, y) || yard(x, y)) continue;
       if (place(x, y, Math.random() < 0.5 ? 'bones' : 'barrel')) junk++;
@@ -230,7 +253,7 @@ export class Level {
 
     /* Rubble against the standing walls and along the edges —
        what came off the buildings is still lying where it fell. */
-    for (let t = 0; t < 160; t++) {
+    for (let t = 0; t < Math.round(160 * LOT); t++) {
       const x = x0 + rnd(w), y = y0 + rnd(h);
       if (at(x, y) !== FLOOR || camp(x, y) || yard(x, y)) continue;
       let wall = 0;

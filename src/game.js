@@ -2602,7 +2602,16 @@ export function step(dx, dy) {
   const onCounter = monsterAt(nx, ny);
   const shopId = L.shopAt.get(ni);
   if (shopId && !(onCounter && !onCounter.disguise)) {
-    G.shop = SHOPS.find(s => s.id === shopId); G.screen = 'shop'; return;
+    /* 수레 앞도 나머지 넷과 같은 규칙을 따른다. 여기만 옛 동작이
+       남아 있었다 — 발이 닿는 순간 화면이 튀어나오고, 턴은 안 쓰고,
+       심지어 그 칸에 서지도 못했다. 지나가려던 사람이 장을 보게
+       되고, 화면은 엄지 밑에서 열린다. 넷을 고칠 때 여기를 빠뜨린
+       것이지 상점이 특별한 것이 아니었다. */
+    p.x = nx; p.y = ny;
+    refreshFov();
+    say(`${SHOPS.find(s => s.id === shopId)?.n || '수레'} 앞에 섰다.`, 'good');
+    endTurn();
+    return;
   }
 
   /* The four tiles that offer something used to throw their whole
@@ -2746,7 +2755,16 @@ const OFFER_SCREEN = { [CAMP]:'camp', [ALTAR]:'altar', [EVENT]:'event', [ANVIL]:
 export function hereOffer() {
   const p = G.player, L = G.level;
   if (!p || !L || !G.running) return null;
-  const t = L.tiles[idx(p.x, p.y)];
+  const here = idx(p.x, p.y);
+  /* 수레는 타일이 아니라 자리로 표시된다 — 마을에는 문이 없고,
+     흥정하는 칸은 좌판 앞의 땅바닥이다. 그래서 타일 표에서 찾지
+     않고 따로 묻는다. */
+  const shopId = L.shopAt.get(here);
+  if (shopId) {
+    const shop = SHOPS.find(s => s.id === shopId);
+    if (shop) return { screen:'shop', n: shop.n, shop };
+  }
+  const t = L.tiles[here];
   if (t === EVENT && !L.eventId) return null;      // already taken
   const screen = OFFER_SCREEN[t];
   return screen ? { screen, n: OFFER_NAME[t] } : null;
@@ -2757,6 +2775,7 @@ export function openHere() {
   const o = hereOffer();
   if (!o) return false;
   G.act = 'open';
+  if (o.shop) G.shop = o.shop;
   G.screen = o.screen;
   return true;
 }

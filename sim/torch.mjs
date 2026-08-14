@@ -102,10 +102,16 @@ ok(Game.OIL_BURN(1) === 1 && Game.OIL_BURN(6) === 2 && Game.OIL_BURN(11) === 3,
     if (id === 'everflame') sawMyth++; }
   ok(sawMyth === 0, '3층에서는 전설이 나오지 않는다', `${sawMyth}회`);
   Game.enterDepth(10);
+  /* 400번으로는 네 번에 한 번꼴로 0이 나왔다 — 게임이 아니라 표본이
+     모자란 것이다. 유물 풀이 마흔이고 전설은 뽑혀도 넷 중 하나만
+     통과하므로, 한 번 부를 때 이 하나가 나올 확률은 1%도 안 된다.
+     열 배로 늘리고, 「한 번이라도 나오는가」가 아니라 「대략 이만큼
+     나오는가」를 묻는다. */
   let deep = 0;
-  for (let i = 0; i < 400; i++) { G.player.relics = []; const id = Game.unownedRelic();
+  const N = 4000;
+  for (let i = 0; i < N; i++) { G.player.relics = []; const id = Game.unownedRelic();
     if (id === 'everflame') deep++; }
-  ok(deep > 0, '10층에서는 나온다', `${deep}/400`);
+  ok(deep >= 5, '10층에서는 나온다', `${deep}/${N} (${(deep * 100 / N).toFixed(2)}%)`);
 }
 
 console.log(bad ? `\n불 벤치: ${bad}건 실패\n` : '\n불 벤치: 전부 통과\n');

@@ -221,8 +221,12 @@ export function draw() {
       if (signId && L.seen[i]) {
         const shop = SHOPS.find(s => s.id === signId);
         ctx.globalAlpha = 1;
-        ctx.drawImage(sprite('sign'), px, py, t, t);
-        if (shop) ctx.drawImage(sprite(shop.spr), px, py, t, t);
+        /* 간판은 좌판 위에 걸린다 — 같은 칸을 꽉 채워 그리면 아래의
+           좌판을 완전히 덮어서, 여섯 수레가 「공중에 뜬 판자」로
+           보인다. 위쪽 3/4만 쓰고 아랫단은 좌판의 다리에 내준다. */
+        const sh = t * 0.74;
+        ctx.drawImage(sprite('sign'), px, py, t, sh);
+        if (shop) ctx.drawImage(sprite(shop.spr), px, py, t, sh);
       }
 
       const keeperId = L.keeperAt?.get(i);
@@ -1161,7 +1165,8 @@ export function refresh() {
   const here = Game.hereOffer();
   const hb = $('btn-here');
   hb.hidden = !here;
-  if (here) hb.textContent = `${here.n} 열기`;
+  // 수레는 「여는」 것이 아니라 「거래하는」 것이다.
+  if (here) hb.textContent = here.shop ? `${here.n}과 거래` : `${here.n} 열기`;
 
   const logBox = $('log');
   logBox.innerHTML = '';

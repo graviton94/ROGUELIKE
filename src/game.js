@@ -799,10 +799,17 @@ export function hurtPlayer(dmg, opt = {}) {
   p.hp -= taken;
   if (opt.combo !== false) breakCombo(false);
   tookHit(taken, over);
-  if (p.hp <= 0 && opt.by) {
-    p.hp = 0;
+  if (p.hp <= 0) {
+    /* **0으로 자르지 않고** 넘긴다. death()의 순교 분기가 빚을
+       `1 - p.hp`로 적는데, 여기서 먼저 0을 만들면 그 빚이 **언제나
+       정확히 1**이 된다 — 체력 3에서 999를 맞아도 1. 순교 다섯 턴이
+       「막아 낸 만큼 갚는 내기」가 아니라 총 빚 1~5짜리 무료 무적이
+       되어 있었다. 회수한 여덟 곳도 전부 이렇게 하고 있었으므로
+       회귀는 아니지만, 한 곳으로 모았으니 한 곳에서 고친다.
+       화면용 0 자르기는 death()가 알아서 한다. */
     fx({ t:'death', x:p.x, y:p.y });
-    death(typeof opt.by === 'string' ? { n: opt.by } : opt.by);
+    death(typeof opt.by === 'string' ? { n: opt.by }
+        : opt.by || { n: opt.who || '알 수 없는 것' });
   }
   return taken;
 }
@@ -5052,7 +5059,7 @@ function monsterMelee(m) {
     (roll(2, Math.max(3, Math.floor(m.atk * 0.72))) - Math.floor(ac / 5))
     * (heavy ? 2.5 : 1) * (1 + (p.perm?.takeMore || 0))) - gearBonus(p).flatDR);
   dmg = sanctumSoak(dmg);
-  dmg = hurtPlayer(dmg); faithForBlow(dmg);
+  dmg = hurtPlayer(dmg, { by: m }); faithForBlow(dmg);
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        who:m.n, spr:m.spr, severe: dmg >= p.maxhp * 0.18 });
   say(`${heavy ? '당겼던 것이 떨어졌다. ' : ''}${takenLine(m.n, dmg, p.maxhp, nextLine())} (${dmg})`, 'hit');
@@ -5063,7 +5070,6 @@ function monsterMelee(m) {
   if (m.on && Math.random() < 0.28) afflict(p, m.on, 9 + rnd(9));
   corrode(m);
   reflect(m, dmg);
-  if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death(m); }
 }
 
 /* 부식. The other end of the anvil: rarely, something that eats
@@ -5123,14 +5129,14 @@ function monsterShoot(m) {
     return;
   }
   const dmg = hurtPlayer(sanctumSoak(Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.6)))
-    - Math.floor(ac / 6) - gearBonus(p).flatDR)));
+    - Math.floor(ac / 6) - gearBonus(p).flatDR)), { by: m });
   faithForBlow(dmg);
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        who:m.n, spr:m.spr, arrow:true, severe: dmg >= p.maxhp * 0.18 });
   say(`멀리서 날아왔다. ${takenLine(m.n, dmg, p.maxhp, nextLine())} (${dmg})`, 'hit');
+  if (!G.running) return;
   if (m.on && Math.random() < 0.22) afflict(p, m.on, 8 + rnd(8));
   reflect(m, dmg);
-  if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death(m); }
 }
 
 /* Movement shared by every AI, including what to do about a
@@ -5292,11 +5298,11 @@ function resolveHazard(h) {
       fx({ t:'resist', x:p.x, y:p.y });
     } else {
       const ac = armourClass(p);
-      const dmg = hurtPlayer(Math.max(1, Math.round((h.dmg - ac * 0.25) * (1 + (p.perm?.takeMore || 0)))));
+      const dmg = hurtPlayer(Math.max(1, Math.round((h.dmg - ac * 0.25) * (1 + (p.perm?.takeMore || 0)))), { by: { n: h.owner } });
       fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, who:PATTERNS[h.key].n, spr:'trap',
            low: p.hp <= p.maxhp * 0.25 && p.hp + dmg > p.maxhp * 0.25, severe:true });
       say(`${h.owner}의 ${PATTERNS[h.key].n}에 ${dmg}의 피해.`, 'hit');
-      if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n: h.owner }); return; }
+      if (!G.running) return;
     }
   }
   // Everything else standing in it, including the caster's own.
@@ -6108,7 +6114,7 @@ function eventApi() {
       say(`체력 +${got}.`, 'good');
     },
     hurt: (n, from) => {
-      n = hurtPlayer(n);
+      n = hurtPlayer(n, { by: { n: from || '사건' } });
       /* `dmg` was a name from the site this was copied out of and
          has never existed here. It threw the moment a ? room dealt
          damage that pushed you across the quarter-health line —
@@ -6117,7 +6123,6 @@ function eventApi() {
            low: p.hp <= p.maxhp * 0.25 && p.hp + n > p.maxhp * 0.25,
            severe: n >= p.maxhp * 0.18 });
       say(`${n}의 피해.`, 'hit');
-      if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n: from || '사건' }); }
     },
     afflict: (kind, turns) => afflict(p, kind, turns),
     xp: n => gainXp(Math.round(n)),
@@ -6935,6 +6940,8 @@ const CORRODE_CHANCE = 0.03;
 
 function death(killer) {
   const p = G.player;
+  /* 여기 들어올 때 체력은 음수일 수 있다 — 그래야 순교가 「얼마나
+     막아 냈는지」를 안다. 아래 분기들이 그 값을 읽고 나면 그때 자른다. */
   /* 역류의. Checked here rather than at each of the eleven places
      that can reduce you to zero, so it cannot be missed at one of
      them. Once per floor, and the floor has to end before it comes

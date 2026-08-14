@@ -2592,6 +2592,9 @@ export const OIL_BURN = depth => depth >= 11 ? 3 : depth >= 6 ? 2 : 1;
 /* 불이 꺼졌을 때 놈들이 너를 보는 거리. 네 반경 2보다 넉넉하다 —
    여기 사는 것들은 여기서 살고, 눈이 먼 쪽은 너다. */
 export const DARK_SIGHT = 7;
+/* 눈을 뗀 한 턴에 이것이 좁히는 칸 수. 둘이면 「걸어서 도망칠 수
+   있다」가 거짓이 되고, 셋이면 방을 가로지르므로 도망 자체가 없어진다. */
+export const UNSEEN_STEP = 2;
 /* 그리고 어둠 속의 손. 0.78이었는데, 어둠이 은신이던 시절에는 그것이
    유일한 벌이었다. 이제 어둠은 그 자체로 위험하므로 손은 조금 더
    무뎌져도 된다 — 「불을 켤까」가 매번 계산이 되어야 한다. */
@@ -4679,6 +4682,42 @@ function monsterTurn(m) {
   if (m.disguise) return;
   if (m.ai === 'still' && dist2 > 2) return;
 
+  /* ── 보고 있는 동안에는 움직이지 않는 것 ──────────────────
+     이 게임에서 시야는 장식이 아니라 자원이다 — 횃불이 곧 보이는
+     범위이고, 그 범위는 판 내내 줄어든다. 그러니 「보고 있으면
+     멈춘다」는 규칙은 여기서 남의 장르 장치가 아니라 이 게임의
+     시계에 직접 붙는다. 기름이 줄면 볼 수 있는 것이 줄고, 볼 수
+     있는 것이 줄면 이것이 움직인다.
+
+     불쾌한 것은 움직이는 순간이 아니라 **움직이지 않는 순간**이다.
+     한 칸 앞에 서 있는데 아무 일도 안 일어나고, 그래서 눈을 뗄 수가
+     없고, 그런데 불은 계속 탄다. 도망치려면 등을 보여야 한다.
+
+     쫓기지 않는다. 걸어서 떨어뜨릴 수 있는 것이 아니다 — 눈을 감는
+     순간 거리가 줄어든다. 그것이 이것의 유일한 규칙이고, 도감의
+     tellsOf가 그 한 줄을 그대로 적어 준다. */
+  if (m.ai === 'unseen') {
+    const watched = L.vis[idx(m.x, m.y)];
+    if (watched) {
+      m.wind = 0;
+      /* 보고 있는 동안 붙어 있어도 때리지 않는다. 이것은 「가만히
+         있는 몬스터」가 아니라 「보는 동안 멈추는 것」이다 — 그
+         차이가 전부다. */
+      return;
+    }
+    /* 안 보이면 성큼 다가온다. 걷는 것이 아니라 거기 있게 된다. */
+    for (let i = 0; i < UNSEEN_STEP; i++) {
+      if (Math.max(Math.abs(p.x - m.x), Math.abs(p.y - m.y)) <= 1) break;
+      advance(m, Math.sign(p.x - m.x), Math.sign(p.y - m.y));
+    }
+    if (Math.max(Math.abs(p.x - m.x), Math.abs(p.y - m.y)) <= 1
+        && !L.vis[idx(m.x, m.y)]) {
+      /* 어둠 속에서 붙었다. 여기서만 때린다. */
+      monsterMelee(m);
+    }
+    return;
+  }
+
   /* A named thing guards; it does not hunt the floor. The stairs
      screen promises "피해서 내려갈 수 있다" and that promise has to
      be true — a 185-health ogre that follows you across three
@@ -5210,6 +5249,8 @@ export function predictIntent(m) {
   if (m.thief) return 'flee';        // it is always running, adjacent or not
   if (dist2 <= 2) return m.heavy ? 'wind' : (m.on ? 'hex' : 'melee');
   if (m.ai === 'still') return 'watch';
+  /* 보고 있는 동안에는 아무 예고도 없다. 그것이 예고다. */
+  if (m.ai === 'unseen') return L.vis[idx(m.x, m.y)] ? 'watch' : 'close';
   if (m.ai === 'ranged' && m.rng
       && dist <= m.rng && dist >= 2.5 && lineClear(L, m.x, m.y, p.x, p.y)) return 'shoot';
   if (m.thief || ((m.ai === 'coward' || m.fleeing) && m.hp < m.maxhp * 0.35)) return 'flee';

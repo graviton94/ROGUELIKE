@@ -2443,6 +2443,10 @@ const inBand = (pool, depth) => {
   return band.length ? band : pool.filter(x => x.d <= depth + 2);
 };
 
+/* 벤치가 굴림을 직접 셀 수 있게 열어 둔다. 표에 적힌 확률과 실제로
+   나오는 비율이 갈리는 것이 이 파일에서 가장 조용한 종류의 버그다. */
+export const pickItemFor = depth => pickItem(depth);
+
 function pickItem(depth) {
   const r = Math.random();
   /* 3% of what a floor drops is a catalyst, and only ones the
@@ -2455,10 +2459,18 @@ function pickItem(depth) {
     const pool = CONSUMABLES.filter(c => c.d <= depth + 2);
     return { kind:'use', ...pickByRarity(pool) };
   }
-  /* A named weapon, at most one of each per run. Rolled before
-     the ordinary tables so the deep floors can actually produce
-     one, and never given affixes — the name is the affix. */
-  if (r < 0.71 + UNIQUE_ODDS) {
+  /* A named weapon, at most one of each per run, and never given
+     affixes — the name is the affix.
+
+     ── 여기 부등호 하나가 이름 붙은 무기를 흔한 물건으로 만들고 있었다
+     `r < 0.71 + UNIQUE_ODDS`였다. 바로 아래에 `r < 0.71`이 또 있으니
+     의도는 「0.71과 0.745 **사이**」였을 텐데, 위쪽 경계만 적혀 있어서
+     0.38부터 0.745까지 전부 이 가지로 들어왔다 — 낙하의 36.5%다.
+     UNIQUE_ODDS는 3.5%로 적혀 있는데 실제로는 열 배였고, 판마다 일곱
+     자루가 다 나와 버렸다. 전리품 더미 스크린샷 한 장에 《재를 세는 자》와
+     《긴 침묵》이 나란히 뜬 것을 보고 잡았다 — 2층에서.
+     아래쪽 경계를 적는다. */
+  if (r >= 0.71 && r < 0.71 + UNIQUE_ODDS) {
     const pool = UNIQUES.filter(u => u.d <= depth && !(G.uniques || {})[u.id]);
     if (pool.length) {
       const u = pool[rnd(pool.length)];

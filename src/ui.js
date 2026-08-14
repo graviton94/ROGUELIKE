@@ -122,7 +122,9 @@ export function draw() {
   /* The masonry belongs to the theme. One call before any tile is
      asked for; the cache is keyed by theme so walking back up a
      floor costs nothing. */
-  setTerrainTheme(L.theme?.id || 'plain');
+  /* 층의 성격과 깊이를 같이 넘긴다 — 무늬는 성격이 정하고, 온도는
+     구역이 정한다. 열다섯 층을 내려가는 동안 돌이 실제로 달아오른다. */
+  setTerrainTheme(L.theme?.id || 'plain', G.depth > 0 ? REGIONS.indexOf(regionOf(G.depth)) : 0);
   const t = CELL_SIZE * scale;
   if (!camReady) snapCamera();
 

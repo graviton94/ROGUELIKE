@@ -1206,16 +1206,42 @@ export const TERRAIN = {
   nest:    { base:'p', grain:'P', mortar:'k', floor:'d', dust:'J',  style:'rough' },
 };
 
+/* ── 구역의 열 ────────────────────────────────────────────
+   지형 무늬는 층의 **성격**(좁은 굴, 큰 방, 물에 잠긴 층)을 말한다.
+   그런데 이 게임의 뼈대는 그게 아니라 **깊이**다 — 아래에 있는 것이
+   타고 있고, 열다섯 층 내내 돌이 점점 따뜻해진다. 그 말을 지역
+   문장으로만 하고 화면은 한 번도 하지 않았다.
+
+   그래서 구운 타일 위에 구역의 색을 얇게 덮는다. 성채는 그대로,
+   갱도에서 흙빛이 돌기 시작하고, 성소는 뼈처럼 바래고, 잿불에서는
+   붉어지고, 화로에서는 달아오른다. 무늬는 그대로 두고 **온도만**
+   바꾸는 것이라, 층의 성격과 깊이가 서로를 지우지 않는다.
+
+   섞는 비율은 낮게 잡았다 — 색을 입히는 것이 아니라 데우는 것이고,
+   진해지면 여섯 지형 무늬가 전부 같은 색 덩어리로 뭉개진다. */
+export const REGION_HEAT = [
+  { tone:null,      wall:0,    floor:0    },   // 무너진 성채 — 식은 돌
+  { tone:'#5e3a1c', wall:0.13, floor:0.10 },   // 드워프 갱도 — 파낸 흙
+  { tone:'#d8cdb4', wall:0.10, floor:0.07 },   // 잊힌 성소 — 바랜 뼈
+  { tone:'#c8322c', wall:0.16, floor:0.12 },   // 잿불 아래 — 아래가 붉다
+  { tone:'#d4741f', wall:0.26, floor:0.20 },   // 대군주의 화로 — 달아올랐다
+];
+
 let terrainTheme = 'plain';
+let terrainHeat = 0;
 /* Called by the renderer when the floor changes. Cheap: the
    cache is keyed by theme so walking back up is instant. */
-export function setTerrainTheme(id) {
+export function setTerrainTheme(id, heat = 0) {
   terrainTheme = TERRAIN[id] ? id : 'plain';
+  terrainHeat = Math.max(0, Math.min(REGION_HEAT.length - 1, heat | 0));
 }
 
 function bakeTerrain(kind, variant) {
   const theme = terrainTheme;
-  const key = `${theme}:${kind}:${variant}`;
+  const heat = terrainHeat;
+  // 열도 캐시 열쇠에 들어간다 — 안 넣으면 성채에서 구운 타일이
+  // 화로까지 따라 내려온다.
+  const key = `${theme}:${heat}:${kind}:${variant}`;
   if (terrainCache.has(key)) return terrainCache.get(key);
 
   const T = TERRAIN[theme] || TERRAIN.plain;
@@ -1261,6 +1287,18 @@ function bakeTerrain(kind, variant) {
       x.fillStyle = PALETTE[T.dust];
       const dots = 1 + ((rr() * 2) | 0);
       for (let i = 0; i < dots; i++) x.fillRect((rr() * 8) | 0, (rr() * 8) | 0, 1, 1);
+    }
+  }
+  /* 그리고 온도. 무늬를 다 그린 뒤에 얇게 덮으므로, 결도 이음매도
+     사라지지 않고 색만 옮겨 간다. */
+  const H = REGION_HEAT[heat];
+  if (H && H.tone) {
+    const a = kind === 'wall' ? H.wall : H.floor;
+    if (a > 0) {
+      x.globalAlpha = a;
+      x.fillStyle = H.tone;
+      x.fillRect(0, 0, CELL, CELL);
+      x.globalAlpha = 1;
     }
   }
   terrainCache.set(key, c);

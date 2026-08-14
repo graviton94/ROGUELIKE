@@ -5461,7 +5461,32 @@ export function predictIntent(m) {
    because what the player needs is the state of the board when
    it is their move again. */
 function readIntents() {
-  for (const m of G.monsters) m.intent = predictIntent(m);
+  /* ── 어둠은 예고를 가린다 ──────────────────────────────
+     기름 소모를 4배로 올리고 4분의 1로 낮춰 봤더니 도달 층이
+     6.42 / 5.98 / 6.08 — 오차 안에서 같았다. 기름이 덜 무는 게
+     아니라 **결과와 연결이 끊겨** 있었다. 불이 꺼져도 반경 2 안은
+     그대로 보이고 싸움은 대개 붙어서 하므로, 어둠이 전투에 아무 값도
+     안 매기고 있었다.
+
+     예고(붉은 별)는 이 게임에서 가장 값진 정보다 — 읽으면 물러설 수
+     있고 못 읽으면 2.5배를 맞는다. 그리고 그것은 **보는 것**이다.
+     그래서 규칙 쪽에 둔다: 처음에 그리는 쪽만 가렸더니 봇은 규칙에서
+     예고를 직접 읽으므로 아무것도 안 변했다 — 화면만 가리는 것은
+     사람에게만 참인 규칙이고, 그런 것은 잴 수가 없다.
+
+     방이 밝으면 제 불이 아니어도 보인다. 어둠의 값이지 근시의 값이
+     아니다. 그리고 붙어 있는 것은 언제나 보인다 — 코앞에서 팔을
+     당기는 것을 못 보는 것은 어둠이 아니라 부당함이다. */
+  const p = G.player, L = G.level;
+  const blind = p && L && G.depth > 0 && p.lightTurns <= 0 && !hasRelic('nighteye');
+  for (const m of G.monsters) {
+    const it = predictIntent(m);
+    if (!blind || !it) { m.intent = it; continue; }
+    const near = Math.max(Math.abs(m.x - p.x), Math.abs(m.y - p.y)) <= 1;
+    const rid = L.roomOf[idx(m.x, m.y)];
+    const lit = rid >= 0 && L.rooms[rid]?.lit;
+    m.intent = (near || lit) ? it : null;
+  }
 }
 
 /* ── the fire ─────────────────────────────────────────────

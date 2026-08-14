@@ -494,7 +494,24 @@ export function draw() {
       ctx.fillText('z', zx, zy);
     }
 
-    if (seenNow && m.awake && m.intent) drawIntent(m.intent, mx, my, t);
+    /* ── 어둠은 예고를 가린다 ────────────────────────────
+       기름 소모를 4배로 올리고 4분의 1로 낮춰 봤더니 도달 층이
+       6.42 / 5.98 / 6.08 — 오차 안에서 같았다. 기름이 덜 무는 게
+       아니라 **결과와 연결이 끊겨** 있었다. 불이 꺼져도 반경 2 안은
+       그대로 보이고, 싸움은 대개 붙어서 하므로 어둠이 전투에 아무
+       값도 매기지 않았던 것이다.
+
+       예고(붉은 별)는 이 게임에서 가장 값진 정보다 — 그 한 칸을
+       읽으면 물러설 수 있고 못 읽으면 2.5배를 맞는다. 그리고 그것은
+       **보는 것**이다. 불이 꺼진 채로 싸우면 다음 턴에 무엇이
+       오는지 모른다. 매 턴 드는 값이고, 그래서 기름이 처음으로
+       전투와 이어진다.
+
+       방이 밝으면(제 불이 아니어도) 보인다 — 어둠의 값이지
+       근시의 값이 아니다. */
+    const litHere = p.lightTurns > 0
+      || (L.roomOf[idx(m.x, m.y)] >= 0 && L.rooms[L.roomOf[idx(m.x, m.y)]]?.lit);
+    if (seenNow && m.awake && m.intent && litHere) drawIntent(m.intent, mx, my, t);
 
     if (seenNow && m.hp < m.maxhp) {
       const w = Math.round(t * (m.hp / m.maxhp));

@@ -1208,10 +1208,10 @@ export function refresh() {
   shootBtn.disabled = !bowed || !Game.canShoot();
   if (!bowed) $('shoot-n').textContent = '';
   if (bowed) {
-    /* 화살통 **이름**이 아니라 남은 수. 넷이 한 줄을 나눠 쓰는
-       칸에 「사슴뿔 화살」은 안 들어가고, 쏠지 말지를 정하는 것은
-       어차피 이름이 아니라 숫자다. 이름은 길게 눌러 보는 설명에 있다. */
-    $('shoot-n').textContent = q ? String(q.qty ?? '') : '';
+    /* 무엇을 끼웠는지를 두어 글자로. 앞서 여기에 「남은 화살 수」를
+       적었는데, 이 게임의 화살은 떨어지지 않는다 — 화살통은 소모품이
+       아니라 장비 한 칸이다. 없는 숫자를 세는 칸이었다. */
+    $('shoot-n').textContent = q ? (q.short || q.n.slice(0, 2)) : '';
     shootBtn.title = !Game.shotTarget() ? '사선이 막혔거나 사거리 밖이다'
                    : q ? `${q.n} · ${q.desc}` : '화살통이 없다 — 평범한 화살이 나간다';
   }

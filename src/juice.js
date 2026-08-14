@@ -10,6 +10,12 @@ import { PALETTE, spriteColors } from './pixels.js';
 import { MW as MAP_W } from './world.js';
 import { sfx, from as earFrom } from './audio.js';
 
+/* 등급의 색과 이름. data.js의 RARITY를 그대로 쓰지 않는 것은 juice가
+   규칙 데이터를 읽지 않기 때문이다 — 여기는 「무슨 일이 있었나」를
+   받아서 「얼마나 세게 보여 줄까」만 정하는 층이다. 값은 같게 둔다. */
+const RARE_TONE = [PALETTE.G, '#48a8f8', '#f8d020', '#c868f8', '#f8f8f8'];
+const RARE_NAME = ['전리품', '마법', '희귀', '유물', '초월'];
+
 /* ── stores ─────────────────────────────────────────────── */
 const shards = [];     // pixel chunks knocked off a sprite
 const numbers = [];    // floating damage / heal readouts
@@ -878,11 +884,48 @@ export function pump(queue, player) {
         break;
       }
 
-      case 'drop':
-        ring(e.x, e.y, 2.0, PALETTE.y, 620);
-        number(e.x, e.y - 0.5, '전리품', PALETTE.y, 1.2);
-        if (e.relic) sfx.relic(); else sfx.pick();
+      /* 떨어진 것의 등급이 곧 연출의 크기다. 여태 평범한 단검과
+         초월 무기가 똑같은 노란 고리 하나에 「전리품」 세 글자였다.
+         등급은 규칙이 실어 보낸다(rar) — 여기서 다시 판정하면
+         한쪽만 고쳐졌을 때 화면과 규칙이 갈린다. */
+      case 'drop': {
+        const g = Math.max(0, Math.min(4, e.rar ?? (e.relic ? 3 : 0)));
+        const tone = RARE_TONE[g];
+        const name = RARE_NAME[g];
+        ring(e.x, e.y, 2.0 + g * 0.7, tone, 620 + g * 220);
+        if (g >= 2) ring(e.x, e.y, 1.0 + g * 0.4, tone, 900 + g * 200, true);
+        number(e.x, e.y - 0.5, name, tone, 1.2 + g * 0.22);
+        /* 등급이 올라가면 조각이 튀고, 위쪽 둘은 화면까지 흔든다.
+           고리 하나로는 「좋은 것이 떨어졌다」가 눈에 안 들어온다. */
+        if (g >= 1) burstShards(e.x, e.y, [tone, PALETTE.W, tone], 6 + g * 6, 0.5 + g * 0.25);
+        if (g >= 3) { shake = Math.max(shake, 0.25 + (g - 3) * 0.35); buzz(g >= 4 ? [40, 40, 120] : 40); }
+        if (e.relic || g >= 3) sfx.relic(); else sfx.pick();
         break;
+      }
+
+      /* 주운 순간. 낙하는 「저기 뭔가 떨어졌다」고, 이쪽은 「그게
+         내 것이 되었다」다 — 둘 다 있어야 손에 들어온 느낌이 난다.
+         등급 카드가 같이 뜨므로 여기는 짧고 밝게. */
+      case 'found': {
+        const g = Math.max(0, Math.min(4, e.rar ?? 0));
+        const tone = RARE_TONE[g];
+        ring(e.x, e.y, 1.2 + g * 0.5, tone, 420, true);
+        burstShards(e.x, e.y, [tone, PALETTE.W], 8 + g * 5, 0.7 + g * 0.2);
+        if (g >= 3) shake = Math.max(shake, 0.2);
+        break;
+      }
+
+      /* 손에 쥐는 순간. 몸에서 등급 색이 한 번 퍼진다 — 주운 것과
+         든 것은 다른 사건이고, 둘 다 있어야 「이걸 쓰기로 했다」가
+         한 동작으로 읽힌다. */
+      case 'wield': {
+        const g = Math.max(0, Math.min(4, e.rar ?? 0));
+        const tone = RARE_TONE[g];
+        ring(e.x, e.y, 1.4 + g * 0.45, tone, 480 + g * 120);
+        if (g >= 2) burstShards(e.x, e.y, [tone, PALETTE.W], 6 + g * 4, 0.5 + g * 0.15);
+        if (g >= 4) shake = Math.max(shake, 0.25);
+        break;
+      }
 
       // Breaking gear down: sparks, not fireworks.
       case 'salvage':

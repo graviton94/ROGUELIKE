@@ -1402,23 +1402,26 @@ export const fitRule = (p, rule) =>
    the roll turns into. Both halves take enhancement and
    properties, so a bow build has two things to find instead of
    one thing to refill. */
+/* `short`는 쏘기 버튼에 적는 두어 글자다. 이름을 그대로 쓰면
+   「사슴가죽 화살통」이 넷이 나눠 쓰는 칸에 안 들어간다 — 앞을 잘라
+   「사슴가죽…」으로 두면 무엇을 끼웠는지가 오히려 덜 보인다. */
 export const QUIVERS = [
-  { id:'deer',   n:'사슴가죽 화살통', spr:'spear', slot:'quiver', cost:40,   rar:12, d:0,
+  { id:'deer',   n:'사슴가죽 화살통', spr:'spear', short:'사슴', slot:'quiver', cost:40,   rar:12, d:0,
     dmg:1.0,
     desc:'곧게 깎은 화살. 특별할 것은 없고, 떨어지지도 않는다.' },
-  { id:'heavy',  n:'무거운 화살촉',   spr:'spear', slot:'quiver', cost:260,  rar:8,  d:3,
+  { id:'heavy',  n:'무거운 화살촉',   spr:'spear', short:'무게', slot:'quiver', cost:260,  rar:8,  d:3,
     dmg:1.40, hit:-3,
     desc:'피해 +40%, 명중 −3. 두꺼운 것을 뚫으려고 무게를 실었다.' },
-  { id:'venom',  n:'독 바른 화살촉',  spr:'spear', slot:'quiver', cost:420,  rar:6,  d:5,
+  { id:'venom',  n:'독 바른 화살촉',  spr:'spear', short:'독', slot:'quiver', cost:420,  rar:6,  d:5,
     dmg:0.95, on:'poison',
     desc:'맞은 것이 중독된다. 체력이 큰 것일수록 치명적이고, 작은 것에게는 거의 의미가 없다.' },
-  { id:'ember',  n:'불붙이는 화살촉', spr:'spear', slot:'quiver', cost:680,  rar:5,  d:8,
+  { id:'ember',  n:'불붙이는 화살촉', spr:'spear', short:'불', slot:'quiver', cost:680,  rar:5,  d:8,
     dmg:1.15, burst:0.35,
     desc:'죽은 자리가 터진다. 무리 한가운데를 노려라.' },
-  { id:'barbed', n:'미늘 화살촉',     spr:'spear', slot:'quiver', cost:900,  rar:4,  d:10,
+  { id:'barbed', n:'미늘 화살촉',     spr:'spear', short:'미늘', slot:'quiver', cost:900,  rar:4,  d:10,
     dmg:1.2, bleed:true,
     desc:'뽑히지 않는다. 맞은 것은 걸음이 느려진다.' },
-  { id:'long',   n:'긴 깃 화살통',    spr:'spear', slot:'quiver', cost:1200, rar:3,  d:12,
+  { id:'long',   n:'긴 깃 화살통',    spr:'spear', short:'긴깃', slot:'quiver', cost:1200, rar:3,  d:12,
     dmg:1.1, rng:2, falloff:-0.02,
     desc:'사거리 +2. 멀리서도 힘이 덜 죽는다.' },
 ];
@@ -1801,8 +1804,17 @@ export const boonById = id => BOONS.find(b => b.id === id);
 export const transChance = depth => 0.006 + depth * 0.0016;
 
 export function rarityOf(item) {
-  if (!item || (item.kind !== 'weapon' && item.kind !== 'armour')) return 0;
+  if (!item) return 0;
+  /* 유물은 여기서 0이었다. 바닥에 떨어진 유물에 빛기둥이 안 서고,
+     미니맵에서도 평범한 물건과 같은 급으로 읽히고, 로그의 색도
+     같았다는 뜻이다 — 이 게임에서 가장 신나는 낙하가 가장 조용했다.
+     이름이 붙은 물건(unique)도 마찬가지로, 접사가 없으면 0이 나왔다.
+     등급은 한 자리에서만 매겨지므로, 여기를 고치면 지도·미니맵·
+     아이템 카드·낙하 연출·로그 색이 한꺼번에 따라온다. */
+  if (item.kind === 'relic') return 3;
+  if (item.kind !== 'weapon' && item.kind !== 'armour') return 0;
   if (item.boon) return 4;
+  if (item.unique) return Math.max(3, item.plus >= 4 ? 4 : 3);
   const pre = PREFIXES.find(a => a.id === item.pre);
   const suf = SUFFIXES.find(a => a.id === item.suf);
   const score = (pre ? 2 : 0) + (suf ? 2 : 0) + (item.plus || 0)

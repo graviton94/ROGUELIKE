@@ -12,7 +12,7 @@ import {
   upgradeOdds, upgradeRisk, UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS,
   BOONS, boonById, transChance,
   FUSIONS, fusionOf, FUSE_ODDS, FUSE_COST,
-  ALTAR_OFFERS, rarityOf, isCursed, TEMPLE_SHARE,
+  ALTAR_OFFERS, rarityOf, isCursed, RARITY, TEMPLE_SHARE,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   RELICS, RELIC_SLOTS, relicSlots, relicById, BRANCHES,
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH, REGIONS, regionOf,
@@ -935,8 +935,7 @@ export function spellSlots() {
     const noTarget = (ART_NEEDS_BODY.includes(a.id) && !near)
                   || (ART_NEEDS_SHOT.includes(a.id) && !(G.level && shotTarget()))
                   || (ART_NEEDS_SIGHT.includes(a.id) && !(G.level && visibleMonsters().length))
-                  || (ART_NEEDS_WATCHER.includes(a.id) && !(G.level && awakeWatchers().length))
-                  || (!!a.ammo && (quiver(p)?.qty || 0) < a.ammo);
+                  || (ART_NEEDS_WATCHER.includes(a.id) && !(G.level && awakeWatchers().length));
     return {
       id: a.id, name: a.name, short: a.short || a.name.slice(0, 3),   // 두 글자로 자르면 「마무」가 된다
       lv: a.lv, cost: a.faith || a.oath || a.shade || a.stam, art: true,
@@ -1021,6 +1020,15 @@ export function removeItem(p, slotIdx, qty = 1) {
   if (slot.qty <= 0) p.pack.splice(slotIdx, 1);
 }
 
+/* 착용도 등급을 보여 준다. 여태 초월 무기를 드는 것과 낡은 단검을
+   드는 것이 같은 초록 한 줄이었다 — 손에 쥐는 순간이 아무 일도
+   아니면, 그 물건을 찾아다닐 이유도 한 줄 줄어든다. */
+function wieldFx(it, line) {
+  const p = G.player, g = rarityOf(it);
+  say(line, g >= 2 ? 'level' : 'good');
+  if (g >= 1) fx({ t:'wield', x:p.x, y:p.y, rar:g, spr:it.spr });
+}
+
 export function equip(slotIdx) {
   const p = G.player, slot = p.pack[slotIdx];
   if (!slot) return;
@@ -1036,7 +1044,7 @@ export function equip(slotIdx) {
     // never true there — so 무기 계열 sat at 0/6 no matter what
     // the player picked up.
     if (it.t) Meta.see('weapons', it.t);
-    say(`${nameOf(it)}을(를) 들었다.`, 'good');
+    wieldFx(it, `${nameOf(it)}을(를) 들었다.`);
   } else if (it.kind === 'armour' || it.kind === 'quiver') {
     const key = it.slot;
     if (key === 'shield' && p.equip.weapon?.hands === 2) { say('양손 무기를 든 채로는 방패를 들 수 없다.', 'warn'); return; }
@@ -1044,7 +1052,7 @@ export function equip(slotIdx) {
     p.equip[key] = it;
     removeItem(p, slotIdx);
     if (old) addItem(p, old);
-    say(`${nameOf(it)}을(를) 착용했다.`, 'good');
+    wieldFx(it, `${nameOf(it)}을(를) 착용했다.`);
   }
   endTurn();
 }
@@ -1081,7 +1089,7 @@ export function dropItem(slotIdx) {
   removeItem(p, slotIdx, qty);
   G.items.push({ ...it, qty, x: p.x, y: p.y });
   say(`${nameOf(it)}을(를) 내려놓았다.`);
-  fx({ t:'drop', x: p.x, y: p.y });
+  fx({ t:'drop', x: p.x, y: p.y, rar: rarityOf(it) });
   endTurn();
   return true;
 }
@@ -1383,10 +1391,8 @@ export function useArt(id) {
   if (ART_NEEDS_WATCHER.includes(id) && !awakeWatchers().length) {
     say('너를 보고 있는 것이 없다.', 'warn'); return;
   }
-  if (a.ammo && (quiver()?.qty || 0) < a.ammo) { say('화살이 모자란다.', 'warn'); return; }
   if (a.faith && (p.faith || 0) < a.faith) { say('신앙이 모자란다.', 'warn'); return; }
   p.stam -= a.stam || 0;
-  if (a.ammo) spendArrows(a.ammo);
   if (a.faith) p.faith -= a.faith;
   if (a.oath) p.oath -= a.oath;
   if (a.shade) p.shadow = Math.max(0, (p.shadow || 0) - a.shade);
@@ -3075,7 +3081,36 @@ function pickUp() {
     say(b.t, 'level');
     return;
   }
-  say(`${nameOf(it)}을(를) 주웠다.`, 'good');
+  /* 그 아래 등급들도 로그 한 줄로 흘려보내지 않는다. 「희귀」부터는
+     화면이 멈춘다 — 판에 서너 번뿐인 일이고, 그때 무엇을 얻었는지
+     읽지 않고 지나가면 그건 득템이 아니라 알림이다.
+     초월은 위에서 이미 제 화면을 가져갔다. */
+  const grade = rarityOf(it);
+  if (grade >= 2) {
+    G.rareFound = (G.rareFound || 0) + 1;
+    fx({ t:'found', x:p.x, y:p.y, rar:grade });
+    lore(RARITY[grade].n, affixName(it), itemBlurb(it), it.spr);
+  }
+  say(`${nameOf(it)}을(를) 주웠다.`, grade >= 2 ? 'level' : 'good');
+}
+
+/* 주운 것이 무엇인지 한 문단으로. 카드에 「사용 가능」만 뜨면 카드를
+   띄운 의미가 없다 — 멈춰 세웠으면 멈출 값을 줘야 한다. */
+function itemBlurb(it) {
+  const bits = [];
+  if (it.kind === 'weapon') bits.push(`${WEAPON_TYPES[it.t]?.n || '무기'} · ${it.dice[0]}d${it.dice[1]}${it.hands === 2 ? ' · 양손' : ''}`);
+  if (it.kind === 'armour') bits.push(`방어 +${it.ac}`);
+  if (it.plus) bits.push(`+${it.plus}`);
+  for (const table of [PREFIXES, SUFFIXES]) {
+    const a = table.find(x => x.id === (table === PREFIXES ? it.pre : it.suf));
+    if (a) bits.push(`${a.n} — ${a.t || ''}`.trim());
+  }
+  for (const g of (it.engrave || [])) {
+    const e = ENGRAVINGS.find(x => x.id === g);
+    if (e) bits.push(`${e.n} — ${e.t}`);
+  }
+  if (isCursed(it)) bits.push('저주받았다. 벗을 수 없다.');
+  return bits.join('\n');
 }
 
 /* ── the furniture ────────────────────────────────────────
@@ -3343,6 +3378,12 @@ export const canShoot = () => !!shotTarget();
    falloff, poison and the ember can never be right in one place
    and wrong in another. `scale` is the art's multiplier; `sure`
    skips the roll for the arts that promise they cannot miss. */
+/* 화살은 떨어지지 않는다. 화살통은 소모품이 아니라 장비 한 칸이고,
+   무엇을 끼웠는가가 「몇 발 남았는가」를 대신한다 — 세는 자원이 하나
+   더 붙으면 활은 「쏠까 말까」가 아니라 「아껴 둘까」가 된다.
+   예전 설계의 잔해가 세 군데 남아 있었다: 기술의 a.ammo 게이트 둘과,
+   **어디에도 정의된 적 없는** spendArrows() 호출 하나. 화살값이 붙은
+   기술이 하나라도 생기는 날 그 줄은 ReferenceError로 터졌을 것이다. */
 function loose(m, scale = 1, opt = {}) {
   const p = G.player;
   G.act = 'shoot';
@@ -3860,7 +3901,7 @@ export function hurtMonster(m, dmg, source, opt = {}) {
       if (id) {
         G.items.push({ kind:'relic', id, spr: relicById(id).spr, n: relicById(id).n, x:m.x, y:m.y });
         say(`${relicById(id).n}이(가) 남았다.`, 'level');
-        fx({ t:'drop', x:m.x, y:m.y, relic:true });
+        fx({ t:'drop', x:m.x, y:m.y, relic:true, rar:3 });
       }
       dropElite(m);
     } else if (m.elite?.length) dropElite(m);
@@ -3927,7 +3968,7 @@ function dropElite(m) {
     if (id) {
       G.items.push({ kind:'relic', id, spr: relicById(id).spr, n: relicById(id).n, ...spot });
       say(`${relicById(id).n}이(가) 굴러떨어졌다.`, 'level');
-      fx({ t:'drop', x: spot.x, y: spot.y, relic:true });
+      fx({ t:'drop', x: spot.x, y: spot.y, relic:true, rar:3 });
       return;
     }
   }
@@ -3936,8 +3977,10 @@ function dropElite(m) {
   rollAffixes(it, G.depth + 8, true);
   if (Math.random() < 0.45) it.plus = 1 + rnd(2);
   G.items.push({ ...it, ...spot });
-  say(`${affixName(it)}을(를) 떨어뜨렸다.`, 'level');
-  fx({ t:'drop', x: spot.x, y: spot.y });
+  /* 낙하는 등급을 싣고 나간다. 여태 평범한 단검과 초월 무기가 똑같은
+     노란 고리 하나에 「전리품」 세 글자였다 — 무엇이 떨어졌는지를
+     주워서 배낭을 열어야 알 수 있으면, 그건 득템이 아니라 심부름이다. */
+  fx({ t:'drop', x: spot.x, y: spot.y, rar: rarityOf(it) });
 }
 
 function gainXp(n) {

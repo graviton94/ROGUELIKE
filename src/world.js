@@ -4,7 +4,9 @@
 
 import { SHOPS } from './data.js';
 
-export const MW = 66, MH = 40;
+/* 66×40에서 줄였다. 방을 줄여도 지도가 넓으면 복도가 길어져
+   걷는 턴이 그대로 남는다 — 걸음을 줄이려면 거리를 줄여야 한다. */
+export const MW = 52, MH = 32;
 
 /* Tiles 0-6 are the original set. A door is now four tiles
    rather than one, because a *closed* door is the thing that
@@ -18,12 +20,16 @@ export const ROCK = 0, FLOOR = 1, DOWN = 2, UP = 3, DOOR = 4, RUBBLE = 5, SHOP =
 /* rooms: how many · size: room dimensions · light/water/web:
    multipliers on the usual amount · mob: monster density. */
 export const THEMES = {
-  plain:  { id:'plain',  n:null,            weight:26, rooms:[10,14], size:[4,9],  light:1.0,  water:1.0, web:1.0, mob:1.0 },
-  warren: { id:'warren', n:'좁은 굴',       weight:14, rooms:[16,22], size:[3,4],  light:0.8,  water:0.6, web:1.4, mob:1.15, from:3 },
-  hall:   { id:'hall',   n:'큰 방',         weight:12, rooms:[5,7],   size:[9,12], light:1.2,  water:1.0, web:0.6, mob:1.1,  from:3 },
-  dark:   { id:'dark',   n:'빛이 없는 층',  weight:10, rooms:[9,13],  size:[4,9],  light:0.0,  water:0.8, web:1.0, mob:0.9,  from:4 },
-  flooded:{ id:'flooded',n:'물에 잠긴 층',  weight:9,  rooms:[8,12],  size:[5,10], light:0.9,  water:3.2, web:0.5, mob:1.0,  from:4 },
-  nest:   { id:'nest',   n:'소굴',          weight:9,  rooms:[8,12],  size:[4,9],  light:0.7,  water:0.8, web:2.2, mob:1.6,  from:5 },
+  /* 방 수를 3분의 1쯤 줄였다. 한 층에 175~324턴을 쓰고 있었고, 그
+     턴의 87%가 걷기·대기였다 — 콘텐츠가 없는 것이 아니라 콘텐츠
+     사이가 멀었다. 몬스터 예산(mob)은 그대로라, 같은 것들이 절반의
+     걸음 안에 담긴다. 밀도는 그렇게 올린다. */
+  plain:  { id:'plain',  n:null,            weight:26, rooms:[7,9],   size:[4,9],  light:1.0,  water:1.0, web:1.0, mob:1.0 },
+  warren: { id:'warren', n:'좁은 굴',       weight:14, rooms:[10,13], size:[3,4],  light:0.8,  water:0.6, web:1.4, mob:1.15, from:3 },
+  hall:   { id:'hall',   n:'큰 방',         weight:12, rooms:[4,5],   size:[9,12], light:1.2,  water:1.0, web:0.6, mob:1.1,  from:3 },
+  dark:   { id:'dark',   n:'빛이 없는 층',  weight:10, rooms:[6,9],   size:[4,9],  light:0.0,  water:0.8, web:1.0, mob:0.9,  from:4 },
+  flooded:{ id:'flooded',n:'물에 잠긴 층',  weight:9,  rooms:[6,8],   size:[5,10], light:0.9,  water:3.2, web:0.5, mob:1.0,  from:4 },
+  nest:   { id:'nest',   n:'소굴',          weight:9,  rooms:[6,8],   size:[4,9],  light:0.7,  water:0.8, web:2.2, mob:1.6,  from:5 },
 };
 
 export const isDoor = t => t === DOOR || t === DOOR_OPEN || t === DOOR_LOCKED || t === DOOR_BROKEN;
@@ -326,8 +332,16 @@ export class Level {
   /* The ? room. Common on purpose — it is the cheapest content
      the game has and the only place the dungeon reacts to what
      you happen to be carrying, so a run should meet several. */
+  /* 절반의 층에만 두었더니 판 전체에서 서너 번 마주치고 끝났다 —
+     「가장 싼 콘텐츠」라고 적어 놓고 제일 아껴 쓴 셈이다. 이제
+     1층부터 매 층 하나, 5층 아래로는 두 개째가 절반 확률로 붙는다. */
   placeEvent(start, down) {
-    if (this.depth < 1 || Math.random() > 0.48) return;
+    if (this.depth < 1) return;
+    this.spotEvent(start, down);
+    if (this.depth >= 5 && Math.random() < 0.5) this.spotEvent(start, down, true);
+  }
+
+  spotEvent(start, down, second) {
     for (let t = 0; t < 70; t++) {
       const r = this.rooms[rnd(this.rooms.length)];
       if (!r) return;
@@ -336,7 +350,9 @@ export class Level {
       if (this.tiles[i] !== FLOOR || this.traps.has(i)) continue;
       if (i === idx(start.x, start.y) || i === idx(down.x, down.y)) continue;
       this.tiles[i] = EVENT;
-      this.event = { x, y };
+      // 나방의 표식이 읽는 것은 하나뿐이다 — 두 번째가 첫 번째를
+      // 지우면 「사건 위치가 보인다」가 조용히 거짓말이 된다.
+      if (!second || !this.event) this.event = { x, y };
       this.seen[i] = 1;
       return;
     }
@@ -365,7 +381,7 @@ export class Level {
      something away. Visible from arrival so it can be *wanted*. */
   placeAltar(start, down) {
     if (this.depth < 2) return;
-    if (!this.branch.altar && Math.random() > 0.3) return;
+    if (!this.branch.altar && Math.random() > 0.52) return;
     for (let t = 0; t < 60; t++) {
       const r = this.rooms[rnd(this.rooms.length)];
       if (!r) return;
@@ -384,7 +400,7 @@ export class Level {
      gold rather than ignore it, and the reason a floor with one
      feels different from the floor before it. */
   placeMerchant(start, down) {
-    if (this.depth < 2 || Math.random() > 0.32) return;
+    if (this.depth < 2 || Math.random() > 0.58) return;
     for (let t = 0; t < 60; t++) {
       const r = this.rooms[rnd(this.rooms.length)];
       if (!r) return;

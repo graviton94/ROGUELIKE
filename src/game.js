@@ -183,7 +183,7 @@ export function createHero(raceKey, classKey, base) {
     lv: 1, xp: 0,
     hp: 0, maxhp: 0, mana: 0, maxmana: 0,
     gold: 250,
-    lightTurns: 700,
+    lightTurns: 700, wound: 0,
     blessed: 0,
     ail: {},          // ailment -> turns remaining
     stuck: 0,         // turns still caught in a web
@@ -228,6 +228,12 @@ export function createHero(raceKey, classKey, base) {
   return p;
 }
 
+/* 한 방에 최대 체력의 이만큼을 잃으면 상처가 남는다. 스치는 것마다
+   상처가 되면 그것은 상처가 아니라 그냥 피해다. */
+export const WOUND_AT = 0.10;
+export const WOUND_SHARE = 0.50;      // 그 피해의 몇 할이 천장에서 깎이는가
+export const WOUND_CAP = 0.45;        // 천장은 절반 아래로는 안 내려간다
+
 export function recalc(p, init) {
   const race = RACES[p.race], cls = CLASSES[p.cls];
   const conB = statB(p, 'con');
@@ -270,6 +276,17 @@ export function recalc(p, init) {
   } else p.maxmana = 0;
   const g = gearBonus(p);
   p.maxhp = Math.max(8, Math.round(p.maxhp * (1 + g.maxhpPct)) + (p.boneHp || 0) + (p.permHp || 0));
+  /* ── 상처 ────────────────────────────────────────────────
+     체력은 차오르지만 차오를 수 있는 높이가 낮아진다. 재 보니 판의
+     60%를 체력 90~100%에서 보내고 30% 아래는 0%였다 — 몸이 안 닳으니
+     물약을 아낄 이유도, 물러설 이유도 없었다. 톱니를 내려가는 선으로
+     바꾸는 것이 이 한 줄이다.
+
+     천장은 여기 한 곳에서만 깎인다. 다른 데서 maxhp를 건드리면
+     recalc이 다음 호출에 되돌려 놓으므로, 상처는 반드시 여기를 지난다. */
+  p.wound = Math.max(0, Math.min(p.wound || 0, Math.round(p.maxhp * WOUND_CAP)));
+  p.maxhp = Math.max(8, p.maxhp - p.wound);
+  if (p.hp > p.maxhp) p.hp = p.maxhp;
   // 재의 무게, applied last so it takes a slice of the finished
   // number rather than of the base one.
   if (hasShackle('ash')) p.maxhp = Math.max(8, Math.round(p.maxhp * 0.85));
@@ -701,12 +718,22 @@ function quarry(m) {
     fx({ t:'quarry', x:p.x, y:p.y, hp: p.hp - before });
 }
 
-function tookHit() {
+function tookHit(dmg = 0) {
   const p = G.player;
   /* You cannot catch your breath while something is hitting you.
      Stamped here rather than at the two damage sites so an arrow
      counts the same as an axe. */
   p.hurtAt = G.turn;
+  /* 상처도 같은 자리에서 남는다. 큰 한 방만 천장을 깎는다 —
+     스치는 것마다 상처가 되면 그것은 상처가 아니라 그냥 피해다.
+     천장은 recalc이 다시 세우므로 여기서는 값만 얹는다. */
+  if (dmg >= p.maxhp * WOUND_AT) {
+    const w = Math.max(1, Math.round(dmg * WOUND_SHARE));
+    p.wound = (p.wound || 0) + w;
+    recalc(p);
+    say(`상처가 남았다. 견딜 수 있는 몸이 ${w}만큼 줄었다.`, 'hit');
+    fx({ t:'ail', x:p.x, y:p.y, kind:'wound' });
+  }
   if (hasRelic('grudge')) p.grudge = Math.min(15, (p.grudge || 0) + 1);
   /* 맹세 (팔라딘). Every blow taken hardens him a little more.
      Sits here rather than in the two damage sites so it counts
@@ -725,7 +752,27 @@ export const BREATH = 10;
    lockout is the interesting half of this change — you cannot
    breathe while something is hitting you — so that stays at ten
    turns and the ceiling gives a little back instead. */
-export const breathRoof = p => clamp(0.56 + statB(p, 'con') * 0.055, 0.46, 0.82);
+/* And then it stopped being enough. Measured over 24 runs: 57% of
+   turns sat at 90–100% health and not one turn fell below 30%,
+   because a ceiling of 46–82% refilled for free every ten quiet
+   turns and 87% of turns are quiet. Wounds alone could not bend
+   that line — they lower the bar the percentage is taken of, so
+   the *shape* stayed flat.
+
+   So the ceiling itself falls. Two terms, both of them things the
+   player did: how torn up the body already is, and how far down it
+   was carried. Deep and whole still breathes back to most of the
+   bar; deep and half-ruined does not breathe back at all. */
+/* 0.9로 재니 봇의 평균 도달 층이 6.7 → 4.1로 내려앉았다. 원했던
+   방향이지만 한 번에 두 층 반은 조정이 아니라 사고다. */
+export const BREATH_WEAR = 0.7;    // 상처가 천장을 끌어내리는 비율
+export const BREATH_DEEP = 0.012;  // 4층 아래로 한 층마다
+export const breathRoof = p => {
+  const base = clamp(0.56 + statB(p, 'con') * 0.055, 0.46, 0.82);
+  const worn = (p.wound || 0) / Math.max(1, p.maxhp + (p.wound || 0));
+  const deep = Math.max(0, (G.depth || 0) - 4) * BREATH_DEEP;
+  return clamp(base - worn * BREATH_WEAR - deep, 0.18, 0.82);
+};
 
 /* Lit once, and it stays lit: a resonance is a turning point, not
    a buff with an uptime. Checked after recalc because that is the
@@ -891,6 +938,19 @@ export const makeConsumable = id => ({ kind:'use', ...CONSUMABLES.find(c => c.id
 export const makeQuiver = id => ({ kind:'quiver', slot:'quiver', ...quiverById(id) });
 
 export const PACK_MAX = 20;
+/* 한 줄이 몇 칸인가. 정체를 모르는 물약·두루마리는 반 칸이다 —
+   생김새가 열 가지라 한 종류씩만 주워도 배낭의 절반이 도박으로
+   차 버렸고, 그래서 도박을 줍지 않게 됐다. 미지를 들고 다니는
+   값이 「배낭을 포기하는 것」이면 아무도 안 든다. */
+export const slotCost = slot =>
+  (slot?.item?.kind === 'use' && !isKnown(slot.item.id)) ? 0.5 : 1;
+export const packUsed = p =>
+  (p?.pack || []).reduce((s, slot) => s + slotCost(slot), 0);
+/* 얼마나 찼는가 (0~1). 화면과 규칙이 같은 한 줄을 읽는다 —
+   막대가 부르는 값과 벌이 매기는 값이 갈라지면 그건 벌이 아니라 버그다. */
+export const packLoad = p => packUsed(p) / PACK_MAX;
+export const HEAVY_AT = 0.60;      // 숨이 늦게 돌아오기 시작하는 지점
+export const LADEN_AT = 0.85;      // 손이 굼떠 기름이 빨리 타는 지점
 
 /* Will this item find a home? Asked *before* the floor lets go of
    it. addItem used to answer by refusing after the caller had
@@ -902,7 +962,7 @@ export function packRoom(p, item) {
   if (!item) return false;
   if (item.kind === 'use' || item.kind === 'cat')
     if (p.pack.some(s => s.item.id === item.id)) return true;   // stacks
-  return p.pack.length < PACK_MAX;
+  return packUsed(p) + slotCost({ item }) <= PACK_MAX;
 }
 
 export function addItem(p, item, qty = 1) {
@@ -912,7 +972,7 @@ export function addItem(p, item, qty = 1) {
     const slot = p.pack.find(s => s.item.id === item.id);
     if (slot) { slot.qty += qty; return true; }
   }
-  if (p.pack.length >= PACK_MAX) { say('배낭이 가득 찼다.', 'warn'); return false; }
+  if (packUsed(p) + slotCost({ item }) > PACK_MAX) { say('배낭이 가득 찼다.', 'warn'); return false; }
   p.pack.push({ item, qty });
   return true;
 }
@@ -959,8 +1019,35 @@ export function equip(slotIdx) {
 /* A named weapon is neither scrap nor a candidate for the anvil.
    Melting 《약속》 for two dust, or plussing it into an ordinary
    +7, would make the one-of-a-kind into a resource. */
+/* 소모품과 화살통도 부술 수 있다. 나오는 것은 부스러기 몇뿐이고
+   그게 맞다 — 여기서 묻는 것은 「이게 재료로 값어치가 있는가」가
+   아니라 「나쁜 물약 한 병이 열 층 내내 배낭 한 칸을 잡고 있어야
+   하는가」다. 답은 아니오였다. */
 export const canSalvage = it =>
-  !!it && !it.unique && (it.kind === 'weapon' || it.kind === 'armour');
+  !!it && !it.unique
+  && (it.kind === 'weapon' || it.kind === 'armour'
+      || it.kind === 'use' || it.kind === 'quiver' || it.kind === 'cat');
+
+/* 그리고 부술 수도 없는 것 — 이름이 붙은 물건 — 은 바닥에 내려
+   놓는다. 여태 이 게임에는 「버린다」는 동사 자체가 없었다. 안
+   쓰는 고유 무기 하나가 배낭 한 칸을 판이 끝날 때까지 붙들었고,
+   플레이어에게는 그걸 어떻게 할 방법이 없었다. 부수지 못하게
+   막은 규칙은 지킨다 — 《약속》은 여전히 가루가 되지 않는다.
+   다만 내려놓을 수는 있고, 마음이 바뀌면 다시 주우면 된다. */
+export function dropItem(slotIdx) {
+  const p = G.player, slot = p.pack[slotIdx];
+  if (!slot) return false;
+  const it = slot.item, qty = slot.qty;
+  if (G.items.some(o => o.x === p.x && o.y === p.y)) {
+    say('발밑에 이미 뭔가 있다.', 'warn'); return false;
+  }
+  removeItem(p, slotIdx, qty);
+  G.items.push({ ...it, qty, x: p.x, y: p.y });
+  say(`${nameOf(it)}을(를) 내려놓았다.`);
+  fx({ t:'drop', x: p.x, y: p.y });
+  endTurn();
+  return true;
+}
 
 export const salvagePreview = it => (canSalvage(it) ? salvageYield(it) : null);
 
@@ -2909,7 +2996,9 @@ function pickUp() {
     identify(it.id, true);
     say(`글자를 읽어냈다 — ${nameOf(it)}.`, 'good');
   }
-  addItem(p, it);
+  // 내려놓은 묶음은 묶음째 돌아온다 — 화살 스무 발을 놓고 다시
+  // 주웠더니 한 발이 되던 자리다.
+  addItem(p, it, it.qty || 1);
   /* 초월 does not get a line in the log — it gets the screen.
      This is the rarest thing that can happen to a run and the
      player should not have to read four words to notice it. */
@@ -3021,7 +3110,7 @@ function bumpProp(x, y) {
       const r = Math.random();
       if (r < 0.20) {
         const dmg = roll(2, 4 + Math.floor(G.depth * 0.8));
-        p.hp -= dmg; breakCombo(false); tookHit();
+        p.hp -= dmg; breakCombo(false); tookHit(dmg);
         say(`항아리에서 검은 것이 터져 나왔다. ${dmg}의 피해.`, 'bad');
         fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, severe: dmg >= p.maxhp * 0.18 });
         afflict(p, 'poison', 10 + rnd(8));
@@ -3762,7 +3851,11 @@ function dropElite(m) {
   /* 소란이 클수록 좋은 것이 나온다. 위험을 산 값을 여기서 치른다 —
      경험치만 부풀리면 「많이 싸우면 레벨이 는다」는 당연한 소리지,
      걸었다는 느낌이 아니다. */
-  if (Math.random() < 0.22 * uproarMult()) {
+  /* 0.22였다. 유물은 이 게임에서 유일하게 규칙을 바꾸는 물건인데,
+     한 판에 서넛 들고 끝나니 「고르는 물건」이 아니라 「가끔 줍는
+     물건」이었다. 자리가 일곱까지 늘어나는 손을 채우려면 나오는
+     쪽도 같이 늘어야 한다. */
+  if (Math.random() < 0.34 * uproarMult()) {
     const id = unownedRelic();
     if (id) {
       G.items.push({ kind:'relic', id, spr: relicById(id).spr, n: relicById(id).n, ...spot });
@@ -3875,6 +3968,13 @@ export function endTurn(skipMonsters = false) {
     (G.lit || (G.lit = {}))[band] = (G.lit[band] || 0) + 1;
     hint('near');
     stirUproar();
+    /* 체력이 판 내내 어디에 있었는가. 「죽기 5턴 전에 68%」라는 것은
+       판의 대부분을 멀쩡하게 걸었다는 뜻이고, 멀쩡하면 긴장이 없다.
+       sim/tension.mjs가 이 줄을 읽는다. */
+    const hpTenth = Math.min(9, Math.floor(Math.max(0, p.hp) / p.maxhp * 10));
+    (G.hpBand || (G.hpBand = new Array(10).fill(0)))[hpTenth]++;
+    G.floorTurns = G.floorTurns || {};
+    G.floorTurns[G.depth] = (G.floorTurns[G.depth] || 0) + 1;
   }
   G.act = null;
   /* How long you have not moved. Cheap to keep and the only
@@ -3902,7 +4002,13 @@ export function endTurn(skipMonsters = false) {
   if (G.detectPulse > 0) G.detectPulse--;
 
   if (G.comboT > 0 && --G.comboT === 0) breakCombo(true);
-  if (G.turn % STAM_REGEN_EVERY === 0 && p.stam < p.maxStam) p.stam++;
+  /* ── 무게 ────────────────────────────────────────────────
+     스무 칸을 꽉 채워도 아무 일이 없었다. 그러면 줍는 것은 결정이
+     아니라 습관이고, 파밍은 「보이면 줍는다」가 된다. 이제 짐이
+     무거우면 숨이 늦게 돌아오고, 더 무거우면 손이 굼떠 기름이
+     빨리 탄다 — 무엇을 버릴지가 수가 된다. */
+  const loadRate = STAM_REGEN_EVERY * (packLoad(p) >= HEAVY_AT ? 2 : 1);
+  if (G.turn % loadRate === 0 && p.stam < p.maxStam) p.stam++;
 
   if (G.depth > 0) {
     /* One upkeep resource, not two. Food and torches were the
@@ -3922,6 +4028,7 @@ export function endTurn(skipMonsters = false) {
        후반에만 조여든다 — 위협이 커지는 곳에서 시야가 좁아진다. */
     if (!hasRelic('lamp'))
       p.lightTurns -= (G.branch?.drain || 1) * OIL_BURN(G.depth)
+        * (packLoad(p) >= LADEN_AT ? 2 : 1)
         * (hasRelic('famine') ? 3 : hasRelic('hunger') ? 2 : 1)
         + (hasShackle('hunger') && G.turn % 10 < 3 ? 1 : 0);
     if (p.lightTurns === 640) say('불빛이 한 뼘 줄었다. 벽이 가까워진 것은 아니다.', 'warn');
@@ -4341,7 +4448,7 @@ function monsterMelee(m) {
     * (heavy ? 2.5 : 1) * (1 + (p.perm?.takeMore || 0))) - gearBonus(p).flatDR);
   dmg = sanctumSoak(dmg);
   p.hp -= Math.max(1, dmg);
-  breakCombo(false); tookHit(); faithForBlow(dmg);
+  breakCombo(false); tookHit(dmg); faithForBlow(dmg);
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        who:m.n, spr:m.spr, severe: dmg >= p.maxhp * 0.18 });
   say(`${heavy ? '당겼던 것이 떨어졌다. ' : ''}${takenLine(m.n, dmg, p.maxhp, nextLine())} (${dmg})`, 'hit');
@@ -4672,7 +4779,9 @@ function readIntents() {
    land on top of one you already had. The whole point is that
    at full health the first option is worthless and at 20% it is
    the only sane one. */
-export const CAMP_HEAL = 0.40;
+/* 0.40이면 모닥불 한 번에 몸이 새것이 된다. 재 보니 판의 60%를
+   체력 90~100%에서 보냈고, 그 대부분이 이 한 줄에서 나왔다. */
+export const CAMP_HEAL = 0.28;
 /* Gear climbs to 8 now that the odds gate it; a spell's plus is
    a multiplier, so it stays where it was. */
 export const MAX_PLUS = 8;
@@ -4734,6 +4843,7 @@ export function campCash() {
 }
 
 export const CAMP_OIL = 200;
+export const WOUND_OIL = 260;    // 상처를 전부 지지는 데 드는 기름
 
 export function campRest() {
   const p = G.player;
@@ -4745,6 +4855,19 @@ export function campRest() {
      보급처다 — 셋의 값이 다르기 때문에 경로가 선택이 된다. */
   const oil = Math.min(oilCap() - p.lightTurns, CAMP_OIL);
   if (oil > 0) { p.lightTurns += oil; say(`심지를 갈았다. 기름 +${oil}.`, 'good'); }
+  /* 상처는 저절로 낫지 않는다. 불에 지져야 하고, 지지려면 기름을
+     태운다 — 몸과 시계가 같은 저울에 오르는 자리다. 기름이 모자라면
+     상처를 안고 내려간다. */
+  if (p.wound > 0) {
+    const cost = Math.min(p.lightTurns, WOUND_OIL);
+    const share = cost / WOUND_OIL;
+    const mend = Math.max(1, Math.round(p.wound * share));
+    p.wound -= mend;
+    p.lightTurns -= cost;
+    recalc(p);
+    say(share >= 1 ? `불에 지졌다. 상처 ${mend}이(가) 닫혔다. (기름 −${cost})`
+                   : `기름이 모자라 절반만 지졌다. 상처 ${mend}. (기름 −${cost})`, 'good');
+  }
   const heal = Math.min(p.maxhp - p.hp,
     Math.ceil(p.maxhp * CAMP_HEAL * (hasShackle('dryspring') ? 0.5 : 1)));
   p.hp += heal;
@@ -5994,6 +6117,7 @@ export function startGame(raceKey, classKey, base) {
   G.regionAt = null;
   G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0; G.fused = 0; G.catUsed = 0;
   G.did = {}; G.act = null; G.lit = {}; G.uproar = 0; G.uproarTier = 0;
+  G.hpBand = new Array(10).fill(0); G.floorTurns = {};
   G.runSeed = Math.floor(Math.random() * 997);   // 판마다 행상의 기분표가 달라진다
   G.haggled = {}; G.haggleCut = null; G.haggleSour = null;
   G.engraved = 0; G.memories = []; G.relicShelf = null;

@@ -1125,6 +1125,22 @@ export function refresh() {
       && Math.hypot(m.x - p2.x, m.y - p2.y) <= 9).length;
     flags.push(`소란 ×${Game.uproarMult().toFixed(2)}${coming ? ` · ${coming}체` : ''}`);
   }
+  /* 가방이 몇 칸 남았는지 보이지 않았다. 안 보이면 무게는 벌이 아니라
+     사고다 — 무거워지는 순간을 알아야 무엇을 버릴지 고를 수 있다. */
+  {
+    const cap = Game.PACK_MAX;
+    const load = Game.packLoad(p);
+    // 미상 소모품이 반 칸이라 정수가 아닐 수 있다. 규칙이 세는 값을
+    // 그대로 보여 주되 반올림해서 읽는다.
+    const used = Math.round(Game.packUsed(p) * 2) / 2;
+    if (load >= Game.LADEN_AT) flags.push(`짐 ${used}/${cap} 과적`);
+    else if (load >= Game.HEAVY_AT) flags.push(`짐 ${used}/${cap} 무거움`);
+    /* 가벼울 때까지 칩을 띄웠더니 320px에서 위쪽 HUD가 14px 밀려
+       나갔다. 남은 칸은 어차피 늘 보여야 하는 값이므로, 벌을 알리는
+       칩이 아니라 배낭 버튼 자체가 들고 있는 게 맞다. */
+    const bag = $('btn-inv');
+    if (bag) bag.textContent = `배낭 ${used}/${cap}`;
+  }
   if (G.depth > 0 && p.lightTurns <= 0) flags.push('암흑');
   else if (G.depth > 0 && p.lightTurns < 80) flags.push('불빛 희미');
   else if (G.depth > 0 && p.lightTurns < 300) flags.push('기름 부족');
@@ -1221,6 +1237,10 @@ export function refresh() {
   const held = Game.relicList();
   rel.hidden = !held.length;
   $('hud-relics-n').textContent = `${held.length}/${RELIC_SLOTS}`;
+  /* 들고 있는 유물을 어디서도 볼 수 없었다. 숫자만 있고 목록이 없으면
+     그것은 정보가 아니라 알림이다 — 칩을 누르면 편다. */
+  rel.style.cursor = 'pointer';
+  rel.onclick = () => showRelicList();
 
   draw();
 }
@@ -1323,6 +1343,33 @@ function renderSpellRow() {
     b.classList.toggle('artslot', !!s.art);
     b.onclick = () => { stopAuto(); act(() => Game.cast(s.id)); };
   });
+}
+
+/* 지금 들고 있는 것들. 살펴보기 카드를 그대로 빌려 쓴다 — 읽는
+   창이 하나면 밀어내기도 한 곳에서만 손보면 된다. */
+function showRelicList() {
+  const held = Game.relicList();
+  if (!held.length) return;
+  $('look-name').textContent = '지니고 있는 것';
+  $('look-sub').textContent = `${held.length}/${RELIC_SLOTS}`;
+  const rows = $('look-rows');
+  rows.innerHTML = '';
+  for (const r of held) {
+    const row = el('div', 'codexrow');
+    const ic = el('canvas', 'iicon');
+    ic.width = ic.height = CELL_SIZE * 2;
+    const c = ic.getContext('2d');
+    c.imageSmoothingEnabled = false;
+    const spr = sprite(r.spr || 'amulet');
+    if (spr) c.drawImage(spr, 0, 0, ic.width, ic.height);
+    row.appendChild(ic);
+    const box = el('div', 'codextext');
+    box.appendChild(el('div', 'iname', r.n));
+    box.appendChild(el('div', 'idesc', r.t || ''));
+    row.appendChild(box);
+    rows.appendChild(row);
+  }
+  $('look').hidden = false;
 }
 
 /* ── screens ────────────────────────────────────────────── */
@@ -2382,6 +2429,17 @@ function renderInventory() {
             () => { Game.salvage(i); renderInventory(); refresh(); });
       };
       row.appendChild(br);
+    } else {
+      /* 부술 수 없는 것에도 손을 뗄 방법은 있어야 한다. 이름이 붙은
+         물건은 가루가 되지 않지만, 바닥에는 내려놓을 수 있다. */
+      const dr = el('button', 'slotdel', '버림');
+      dr.onclick = e => {
+        e.stopPropagation();
+        ask(`${Game.nameOf(it)}을(를) 내려놓을까요?`,
+            '발밑에 그대로 남습니다. 다시 주울 수 있습니다.',
+            () => { Game.dropItem(i); renderInventory(); refresh(); });
+      };
+      row.appendChild(dr);
     }
     list.appendChild(row);
   });

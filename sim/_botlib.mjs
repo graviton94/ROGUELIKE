@@ -641,8 +641,25 @@ function runBot(race, cls, clear, opt = {}) {
     });
     if (better >= 0) { Game.equip(better); continue; }
 
-    // Break spare gear rather than hauling it.
-    const junk = p.pack.findIndex(sl => Game.canSalvage(sl.item));
+    /* 남는 **장비**를 부순다 — 주석은 처음부터 그렇게 적혀 있었는데
+       코드는 아니었다. `canSalvage`는 소모품(`use`)과 촉매(`cat`)에도
+       참이라, 봇이 방금 산 치유 물약과 횃불까지 전부 쇳조각 1로 갈아
+       넣고 있었다. 실측 로그:
+
+         it 1  turn 0  물약 10  "치유의 물약을 샀다. (-28)"
+         it 2  turn 0  물약  9  "치유의 물약을 부쉈다 — 쇳조각 1."
+         ...
+         it 11 turn 0  물약  0  "횃불을 부쉈다 — 쇳조각 1."
+         it 15 turn 3  물약  0  ← 1층 진입
+
+       이 하네스의 **모든 판**이 물약 0개·횃불 0개로 1층에 내려갔다는
+       뜻이다. 라이브락과 같은 급의 검열이고 라이브락보다 조용하다 —
+       막힘 카운터에 안 잡힌다. 기름이 안 문다던 측정도, 직업 순위도,
+       회복률도 전부 이 위에서 잰 값이었다. */
+    const junk = p.pack.findIndex(sl => {
+      const it = sl.item;
+      return Game.canSalvage(it) && it.kind !== 'use' && it.kind !== 'cat';
+    });
     if (junk >= 0) { Game.salvage(junk); st.broke++; continue; }
 
     /* Marked ground is the one thing that must beat everything

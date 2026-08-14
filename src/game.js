@@ -1037,8 +1037,23 @@ export const PACK_MAX = 20;
    생김새가 열 가지라 한 종류씩만 주워도 배낭의 절반이 도박으로
    차 버렸고, 그래서 도박을 줍지 않게 됐다. 미지를 들고 다니는
    값이 「배낭을 포기하는 것」이면 아무도 안 든다. */
-export const slotCost = slot =>
-  (slot?.item?.kind === 'use' && !isKnown(slot.item.id)) ? 0.5 : 1;
+/* ── 더미 한 칸에 몇 개까지 ────────────────────────────────
+   상한이 없었다. 「같은 물약은 한 줄에 쌓인다」는 옳은 편의였는데,
+   `slotCost`가 **수량을 안 봤다** — 재 보니 치유의 물약 303개가 배낭
+   두 칸을 차지한다. 그래서 회복의 79%가 물약 하나에서 나오고, 회복률이
+   손실의 91%가 되고, 그 위에서 잰 직업 순위가 전부 「소모품 없는
+   영웅에서 누가 버티는가」가 됐다.
+
+   상한을 두되 줄을 막지는 않는다: STACK_MAX개가 한 칸이고, 넘으면
+   다음 칸이 열린다. 그러면 「물약을 얼마나 지고 갈 것인가」가 배낭
+   스무 칸과 같은 저울 위에 올라온다 — 지금은 공짜다. */
+export const STACK_MAX = 8;
+export const slotCost = slot => {
+  if (!slot?.item) return 1;
+  const stacks = Math.max(1, Math.ceil((slot.qty || 1) / STACK_MAX));
+  if (slot.item.kind === 'use' && !isKnown(slot.item.id)) return 0.5 * stacks;
+  return stacks;
+};
 export const packUsed = p =>
   (p?.pack || []).reduce((s, slot) => s + slotCost(slot), 0);
 /* 얼마나 찼는가 (0~1). 화면과 규칙이 같은 한 줄을 읽는다 —
@@ -1065,7 +1080,16 @@ export function addItem(p, item, qty = 1) {
   // 정련의 촉매, not three separate lines in the pack.
   if (item.kind === 'use' || item.kind === 'cat') {
     const slot = p.pack.find(s => s.item.id === item.id);
-    if (slot) { slot.qty += qty; return true; }
+    if (slot) {
+      /* 더미에 얹을 때도 자리를 센다. 안 세면 상한이 새어 나간다 —
+         한 줄에 쌓는 길만 열려 있으면 「같은 물약은 한 칸」이 그대로
+         돌아온다. */
+      const was = slotCost(slot);
+      const now = slotCost({ item, qty: slot.qty + qty });
+      if (packUsed(p) - was + now > PACK_MAX) { say('배낭이 가득 찼다.', 'warn'); return false; }
+      slot.qty += qty;
+      return true;
+    }
   }
   if (packUsed(p) + slotCost({ item }) > PACK_MAX) { say('배낭이 가득 찼다.', 'warn'); return false; }
   p.pack.push({ item, qty });

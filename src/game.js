@@ -763,6 +763,21 @@ function quarry(m) {
    않는다. 대신 그만큼이 통째로 상처가 된다. 빼앗기는 총량은 같다.
    달라지는 것은 그 총량이 한 턴에 오느냐 남은 판 내내 따라오느냐고,
    그 차이가 절벽과 비탈의 차이다. */
+/* ── 그리고 죽음까지 삼킨다 ────────────────────────────────
+   위 주석은 「이제 피는 여기서만 깎인다」고 선언해 놓았는데, 세어 보니
+   통과하는 피해원이 여섯이고 **우회하는 곳이 여덟**이었다. 함정 셋,
+   구덩이 둘, 독 물약, 독 틱, 스스로 진 빚. 거기에 잠긴 문과 항아리는
+   `p.hp = 0; death(...)`를 손으로 재구현하고 있었다.
+
+   결과가 셋이었다. 함정은 BLOW_CAP을 안 받아 **상한 없는 유일한
+   피해원**이었고(실측: 최대 체력의 106%를 한 방에), 상처를 안 남기므로
+   「절벽을 비탈로」가 함정에는 적용되지 않았고, `hurtAt`을 안 찍으므로
+   **함정을 밟은 다음 턴에 회복이 재개**됐다 — 숨 잠금이 근접 공격에만
+   조용히 참이었다.
+
+   깔때기가 소수파면 그건 깔때기가 아니다. 그래서 죽음까지 여기서
+   처리한다. 부르는 쪽이 `if (p.hp <= 0)`를 손으로 쓸 수 있는 한
+   누군가는 반드시 다르게 쓴다. */
 export function hurtPlayer(dmg, opt = {}) {
   const p = G.player;
   if (!p) return 0;
@@ -770,9 +785,25 @@ export function hurtPlayer(dmg, opt = {}) {
   let over = 0;
   const cap = Math.max(1, Math.round(p.maxhp * BLOW_CAP));
   if (taken > cap) { over = taken - cap; taken = cap; }
+  /* 두 가지를 기록한다. 규칙이 아니라 기록이고, 읽는 것은 벤치뿐이다.
+
+     하나는 상한이 지켜졌는가(taken/cap은 정의상 1을 못 넘는다).
+     다른 하나는 **깔때기를 지난 피해의 총량**이다. 이쪽이 진짜다 —
+     깔때기 안에서만 재면 깔때기를 **안 지나는** 피해는 영영 안 보인다.
+     바깥에서 체력이 얼마나 줄었는지와 이 총량을 맞춰 보면, 설명되지
+     않는 감소가 곧 우회다. 분모를 세 번 틀리고(한 턴에 둘이 때리면
+     합쳐지고, 상처가 천장을 줄이고, 레벨업이 천장을 늘린다) 나서야
+     이 방법에 도달했다. */
+  G.blowRatio = Math.max(G.blowRatio || 0, taken / cap);
+  G.funnelled = (G.funnelled || 0) + taken;
   p.hp -= taken;
   if (opt.combo !== false) breakCombo(false);
   tookHit(taken, over);
+  if (p.hp <= 0 && opt.by) {
+    p.hp = 0;
+    fx({ t:'death', x:p.x, y:p.y });
+    death(typeof opt.by === 'string' ? { n: opt.by } : opt.by);
+  }
   return taken;
 }
 
@@ -1311,11 +1342,11 @@ export function useItem(slotIdx) {
       fx({ t:'ail', kind:'slow', x:p.x, y:p.y }); break;
     case 'venom': {
       const dmg = roll(2, 5) + G.depth;
-      p.hp -= dmg;
+      const took = hurtPlayer(dmg, { by:'독의 물약' });
+      if (!G.running) break;
       afflict(p, 'poison', 20);
-      say(`목이 타들어 간다. ${dmg}의 피해.`, 'hit');
-      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, low: p.hp <= p.maxhp * 0.25 && p.hp + dmg > p.maxhp * 0.25, severe:true });
-      if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'독의 물약' }); }
+      say(`목이 타들어 간다. ${took}의 피해.`, 'hit');
+      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg: took, low: p.hp <= p.maxhp * 0.25 && p.hp + took > p.maxhp * 0.25, severe:true });
       break;
     }
     case 'murk': afflict(p, 'blind', 22); break;
@@ -2898,10 +2929,10 @@ function forceDoor(x, y) {
                      + tries * 0.05, 0.04, 0.85);
   if (p.stam >= FORCE_STAM) p.stam -= FORCE_STAM;
   else {
-    const hurt = hurtPlayer(FORCE_HURT + Math.floor(G.depth / 2), { combo:false });
+    const hurt = hurtPlayer(FORCE_HURT + Math.floor(G.depth / 2), { combo:false, by:'잠긴 문' });
     say(`어깨로 밀어붙였다. 숨이 없어 몸이 대신 받는다. (−${hurt})`, 'hit');
     fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg:hurt, who:'잠긴 문', severe:false });
-    if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'잠긴 문' }); return; }
+    if (!G.running) return;
   }
 
   if (Math.random() < chance) {
@@ -3139,19 +3170,17 @@ function springTrap(x, y, trap) {
 
   switch (trap.kind) {
     case 'dart': {
-      const dmg = roll(2, 4) + Math.floor(G.depth * 0.8);
-      p.hp -= dmg; breakCombo(false);
-      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, low: p.hp <= p.maxhp * 0.25 && p.hp + dmg > p.maxhp * 0.25, severe: dmg >= p.maxhp * 0.18 });
-      say(`화살이 ${dmg}의 피해를 입혔다.`, 'hit');
-      if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'화살 함정' }); }
+      const took = hurtPlayer(roll(2, 4) + Math.floor(G.depth * 0.8), { by:'화살 함정' });
+      if (!G.running) return false;
+      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg: took, low: p.hp <= p.maxhp * 0.25 && p.hp + took > p.maxhp * 0.25, severe: took >= p.maxhp * 0.18 });
+      say(`화살이 ${took}의 피해를 입혔다.`, 'hit');
       return false;
     }
     case 'poison': {
-      const dmg = roll(1, 4);
-      p.hp -= dmg; breakCombo(false);
-      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg });
+      const took = hurtPlayer(roll(1, 4), { by:'독침 함정' });
+      if (!G.running) return false;
+      fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg: took });
       afflict(p, 'poison', 22 + G.depth);
-      if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'독침 함정' }); }
       return false;
     }
     case 'pit': {
@@ -3163,17 +3192,15 @@ function springTrap(x, y, trap) {
       const grab = clamp(0.45 + statB(p, 'dex') * 0.07
                          + (p.cls === 'rogue' ? 0.15 : p.cls === 'ranger' ? 0.07 : 0), 0.2, 0.92);
       if (Math.random() < grab) {
-        const graze = roll(1, 4);
-        p.hp -= graze;
+        const graze = hurtPlayer(roll(1, 4), { by:'구덩이' });
+        if (!G.running) return false;
         say(`가장자리를 붙잡았다. ${graze}의 피해.`, 'good');
         fx({ t:'struggle', x:p.x, y:p.y });
-        if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'구덩이' }); }
         return false;
       }
-      const dmg = roll(2, 6) + Math.floor(G.depth * 0.5);
-      p.hp -= dmg;
-      say(`떨어지며 ${dmg}의 피해를 입었다.`, 'hit');
-      if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'구덩이' }); return false; }
+      const fell = hurtPlayer(roll(2, 6) + Math.floor(G.depth * 0.5), { by:'구덩이' });
+      say(`떨어지며 ${fell}의 피해를 입었다.`, 'hit');
+      if (!G.running) return false;
       if (G.depth >= MAX_DEPTH) return false;
       breakCombo(true);
       enterDepth(G.depth + 1);
@@ -3422,11 +3449,10 @@ function bumpProp(x, y) {
          are worth breaking, a fifth of them bite. */
       const r = Math.random();
       if (r < 0.20) {
-        const dmg = hurtPlayer(roll(2, 4 + Math.floor(G.depth * 0.8)));
+        const dmg = hurtPlayer(roll(2, 4 + Math.floor(G.depth * 0.8)), { by:'봉인된 항아리' });
         say(`항아리에서 검은 것이 터져 나왔다. ${dmg}의 피해.`, 'bad');
         fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, severe: dmg >= p.maxhp * 0.18 });
-        afflict(p, 'poison', 10 + rnd(8));
-        if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'봉인된 항아리' }); }
+        if (G.running) afflict(p, 'poison', 10 + rnd(8));
       } else if (r < 0.55) {
         say('항아리는 비어 있었다.');
       } else {
@@ -4485,8 +4511,8 @@ export function endTurn(skipMonsters = false) {
     if (owed > 0) {
       say(`빚이 한꺼번에 왔다. (−${owed})`, 'bad');
       fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg:owed, who:'순교', severe:true });
-      p.hp -= owed;
-      if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'스스로 진 빚' }); return; }
+      hurtPlayer(owed, { by:'스스로 진 빚' });
+      if (!G.running) return;
     } else say('일어섰다. 빚은 없었다.', 'good');
   }
   if (G.detectPulse > 0) G.detectPulse--;
@@ -4717,10 +4743,10 @@ function tickAilments(p) {
     }
   }
   if (has(p, 'poison') && G.turn % 3 === 0) {
-    const dmg = 1 + Math.floor(G.depth / 8);
-    p.hp -= dmg;
-    fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, poison:true, who:'중독', spr:'potion' });
-    if (p.hp <= 0) { p.hp = 0; fx({ t:'death', x:p.x, y:p.y }); death({ n:'독' }); }
+    /* 독은 연격을 안 끊는다 — 맞은 것이 아니라 이미 맞은 것의 여진이다.
+       그래도 깔때기는 지난다: 숨 잠금과 죽음이 여기서 같이 처리된다. */
+    const took = hurtPlayer(1 + Math.floor(G.depth / 8), { by:'독', combo:false });
+    fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg: took, poison:true, who:'중독', spr:'potion' });
   }
 }
 
@@ -6422,6 +6448,12 @@ export function altarOffer(id) {
 
   let weight = 1;                       // how much the gods got
   if (id === 'blood') {
+    /* 여기는 깔때기를 안 지난다 — 일부러 그렇다. 이것은 맞은 것이
+       아니라 **치른 값**이다. hurtPlayer를 지나면 숨이 잠기고(제단
+       앞에서 전투 중이 아닌데) 상처가 남고 연격이 끊긴다. 현재 체력의
+       40%라 죽지도 않는다. 우회 여덟 곳을 회수하면서 이 한 곳만
+       남긴 이유를 여기 적어 둔다 — 안 적으면 다음 사람이 「빠뜨렸다」고
+       생각하고 넣을 것이고, 그러면 제단이 조용히 함정이 된다. */
     const pay = Math.max(1, Math.floor(p.hp * 0.4));
     p.hp -= pay;
     weight = 1.0;
@@ -7000,6 +7032,7 @@ export function startGame(raceKey, classKey, base) {
   G.fallenSeen = {};
   G.tally = 0; G.hushUntil = -1; G.resoFound = 0; G.forced = {}; G.uniques = {};
   G.relicsTaken = 0; G.fused = 0; G.gearTaken = 0; G.rareTaken = 0; G.relicSrc = {};
+  G.blowRatio = 0; G.funnelled = 0;
   G.relicFloorAt = -1;
   /* 몇 번째로 내려가는 사람인가. 끝 화면이 이 숫자를 다시 읽는다 —
      앞의 것들이 전부 여기 어딘가에 있다는 뜻이고, 그래서 이 판의

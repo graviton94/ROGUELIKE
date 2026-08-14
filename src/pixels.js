@@ -77,30 +77,15 @@ export const SPRITES = {
   ],
 
   /* vermin */
-  /* ── 열여섯으로 다시 그린 것 ────────────────────────
-     표에 8줄짜리와 16줄짜리가 섞여 있어도 된다 — 굽는 쪽이 원본
-     줄 수를 보고 맞춘다. 그래서 한 마리씩 옮길 수 있다.
-
-     여덟 칸에서는 쥐가 「귀 둘, 눈 둘, 다리 넷」이 전부였다.
-     열여섯 칸에서는 주둥이가 나오고, 앞니가 보이고, 꼬리가 몸
-     뒤로 감긴다 — 같은 짐승인데 이제 무엇을 하고 있는지가 보인다. */
   rat: [
-    '................',
-    '................',
-    '..nn........nn..',
-    '.nNNn......nNNn.',
-    '.nNrNn....nNrNn.',
-    '..nNNnnnnnnNNn..',
-    '..nNNNNNNNNNNn..',
-    '.nNNNNNNNNNNNNn.',
-    '.nNkNNNNNNNNkNn.',
-    '.nNNNNwwwwNNNNn.',
-    '.nNNNNNwwNNNNNn.',
-    '..nNNNNNNNNNNn..',
-    '..nNNnNNNNnNNn..',
-    '..nn.nnnnnn.nn..',
-    '...........nnnn.',
-    '................',
+    '........',
+    '........',
+    '.n....n.',
+    'nNNnnNNn',
+    'NNkNNkNN',
+    '.NNNNNN.',
+    'nn.nn.nn',
+    '......nn',
   ],
   /* 굶은 들쥐 — the same animal after a bad month. Longer, greyer,
      ribs showing, and one red eye, so a glance at the tile says
@@ -179,26 +164,15 @@ export const SPRITES = {
     '..n..n..',
     '..n..n..',
   ],
-  /* 오크도 열여섯으로. 여덟에서는 「초록 머리 + 갈색 몸통」이라
-     오우거·트롤과 실루엣이 같았다. 이제 어깨가 넓고, 아래턱니가
-     나오고, 한 손에 쇠를 들었다 — 실루엣만으로 구분된다. */
   orc: [
-    '................',
-    '.....eeeee......',
-    '....eEEEEEe.....',
-    '...eEEEEEEEe....',
-    '...eERREERRe....',
-    '...eEEEEEEEe....',
-    '...eEwEEEwEe....',
-    '....eEEEEEe.....',
-    '.....eeeee......',
-    '..nnnNNNNNnnn...',
-    '.nnNNNNNNNNNnn..',
-    'sn.nNNNNNNNn.ns.',
-    'ss..nNNNNNn..ss.',
-    '.....nn.nn......',
-    '....nnn.nnn.....',
-    '....sss.sss.....',
+    '..eeee..',
+    '.eEEEEe.',
+    '.eRwwRe.',
+    '..ewwe..',
+    '.nnNNnn.',
+    'sn.NN.ns',
+    '..n..n..',
+    '..s..s..',
   ],
   dog: [
     '........',
@@ -380,15 +354,38 @@ export const SPRITES = {
     'GgddddgG',
     'gggggggg',
   ],
+  /* ── 대군주만 열여섯으로 ────────────────────────────
+     서른 종을 전부 다시 그리면 손이 고르지 않아 어떤 것은 낫고
+     어떤 것은 못해진다. 그런데 이 하나는 다르다 — 열다섯 층을
+     걸어 내려온 사람이 마지막으로 보는 그림이고, 그때까지 본
+     모든 것보다 커야 한다.
+
+     「불을 피우는 것이 아니라 먹는다.」 그래서 불을 **두르지**
+     않고 **안에** 넣었다: 숯이 된 몸 한가운데가 뚫려 있고 그
+     안이 잉걸에서 금으로, 금에서 흰빛으로 간다. 눈 두 점도 같은
+     색이다 — 안에 있는 것과 보고 있는 것이 같은 불이라는 뜻이다.
+
+     빈칸은 두 칸 이상으로 잡았다. 테두리는 몸에 닿은 빈칸을
+     칠하므로 한 칸짜리 틈은 양쪽에서 칠해져 통째로 메워진다 —
+     처음에 뿔을 한 칸 간격으로 세웠더니 왕관이 금색 막대기가
+     됐다. 열여섯 칸에서 음각은 두 칸부터다. */
   balemperor: [
-    'r.oRRo.r',
-    '.oRWWRo.',
-    'oRyRRyRo',
-    'oRRooRRo',
-    'rRoRRoRr',
-    'rrRooRRr',
-    '.rR..Rr.',
-    'r.o..o.r',
+    '..yy........yy..',
+    '..yy........yy..',
+    '..yyrrrrrrrryy..',
+    '....rrrrrrrr....',
+    '....roorroor....',
+    '....rrrrrrrr....',
+    '....rwrrrrwr....',
+    '.....rrrrrr.....',
+    '.rrrrrrrrrrrrrr.',
+    'rrrrrrrrrrrrrrrr',
+    'rrrrrroooorrrrrr',
+    'rrrrrooyyoorrrrr',
+    'rrrrrooWWoorrrrr',
+    'rrrrrroooorrrrrr',
+    '.rrrrrrrrrrrrrr.',
+    '..rrrr....rrrr..',
   ],
 
   /* items */
@@ -1508,9 +1505,14 @@ function bakeTerrain(kind, variant) {
 
   if (kind === 'wall') {
     x.fillStyle = PALETTE[T.base]; x.fillRect(0, 0, CELL, CELL);
-    /* 결은 드물어야 결이다. 일곱 점은 무늬가 아니라 잡음이었다. */
+    /* 결은 드물어야 결이다. 일곱 점은 무늬가 아니라 잡음이었다.
+       그리고 **묽어야** 결이다 — 확대해서 보니 좁은 굴의 결(#c8955c)이
+       바탕(#5e3a1c) 위에서 색종이 조각처럼 튀고 있었다. 점 수를 줄이는
+       것만으로는 안 되고, 바탕 쪽으로 반쯤 끌어와야 무늬로 읽힌다. */
+    x.globalAlpha = 0.55;
     x.fillStyle = PALETTE[T.grain];
-    grit(5);
+    grit(3);
+    x.globalAlpha = 1;
     x.fillStyle = PALETTE[T.mortar];
     if (T.style === 'brick') {
       // Running bond: one course line, staggered head joints.
@@ -1529,7 +1531,7 @@ function bakeTerrain(kind, variant) {
         u((rr() * 8) | 0, (rr() * 4) | 0, 0.5, 3 + ((rr() * 4) | 0));
     } else {
       // rough: no courses, just broken edges and bite marks.
-      for (let i = 0; i < 6; i++)
+      for (let i = 0; i < 4; i++)
         u((rr() * 8) | 0, (rr() * 8) | 0, 0.5 + ((rr() * 2) | 0), 0.5);
     }
   } else {
@@ -1538,8 +1540,10 @@ function bakeTerrain(kind, variant) {
        칸마다 점을 넷씩 뿌리면 수백 칸이 모여 텔레비전 노이즈가 된다 —
        여섯 변종 중 셋만, 그것도 두어 점만 받는다. */
     if (variant % 2 === 0) {
+      x.globalAlpha = 0.5;
       x.fillStyle = PALETTE[T.dust];
       grit(2 + ((rr() * 2) | 0));
+      x.globalAlpha = 1;
     }
   }
   /* 그리고 온도. 무늬를 다 그린 뒤에 얇게 덮으므로, 결도 이음매도

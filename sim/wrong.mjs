@@ -271,6 +271,122 @@ console.log('\n기형 벤치 — 모두 다 잘못 자랐는가\n');
   ok(!a.equals(c), '두 프레임이 다르다 — 화면에서 실제로 어긋나고 있다');
 }
 
+/* ── 6. 테두리가 실제로 화면에 있는가 ────────────────────
+   구운 그림에 테두리가 들어갔는지는 스프라이트를 세면 알지만, 벽은
+   구울 때 이웃을 모르므로 **그리는 자리**에서 긋는다. 그래서 벽은
+   화면에서만 확인할 수 있다.
+
+   그리고 이건 사람이 눈으로 확인한 것 중 유일하게 조용히 사라질 수
+   있는 것이다 — 스프라이트 테두리는 벤치가 잡지만, 벽 테두리는 그리는
+   코드 한 줄이라 지워져도 아무 벤치도 안 울린다. */
+{
+  const seen = await pg.evaluate(async () => {
+    const P = await import('/src/pixels.js');
+    const D = await import('/src/data.js');
+    const names = Object.keys(P.SPRITES);
+    const CELL = P.CELL_SIZE;
+    const K = P.PALETTE.k;
+    const hex = (r, g, b) => '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+    const read = img => {
+      const c = document.createElement('canvas'); c.width = c.height = CELL;
+      const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+      return x.getImageData(0, 0, CELL, CELL).data;
+    };
+    let bare = [];
+    for (const n of names) {
+      const d = read(P.sprite(n));
+      let opaque = 0, line = 0;
+      for (let i = 0; i < CELL * CELL; i++) {
+        if (d[i * 4 + 3] <= 8) continue;
+        opaque++;
+        if (hex(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]) === K) line++;
+      }
+      if (opaque && line / opaque < 0.08) bare.push(n);
+    }
+    return { total: names.length, bare };
+  });
+  ok(seen.bare.length === 0,
+     '스프라이트 전부가 테두리를 가진다 — 몬스터만이 아니라 물건도 지형지물도',
+     `${seen.total}종 중 없는 것 ${seen.bare.length}${seen.bare.length ? ': ' + seen.bare.join(' ') : ''}`);
+
+  /* 벽. 바닥에 면한 쪽에 어두운 줄이 있는가.
+
+     처음에 「화면에서 어두운 픽셀의 비율」을 셌다. 15%가 나왔고 통과
+     했는데, 테두리를 그리는 네 줄을 지우고 다시 재도 15%였다 —
+     세고 있던 것은 테두리가 아니라 배경이었다. 통과하는 벤치가
+     아무것도 안 재고 있었다.
+
+     그래서 **그 벽이 화면 어디에 그려졌는지**를 받아 와서, 바닥에
+     면한 가장자리 한 줄과 그 벽의 속을 직접 비교한다. */
+  const staged = await pg.evaluate(async () => {
+    const Game = await import('/src/game.js');
+    const G = Game.G;
+    /* 무대를 다시 세운다. 앞 칸이 15층을 불 꺼진 채로 남겨 놓아서
+       아무것도 안 보였다 — 「아래가 바닥인 벽이 없다」는 벽이 없어서가
+       아니라 어두워서였다. */
+    Game.enterDepth(3);
+    const p = G.player;
+    p.lightTurns = 900;
+    p.hp = p.maxhp;
+    Game.refreshFov();
+    return true;
+  });
+  /* 카메라는 프레임 루프에서 주인공을 쫓아간다. 무대를 세우자마자
+     좌표를 물으면 **직전 층의 카메라**가 나오고, 그러면 화면 밖을
+     가리켜 -1이 나온다. 그리고 -1은 어떤 부등식이든 통과시킨다 —
+     실제로 그렇게 통과한 벤치를 한 번 만들었다. 몇 프레임 기다린다. */
+  await pg.waitForTimeout(400);
+
+  /* 살아 있는 캔버스에서 바로 읽는다. 스크린샷을 거치면 (1) 찍는
+     동안 카메라가 움직여 좌표가 낡고 (2) 배율이 하나 더 끼어든다 —
+     둘 다 겪었고, 두 번째는 -1을 세면서 통과까지 했다. 카메라를 묻는
+     것과 픽셀을 읽는 것을 한 번의 호출 안에서 한다. */
+  const lum = await pg.evaluate(async () => {
+    const Game = await import('/src/game.js');
+    const UI = await import('/src/ui.js');
+    const W = await import('/src/world.js');
+    const G = Game.G, L = G.level, p = G.player;
+    const cam = UI._camera();
+    const cv = document.getElementById('map');
+    const g = cv.getContext('2d');
+    let best = null;
+    for (let r = 1; r < 14 && !best; r++)
+      for (let dx = -r; dx <= r && !best; dx++)
+        for (let dy = -r; dy <= r && !best; dy++) {
+          const x = p.x + dx, y = p.y + dy;
+          if (!L.vis[W.idx(x, y)] || L.solid(x, y)) continue;          // 자기는 바닥
+          if (!L.solid(x, y - 1) || !L.vis[W.idx(x, y - 1)]) continue; // 위는 벽
+          const ax = Math.round((x - cam.cx) * cam.t);
+          const ay = Math.round((y - 1 - cam.cy) * cam.t);
+          if (ax < 0 || ay < 0 || ax + cam.t >= cv.width || ay + cam.t >= cv.height) continue;
+          best = { x, y: y - 1, px: ax, py: ay };
+        }
+    if (!best) return null;
+    const t = cam.t;
+    const col = best.px + Math.round(t / 2);
+    const d = g.getImageData(col, best.py, 1, t).data;
+    const lumAt = k => Math.max(d[k * 4], d[k * 4 + 1], d[k * 4 + 2]);
+    const strip = [];
+    for (let k = 0; k < t; k++) strip.push(lumAt(k));
+    const u = Math.max(1, Math.round(t / 16));
+    /* 벽 속은 가운데, 가장자리는 맨 아랫줄. */
+    const inside = strip[Math.round(t / 2)];
+    const edge = strip[t - 1];
+    return { at: `${best.x},${best.y}`, t, u, inside, edge, strip };
+  });
+  ok(!!lum, '아래가 바닥인 벽을 화면에서 찾았다', lum?.at);
+  if (lum) {
+    console.log(`\n      세로 단면 ${lum.strip.join(' ')}`);
+    console.log(`      벽 속 ${lum.inside} · 바닥에 면한 가장자리 ${lum.edge}\n`);
+    ok(lum.inside > 12,
+       '벽 속이 실제로 그려져 있다 — 빈 곳을 재면 0이 나오고 0은 어떤 부등식이든 통과한다',
+       `${lum.inside}`);
+    ok(lum.inside > 12 && lum.edge < lum.inside * 0.7,
+       '바닥에 면한 벽 가장자리가 벽 속보다 확실히 어둡다 — 벽이 덩어리로 읽힌다',
+       `${lum.inside} → ${lum.edge}`);
+  }
+}
+
 ok(errs.length === 0, '콘솔 오류 없음', errs[0] || '');
 console.log(bad ? `\n기형 벤치: ${bad}건 실패\n` : '\n기형 벤치: 전부 통과\n');
 await b.close();

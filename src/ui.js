@@ -172,6 +172,24 @@ export function draw() {
 
       if (tile === ROCK || tile === SHOP) {
         ctx.drawImage(wallTile(x, y), px, py, t, t);
+        /* 벽에도 외곽선. 스프라이트는 구울 때 테두리를 얻었는데 지형은
+           못 얻었고(지형은 구울 때 이웃을 모른다), 그래서 벽 덩어리가
+           덩어리가 아니라 무늬 밭으로 읽혔다 — 어디까지가 벽이고
+           어디부터 바닥인지가 색 차이로만 있었다.
+
+           바닥에 면한 쪽에만 한 줄 긋는다. 벽끼리 붙은 면에 그으면
+           격자무늬가 되고, 그건 테두리가 아니라 모눈종이다. */
+        const u = Math.max(1, Math.round(t / CELL_SIZE));   // 한 픽셀
+        ctx.fillStyle = PALETTE.k;
+        const wallAt = (ax, ay) => {
+          if (ax < 0 || ay < 0 || ax >= MW || ay >= MH) return true;
+          const tt = L.tiles[idx(ax, ay)];
+          return tt === ROCK || tt === SHOP;
+        };
+        if (!wallAt(x, y - 1)) ctx.fillRect(px, py, t, u);
+        if (!wallAt(x, y + 1)) ctx.fillRect(px, py + t - u, t, u);
+        if (!wallAt(x - 1, y)) ctx.fillRect(px, py, u, t);
+        if (!wallAt(x + 1, y)) ctx.fillRect(px + t - u, py, u, t);
       } else {
         ctx.drawImage(floorTile(x, y), px, py, t, t);
         if (tile === DOWN) {
@@ -4557,3 +4575,9 @@ export { pick };
 /* 탐침용. 화면을 찍어서 글리치를 세면 재고 있는 것이 글리치가 아니라
    바닥 무늬가 된다 — 그리는 쪽이 부르는 그 함수를 그대로 내준다. */
 export { glitchOf as _glitchOf, glitchNow as _glitchNow };
+/* 탐침용. 벽 테두리는 그리는 자리에서 긋는 것이라 화면에서만 잴 수
+   있고, 화면에서 재려면 그 벽이 화면 어디에 그려졌는지 알아야 한다.
+   좌표를 안 내주면 벤치는 「어두운 픽셀이 몇 %인가」 같은 것을 세게
+   되는데, 그건 배경을 세는 것이지 테두리를 세는 것이 아니다 —
+   실제로 그렇게 만들어 놓고 통과시킨 적이 있다. */
+export { camera as _camera };

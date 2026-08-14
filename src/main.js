@@ -25,6 +25,7 @@ $('btn-again').onclick  = () => location.reload();
    door out of the ending was a page reload. */
 $('btn-totitle').onclick  = () => { G.running = false; UI.setScreen('title'); };
 $('btn-endcodex').onclick = () => { G.running = false; UI.setScreen('codex'); };
+$('btn-share').onclick    = () => UI.shareRun();
 
 UI.setScreen('title');
 

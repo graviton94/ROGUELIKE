@@ -3488,6 +3488,78 @@ export function renderEvent() {
   }
 }
 
+/* ── 죽음이 남기는 유일한 물건 ─────────────────────────────
+   로그라이크가 퍼지는 방식은 광고가 아니라 「내 판 이야기」다.
+   그런데 이 게임에는 그 이야기를 옮길 수단이 하나도 없었다 —
+   스크린샷을 찍어 보내는 것 말고는. 워들이 격자 하나로 한 것을
+   여기서는 사다리 하나로 한다.
+
+   글로 만든다. 그림이 아니라 글이라, 카카오톡이든 디스코드든
+   커뮤니티 글이든 그대로 붙는다. 그리고 붙인 사람이 무엇을 자랑하는지
+   한 줄에 보인다 — 몇 번째 사람이 몇 층까지 갔고 무엇에게 죽었는지.
+
+   숫자는 전부 summarise()가 이미 만들어 둔 것에서 읽는다. 여기서
+   다시 세면 화면과 기록이 갈린다. */
+const LADDER = ['▓', '▒', '░'];
+export function runCard(s, by) {
+  const max = MAX_DEPTH;
+  const got = Math.max(0, Math.min(max, s.depth || 0));
+  /* 사다리. 간 만큼 채우고 못 간 만큼 비운다. 열다섯 칸이면 한 줄에
+     들어가고, 채운 칸 수가 곧 자랑거리다. */
+  const bar = LADDER[0].repeat(got) + LADDER[2].repeat(max - got);
+  const where = got > 0 ? regionOf(got).n : '갱구';
+  const how = s.win ? '불을 껐다'
+            : by ? `${where}에서 ${by}에게` : `${where}에서`;
+  const bits = [];
+  if (s.relics?.length) bits.push(`유물 ${s.relics.length}`);
+  if (s.combo >= 5) bits.push(`최고 연격 ${s.combo}`);
+  if (s.forged) bits.push(`+${s.forged}`);
+  bits.push(`${s.turn}턴`);
+  return [
+    `깊은 곳 — ${s.sent || 1}번째`,
+    `${bar} ${got}/${max}층`,
+    how,
+    bits.join(' · '),
+    'graviton94.github.io/ROGUELIKE',
+  ].join('\n');
+}
+
+/* 복사는 두 갈래로 시도한다. 안전한 문맥(https)에서는 클립보드가
+   바로 되고, 아닐 때는 눈에 안 보이는 textarea로 옛 방식을 쓴다 —
+   「복사됐다」고 말해 놓고 아무 데도 안 들어가는 것이 최악이다. */
+async function copyText(t) {
+  try {
+    if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(t); return true; }
+  } catch { /* 아래로 */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = t;
+    ta.style.cssText = 'position:fixed;left:-9999px;top:0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  } catch { return false; }
+}
+
+export async function shareRun() {
+  const s = G.ending?.summary || Game.summarise(!!G.ending?.win, G.ending?.by);
+  const text = runCard(s, G.ending?.by);
+  const btn = $('btn-share');
+  /* 폰에는 공유 시트가 있다. 그쪽이 훨씬 자연스러우므로 먼저 쓰고,
+     없으면 복사로 떨어진다. */
+  if (navigator.share) {
+    try { await navigator.share({ text }); return; }
+    catch { /* 취소했거나 막혔다 — 복사로 */ }
+  }
+  const ok = await copyText(text);
+  if (btn) {
+    btn.textContent = ok ? '복사됐다' : '복사 실패';
+    setTimeout(() => { btn.textContent = '기록 복사'; }, 1600);
+  }
+}
+
 /* ── the fork ─────────────────────────────────────────────
    Three doors, each with its price printed on it. Everything
    the branch will do is on the card before you commit — that is

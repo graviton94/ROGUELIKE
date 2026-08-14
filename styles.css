@@ -1037,3 +1037,13 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .chip.reso { color: var(--W); border-color: var(--y); background: #302810; }
 .chip.reso b { color: var(--y); }
 .codextext .idesc.lit { color: var(--y); }
+
+
+/* 죽음이 남기는 유일한 물건. 「다시 내려가기」 다음으로 눈에 띄어야
+   하되 그것을 이기면 안 된다 — 이 게임이 원하는 첫 번째 행동은
+   여전히 한 판 더다. */
+.mini.share {
+  margin: 10px auto 0; display: block;
+  border-color: var(--y); color: var(--y);
+  letter-spacing: .06em;
+}

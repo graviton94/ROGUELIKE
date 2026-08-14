@@ -6875,6 +6875,11 @@ export function startGame(raceKey, classKey, base) {
     ? '아무도 이 아래를 본 적이 없다. 네가 처음이다.'
     : `${G.sent}번째다. 앞의 ${G.sent - 1}명 중 아무도 돌아오지 않았다.`, 'bad');
   say('배웅은 없다. 배웅할 사람들은 이미 이 일에 지쳤다.', '');
+  /* 그리고 어디로 가는지. 재 보니 들어선 자리에서 갱구까지 평균
+     두 칸이다 — 「계단이 눈에 안 띈다」는 제보는 멀어서가 아니라
+     **바로 옆에 있는데 그게 뭔지 몰라서**였다. 거리가 아니라 이름의
+     문제이므로, 이름을 부른다. */
+  say('발밑에서 바람이 올라온다. 갱구는 바로 옆이다 — 준비가 되면 그 위에 서라.', 'good');
   if (G.memories.length)
     say(`기억이 남아 있다 — ${G.memories.map(id => MEMORIES.find(x => x.id === id).n).join(' · ')}.`, 'good');
   if (G.abyss)

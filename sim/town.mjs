@@ -97,6 +97,26 @@ ok(unreach === 0, '계단에서 여섯 수레 전부로 걸어갈 수 있다', `
 ok(islands === 0, '마을이 조각나지 않는다', `조각난 판 ${pct(islands)}`);
 console.log(`\n  걸을 수 있는 땅 평균 ${Math.round(floorAvg / N)}칸\n`);
 for (const [k, v] of Object.entries(fails)) console.log(`    ${k}: ${v}판`);
+/* ── 갱구가 눈에 띄는가 ───────────────────────────────────
+   「첫 마을에서 계단이 너무 눈에 안 띈다」는 제보가 있었다. 여기
+   온 이유가 그것 하나뿐인데, 어두운 야영지에서 반경 7칸으로 찾아
+   헤매게 만들 이유가 없다. */
+{
+  let unseen = 0, farAvg = 0;
+  const N2 = 200;
+  for (let n = 0; n < N2; n++) {
+    const L = new W.Level(0, {});
+    let at = -1;
+    for (let i = 0; i < L.tiles.length; i++) if (L.tiles[i] === W.DOWN) { at = i; break; }
+    if (at < 0 || !L.seen[at]) unseen++;
+    const x = at % W.MW, y = (at - x) / W.MW;
+    farAvg += Math.hypot(x - L.entry.x, y - L.entry.y);
+  }
+  ok(unseen === 0, '갱구는 도착하자마자 지도에 있다 — 찾아 헤매게 두지 않는다',
+     `안 보이는 판 ${unseen}/${N2}`);
+  console.log(`      들어선 자리에서 갱구까지 평균 ${(farAvg / N2).toFixed(1)}칸`);
+}
+
 /* ── 수레 앞에 서는 일이 나머지 넷과 같은가 ───────────────
    여기만 옛 동작이 남아 있었다: 발이 닿는 순간 화면이 튀어나오고,
    턴은 안 쓰고, 그 칸에 서지도 못했다. 지나가려던 사람이 장을 보게

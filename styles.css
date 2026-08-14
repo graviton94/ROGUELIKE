@@ -527,6 +527,31 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 #acts button:disabled { opacity: .38; cursor: default; }
 #acts button:disabled:active { background: var(--d); color: var(--w); border-color: var(--g); }
 
+/* ── 작은 폰에서 지도가 화면의 29%였다 ────────────────────
+   실측: 320×568에서 지도 163px(29%), 아래 버튼 215px(38%), HUD 99,
+   로그 90. 보이는 칸이 16×9다 — 층은 52×32이고, 주인공 위아래로 네
+   칸씩만 보인다는 뜻이다. 몬스터가 세로로 예고 없이 등장하고, 그러면
+   「적은 머리 위에 다음 턴에 할 일을 겁니다」라는 수업이 물리적으로
+   볼 수 없는 것을 가리키게 된다.
+
+   아래 560px 구간이 이미 옳은 일을 하고 있다 — 배치를 다시 짜는 게
+   아니라 껍데기를 깎는다. 다만 그 구간이 가장 작은 기기를 8px 차이로
+   비껴간다. 700px에 한 단을 더 둔다.
+
+   로그는 산문이지 계기판이 아니다. 전투 중에 읽어야 하는 숫자는
+   이미 「이번 턴」 칩이 들고 있으므로 두 줄이면 된다. 그리고 정체
+   정보(인간 전사 · Lv · AC)는 매 턴 바뀌는 것이 아니고 배낭 화면에도
+   있다 — 좁은 화면에서는 지도에 자리를 내준다.
+
+   높이는 기기마다 **고정**이다. 줄이 나타났다 사라지면 지도가 매 걸음
+   밀리고, 그러면 누르려던 것이 아닌 것이 눌린다. */
+@media (max-height: 700px) {
+  #log { height: 3.6em; padding: 4px 12px; }
+  #hud .hudbot { display: none; }
+  #controls { padding: 7px 10px calc(7px + env(safe-area-inset-bottom)); gap: 8px; }
+  #acts { gap: 4px; }
+}
+
 /* A phone on its side has ~400px of height to spend and the
    panels were sized for 900. Without this the map collapsed to
    under 80px — technically correct and completely unplayable.

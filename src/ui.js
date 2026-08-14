@@ -174,7 +174,24 @@ export function draw() {
         ctx.drawImage(wallTile(x, y), px, py, t, t);
       } else {
         ctx.drawImage(floorTile(x, y), px, py, t, t);
-        if (tile === DOWN)        ctx.drawImage(sprite('stairsDown'), px, py, t, t);
+        if (tile === DOWN) {
+          /* 내려가는 자리는 이 게임에서 유일하게 「반드시 찾아야 하는」
+             칸이다. 8×8 계단 그림 하나로는 어두운 바닥에서 안 읽힌다 —
+             갱구에서 특히 그랬다. 밑에 숨 쉬는 빛을 깔아 준다.
+             좋은 물건의 빛기둥과 같은 언어이되 색이 다르다: 저쪽은
+             갖는 것이고 이쪽은 가는 것이다. */
+          const beat = 0.5 + Math.sin(performance.now() / 520) * 0.22;
+          const prevA2 = ctx.globalAlpha;
+          const g2 = ctx.createRadialGradient(px + t / 2, py + t / 2, t * 0.12,
+                                              px + t / 2, py + t / 2, t * 1.35);
+          g2.addColorStop(0, PALETTE.o);
+          g2.addColorStop(1, 'transparent');
+          ctx.globalAlpha = beat * 0.55;
+          ctx.fillStyle = g2;
+          ctx.fillRect(px - t, py - t, t * 3, t * 3);
+          ctx.globalAlpha = prevA2;
+          ctx.drawImage(sprite('stairsDown'), px, py, t, t);
+        }
         if (tile === UP)          ctx.drawImage(sprite('stairsUp'),   px, py, t, t);
         if (tile === DOOR)        ctx.drawImage(sprite('door'),       px, py, t, t);
         if (tile === DOOR_OPEN)   ctx.drawImage(sprite('doorOpen'),   px, py, t, t);
@@ -261,6 +278,42 @@ export function draw() {
   }
 
   ctx.globalAlpha = 1;
+
+  /* ── 화면 밖의 갱구 ──────────────────────────────────────
+     폰에서 보이는 것은 층의 일부다 — 320px에서는 16×9칸이고, 층은
+     52×32다. 내려가는 자리가 화면 밖에 있으면 「어디로 가야 하지」에
+     답할 방법이 지도를 열어 보는 것밖에 없다.
+
+     본 적 있는 계단이 화면 밖에 있으면 가장자리에 화살표를 세운다.
+     본 적 없으면 안 세운다 — 안 가 본 곳을 가리키는 것은 안내가
+     아니라 정답 공개다. */
+  {
+    const L2 = G.level;
+    let sx = -1, sy = -1;
+    for (let i = 0; i < L2.tiles.length; i++)
+      if (L2.tiles[i] === DOWN && L2.seen[i]) { sx = i % MW; sy = (i / MW) | 0; break; }
+    if (sx >= 0) {
+      const ax = (sx - cx) * t + t / 2, ay = (sy - cy) * t + t / 2;
+      const off = ax < 0 || ay < 0 || ax > viewW || ay > viewH;
+      if (off) {
+        const mgn = 16;
+        const px2 = Math.max(mgn, Math.min(viewW - mgn, ax));
+        const py2 = Math.max(mgn, Math.min(viewH - mgn, ay));
+        const ang = Math.atan2(ay - viewH / 2, ax - viewW / 2);
+        const beat = 0.55 + Math.sin(performance.now() / 520) * 0.25;
+        ctx.save();
+        ctx.translate(px2, py2);
+        ctx.rotate(ang);
+        ctx.globalAlpha = beat;
+        ctx.fillStyle = PALETTE.o;
+        ctx.beginPath();
+        ctx.moveTo(11, 0); ctx.lineTo(-6, -7); ctx.lineTo(-2, 0); ctx.lineTo(-6, 7);
+        ctx.closePath(); ctx.fill();
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
 
   /* ── marked ground ──────────────────────────────────────
      The whole point of a telegraph is that it is unmissable and
@@ -3338,7 +3391,8 @@ const LESSONS = [
   /* 갱구에서만 뜬다. 「여기가 마지막 가게다」를 아무도 말해 주지 않아서
      처음 하는 사람은 250닢을 그대로 들고 1층에 들어간다. */
   { id:'town',   t:'여기가 <b>마지막 가게</b>입니다. 아래에는 상인이 드물고, <b>올라오는 길은 없습니다</b>.<br>' +
-                    '금화를 두고 갈 이유가 없습니다 — 회복 물약과 <b>기름</b>부터 챙기세요.' },
+                    '금화를 두고 갈 이유가 없습니다 — 회복 물약과 <b>기름</b>부터 챙기세요.<br>' +
+                    '준비가 되면 <b>빛나는 구멍</b> 위에 서서 아래 버튼을 누릅니다.' },
   { id:'fight',  t:'적에게 <b>부딪치면</b> 공격입니다. 잠든 적(z)을 치면 <b>무조건 치명타</b>입니다 — 돌아가서라도 먼저 치세요.' },
   { id:'intent', t:'깨어난 적은 머리 위에 <b>다음 턴에 할 일</b>을 겁니다. 도움말의 그림표에 전부 있습니다.' },
   { id:'heavy',  t:'<b>붉은 별</b>은 다음 턴에 2.5배로 내리친다는 뜻입니다.<br>' +

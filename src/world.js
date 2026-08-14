@@ -284,6 +284,15 @@ export class Level {
       this.tiles[idx(x, y)] = RUBBLE;
     }
     this.tiles[idx(gateX, gateY)] = DOWN;
+    /* 갱구는 처음부터 보인다. 여기 온 이유가 그것 하나뿐인데, 어두운
+       야영지에서 반경 7칸으로 찾아 헤매게 만들 이유가 없다 —
+       실제로 「계단이 눈에 안 띈다」는 제보가 그것이었다.
+       둘레의 버력까지 같이 드러내서, 도착하자마자 「저기가 입구다」가
+       한눈에 읽히게 한다. */
+    for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+      const x = gateX + dx, y = gateY + dy;
+      if (inb(x, y)) this.seen[idx(x, y)] = 1;
+    }
     this.entry = { x: gateX, y: gateY };
     for (const [ex, ey] of [[gateX, gateY + 2], [gateX, gateY - 2], [gateX + 2, gateY], [gateX - 2, gateY]])
       if (!this.solid(ex, ey)) { this.entry = { x: ex, y: ey }; break; }

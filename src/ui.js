@@ -34,6 +34,15 @@ import * as Audio from './audio.js';
 import * as Meta from './meta.js';
 
 const $ = id => document.getElementById(id);
+/* 와/과. 「약장수과 거래」는 한 글자 틀린 것이 아니라 글이 기계처럼
+   읽히게 만드는 종류의 틀림이다. 받침이 있으면 과, 없으면 와 —
+   한글 음절은 (코드 − 0xAC00) % 28이 0이면 받침이 없다. */
+const wa = s => {
+  const c = (s || '').trim().slice(-1).charCodeAt(0);
+  if (!(c >= 0xac00 && c <= 0xd7a3)) return '와';   // 한글이 아니면 기본값
+  return (c - 0xac00) % 28 ? '과' : '와';
+};
+
 const el = (tag, cls, text) => {
   const n = document.createElement(tag);
   if (cls) n.className = cls;
@@ -1166,7 +1175,7 @@ export function refresh() {
   const hb = $('btn-here');
   hb.hidden = !here;
   // 수레는 「여는」 것이 아니라 「거래하는」 것이다.
-  if (here) hb.textContent = here.shop ? `${here.n}과 거래` : `${here.n} 열기`;
+  if (here) hb.textContent = here.shop ? `${here.n}${wa(here.n)} 거래` : `${here.n} 열기`;
 
   const logBox = $('log');
   logBox.innerHTML = '';

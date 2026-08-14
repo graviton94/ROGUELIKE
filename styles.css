@@ -450,6 +450,32 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 #acts .quick button:disabled { opacity: .3; }
 #acts .quick button:disabled .qty { color: var(--G); }
 #acts .pair button { flex: 1 1 0; text-align: center; padding: 9px 4px; font-size: 10.5px; }
+/* 발밑에 있는 것. 제 줄을 쓰고, 나머지와 다른 색을 쓴다.
+   나머지 버튼은 늘 거기 있는 것이고 이것은 지금 이 칸에서만 있는
+   것이라, 같은 회색이면 「여기서 뭘 할 수 있는지」가 안 보인다.
+   글자는 줄이지 않는다 — 이름이 길면 글자 크기가 먼저 줄고,
+   그래도 모자랄 때만 잘린다. 「무기 행상과 거래」가 「무기 행상과…」로
+   잘리던 자리다. */
+#acts > button.offer {
+  text-align: center; padding: 10px 8px;
+  font-size: clamp(9.5px, 3.1vw, 12px); letter-spacing: -.01em;
+  color: var(--k); background: var(--y); border-color: var(--w);
+  box-shadow: inset -2px -2px 0 rgba(0,0,0,.35),
+              inset 2px 2px 0 rgba(255,255,255,.35);
+  animation: offerpulse 1.9s ease-in-out infinite;
+}
+#acts > button.offer:active { background: var(--o); border-color: var(--o); }
+/* 숨을 쉬듯 아주 약하게. 눈에 걸리라고 넣는 것이지 시선을 뺏으라고
+   넣는 것이 아니다 — 지도가 그 위에 있다. */
+@keyframes offerpulse {
+  0%, 100% { box-shadow: inset -2px -2px 0 rgba(0,0,0,.35),
+                         inset 2px 2px 0 rgba(255,255,255,.35),
+                         0 0 0 0 rgba(216,176,72,.0); }
+  50%      { box-shadow: inset -2px -2px 0 rgba(0,0,0,.35),
+                         inset 2px 2px 0 rgba(255,255,255,.35),
+                         0 0 8px 1px rgba(216,176,72,.45); }
+}
+@media (prefers-reduced-motion: reduce) { #acts > button.offer { animation: none; } }
 /* Five frames, one per spell, in book order and never in any
    other. A locked slot is a dead frame rather than a gap, so the
    position of 서리 폭발 is the same at level 1 as at level 30.

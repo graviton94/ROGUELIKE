@@ -62,7 +62,12 @@ console.log('\n문장 벤치 — 화면에 나가는 글에 구멍이 있는가\
 {
   const miss = [];
   for (const m of D.MONSTERS) if (!m.n) miss.push(`몬스터 ${m.spr}`);
-  for (const r of D.RELICS)   if (!r.n || !r.t) miss.push(`유물 ${r.id}`);
+  /* 유물은 규칙(t)과 전승(lore)을 둘 다 가진다. 카드가 둘을 같이
+     띄우므로 하나가 비면 카드가 반만 찬 채로 나간다. 새 유물이
+     전승 없이 들어오는 것을 여기서 막는다. */
+  for (const r of D.RELICS)   if (!r.n || !r.t || !r.lore) miss.push(`유물 ${r.id}`);
+  for (const s of D.SHOPS)    if (!s.t) miss.push(`수레 문구 ${s.id}`);
+  for (const r of D.REGIONS)  if (!r.stake) miss.push(`구역 ${r.n}의 「밖」`);
   for (const c of D.CONSUMABLES) if (!c.n || !c.desc) miss.push(`소모품 ${c.id}`);
   for (const s of D.SHOPS)    if (!s.n) miss.push(`수레 ${s.id}`);
   ok(miss.length === 0, '데이터의 이름·설명에 빈 곳이 없다', miss.join(', ') || '전부 있음');

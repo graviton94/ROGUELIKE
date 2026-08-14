@@ -2524,6 +2524,10 @@ function renderShop() {
   const moodBox = el('div', 'shopmood' + (hag?.sour ? ' sour' : hag?.cut < 1 ? ' cut' : ''));
   moodBox.appendChild(el('span', 'moodname', mood.n));
   moodBox.appendChild(el('span', 'moodtag', mood.t));
+  /* 그리고 상인이 실제로 하는 말. 규칙 한 줄만 있으면 이 수레는
+     값을 매기는 장치이지 사람이 아니다 — 갱구에서 기다리는 쪽의
+     사정이 여기 말고는 나올 자리가 없다. */
+  if (mood.say) moodBox.appendChild(el('span', 'moodsay', mood.say));
   buyList.appendChild(moodBox);
 
   if (!hag?.done) {

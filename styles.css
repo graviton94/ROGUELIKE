@@ -680,6 +680,9 @@ table.keys td:first-child { width: 40%; color: var(--G); }
   padding: 9px 11px; margin: 4px 0 10px;
   border-left: 3px solid var(--o); background: #171319;
 }
+/* 상인의 말. 규칙(moodtag) 아래 한 줄, 조금 흐리게 — 값을 정하는
+   것은 위의 규칙이고 이쪽은 그 규칙이 왜 그런지를 말한다. */
+.moodsay { display: block; margin-top: 4px; color: var(--G); font-size: 10.5px; line-height: 1.5; }
 .shopmood.cut  { border-left-color: var(--E); }
 .shopmood.sour { border-left-color: var(--R); }
 .moodname { font-size: 12.5px; color: var(--o); letter-spacing: .04em; }

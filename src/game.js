@@ -14,6 +14,7 @@ import {
   ENCHANT_CURSE, ENCHANT_CURSE_STEP, ENCHANT_TWIN,
   BOONS, boonById, transChance,
   FUSIONS, fusionOf, FUSE_ODDS, FUSE_COST, FUSE_PULL,
+  TASKS, TASK_PATIENCE, TASK_ODDS,
   ALTAR_OFFERS, rarityOf, isCursed, RARITY, TEMPLE_SHARE, JACKPOT,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   RELICS, RELIC_SLOTS, relicSlots, relicById, BRANCHES,
@@ -2159,6 +2160,17 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   G.hazards = []; G.snares = []; G.sanctum = null;
   G.campUses = 1 + (hasRelic('ember') ? 1 : 0);
   G.tideUsed = false;
+  /* ── 이 층의 과업 ────────────────────────────────────────
+     계단을 찾는 것 말고 할 일을 하나 준다. 자세한 이유는 data.js의
+     TASKS 주석에. 여기서는 뽑기만 하고, 실제로 잠그는 것은 stairHere와
+     descend가 한 곳에서 본다 — 두 곳에서 보면 언젠가 갈린다. */
+  G.task = null; G.taskDone = false;
+  {
+    const pool = TASKS.filter(t => depth >= t.from);
+    if (pool.length && depth < MAX_DEPTH && Math.random() < TASK_ODDS) {
+      G.task = pickWeighted(pool);
+    }
+  }
 
   const L = G.level;
   const p = G.player;
@@ -2191,6 +2203,30 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   } else if (depth > 0 && G.campPromise > 0) G.campPromise--;
 
   if (depth > 0) populate(depth);
+  /* 열쇠를 물린다. populate 뒤라야 물릴 것이 있다.
+     가장 깊은 곳에 있는 것이 아니라 **가장 센 것**에게 준다 — 그러면
+     「어딘가에 있다」가 「저것을 잡아야 한다」가 되고, 그 판단이 곧
+     이 과업의 내용이다. 아무도 없으면 과업을 무른다: 열쇠 없는 잠긴
+     계단은 과업이 아니라 벽이다. */
+  /* 재촉하는 과업. 계단을 지도에 찍어 주고 시계를 반으로 줄인다 —
+     「어디로 갈지」가 사라지므로 남는 결정은 「무엇을 버리고 갈지」다.
+     잠그지 않으므로 stairsLocked는 이쪽을 안 본다. */
+  if (G.task?.rush) {
+    G.taskDone = true;
+    for (let i = 0; i < L.tiles.length; i++) if (L.tiles[i] === DOWN) L.seen[i] = 1;
+    G.branch = { ...G.branch, clock: (G.branch.clock ?? 1) * 0.5 };
+    say(G.task.intro, 'warn');
+  }
+  if (G.task?.id === 'key') {
+    const pool = G.monsters.filter(m => !m.disguise);
+    if (!pool.length) G.task = null;
+    else {
+      const holder = pool.reduce((a, m) => (m.xp || 0) > (a.xp || 0) ? m : a, pool[0]);
+      holder.hasKey = true;
+      holder.named = holder.named || false;
+      say(G.task.intro, 'warn');
+    }
+  }
   if (depth > 0 && L.event) L.eventId = rollEvent();
   if (mods?.mapped && depth > 0) L.seen.fill(1);
   /* 길잡이의 기억: the shape of the floor, from floor 11 down.
@@ -3020,6 +3056,19 @@ const OFFER_SCREEN = { [CAMP]:'camp', [ALTAR]:'altar', [EVENT]:'event', [ANVIL]:
    차지하고 늘 띄우고 있었는데, 재 보니 각각 0.1%의 턴에만 살아 있고
    둘이 동시에 사는 일은 없다 — 한 칸에 두 계단은 없으므로 당연하다.
    판정을 규칙 쪽에 두어야 화면이 타일 상수를 알 필요가 없다. */
+/* 계단이 잠겨 있는가. **한 곳에서만** 판정한다 — stairHere와 descend가
+   각자 보면 언젠가 갈리고, 그러면 버튼은 뜨는데 안 눌리는 화면이 된다.
+
+   그리고 인내심. 과업이 끝나지 않아도 TASK_PATIENCE턴이 지나면 열린다.
+   잠긴 계단은 판을 가둘 수 있고, 방금 라이브락 12%를 걷어낸 참이다 —
+   「이 층은 나를 붙잡아 두려 했지만 실패했다」가 「이 판은 여기서
+   끝났다」보다 언제나 낫다. */
+export function stairsLocked() {
+  if (!G.task || G.taskDone) return null;
+  if ((G.floorTurn || 0) >= TASK_PATIENCE) return null;
+  return G.task;
+}
+
 export function stairHere() {
   const p = G.player, L = G.level;
   if (!p || !L || !G.running) return null;
@@ -4228,6 +4277,11 @@ export function hurtMonster(m, dmg, source, opt = {}) {
       }
       say(`${rec.sent}번째가 다시 누웠다. 남긴 것을 전부 거뒀다.`, 'level');
     }
+    if (m.hasKey && G.task && !G.taskDone) {
+      G.taskDone = true;
+      say(G.task.done, 'level');
+      fx({ t:'drop', x:m.x, y:m.y, rar:3 });
+    }
     if (m.named) {
       const id = unownedRelic();
       if (id) {
@@ -4458,6 +4512,17 @@ function gainXp(n) {
 export function descend() {
   const L = G.level, p = G.player;
   if (L.tiles[idx(p.x, p.y)] !== DOWN) { say('여기엔 내려가는 계단이 없다.'); return; }
+  const shut = stairsLocked();
+  if (shut) {
+    /* 문을 흔드는 것도 행동이다 — 턴을 태운다. 안 태우면 인내심
+       시계가 영영 안 돌고, 계단에 서서 버튼만 누르는 판이 갇힌다.
+       실제로 40판에 한 판이 그렇게 막혔다(정직 벤치가 잡았다).
+       잠긴 계단은 「기다리면 열린다」여야지 「여기서 끝」이면 안 된다. */
+    const left = Math.max(0, TASK_PATIENCE - (G.floorTurn || 0));
+    say(`${shut.hint} (${left}턴쯤 버티면 문이 삭는다)`, 'warn');
+    endTurn();
+    return;
+  }
   if (G.depth >= MAX_DEPTH) { say('이 아래로는 아무것도 없다.'); return; }
   if (G.depth + 1 >= MAX_DEPTH || G.depth === 0) { takeStairs(BRANCHES[0]); return; }
 

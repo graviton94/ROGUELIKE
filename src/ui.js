@@ -473,7 +473,16 @@ export function draw() {
       const prevA = ctx.globalAlpha;
       /* 숨 쉰다. 가만히 있으면 그림의 일부로 읽히고, 그러면 「이 종은
          원래 테두리가 주황이구나」가 된다. */
-      ctx.globalAlpha = prevA * (0.72 + Math.sin(performance.now() / 380) * 0.24);
+      /* 진폭을 ±0.24에서 ±0.14로 줄였다. 0.48까지 내려가는 골짜기에서
+         시든 난초(#9a6ab0, 명도 0.69)는 어두운 바닥에 섞여 명도 0.41이
+         된다 — 「속성 둘」 표식이 주기의 일부 동안 화면에서 사라진다는
+         뜻이다. 벤치가 그것을 먼저 잡았다: 같은 화면을 재는데 어떤
+         판은 246점, 어떤 판은 0점이 나왔고, 표본 간격이 380ms 주기와
+         맞물려 골짜기에만 내려앉으면 열 번 내리 0이었다. 재는 쪽의
+         버그처럼 보였지만 원인은 그림 쪽이었다 — 사람도 같은 순간에
+         같은 것을 못 본다. 0.68~0.96이면 숨은 그대로 쉬고 골짜기에서도
+         읽힌다. */
+      ctx.globalAlpha = prevA * (0.82 + Math.sin(performance.now() / 380) * 0.14);
       ctx.drawImage(sprite(`rim:${eliteInk}:${m.spr}`), Math.round(mx), Math.round(my), t, t);
       ctx.globalAlpha = prevA;
     }
@@ -3593,6 +3602,10 @@ const LESSONS = [
   { id:'clock',  t:'층마다 <b>여유 턴</b>이 있습니다. 다 쓰면 몬스터가 계속 나타납니다 — 그때는 정리를 포기하고 계단으로.' },
   { id:'bank',   t:'쉬지 않고 내려갈수록 <b>판돈</b>이 불어납니다. 모닥불에서 챙길 수 있고, <b>죽으면 전부 잃습니다.</b>' },
   { id:'oil',    t:'기름이 줄면 <b>보이는 반경이 좁아집니다.</b> 횃불을 쓰거나, 좁은 시야로 싸우거나.' },
+  { id:'dark',   t:'방금 <b>붉은 예고가 뜨지 않았습니다.</b> 고장이 아닙니다 — 불이 꺼져 있으면 ' +
+                    '멀리 있는 것이 무엇을 준비하는지 <b>보이지 않습니다.</b><br>' +
+                    '붙어 있는 것과 <b>밝은 방 안</b>은 그대로 보입니다. 그 밖은 어둠 속에서 팔이 올라갑니다 — ' +
+                    '그리고 그 한 방은 <b>보통의 두 배 반</b>입니다.' },
   { id:'prop',   t:'방 안의 통 · 화로 · 기둥 · 뼈 무더기 · 항아리는 <b>부딪치면</b> 상호작용합니다.<br>' +
                     '화로는 <b>기름을 아껴 주지만 주변을 깨웁니다.</b> 항아리는 다섯에 하나가 터집니다. ' +
                     '<b>탭해서 살펴보면</b> 확률이 적혀 있습니다.' },
@@ -3665,6 +3678,7 @@ function checkLessons() {
   if ((G.player.wound || 0) > 0) teach('wound');
   if (G.bank >= 2) teach('bank');
   if (G.player.lightTurns < 320) teach('oil');
+  if (G.darkAte) teach('dark');
   if (G.monsters.some(m => m.thief && G.level.vis[idx(m.x, m.y)])) teach('thief');
   if (Game.pressureLevel() > 0) teach('clock');
   if ((G.player.relics || []).length) teach('relic');

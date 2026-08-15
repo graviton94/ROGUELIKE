@@ -529,6 +529,7 @@ console.log('\n기형 벤치 — 모두 다 잘못 자랐는가\n');
       h *= 60; if (h < 0) h += 360;
       return { h, s: mx ? c / mx : 0, v: mx / 255 };
     };
+    let near = 0, maxs = 0, maxv = 0;
     const n0 = parseInt(P.PALETTE[ink2].slice(1), 16);
     const want = hueOf(n0 >> 16, (n0 >> 8) & 255, n0 & 255);
     let n = 0;
@@ -543,25 +544,60 @@ console.log('\n기형 벤치 — 모두 다 잘못 자랐는가\n');
          1773점이라 둘이 구별되지 않았다. 바닥은 명도 0.16이고
          테두리는 골짜기에서도 0.4를 넘으므로 여기서 갈린다.
          (시든 난초는 원래 채도가 0.40뿐이라 채도 문턱은 넉넉하게.) */
+      if (dh < 18) { near++; if (c.s > maxs) maxs = c.s; if (c.v > maxv) maxv = c.v; }
       if (dh < 18 && c.s > 0.22 && c.v > 0.45) n++;
     }
-    return n;
+    return { n, near, maxs, maxv };
   }, ink);
 
   /* 테두리는 380ms 주기로 숨을 쉰다. 한 순간만 재면 그 순간의 알파가
      판정을 하므로, 한 주기를 덮도록 열 번 재서 가장 큰 값을 쓴다 —
      물어야 할 것은 「지금 이 순간 보이는가」가 아니라 「보이는 순간이
      있는가」다. */
+  /* 카드는 한 번 치우고 끝나는 것이 아니다. 수업은 프레임마다 조건을
+     다시 보므로, 무대를 세운 뒤에도 **재는 도중에** 새로 뜬다 —
+     실제로 어둠 수업(`dark`)이 생기자 앞의 세 번은 통과하고 마지막
+     `twoP`만 0이 나왔다. 「난초 테두리가 사라졌다」로 읽히지만 사라진
+     것은 화면이었다. 그러니 매 측정 직전에 다시 치운다. */
+  const clearCards = async () => {
+    for (let i = 0; i < 12; i++) {
+      const hit = await pg.evaluate(() => {
+        for (const id of ['lesson-ok', 'ask-ok', 'look-ok']) {
+          const e = document.getElementById(id);
+          if (e && e.getBoundingClientRect().width > 2) { e.click(); return true; }
+        }
+        const card = document.getElementById('lorecard');
+        if (card && !card.hidden) { card.hidden = true; return true; }
+        return false;
+      });
+      if (!hit) return;
+      await pg.waitForTimeout(120);
+    }
+  };
+
   const measure = async (elite, ink) => {
     await pg.evaluate(e => import('/src/game.js').then(M => {
       const m = M.G.monsters[0]; if (m) m.elite = e;
     }), elite);
+    await clearCards();
     await pg.waitForTimeout(140);
-    let best = 0;
-    for (let k = 0; k < 10; k++) {
-      best = Math.max(best, await sample(ink));
-      await pg.waitForTimeout(60);
+    /* 간격을 고르게 두면 안 된다. 고리는 380ms로 숨을 쉬는데 표본
+       간격이 그 주기와 맞물리면 열 번 내리 같은 위상만 재게 된다 —
+       실제로 골짜기에만 내려앉아 열 번 모두 0이 나온 판이 있었다.
+       간격을 매번 다르게 벌려 한 주기를 확실히 훑는다. */
+    let best = 0, dbg = null;
+    for (let k = 0; k < 14; k++) {
+      const r2 = await sample(ink);
+      if (r2 === -1) return -1;
+      if (!dbg || r2.maxv > dbg.maxv) dbg = r2;
+      best = Math.max(best, r2.n);
+      await pg.waitForTimeout(31 + (k * 17) % 53);
     }
+    /* 0이 나오면 왜 0인지가 곧바로 있어야 한다. 색상은 맞는데 채도나
+       명도에서 걸린 것과, 그 색이 화면에 아예 없는 것은 완전히 다른
+       이야기이고, 그 둘을 구별 못 하면 다음 한 시간을 잃는다. */
+    if (!best && dbg)
+      console.log(`      · 0점 진단(${ink}): 색상만 맞는 점 ${dbg.near} · 최대채도 ${dbg.maxs.toFixed(2)} · 최대명도 ${dbg.maxv.toFixed(2)}`);
     return best;
   };
 

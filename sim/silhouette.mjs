@@ -37,11 +37,11 @@ const NEAR     = 2;            // 「같은 층대」 = 대표 깊이 차 ±2층
 const BASE = {
   monPairsOver:  74,     // 같은 층대 몬스터 106쌍 중 IoU ≥ 0.70 인 것 — 70%
   monWorst:   0.984,     // 그중 최악값 (ogre ↔ troll, troll ↔ warden)
-  propPairsOver: 29,     // 사물 45쌍 중 IoU ≥ 0.70 — 64%
+  propPairsOver: 11,     // 사물 45쌍 중 IoU ≥ 0.70 — 24% (계단·문 넷을 다시 그려 29에서 내려왔다)
   propWorst:      1,     // stairsDown ↔ stairsUp ↔ door ↔ doorLocked, 넷이 같은 그림
-  fillOver:      63,     // 채움 > 140 인 스프라이트 수 (전체 76장)
-  fillWorst:    256,     // 칸을 통째로 채운 것 — 실루엣이 없다는 뜻
-  fauxEight:     72,     // 16줄 주소를 쓰면서 2×2 덩어리뿐인 「실질 8×8」
+  fillOver:      60,     // 채움 > 140 인 스프라이트 수 (전체 76장, 63에서)
+  fillWorst:    254,     // 칸을 통째로 채운 것 — 실루엣이 없다는 뜻
+  fauxEight:     68,     // 16줄 주소를 쓰면서 2×2 덩어리뿐인 「실질 8×8」
 };
 
 const port = process.env.PORT || 8199;

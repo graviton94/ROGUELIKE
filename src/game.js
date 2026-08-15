@@ -5585,6 +5585,12 @@ function readIntents() {
     const rid = L.roomOf[idx(m.x, m.y)];
     const lit = rid >= 0 && L.rooms[rid]?.lit;
     m.intent = (near || lit) ? it : null;
+    /* 「고장이 아니다」는 처음 그 순간에 말해야 한다 — 규칙이 예고를
+       실제로 삼킨 바로 그 자리에서. 그리고 `heavy`일 때만 건다:
+       가벼운 예고가 사라진 것은 눈치채지도 못하지만, 2.5배짜리 한 방이
+       무표시로 오는 것은 화면이 깨진 것처럼 보인다. 화면 쪽은 이 깃발을
+       읽어 수업 카드를 한 번 띄운다 — 규칙은 수업이 있는 줄 모른다. */
+    if (m.intent === null && it === 'heavy') G.darkAte = true;
   }
 }
 

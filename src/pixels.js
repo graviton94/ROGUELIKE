@@ -629,34 +629,58 @@ export const SPRITES = {
 
   /* terrain features */
   stairsDown: [
-    'GGGGGGGG',
-    'Gddddddd',
-    'GGGGGGdd',
-    'Gdddddgd',
-    'GGGGdggd',
-    'Gddddggd',
-    'GGdkkggd',
-    'Gdkkkggd',
+    '................',
+    '..GGGGGGGGGGGG..',
+    '..gggggggggggg..',
+    '...GGGGGGGGGG...',
+    '...gggggggggg...',
+    '....gggggggg....',
+    '....dddddddd....',
+    '.....gggggg.....',
+    '.....dddddd.....',
+    '......dddd......',
+    '......kkkk......',
+    '......kkkk......',
+    '......kkkk......',
+    '......kkkk......',
+    '................',
+    '................',
   ],
   stairsUp: [
-    'dGGGGGGG',
-    'dggkkkdG',
-    'dggkkddG',
-    'dggdddGG',
-    'dgddddGG',
-    'ddddddGG',
-    'dddddGGG',
-    'GGGGGGGG',
+    '................',
+    '................',
+    '................',
+    '...........wwww.',
+    '...........gggg.',
+    '.........wwwwww.',
+    '.........gggggg.',
+    '.......GGGGGGGG.',
+    '.......gggggggg.',
+    '.....GGGGGGGGGG.',
+    '.....dddddddddd.',
+    '...GGGGGGGGGGGG.',
+    '...dddddddddddd.',
+    '................',
+    '................',
+    '................',
   ],
   door: [
-    'gggggggg',
-    'gnnnnnng',
-    'gnNNNNng',
-    'gnNyyNng',
-    'gnNyyNng',
-    'gnNNNNng',
-    'gnnnnnng',
-    'gggggggg',
+    '................',
+    '................',
+    '......nnnn......',
+    '.....nNNNn......',
+    '.....nNNNn......',
+    '....nNNNNn......',
+    '....nNyNNn......',
+    '...nNNNNNn......',
+    '...nNNNNNn......',
+    '..nNNNNNNn......',
+    '..nNNNNNNn......',
+    '..nNNNNNNn......',
+    '..nNNNNNNn......',
+    '..nnnnnnnn......',
+    '................',
+    '................',
   ],
   rubble: [
     '........',
@@ -948,14 +972,22 @@ export const SPRITES = {
     'nnnnnnnn',
   ],
   doorLocked: [
-    'nnnnnnnn',
-    'nNNNNNNn',
-    'nNNyyNNn',
-    'nNNykNNn',
-    'nNNyyNNn',
-    'nNNNNNNn',
-    'nNNNNNNn',
-    'nnnnnnnn',
+    '................',
+    '................',
+    '...gggggggggg...',
+    '...nNNNNNNNNn...',
+    '...nNNNNNNNNn...',
+    '...gggggggggg...',
+    '...nNNNNNNNNn...',
+    '...nNNNNyyNNnss.',
+    '...nNNNNykNNnss.',
+    '...nNNNNNNNNn...',
+    '...gggggggggg...',
+    '...nNNNNNNNNn...',
+    '...nNNNNNNNNn...',
+    '...gggggggggg...',
+    '................',
+    '................',
   ],
   doorBroken: [
     'n.nnnn.n',
@@ -1251,7 +1283,23 @@ function bakeGrid(grid, tint) {
    그리고 실루엣은 건드리지 않는다. 세 픽셀 안쪽만 바꾸므로 무엇인지는
    그대로 읽히고, 자세히 본 사람만 잘못된 것을 본다. 알아볼 수 없게
    만드는 것은 기괴한 것이 아니라 그냥 망가진 것이다. */
-const WRONG_MAX = 3;                       // 한 종이 잃거나 얻는 픽셀 수
+/* ── 상수는 화면 픽셀로 말해야 한다 ─────────────────────
+   `WRONG_MAX = 3`은 8줄 격자에서 쓰던 값이다. 8줄 그림은 한 칸이
+   화면에서 2×2 = 4픽셀이므로 흰 섬광 3점이 12픽셀 = 타일의 4.7%가
+   된다 — 그건 「안쪽에서 뭔가 켜졌다」가 아니라 「스프라이트가
+   깨졌다」로 읽히는 넓이다. 진짜 16줄 그림에서는 같은 3이 3픽셀
+   = 1.2%다. 같은 상수가 격자에 따라 네 배 다르게 작동하고 있었다.
+
+   두 상수는 차원이 다르다:
+     · 윤곽 훼손은 **길이**다 — 실루엣 둘레의 일부를 뜯는 일이고,
+       둘레는 격자 변 N에 비례한다.        → N¹
+     · 흰 섬광은 **면적**이다 — 타일의 몇 %가 순백인가이고,
+       칸 하나의 면적은 (CELL/N)²이다.     → N²
+   그래서 화면에서 언제나 둘레 6픽셀어치, 섬광 3픽셀어치가 되도록
+   격자 크기에서 되돌려 계산한다. 16줄로 다시 그리기 시작하는 날
+   기형이 조용히 절반으로 줄어드는 사고도 이걸로 막는다. */
+const wrongMax = N => Math.max(2, Math.round(6 * N / CELL));   // 8→3, 16→6
+const sparks   = N => Math.max(1, Math.round(3 * (N / CELL) ** 2)); // 8→1, 16→3
 
 const hashOf = s => {
   let h = 0;
@@ -1269,7 +1317,7 @@ function deform(grid, name) {
   for (let r = 0; r < N; r++)
     for (let c = 0; c < N; c++)
       if (g[r][c] !== '.' && PALETTE[g[r][c]]) filled.push([r, c]);
-  if (filled.length < 8) return grid;       // 너무 작은 것은 비틀 여지가 없다
+  if (filled.length < N) return grid;       // 너무 작은 것은 비틀 여지가 없다
 
   const h = hashOf(name);
   const at = (r, c) => (r >= 0 && r < N && c >= 0 && c < N) ? g[r][c] : '.';
@@ -1285,7 +1333,7 @@ function deform(grid, name) {
        살 수 있는 「사람은 이렇게 안 선다」이다. */
     const pairs = filled.filter(([r, c]) => c < N / 2 && g[r][N - 1 - c] === g[r][c]);
     const spots = pairs.length ? pairs : filled;
-    for (let i = 0; i < WRONG_MAX && spots.length; i++) {
+    for (let i = 0; i < wrongMax(N) && spots.length; i++) {
       const [r, c] = spots[(h >> (i * 3)) % spots.length];
       g[r][pairs.length ? N - 1 - c : c] = '.';
     }
@@ -1299,7 +1347,7 @@ function deform(grid, name) {
     const spots = rim.length ? rim : filled;
     const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
     let grew = 0;
-    for (let i = 0; i < spots.length && grew < WRONG_MAX; i++) {
+    for (let i = 0; i < spots.length && grew < wrongMax(N); i++) {
       const [r, c] = spots[(h >> (i * 3)) % spots.length];
       const [dr, dc] = dirs[(h >> (i * 2 + 1)) % 4];
       const rr = r + dr, cc = c + dc;
@@ -1340,7 +1388,7 @@ function deform(grid, name) {
       && at(r, c - 1) !== '.' && at(r, c + 1) !== '.');
     const spots = inner.length ? inner : filled;
     const ink = ['w', 'R', 'w'][(h >> 4) % 3];
-    for (let i = 0; i < WRONG_MAX - 1 && spots.length; i++) {
+    for (let i = 0; i < wrongMax(N) - 1 && spots.length; i++) {
       const [r, c] = spots[(h >> (i * 4)) % spots.length];
       g[r][c] = ink;
     }
@@ -1366,7 +1414,7 @@ function wrongen(grid, name) {
   const shift = (h >> 3) % 2 ? 1 : -1;
   for (let c = 0; c < N; c++) g[row][c] = line[(c - shift + N) % N];
   /* 그리고 몇 점이 흰 섬광이 된다 — 안쪽에서 무언가 켜진 것처럼. */
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < sparks(N); i++) {
     const [r, c] = filled[(h >> (i * 6)) % filled.length];
     g[r][c] = 'W';
   }

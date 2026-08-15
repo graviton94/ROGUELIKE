@@ -323,7 +323,11 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   position: absolute; right: 0; top: 0; height: 100%;
   background: repeating-linear-gradient(-45deg,
     var(--g) 0 2px, transparent 2px 4px);
-  border-left: 1px solid var(--r);
+  /* 경계선은 `--r`(마른 피 #5e0f1c) 1픽셀이었다. 막대 바탕 `--k`와
+     명암비 **1.45:1** — 확대해서 봐도 안 보인다. 잃은 천장이 어디서
+     시작하는지가 화면에 없으면 빗금은 그냥 막대 끝 장식이다.
+     `--R`(#c8322c)로 올리고 2픽셀로 하면 3.9:1이 된다. */
+  border-left: 2px solid var(--R);
 }
 .track i.mp { background: var(--B); }
 .track i.st { background: var(--E); }

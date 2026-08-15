@@ -37,10 +37,10 @@ for (const cls of CLASSES) {
       const p = g.player; if (!p) return;
       if (g.screen === 'camp') {
         if (!pending) pending = { depth: g.depth, wound: p.wound || 0,
-          roof: p.maxhp + (p.wound || 0), oil: p.lightTurns, hp: p.hp, maxhp: p.maxhp };
+          roof: p.maxhp + (p.wound || 0), oil: p.lightTurns, hp: p.hp, maxhp: p.maxhp, gold: p.gold };
       } else if (pending) {
         sits.push({ ...pending, woundAfter: p.wound || 0, oilAfter: p.lightTurns,
-                    hpAfter: p.hp, maxhpAfter: p.maxhp });
+                    hpAfter: p.hp, maxhpAfter: p.maxhp, goldAfter: p.gold });
         pending = null;
       }
     } });
@@ -79,6 +79,41 @@ console.log(`\n  지진 뒤 기름이 ${WOUND_OIL} 미만으로 떨어졌다  ${
   + `   (지진 판에서 빛을 실제로 내주었는가)`);
 console.log(`  지진 뒤 남은 기름 평균           ${mean(paid.map(s => s.oilAfter)).toFixed(0)}`);
 
+
+/* ── 불이 셋 중 하나만 주게 된 뒤 ────────────────────────
+   원래 이 장부는 「앉으면 전부 준다」를 재고 있었다. 그래서 위의
+   「상처가 있고 전부 지질 수 있었다」는 **일어난 일**이었지만 이제는
+   **고를 수 있었던 것**이다. 실제로 무엇을 골랐는지는 앞뒤 차이로
+   읽는다 — 규칙 파일에 탐침을 심지 않고 물을 수 있는 유일한 방법이고,
+   호출을 세는 것보다 낫다: 「기름이 늘었다」는 무슨 함수를 불렀든 참이다.
+
+   그리고 여기가 이 변경의 진짜 판정선이다. 셋을 묶어 줄 때는 앉기의
+   46%가 체력이 가득이라 회복이 0이었다 — 절반이 결정이 아니었다.
+   갈라 놓으면 그 자리에서 심지나 지짐을 고를 수 있으므로, 물어야 할
+   것은 「체력이 가득이었는가」가 아니라 **「고른 것이 값을 했는가」**다. */
+/* 판돈을 챙긴 앉기를 「아무 값도 못 샀다」로 세면 안 된다 — 그것도
+   불을 쓴 것이고, 처음에 그렇게 세서 22%가 헛것으로 잡혔다. */
+const act = s =>
+  s.goldAfter > s.gold ? 'cash'
+  : s.oilAfter > s.oil ? 'wick'
+  : s.woundAfter < s.wound ? 'sear'
+  : s.hpAfter > s.hp ? 'rest'
+  : 'idle';
+const by = k => sits.filter(s => act(s) === k);
+console.log(`  고른 것 — 심지 ${pct(by('wick').length, sits.length)}`
+  + ` · 지짐 ${pct(by('sear').length, sits.length)}`
+  + ` · 숨 ${pct(by('rest').length, sits.length)}`
+  + ` · 판돈 ${pct(by('cash').length, sits.length)}`
+  + ` · 아무 값도 못 산 앉기 ${pct(by('idle').length, sits.length)}   ← 여기가 「무가치」다`);
+const sear = by('sear');
+if (sear.length) {
+  console.log(`  지짐을 고른 판 — 앉을 때 기름 ${mean(sear.map(s => s.oil)).toFixed(0)}`
+    + ` → 뒤에 남은 기름 ${mean(sear.map(s => s.oilAfter)).toFixed(0)}`
+    + ` · 낸 체력 평균 ${mean(sear.map(s => Math.max(0, s.hp - s.hpAfter))).toFixed(1)}`);
+  console.log(`  지진 뒤 기름이 260 아래로 내려갔다  `
+    + `${sear.filter(s => s.oilAfter < 260).length}/${sear.length}`);
+}
+console.log('');
 console.log(`\n  깊이별 — 앉은 횟수 · 상처 있던 비율 · 전부 지진 비율`);
 for (let d = 1; d <= 10; d++) {
   const a = sits.filter(s => s.depth === d);

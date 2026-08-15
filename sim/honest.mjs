@@ -18,7 +18,13 @@
    usage: node sim/honest.mjs [판수]                        */
 import { runBot } from './_botlib.mjs';
 
-const N = Number(process.argv[2] || 60);
+/* 기본 60판이었다. 실측 막힘률이 1.2%(588판)인데 문턱이 2%였으니
+   λ=0.72의 포아송에서 2건 이상 = 16% — 이 벤치가 여섯 번에 한 번
+   저절로 빨개졌다. 문턱을 재려는 값 **위에** 올려놓은 것이고,
+   그 상태에서는 「막힘이 늘었다」와 「주사위가 그랬다」를 구별할 수
+   없다. 표본을 200판으로 늘리고 문턱을 3%로 연다: 참값 1.2%에서
+   200판이면 6건 이상이 나올 확률이 2% 아래다. */
+const N = Number(process.argv[2] || 200);
 const CLASSES = ['warrior', 'rogue', 'mage', 'priest', 'ranger', 'paladin'];
 
 let bad = 0;
@@ -55,8 +61,8 @@ const clean = avg(rows.filter(r => !(r.stuck || r.killer === '?')).map(r => r.de
 console.log(`      도달 층 평균 — 전부 ${withStuck.toFixed(2)} · 막힌 판을 빼면 ${clean.toFixed(2)}`
   + ` (차이 ${(withStuck - clean).toFixed(2)}층)\n`);
 
-ok(stuck.length / N < 0.02,
-   '판의 2% 미만만 죽지도 이기지도 않고 끝난다 — 이보다 많으면 도달 층 통계가 검열된 표본이다',
+ok(stuck.length / N < 0.03,
+   '판의 3% 미만만 죽지도 이기지도 않고 끝난다 — 이보다 많으면 도달 층 통계가 검열된 표본이다',
    `${stuck.length}/${N}판 (${Math.round(stuck.length / N * 100)}%)`);
 /* 이 줄도 지웠다. 막힘을 10%까지 올린 상태에서도 −0.09층으로 통과했다 —
    잡으라고 만든 바로 그 상황에서 안 울린다. 막힌 판은 살아 있는 채로

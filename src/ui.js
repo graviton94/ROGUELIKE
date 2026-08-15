@@ -3052,10 +3052,27 @@ export function renderCamp() {
     `◍${p.gold} · ${MATS.scrap.n} ${m.scrap} · ` +
     `${MATS.dust.n} ${m.dust} · ${MATS.essence.n} ${m.essence}`;
 
+  /* 불은 한 번만 쓸 수 있고, 이제 셋 중 하나만 준다. 세 줄을 나란히
+     놓는 이유가 그것이다 — 고르지 않은 둘이 무엇이었는지가 화면에
+     남아야 「포기했다」가 된다. 어두운 채로 성한 몸으로 갈 것인가,
+     밝은 채로 상한 몸으로 갈 것인가. */
+  const wound = p.wound || 0;
+  const oilRoom = Math.max(0, Game.oilCap() - p.lightTurns);
+  const searCost = Math.min(p.lightTurns, Game.WOUND_OIL);
+  const searBurn = Math.max(1, Math.round(p.maxhp * Game.CAMP_SEAR_HP));
   const options = [
-    { id:'rest', n:'휴식', desc:
+    { id:'wick', n:'심지를 갈다', desc:
+        `기름 +${Math.min(oilRoom, Game.CAMP_OIL)} · 다음 층을 볼 수 있다`,
+      tag: p.lightTurns < 200 ? '곧 꺼진다' : `기름 ${p.lightTurns}` },
+    { id:'sear', n:'지지다', desc:
+        wound
+          ? `상처 ${Math.round(wound * (searCost / Game.WOUND_OIL))} 닫힘 · 기름 −${searCost} · 체력 −${searBurn}`
+          : '닫을 상처가 없다',
+      tag: wound ? (searCost >= Game.WOUND_OIL ? '전부' : '절반') : '—',
+      poor: !wound },
+    { id:'rest', n:'숨을 돌리다', desc:
         `체력 +${heal} (최대의 ${Math.round(Game.CAMP_HEAL * 100)}%) · 마나 회복 · 모든 상태이상 해제`,
-      tag: p.hp < p.maxhp * 0.5 ? '지금은 이게 답일지도' : '공짜' },
+      tag: p.hp < p.maxhp * 0.5 ? '지금은 이게 답일지도' : `${p.hp}/${p.maxhp}` },
   ];
 
   /* Only offered when there is something to offer. A dead row
@@ -3078,6 +3095,8 @@ export function renderCamp() {
     row.appendChild(el('span', 'campdesc', o.desc));
     if (!o.poor) row.onclick = () => {
       if (o.id === 'rest') { Game.campRest(); setScreen('play'); refresh(); return; }
+      if (o.id === 'wick') { Game.campWick(); setScreen('play'); refresh(); return; }
+      if (o.id === 'sear') { Game.campSear(); setScreen('play'); refresh(); return; }
       campMode = o.id;
       renderCampTargets();
     };

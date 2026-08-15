@@ -5604,7 +5604,9 @@ function readIntents() {
    the only sane one. */
 /* 0.40이면 모닥불 한 번에 몸이 새것이 된다. 재 보니 판의 60%를
    체력 90~100%에서 보냈고, 그 대부분이 이 한 줄에서 나왔다. */
-export const CAMP_HEAL = 0.28;
+/* 숨 돌리기가 단독 선택지가 되었으므로 심지·지짐과 겨룰 값이어야
+   한다. 0.28은 「앉은 김에」의 값이었다. */
+export const CAMP_HEAL = 0.34;
 /* Gear climbs to 8 now that the odds gate it; a spell's plus is
    a multiplier, so it stays where it was. */
 export const MAX_PLUS = 10;   // 8에서 올렸다 — 위쪽 네 칸이 벼랑이다
@@ -5724,32 +5726,65 @@ export function campCash() {
   spendCamp();
 }
 
-export const CAMP_OIL = 200;
-export const WOUND_OIL = 260;    // 상처를 전부 지지는 데 드는 기름
+/* ── 불은 셋 중 하나만 준다 ───────────────────────────────
+   원래는 한 번 앉으면 심지도 갈고 상처도 지지고 숨도 돌렸다. 장부를
+   떠 보니(sim/hearth.mjs, 48판·앉기 178회) **상처를 260어치 지지고
+   나면 기름이 480에서 519로 늘어 있었다** — 같은 호출 안에서 +200을
+   먼저 줬기 때문이다. 상한 1100짜리 자원에서 순 비용 60. 「몸과 시계가
+   같은 저울에 오른다」는 주석은 희망이었고, 저울이 없었다.
+   그리고 앉기의 46%는 체력이 이미 가득이라 회복이 0이었다 —
+   즉 절반은 아무 결정도 아닌 자리에서 불을 태우고 있었다.
 
-export function campRest() {
-  const p = G.player;
-  // Sitting down ends the run of unrested floors, pile or not.
+   보충과 지출을 떼면 저울이 생긴다. 심지 · 지짐 · 숨, 셋 중 하나.
+   불은 여전히 층마다 하나이므로 이제 「무엇을 포기하는가」가 매 층
+   묻힌다 — 어두운 채로 성한 몸으로 갈 것인가, 밝은 채로 상한 몸으로
+   갈 것인가. 지짐에 체력 8%를 붙인 것은 그것이 **안전한 선택**이
+   되지 않게 하기 위해서다. 상처를 지지는 일은 아프다. */
+export const CAMP_OIL = 340;     // 심지만 갈 때. 예전 200에 지짐 몫을 얹었다
+export const WOUND_OIL = 260;    // 상처를 전부 지지는 데 드는 기름
+export const CAMP_SEAR_HP = 0.08;
+
+/* 앉는 순간 판돈은 탄다 — 어느 쪽을 고르든. */
+function sitDown() {
   if (G.bank >= 2) say(`판돈 ${G.bank}층치가 불에 탔다.`, 'warn');
   G.bank = 0;
-  /* 앉은 김에 심지도 갈아 끼운다. 모닥불이 층마다 하나씩 오는
-     안전한 보급처이고, 화로와 기름병이 그보다 위험하거나 비싼
-     보급처다 — 셋의 값이 다르기 때문에 경로가 선택이 된다. */
+}
+
+/* ① 심지를 갈다. */
+export function campWick() {
+  const p = G.player;
+  sitDown();
   const oil = Math.min(oilCap() - p.lightTurns, CAMP_OIL);
-  if (oil > 0) { p.lightTurns += oil; say(`심지를 갈았다. 기름 +${oil}.`, 'good'); }
-  /* 상처는 저절로 낫지 않는다. 불에 지져야 하고, 지지려면 기름을
-     태운다 — 몸과 시계가 같은 저울에 오르는 자리다. 기름이 모자라면
-     상처를 안고 내려간다. */
-  if (p.wound > 0) {
-    const cost = Math.min(p.lightTurns, WOUND_OIL);
-    const share = cost / WOUND_OIL;
-    const mend = Math.max(1, Math.round(p.wound * share));
-    p.wound -= mend;
-    p.lightTurns -= cost;
-    recalc(p);
-    say(share >= 1 ? `불에 지졌다. 상처 ${mend}이(가) 닫혔다. (기름 −${cost})`
-                   : `기름이 모자라 절반만 지졌다. 상처 ${mend}. (기름 −${cost})`, 'good');
-  }
+  p.lightTurns += oil;
+  say(oil > 0 ? `심지를 갈았다. 기름 +${oil}. 다음 층은 볼 수 있다.`
+              : '심지는 아직 성하다. 태울 것이 없다.', 'good');
+  spendCamp();
+}
+
+/* ② 지지다. 기름과 살을 함께 낸다. */
+export function campSear() {
+  const p = G.player;
+  sitDown();
+  const cost = Math.min(p.lightTurns, WOUND_OIL);
+  const share = cost / WOUND_OIL;
+  const mend = Math.max(1, Math.round((p.wound || 0) * share));
+  const burn = Math.max(1, Math.round(p.maxhp * CAMP_SEAR_HP));
+  p.wound = Math.max(0, (p.wound || 0) - mend);
+  p.lightTurns -= cost;
+  recalc(p);
+  say(share >= 1 ? `불에 지졌다. 상처 ${mend}이(가) 닫혔다. (기름 −${cost})`
+                 : `기름이 모자라 절반만 지졌다. 상처 ${mend}. (기름 −${cost})`, 'good');
+  /* 지짐도 한 대다 — 그러니 단일 깔때기를 지난다. 여기서 죽을 수 있고,
+     죽어야 한다: 상처를 지지려고 마지막 체력을 낸 것이니까. */
+  hurtPlayer(burn, { by:'제 손으로 지진 불', combo:false });
+  if (G.running) say('살이 타는 냄새가 손에 오래 남는다.', 'warn');
+  if (G.running) spendCamp();
+}
+
+/* ③ 숨을 돌리다. */
+export function campRest() {
+  const p = G.player;
+  sitDown();
   const heal = Math.min(p.maxhp - p.hp,
     Math.ceil(p.maxhp * CAMP_HEAL * (hasShackle('dryspring') ? 0.5 : 1)));
   p.hp += heal;

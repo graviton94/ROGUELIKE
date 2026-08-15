@@ -524,9 +524,29 @@ function runBot(race, cls, clear, opt = {}) {
     /* The fire is the body and the relics now. Cash the wager if
        there is one, otherwise rest — the bot does not gamble on
        fusion, so these numbers stay a floor. */
+    /* 불이 셋 중 하나만 주게 된 뒤로 여기가 실제 결정이 되었다.
+       봇의 정책은 「지금 죽는 것 > 곧 어두워지는 것 > 천장이 깎인
+       것」 순이다 — 죽으면 나머지가 의미 없고, 불이 꺼지면 예고를
+       못 읽어 큰 한 방을 맞는다(어두울 때 32.1 대 밝을 때 15.4).
+       상처는 셋 중 가장 느리게 무는 것이라 마지막이다.
+       지짐은 체력을 8% 가져가므로 성한 몸일 때만 고른다 —
+       안 그러면 상처를 닫으려다 죽는다. */
     if (G.screen === 'camp') {
       const purse = Game.bankPurse2();
+      const hurt = p.hp < p.maxhp * 0.55;
+      const dim  = p.lightTurns < 260;
+      const cut  = (p.wound || 0) > 0 && p.lightTurns >= Game.WOUND_OIL
+                   && p.hp > p.maxhp * 0.75;
       if (purse && p.hp > p.maxhp * 0.7) Game.campCash();
+      else if (hurt) Game.campRest();
+      else if (dim) Game.campWick();
+      else if (cut) Game.campSear();
+      /* 마지막 칸이 무조건 「숨」이면 성한 몸으로 앉았을 때 회복이 0이
+         된다 — 장부에서 앉기의 33%가 아무 값도 못 사고 있었다. 살
+         자리가 없으면 기름을 산다. 기름도 가득이면 그때는 정말로
+         아무것도 없는 것이고, 그건 불의 잘못이 아니다. */
+      else if (p.hp < p.maxhp) Game.campRest();
+      else if (p.lightTurns < Game.oilCap() - 40) Game.campWick();
       else Game.campRest();
       st.camps++;
       continue;

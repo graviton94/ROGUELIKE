@@ -97,5 +97,46 @@ console.log('\n어둠 벤치 — 삼킨 예고를 삼켰다고 말하는가\n');
   ok(G.darkAte === false, '그러나 close로는 깃발이 서지 않는다', G.darkAte);
 }
 
+/* 5. 그리고 이것이 규칙의 전부다: **보이는데 예고가 없는 띠**가
+      실제로 존재하는가. 예전에는 꺼진 반경이 2라서 그 띠가 d==2
+      한 칸뿐이었고, 실측으로 어둠이 무는 값은 관측의 6%였다.
+      형체 반경과 예고 반경을 갈라 놓았으니, 이제 그 띠를 센다. */
+{
+  Meta.forget();
+  Game.startGame('human', 'warrior', Game.rollStats('warrior'));
+  Game.descend();
+  Game.enterDepth(6);
+  const L = G.level, p = G.player;
+  for (let i = 0; i < L.tiles.length; i++) L.tiles[i] = W.ROCK;
+  L.roomOf.fill(-1);
+  for (const r of L.rooms) { r.lit = false; r.bright = false; }
+  const y = 12;
+  for (let x = 3; x <= 40; x++) L.tiles[W.idx(x, y)] = W.FLOOR;
+  p.x = 10; p.y = y; p.lightTurns = 0; p.hp = p.maxhp; p.relics = [];
+  Game.recalc(p); Game.refreshFov();
+
+  const band = [];
+  for (let d = 1; d <= 6; d++) {
+    G.monsters.length = 0;
+    const spec = D.MONSTERS.find(m => m.spr === 'orc') || D.MONSTERS[0];
+    G.monsters.push({ ...spec, hp: spec.hp, maxhp: spec.hp,
+                      x: 10 + d, y, awake: true, energy: 0, wind: 1 });
+    Game.refreshFov();
+    Game.endTurn(true);
+    const m = G.monsters[0];
+    band.push({ d, seen: !!G.level.vis[W.idx(m.x, m.y)], intent: m.intent });
+  }
+  console.log('\n      불이 꺼진 굴에서 거리별 — 보이는가 / 예고가 있는가');
+  for (const r of band)
+    console.log(`        ${r.d}칸  ${r.seen ? '보인다' : '안 보인다'}`
+      + `  ${r.intent ? '예고 있음' : '예고 없음'}`);
+  console.log('');
+  const blindBand = band.filter(r => r.seen && !r.intent);
+  ok(blindBand.length >= 2,
+     '보이는데 예고가 없는 띠가 두 칸 이상이다 — 한 칸뿐이면 어둠은 붙어 싸울 때만 존재한다',
+     `${blindBand.length}칸 (${blindBand.map(r => r.d).join('·')})`);
+  ok(band[0].intent, '붙어 있는 것은 어둠 속에서도 읽힌다', String(band[0].intent));
+}
+
 console.log(bad ? `\n✗ ${bad}건\n` : '\n· 전부 통과\n');
 process.exit(bad ? 1 : 0);

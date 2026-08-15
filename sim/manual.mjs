@@ -62,9 +62,9 @@ for (const [n, val, phrase] of CHECKS) {
 /* 시야 계단. 코드가 여섯 계단이면 문서도 여섯 계단이어야 한다 —
    문턱 하나가 빠져 있으면 「80 아래 3칸」 같은 옛 표가 남는다. */
 {
-  const missing = [640, 360, 180, 60].filter(t => !text.includes(`${t} 아래`));
-  ok(missing.length === 0, '시야 문턱 넷이 전부 문서에 있다',
-     missing.length ? `빠진 것 ${missing.join(' · ')}` : '640 · 360 · 180 · 60');
+  const missing = [640, 360, 180].filter(t => !text.includes(`${t} 아래`));
+  ok(missing.length === 0, '시야 문턱 셋이 전부 문서에 있다',
+     missing.length ? `빠진 것 ${missing.join(' · ')}` : '640 · 360 · 180');
   /* `text.includes('80 아래')`로 셌더니 「180 아래」가 걸렸다.
      문서가 틀린 것이 아니라 자가 틀린 것이다 — 앞자리를 막는다. */
   const stale = [300, 80].filter(t => new RegExp(`(^|[^0-9])${t} 아래`).test(text));

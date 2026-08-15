@@ -790,7 +790,10 @@ table.keys td:first-child { width: 40%; color: var(--G); }
    so nobody gambles without having seen both numbers. */
 .campopt.wager { border-color: var(--r); }
 .camptag.odds  { font-size: 13px; color: var(--y); letter-spacing: .04em; }
-.campdesc.risk { display: block; margin-top: 5px; font-size: 11px; color: var(--r); }
+/* `--r`(#5e0f1c, 마른 피)는 이 배경 위에서 명암비 1.56:1이다 —
+   실패하면 무엇을 잃는지 적어 둔 줄이 읽히지 않는다. 위험을 말하는
+   줄이 가장 안 읽히는 줄이었다. `--R`로 올리면 4.4:1. */
+.campdesc.risk { display: block; margin-top: 5px; font-size: 11px; color: var(--R); }
 .campopt:active .campdesc.risk, .campopt:active .camptag.odds { color: var(--k); }
 
 /* ── 수레의 기분 ──

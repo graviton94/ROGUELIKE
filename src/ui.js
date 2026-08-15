@@ -1375,7 +1375,9 @@ export function refresh() {
        나갔다. 남은 칸은 어차피 늘 보여야 하는 값이므로, 벌을 알리는
        칩이 아니라 배낭 버튼 자체가 들고 있는 게 맞다. */
     const bag = $('btn-inv');
-    if (bag) bag.textContent = `배낭 ${used}/${cap}`;
+    /* 「배낭 6.5/20」은 개수처럼 읽힌다 — 실제로는 무게이고, 그래서
+       소수점이 붙는다. 무엇을 세는 숫자인지를 말한다. */
+    if (bag) bag.textContent = `배낭 무게 ${used}/${cap}`;
   }
   if (G.depth > 0 && p.lightTurns <= 0) flags.push('암흑');
   else if (G.depth > 0 && p.lightTurns < 80) flags.push('불빛 희미');
@@ -2653,7 +2655,7 @@ function renderInventory() {
       if (r >= 2 && !isCursed(it)) nm.classList.add('shine');
       row.appendChild(nm);
       row.appendChild(el('span', 'eqstat',
-        it.kind === 'weapon' ? `${it.dice[0]}d${it.dice[1]}` : `AC ${it.ac}`));
+        it.kind === 'weapon' ? `${it.dice[0]}d${it.dice[1]}` : `방어 ${it.ac}`));
       if (it.kind === 'weapon' && WEAPON_TYPES[it.t]) {
         const note = el('div', 'wtype');
         note.appendChild(el('b', '', WEAPON_TYPES[it.t].n));
@@ -4195,6 +4197,14 @@ function renderEnd() {
   line('최고 연격', `${s.combo}`, s.combo >= 10 ? 'y' : '');
   line('처치 · 상자 · 사건', `${s.kills || 0} · ${s.opened || 0} · ${s.events || 0}`);
   line('금화 · 턴', `${s.gold}닢 · ${s.turn}턴`);
+  /* 잃은 천장과 안 쓴 것. 둘 다 「무엇이 이 판을 끝냈는가」에 대한
+     답이고, 지금까지 결산에 없던 줄이다. 상처는 0일 때도 적는다 —
+     「한 번도 안 깎였다」는 그 자체로 읽을 값이다. */
+  const roof = (s.maxhp || 0) + (s.wound || 0);
+  line('잃은 천장', s.wound
+    ? `−${s.wound} (${roof ? Math.round(s.wound / roof * 100) : 0}%)`
+    : '없음 — 한 번도 깎이지 않았다', s.wound ? 'R' : 'g');
+  if (s.unused) line('배낭에 남은 것', `${s.unused}개를 안 썼다`, s.unused >= 3 ? 'o' : 'g');
   /* 빚. 금화를 점수가 아니라 「얼마나 갚았나」로 다시 읽는 줄이다 —
      이 한 줄이 있으면 판 내내 주운 동전에 이유가 생긴다. 아무도
      다 갚지 못했고, 그것도 세계관의 일부다. */

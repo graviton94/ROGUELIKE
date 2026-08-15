@@ -3687,6 +3687,8 @@ const LESSONS = [
   { id:'fuse',   t:'유물 <b>둘</b>을 불에 넣으면 하나가 나옵니다 — 보통은 확률표대로.<br>' +
                     '하지만 <b>서로를 알아보는 짝</b>이 여섯 있습니다. 목록은 없습니다. ' +
                     '<b>유물 설명의 마지막 문장</b>이 짝을 가리킵니다.' },
+  { id:'cling',  t:'<b>붙어 있는 것에서 물러나면 그만큼 따라붙습니다.</b> 걸어서 떨어뜨릴 수 있는 것이 아닙니다.<br>' +
+                    '떼어내려면 <b>구르거나</b>(구르는 동안은 따라붙지 않습니다), 문을 닫거나, 연막을 쓰거나 — 아니면 싸워서 끝내야 합니다.' },
   { id:'task',   t:'이 층에는 <b>과업</b>이 걸려 있습니다 — 층마다 걸리지는 않습니다.<br>' +
                     '계단이 잠겼다면 <b>열쇠를 문 것</b>이 이 층 어딘가에 있습니다. 머리 위에 열쇠가 붙어 있습니다.<br>' +
                     '잡지 못해도 됩니다 — <b>자물쇠는 시간이 지나면 삭습니다.</b> 두드릴 때마다 한 턴이 탑니다.' },
@@ -3753,6 +3755,7 @@ function checkLessons() {
   if (G.bank >= 2) teach('bank');
   if (G.player.lightTurns < 320) teach('oil');
   if (G.darkAte) teach('dark');
+  if (G.clung) teach('cling');
   if (G.monsters.some(m => m.thief && G.level.vis[idx(m.x, m.y)])) teach('thief');
   if (Game.pressureLevel() > 0) teach('clock');
   if ((G.player.relics || []).length) teach('relic');

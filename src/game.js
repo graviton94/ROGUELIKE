@@ -3043,9 +3043,44 @@ export function step(dx, dy) {
     }
   }
 
+  /* ── 등을 보이는 값 ────────────────────────────────────
+     긴장을 재 보면 체력 30% 아래에서 보낸 턴이 **0%**다. 물약을 한
+     병도 안 산 봇에서도 0%였으니 공급 문제가 아니다 — 봇은 언제나
+     **빠져나갈 수 있었다.** 붙어 있는 것에서 한 걸음 물러나는 데
+     아무 값도 안 들었고, 그러면 위험한 구간은 지나가는 곳이 아니라
+     건너뛰는 곳이 된다. 죽음은 그래서 30% 위에서 한 번에 온다.
+
+     이제 붙어 있던 것에서 **멀어지는** 걸음은 그것에게 한 걸음을
+     내준다. 때리는 것이 아니라 따라붙는 것이다 — 걸어서 떨어뜨릴 수
+     없게 될 뿐, 맞고 시작하지는 않는다. 그러면 이탈에 값이 생긴다:
+     싸우거나, 구르거나, 문을 닫거나, 연막을 쓰거나.
+
+     구르기는 면제다(iframe). 이 게임에서 구르기가 사는 자리가 바로
+     여기이고, 지금까지 그것은 「가끔 쓰는 회피」였지 이탈 수단이
+     아니었다. 예고를 당긴 것도 면제한다 — 그건 이미 한 턴을 버린
+     것이고, 물러서라고 만든 예고에 벌을 붙이면 예고가 함정이 된다. */
+  const wasX = p.x, wasY = p.y;
+  const clung = (p.iframe > 0 || G.noCling) ? [] : G.monsters.filter(m =>
+    m.awake && !m.disguise && !m.wind && m.ai !== 'unseen'
+    && Math.max(Math.abs(m.x - wasX), Math.abs(m.y - wasY)) <= 1
+    && Math.max(Math.abs(m.x - nx), Math.abs(m.y - ny)) > 1);
+
   p.x = nx; p.y = ny;
   if (enterTile(nx, ny)) { endTurn(true); return; }   // trap moved us elsewhere
   pickUp();
+  for (const m of clung) {
+    if (Math.max(Math.abs(m.x - p.x), Math.abs(m.y - p.y)) <= 1) continue;
+    const before = `${m.x},${m.y}`;
+    advance(m, Math.sign(p.x - m.x), Math.sign(p.y - m.y));
+    if (`${m.x},${m.y}` === before) continue;
+    G.clung = (G.clung || 0) + 1;
+    /* 층마다 한 번만 말한다. 매번 말하면 로그가 이 한 줄로 덮이고,
+       그러면 정작 읽어야 할 줄들이 밀려 나간다. */
+    if (!G.clungSaid) {
+      G.clungSaid = 1;
+      say('물러선 만큼 따라붙는다. 걸어서 떨어뜨릴 수 있는 것이 아니다.', 'warn');
+    }
+  }
   endTurn();
 }
 
@@ -5280,7 +5315,31 @@ function monsterMelee(m) {
     fx({ t:'miss', x:p.x, y:p.y });
     return;
   }
-  const chance = clamp(0.24 + (m.atk * 1.45 - ac * 1.75) / 62, 0.06, 0.90);
+  /* ── 왜 아무 일도 안 일어났는가 ────────────────────────
+     긴장을 못 찾아 세 가지를 손봤다(물약 공급 · 포위 · 이탈 비용).
+     셋 다 안 움직였다. 그러다 명중률을 깊이별로 재 봤다:
+
+       층   내 방어   몬스터 공격   식이 말하는 명중률
+        1      5.3         3.9            18%
+        5     15.5         9.0             6%   ← 바닥
+       10     34.9        24.0             6%
+       15     45.3        42.2             6%
+
+     **5층부터 판이 끝날 때까지 이 식은 언제나 하한 6%를 돌려주고
+     있었다.** 실측 명중/빗맞음이 46/392다 — 몬스터는 열 번에 아홉 번
+     헛손질한다. 위험 구간이 없던 이유는 회복도 포위도 아니고, 맞는
+     일이 일어나지 않아서였다.
+
+     원인은 계수다. 방어가 1.75로 공격의 1.45보다 무겁게 들어가는데,
+     방어는 5.3 → 45.3(8.5배)로 자라고 공격은 3.9 → 42.2(10.8배)로
+     자란다. 차를 쓰면 그 둘의 차이가 계속 벌어져 아래로 뚫고 나간다.
+
+     차 대신 **비**로 간다. 비는 양쪽이 같은 배율로 자라면 그대로
+     있으므로 깊이에서 무너지지 않는다. 값은 아래 표가 되도록 잡았다 —
+     초반은 지금과 비슷하고, 깊이 갈수록 조금씩 오른다:
+
+       층 1 ≈ 28% · 층 5 ≈ 24% · 층 10 ≈ 27% · 층 15 ≈ 31% */
+  const chance = clamp(0.62 * m.atk / (m.atk + ac * 0.9), 0.10, 0.85);
   if (Math.random() > chance) {
     say(heavy ? `${m.n}의 내리친 일격이 바닥을 때렸다.`
               : pickLine(MISS_BY, m.n, nextLine()));
@@ -7443,7 +7502,7 @@ export function startGame(raceKey, classKey, base) {
   G.engraved = 0; G.memories = []; G.relicShelf = null;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
-  G.floorTurn = 0; G.waves = 0; G.campUses = 1; walkOffTolerance(); G.hazards = []; G.snares = []; G.sanctum = null; G.bank = 0;
+  G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.clungSaid = 0; walkOffTolerance(); G.hazards = []; G.snares = []; G.sanctum = null; G.bank = 0;
   G.goldEarned = 0;
   /* 한 판에 한 번씩만 만난다는 표시. 판이 바뀌면 비워야 한다 —
      안 비웠더니 두 번째 판에서 앞사람이 안 나왔고, 벤치가 그걸

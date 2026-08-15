@@ -46,8 +46,15 @@ for (let k = 9; k >= 0; k--) {
 }
 const safe = (band[7] + band[8] + band[9]) * 100 / sum;
 const edge = (band[0] + band[1] + band[2]) * 100 / sum;
-console.log(`\n  체력 70% 위에서 보낸 턴  ${Math.round(safe)}%`);
-console.log(`  체력 30% 아래에서 보낸 턴 ${Math.round(edge)}%   ← 여기가 긴장이다`);
+/* 결정이 바뀌는 구간. 30% 아래는 「죽기 직전」이고 그건 드물어야
+   맞다 — 물어야 할 것은 오히려 **물약을 쓸지 말지가 고민이 되는
+   구간에 얼마나 있는가**다. 그리고 30% 아래를 정수로 찍었더니
+   0.42%가 「0%」로 인쇄되어, 움직인 것을 안 움직인 것으로 읽었다.
+   소수점 한 자리를 남긴다. */
+const hurt = (band[3] + band[4] + band[5]) * 100 / sum;
+console.log(`\n  체력 70% 위에서 보낸 턴  ${safe.toFixed(1)}%`);
+console.log(`  체력 30~55%에서 보낸 턴 ${hurt.toFixed(1)}%   ← 결정이 바뀌는 구간`);
+console.log(`  체력 30% 아래에서 보낸 턴 ${edge.toFixed(1)}%   ← 여기가 긴장이다`);
 
 console.log('\n한 층에 몇 턴을 쓰나:');
 const floors = [...perFloor.keys()].filter(k => typeof k === 'number').sort((a, b) => a - b).slice(0, 12);
@@ -82,8 +89,14 @@ ok(sum > 5000, '잰 턴이 실제로 있다 — 표본이 얇으면 아래 비�
    이 게임에서 그것은 개선이 아니다. */
 ok(safe <= 85, '체력 70% 위에서 보낸 턴이 85%를 넘지 않는다 — 넘으면 판이 더 평평해진 것이다',
    `${Math.round(safe)}%`);
-console.log(`\n      목표: 체력 30% 아래에서 보낸 턴 ${Math.round(edge)}% → 5% 이상.`);
-console.log('      이 줄이 0에서 움직이는 날이 「긴장」 작업이 끝나는 날이다.\n');
+console.log(`\n      목표: 체력 30% 아래에서 보낸 턴 ${edge.toFixed(1)}% → 5% 이상.`);
+console.log('      이 줄이 움직이는 날이 「긴장」 작업이 끝나는 날이다.');
+console.log('      지금까지 안 통한 것 셋을 여기 적어 둔다 — 다음 사람이 같은 길을 두 번 가지 않도록:');
+console.log('        · 물약 공급  — 한 병도 안 산 봇에서도 이 값은 그대로였다');
+console.log('        · 흐름장 포위 — 82% → 75%(안전 구간)를 줬지만 아래쪽은 안 움직였다');
+console.log('        · 이탈 비용  — 규칙은 판당 28번 발화하는데(따라붙기) 3배치 복제로 판정 불가');
+console.log('      합으로 보면 싸움은 이미 팽팽하다: 깊은 층에서 죽이는 데 4.5합, 죽는 데 3합.');
+console.log('      그런데도 안 깎이는 이유는 **맞지를 않아서**다 — 다음 지렛대는 회피와 명중이다.\n');
 
 console.log(bad ? `긴장 벤치: ${bad}건 실패\n` : '긴장 벤치: 회귀 없음 (긴장은 아직 없다)\n');
 process.exit(bad ? 1 : 0);

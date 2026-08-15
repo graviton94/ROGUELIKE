@@ -459,6 +459,8 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   text-align: center; overflow: hidden;
 }
 #acts .quick canvas { width: 16px; height: 16px; image-rendering: pixelated; flex: 0 0 auto; }
+
+}
 #acts .quick .qn { white-space: nowrap; overflow: hidden; min-width: 0; }
 /* Out of the flow, so a narrow button clips the word and never
    the number. The number is the part that decides whether you
@@ -1141,4 +1143,43 @@ table.keys td:first-child { width: 40%; color: var(--G); }
   margin: 10px auto 0; display: block;
   border-color: var(--y); color: var(--y);
   letter-spacing: .06em;
+}
+
+/* ── 좁은 폰에서는 두 줄 ──────────────────────────────────
+   횃불이 「탈출」에서 떨어져 나와 칸이 넷이 되자, 320px에서 한 칸이
+   37px로 줄고 「회복」이 잘렸다. 44pt 터치 기준 미달이고, 그 기준은
+   이 게임에서 이미 잘 지켜지고 있던 몇 안 되는 것 중 하나다 —
+   칸을 하나 늘리자고 깨뜨릴 것이 아니다.
+
+   접는다. 2×2면 한 칸이 다시 70px대가 되고, 급할 때 누르는 네 개가
+   엄지 밑에 사각으로 모인다. 줄이 하나 늘지만 그만큼은 값을 한다.
+
+   **파일 끝에 둔다.** 처음에 캔버스 규칙 옆에 뒀더니 뒤에 오는
+   `#acts .pair button { flex: 1 1 0 }`이 같은 우선순위로 덮어써서
+   아무것도 안 변했다 — 미디어 쿼리는 우선순위를 올려 주지 않는다. */
+@media (max-width: 360px) {
+  #acts .quick { flex-wrap: wrap; gap: 3px; }
+  /* 그리고 높이를 깎는다. 접기만 했더니 줄이 하나 늘어 320px에서
+     지도가 43%→35%로 내려갔고(칸 벤치 문턱 36%), 손가락을 얻자고
+     무대를 판 셈이 됐다. 두 줄이 한 줄 반쯤 되게 눌러서 둘 다 가진다. */
+  #acts .quick button { flex: 1 1 44%; padding: 1px 2px; font-size: 8.5px; }
+  #acts .quick canvas { width: 13px; height: 13px; }
+}
+
+/* 불이 사그라들 때 그 칸이 부른다. 깜빡임이 아니라 테두리 색과
+   느린 맥박 — 급한 것은 하나여야 하고, 화면에서 이미 붉은 것이
+   많다(피격·상처·정예 테두리). 이쪽은 잉걸빛으로 부른다. */
+#acts .quick button.urgent {
+  border-color: var(--o); color: var(--o);
+  animation: emberpulse 1.1s ease-in-out infinite;
+}
+@keyframes emberpulse {
+  0%, 100% { box-shadow: inset -2px -2px 0 rgba(0,0,0,.5),
+                         inset 2px 2px 0 rgba(255,255,255,.07); }
+  50%      { box-shadow: inset -2px -2px 0 rgba(0,0,0,.5),
+                         inset 2px 2px 0 rgba(255,255,255,.07),
+                         0 0 0 1px var(--o); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #acts .quick button.urgent { animation: none; }
 }

@@ -1504,6 +1504,12 @@ function renderQuick() {
     if (!n) { n = el('b', 'qty'); b.appendChild(n); }
     n.textContent = s.qty > 1 ? String(s.qty) : '';
     n.hidden = s.qty <= 1;
+    /* 불이 사그라들면 그 칸이 뛴다. HUD의 「불 55」가 빨개져도 사람은
+       누를 것을 못 찾는다 — 로그 한 줄보다 버튼이 직접 부르는 편이
+       확실하다. 그리고 어둠이 이제 예고를 가리므로, 이 칸은 편의가
+       아니라 싸움의 일부다. */
+    b.classList.toggle('urgent',
+      s.role === 'torch' && (G.player?.lightTurns || 0) < 120);
     b.onclick = () => { stopAuto(); act(() => Game.useItem(s.idx)); };
   });
 }
@@ -4445,7 +4451,11 @@ export function bindInput() {
   for (const b of soundBtns) b.onclick = () => { Audio.init(); Audio.toggleMute(); paintSound(); };
   paintSound();
 
-  $('btn-inv').onclick    = () => { stopAuto(); setScreen('inv'); };
+  /* 버튼에 「배낭 5.5/20」이라고 적혀 있는데 열리면 「몸」 탭이었다.
+     라벨과 도착지가 다른 것은 그 자체로 오터치이고, 처음 하는 사람은
+     물약을 찾으러 들어갔다가 장비창을 보고 한 번 더 눌러야 한다.
+     라벨이 가리키는 곳으로 연다. */
+  $('btn-inv').onclick    = () => { stopAuto(); invTab = 'bag'; setScreen('inv'); };
   $('btn-cast').onclick   = () => { stopAuto(); setScreen('spell'); };
   $('btn-door').onclick   = () => { stopAuto(); act(Game.closeDoor); };
   /* 밀도를 올리는 유일한 손잡이. 버튼 하나로 두는 이유는, 이것이

@@ -78,6 +78,10 @@ function routeAvoiding(pred, dodgeTraps) {
    was measured on a hero who had refused to buy a single potion
    — not a difficulty reading, a shopping bug. */
 function outfit() {
+  /* 「물약을 쥐어 준 것」과 「과업을 넣은 것」 중 무엇이 판을 길게
+     만들었는지 가르려면, 쥐어 주지 않은 판도 한 벌 필요하다. 측정용
+     스위치이지 기본값이 아니다 — 기본은 언제나 산다. */
+  if (process.env.NO_OUTFIT) return;
   const p = G.player;
   for (const shop of [5, 1, 4]) {           // alchemist, general, temple
     const stock = Game.shopStock({ id: shop, stock: shop === 5

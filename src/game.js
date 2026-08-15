@@ -1270,8 +1270,21 @@ const QUICK_ROLES = [
     rank: it => (it.use === 'bigHeal' ? 2 : 1) },
   { key:'boost', n:'강화', want: it => ['mana', 'might', 'iron'].includes(it.use),
     rank: it => (it.use === 'mana' ? 2 : 1) },
-  { key:'out',   n:'탈출', want: it => ['flee', 'teleport', 'torch'].includes(it.use),
-    rank: it => (it.use === 'flee' ? 3 : it.use === 'teleport' ? 2 : 1) },
+  { key:'out',   n:'탈출', want: it => ['flee', 'teleport'].includes(it.use),
+    rank: it => (it.use === 'flee' ? 2 : 1) },
+  /* ── 불은 제 칸을 갖는다 ────────────────────────────────
+     횃불이 「탈출」에 묶여 있었고, 순위가 flee 3 > teleport 2 > torch 1
+     이라 **도주 두루마리를 하나라도 주우면 그 버튼은 더 이상 불을
+     안 켰다.** UX와 서아(TRPG)가 따로 같은 것을 봤다.
+
+     이 게임은 스스로 「시야는 장식이 아니라 자원」이라고 말한다. 그
+     자원의 보충 수단이 자원 이름과 아무 관련 없는 단어 뒤에 있었고,
+     시작 안내는 「기름부터 챙기세요」라고 못박는다. HUD의 `불 55`가
+     빨갛게 깜빡여도 누를 것을 못 찾는다.
+
+     그리고 어둠이 이제 예고를 가리므로, 이 칸은 더 이상 편의가 아니라
+     싸움의 일부다. 강화 칸은 초반 내내 비어 있으니 자리도 있다. */
+  { key:'torch', n:'불', want: it => it.use === 'torch', rank: () => 1 },
 ];
 
 /* Unknown flasks never get a quick slot. Auto-drinking something

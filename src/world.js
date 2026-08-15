@@ -44,6 +44,16 @@ export const walkable = (level, x, y) => {
   return t === DOOR || !level.solid(x, y);
 };
 
+/* 「언젠가는 갈 수 있는가」. `walkable`은 지금 이 순간 발을 디딜 수
+   있는지를 묻고, 이쪽은 판 전체를 두고 묻는다 — 잠긴 문은 벽이
+   아니라 **열쇠를 아직 안 구한 문**이다. 연결성을 검증할 때 이 둘을
+   섞으면 잠긴 문 뒤를 「끊긴 구역」으로 세고, 그걸 고치겠다고 옆에
+   굴을 파서 자물쇠라는 장치를 통째로 없애 버린다. */
+export const eventuallyWalkable = (level, x, y) => {
+  if (x < 0 || y < 0 || x >= MW || y >= MH) return false;
+  return level.tiles[idx(x, y)] === DOOR_LOCKED || walkable(level, x, y);
+};
+
 /* What is standing on this tile, if anything. */
 export const propAt = (level, x, y) =>
   (level.tiles[idx(x, y)] === PROP ? level.props.get(idx(x, y)) : null) || null;

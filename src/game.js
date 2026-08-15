@@ -2240,12 +2240,29 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     say(G.task.intro, 'warn');
   }
   if (G.task?.id === 'key') {
-    const pool = G.monsters.filter(m => !m.disguise);
+    /* ── 무엇에게 물릴 것인가 ────────────────────────────
+       xp 최댓값 하나로 골랐더니 두 가지가 새어 들어왔다.
+       층당 40판씩 360판을 세어 보니:
+
+         · 4·5·7·8·12층에서 **금빛 도둑**이 8~15% — 조작법이
+           「걸어서는 절대 못 잡습니다」라고 적어 둔 바로 그것이다.
+           도둑은 xp 120이라 「가장 센 것」이 아니라 「가장 비싼 것」이
+           뽑힌다. 못 잡는 것에게 물리면 과업이 아니라 160턴짜리
+           대기실이다.
+         · 6·10·13층에서 **이름 있는 것이 100%** — 그것들은 자기
+           자리를 지키고 먼저 건드리지 않으면 안 따라온다. 「싸울지
+           지나칠지」가 플레이어의 결정이라고 화면이 약속해 놓고,
+           과업이 그 결정을 압수한다. 6층에서는 185HP짜리를 층
+           중앙값 34 사이에서 잡으라는 뜻이 된다 — 층이 아니라
+           보스전이다.
+
+       둘 다 후보에서 뺀다. 남는 것이 없으면 과업을 접는다 —
+       잡을 수 없는 과업을 다는 것보다 안 다는 편이 낫다. */
+    const pool = G.monsters.filter(m => !m.disguise && !m.thief && !m.named);
     if (!pool.length) G.task = null;
     else {
       const holder = pool.reduce((a, m) => (m.xp || 0) > (a.xp || 0) ? m : a, pool[0]);
       holder.hasKey = true;
-      holder.named = holder.named || false;
       say(G.task.intro, 'warn');
     }
   }
@@ -3092,6 +3109,19 @@ export function stairsLocked() {
   if (!G.task || G.taskDone) return null;
   if ((G.floorTurn || 0) >= TASK_PATIENCE) return null;
   return G.task;
+}
+
+/* 삭아 가는 정도를 한 마디로. 버튼과 로그가 같은 단계를 쓰도록
+   여기 한 곳에서만 고른다 — 둘이 각자 계산하면 언젠가 갈리고,
+   그러면 버튼은 「곧 뜯긴다」인데 로그는 「꿈쩍도 않는다」가 된다. */
+export function lockStage() {
+  const shut = stairsLocked();
+  if (!shut) return -1;
+  const left = Math.max(0, TASK_PATIENCE - (G.floorTurn || 0));
+  return left > 100 ? 0 : left > 40 ? 1 : 2;
+}
+export function lockHint() {
+  return ['꿈쩍도 않는다', '녹이 번졌다', '곧 뜯긴다'][lockStage()] || '';
 }
 
 export function stairHere() {
@@ -4546,9 +4576,11 @@ export function descend() {
        시계가 영영 안 돌고, 계단에 서서 버튼만 누르는 판이 갇힌다.
        실제로 40판에 한 판이 그렇게 막혔다(정직 벤치가 잡았다).
        잠긴 계단은 「기다리면 열린다」여야지 「여기서 끝」이면 안 된다. */
-    const left = Math.max(0, TASK_PATIENCE - (G.floorTurn || 0));
-    const stage = left > 100 ? 0 : left > 40 ? 1 : 2;
-    say(shut.shut[stage] || shut.intro, 'warn');
+    say(shut.shut[lockStage()] || shut.intro, 'warn');
+    /* 눌렸다는 촉감이 없으면 「고장」으로 읽힌다. 모바일에서 밝게 켜진
+       버튼을 눌렀는데 화면이 안 변하면 사람은 거의 언제나 버그로
+       판단한다 — 그리고 여기서는 누를 때마다 한 턴이 탄다. 흔든다. */
+    fx({ t:'lock', x:p.x, y:p.y });
     endTurn();
     return;
   }

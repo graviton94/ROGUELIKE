@@ -482,12 +482,35 @@ export function draw() {
          버그처럼 보였지만 원인은 그림 쪽이었다 — 사람도 같은 순간에
          같은 것을 못 본다. 0.68~0.96이면 숨은 그대로 쉬고 골짜기에서도
          읽힌다. */
-      ctx.globalAlpha = prevA * (0.82 + Math.sin(performance.now() / 380) * 0.14);
+      /* 다시 좁혔다. 0.68~0.96에서도 밝은 회색 바닥 위에서는 시든
+         난초의 **채도가 0.07까지 내려간다** — 색상은 살아 있는데
+         색으로는 안 읽힌다는 뜻이고, 「속성 둘」이라는 정보가 바닥
+         색깔에 따라 사라진다. 숨은 밝기로 쉬게 하고(0.9~1.0) 색은
+         건드리지 않는다. 알파 블렌딩은 채도를 먼저 죽인다. */
+      ctx.globalAlpha = prevA * (0.95 + Math.sin(performance.now() / 380) * 0.05);
       ctx.drawImage(sprite(`rim:${eliteInk}:${m.spr}`), Math.round(mx), Math.round(my), t, t);
       ctx.globalAlpha = prevA;
     }
 
     if (m.disguise) continue;     // no sleep marker, no health bar — it is furniture
+
+    /* ── 열쇠를 문 것 ────────────────────────────────────
+       과업은 「저것을 잡아야 한다」인데 「저것」을 지목할 방법이
+       화면에 하나도 없었다 — `hasKey`가 저장소 전체에서 규칙 두
+       곳에만 있고 UI·미니맵·스프라이트에 0곳이었다. 360판을 세어
+       보니 주인까지 평균 21칸이고, 스프라이트도 이름도 옆의 같은
+       종과 구별되지 않는다. 지목할 수 없으면 결정이 아니라
+       전수조사다. 그러니 그것의 머리 위에 열쇠를 얹는다. */
+    if (seenNow && m.hasKey && G.task && !G.taskDone) {
+      const kx = mx + t * 0.14, ky = my - t * 0.04;
+      ctx.font = `900 ${Math.floor(t * 0.58)}px Galmuri11, ui-monospace, monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = Math.max(2, t * 0.18);
+      ctx.strokeStyle = PALETTE.k;
+      ctx.strokeText('⚷', kx, ky);
+      ctx.fillStyle = PALETTE.y;
+      ctx.fillText('⚷', kx, ky);
+    }
 
     /* A sleeping target is a free critical, so say so plainly —
        an opportunity the player can't see isn't a decision. */
@@ -1379,13 +1402,24 @@ export function refresh() {
      올리고, 그러면 누르려던 것이 아닌 것이 눌린다. */
   const here = Game.hereOffer();
   const stair = Game.stairHere();
+  /* 잠긴 계단이 열리는 계단과 **픽셀 단위로 같은 버튼**이었다 —
+     밝은 금색, 활성, 같은 글자. 누르면 화면에 아무 일도 안 일어나고
+     로그 다섯 줄 중 하나에 주황 한 줄이 낀다. 세 번 누르면 세 턴이
+     날아가는데 화면은 그 사실도 말하지 않는다. 모바일에서 이건
+     거의 언제나 「고장」으로 읽힌다.
+     라벨을 상태로 바꾸고, 금색을 뺀다. 삭아 가는 세 단계 문구는
+     이미 있으니 버튼에 그대로 실으면 그 자체가 타이머가 된다. */
+  const shut = stair === 'down' ? Game.stairsLocked() : null;
   const hb = $('btn-here');
   hb.disabled = !here && !stair;
-  hb.classList.toggle('live', !!(here || stair));
+  hb.classList.toggle('live', !!((here || stair) && !shut));
+  hb.classList.toggle('shut', !!shut);
   hb.textContent = here ? (here.shop ? `${here.n}${wa(here.n)} 거래` : `${here.n} 열기`)
+                 : shut ? `🔒 잠긴 계단 — ${Game.lockHint()}`
                  : stair === 'down' ? '▼ 내려가기'
                  : stair === 'up'   ? '▲ 올라가기'
                  : '발밑에 아무것도 없다';
+  if (shut) teach('task');
 
   const logBox = $('log');
   logBox.innerHTML = '';
@@ -1437,8 +1471,24 @@ export function refresh() {
   wager.hidden = !(G.bank >= 2);
   if (G.bank >= 2) {
     const bp = Game.bankPurse2();
-    $('hud-bank-n').textContent = `${G.bank}층 ${bp ? bp.gold : 0}닢`;
+    /* 「판돈 12층 1840닢」은 97px을 먹었다. 층수는 바로 옆 지역 칩에
+       이미 적혀 있으므로 여기서는 액수와 「쌓이는 중」만 말한다. */
+    $('hud-bank-n').textContent = `◍${bp ? bp.gold : 0}↑`;
+    wager.title = `${G.bank}층 연속 — 불 앞에 앉으면 탄다`;
     wager.classList.toggle('hot', G.bank >= 4);
+  }
+
+  /* 층에 과업이 걸리면 그 층의 규칙이 바뀐다 — 45%의 층에서.
+     그런데 화면에 표시가 없었다. `say(G.task.intro)`는 지역 소개
+     lorecard보다 먼저 나가므로 카드를 치우고 나면 이미 스크롤아웃
+     되어 있고, 그러면 남는 것은 「랜덤 편차」라는 인상이다.
+     칩 하나면 층 내내 남는다. */
+  const task = $('hud-task');
+  const tk = G.depth > 0 && G.task && !G.taskDone ? G.task : null;
+  task.hidden = !tk;
+  if (tk) {
+    $('hud-task-n').textContent = tk.n;
+    task.title = tk.intro || '';
   }
 
   /* The class counter. A trait the player cannot watch fill is
@@ -3635,6 +3685,9 @@ const LESSONS = [
   { id:'fuse',   t:'유물 <b>둘</b>을 불에 넣으면 하나가 나옵니다 — 보통은 확률표대로.<br>' +
                     '하지만 <b>서로를 알아보는 짝</b>이 여섯 있습니다. 목록은 없습니다. ' +
                     '<b>유물 설명의 마지막 문장</b>이 짝을 가리킵니다.' },
+  { id:'task',   t:'이 층에는 <b>과업</b>이 걸려 있습니다 — 층마다 걸리지는 않습니다.<br>' +
+                    '계단이 잠겼다면 <b>열쇠를 문 것</b>이 이 층 어딘가에 있습니다. 머리 위에 열쇠가 붙어 있습니다.<br>' +
+                    '잡지 못해도 됩니다 — <b>자물쇠는 시간이 지나면 삭습니다.</b> 두드릴 때마다 한 턴이 탑니다.' },
   { id:'anvil',  t:'<b>모루는 닳지 않습니다.</b> 재료가 남아 있는 만큼 계속 두들길 수 있습니다 — ' +
                     '여기서 전 재산을 태울 수도, 확실히 강해질 수도 있습니다.<br>' +
                     '강화는 <b>+2부터 실패합니다.</b> <b>과감</b>은 가끔 두 단계, 깊은 +에서는 <b>부서집니다.</b> ' +

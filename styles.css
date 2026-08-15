@@ -221,6 +221,20 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   scrollbar-width: none; -ms-overflow-style: none;
 }
 .hudtop::-webkit-scrollbar { display: none; }
+/* 이 줄은 가로로 스크롤되는데 **스크롤된다는 표시가 하나도 없었다.**
+   실측: 5층 평범한 상태에서 scrollWidth 404 / clientWidth 366,
+   12층 합성 최악에서 634/366 — 정보의 42%가 화면 밖에 있고 말줄임도
+   페이드도 없다. 사용자는 잘린 것을 잘렸다고 읽지 않는다. 없다고
+   읽는다. 오른쪽 끝을 흐리게 해서 「더 있다」를 공짜로 말한다. */
+.hudtop {
+  mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent);
+}
+/* 매 턴 변하는 것은 「지금 무슨 일이 벌어지나」 칸이 제자리다.
+   특기 칩(101px)이 위 줄에 남아 있어서, 하필 이 게임에서 가장
+   시간에 민감한 정보 — 다음 타격이 확정 치명타인가 — 가 항상
+   먼저 잘렸다. 아래 줄로 내리면 위가 404 → 303이 된다. */
+.hudbot .chip.trait { flex: 0 0 auto; height: 15px; padding: 0 5px; font-size: 9.5px; }
 .hudtop .chip { flex: 0 0 auto; }
 .who { flex: 0 0 auto; font-size: 10px; color: var(--w); white-space: nowrap; }
 /* Fixed height, not padding around a line box. The combo chip
@@ -250,6 +264,14 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 /* The pile on the table. It glows brighter as it grows, which
    is the entire persuasion — the number is supposed to be hard
    to walk past. */
+/* 잠긴 계단은 열리는 계단처럼 보이면 안 된다. `live`의 금색을 빼고
+   쇠와 녹의 색으로. 버튼은 살아 있다 — 두드릴 수는 있으니까. */
+#btn-here.shut {
+  color: var(--G); border-color: #6a3a20; background: #1a1216;
+  font-size: 11px;
+}
+.chip.task { color: var(--o); border-color: #7a3f12; }
+.chip.task b { color: var(--o); }
 .chip.wager { color: var(--y); border-color: #806810; }
 .chip.wager b { color: var(--y); }
 .chip.wager.hot {
@@ -295,7 +317,7 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
    실제로 그렇게 접혀 있었다. 라벨은 줄어들지도 접히지도 않는다. */
 .glabel { font-size: 9.5px; color: var(--G); width: 28px;
           flex: 0 0 auto; white-space: nowrap; }
-.gval   { font-size: 10.5px; color: var(--w); width: 62px; text-align: right;
+.gval   { font-size: 10.5px; color: var(--w); min-width: 62px; flex: 0 0 auto; text-align: right;
           flex: 0 0 auto; white-space: nowrap; }
 .track { position: relative; flex: 1 1 auto; min-width: 0; height: 7px;
          background: var(--k); border: 1px solid var(--g); }

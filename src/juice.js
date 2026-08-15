@@ -367,6 +367,17 @@ export function pump(queue, player) {
         break;
       }
 
+      /* 잠긴 계단을 두드렸다. 로그 한 줄은 다섯 줄 사이에 끼어
+         사라지고, 그러면 「밝은 버튼을 눌렀는데 아무 일도 안 났다」만
+         남는다 — 그건 고장으로 읽힌다. 흔들고, 쇠 색 고리를 튀기고,
+         한 번 울린다. 턴이 탔다는 것을 손이 알아야 한다. */
+      case 'lock':
+        number(e.x, e.y - 0.4, '잠김', PALETTE.y, 1.1);
+        ring(e.x, e.y, 2.2, PALETTE.y, 520);
+        shake = Math.max(shake, 0.34);
+        buzz([30, 24, 30]);
+        break;
+
       case 'resist':
         number(e.x, e.y - 0.4, '저항', PALETTE.B, 1.2);
         ring(e.x, e.y, 1.8, PALETTE.B, 420);

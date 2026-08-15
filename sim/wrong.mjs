@@ -545,7 +545,16 @@ console.log('\n기형 벤치 — 모두 다 잘못 자랐는가\n');
          테두리는 골짜기에서도 0.4를 넘으므로 여기서 갈린다.
          (시든 난초는 원래 채도가 0.40뿐이라 채도 문턱은 넉넉하게.) */
       if (dh < 18) { near++; if (c.s > maxs) maxs = c.s; if (c.v > maxv) maxv = c.v; }
-      if (dh < 18 && c.s > 0.22 && c.v > 0.45) n++;
+      /* 문턱을 다시 잡았다. 실패한 판의 칸을 색깔별로 세어 보니 가장
+         많은 색이 `110,80,106`(217px) — 그게 바로 고리다. 시든 난초
+         154,106,176이 배우의 알파에 실려 내려앉은 값이고, 색상이
+         286°에서 308°로 밀리고 명도가 0.43이 된다. 18°/0.45 문턱은
+         **밝게 그려진 배우 위의 고리만** 통과시키고 있었다.
+         바닥(명도 0.16)은 0.35로도 확실히 걸러지므로, 색상 24° ·
+         명도 0.35로 연다 — 잉걸과 바닥의 색상 충돌(30° 대 28°)을
+         막으라고 넣은 것이 명도 문턱이었지 난초를 막으라고 넣은 것이
+         아니었다. */
+      if (dh < 24 && c.s > 0.22 && c.v > 0.35) n++;
     }
     return { n, near, maxs, maxv };
   }, ink);
@@ -596,8 +605,22 @@ console.log('\n기형 벤치 — 모두 다 잘못 자랐는가\n');
     /* 0이 나오면 왜 0인지가 곧바로 있어야 한다. 색상은 맞는데 채도나
        명도에서 걸린 것과, 그 색이 화면에 아예 없는 것은 완전히 다른
        이야기이고, 그 둘을 구별 못 하면 다음 한 시간을 잃는다. */
-    if (!best && dbg)
+    if (!best && dbg) {
       console.log(`      · 0점 진단(${ink}): 색상만 맞는 점 ${dbg.near} · 최대채도 ${dbg.maxs.toFixed(2)} · 최대명도 ${dbg.maxv.toFixed(2)}`);
+      const why = await pg.evaluate(async () => {
+        const Game = await import('/src/game.js');
+        const P = await import('/src/pixels.js');
+        const m = Game.G.monsters[0];
+        const L = Game.G.level;
+        const W = await import('/src/world.js');
+        return { elite: m && m.elite, spr: m && m.spr,
+                 rimP: P.hasSprite('rim:P:' + (m && m.spr)),
+                 vis: m ? L.vis[W.idx(m.x, m.y)] : -1,
+                 screen: Game.G.screen,
+                 card: !document.getElementById('lesson').hidden };
+      });
+      console.log(`        상태: ${JSON.stringify(why)}`);
+    }
     return best;
   };
 
@@ -605,6 +628,30 @@ console.log('\n기형 벤치 — 모두 다 잘못 자랐는가\n');
   const plainP = await measure(null, 'P');
   const oneO   = await measure(['질긴'], 'o');
   const twoP   = await measure(['질긴', '빠른'], 'P');
+  if (!twoP) {
+    /* 0이 나온 판이 어떤 상태였는지를 남긴다. 여기까지 와서 「가끔
+       0이 나온다」로 끝내면 다음 사람이 같은 한 시간을 잃는다. */
+    const why = await pg.evaluate(async () => {
+      const Game = await import('/src/game.js'), UI = await import('/src/ui.js');
+      const m = Game.G.monsters[0], L = Game.G.level;
+      const W = await import('/src/world.js');
+      const cv = document.getElementById('map'), cam = UI._camera();
+      const px = Math.round((m.x - cam.cx) * cam.t), py = Math.round((m.y - cam.cy) * cam.t);
+      const g = cv.getContext('2d');
+      const d = g.getImageData(px, py, cam.t, cam.t).data;
+      const tally = new Map();
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i + 3] < 40) continue;
+        const k = `${d[i]},${d[i+1]},${d[i+2]}`;
+        tally.set(k, (tally.get(k) || 0) + 1);
+      }
+      const top = [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+      return { elite: m.elite, x: m.x, y: m.y, px, py, t: cam.t,
+               cw: cv.width, ch: cv.height, vis: L.vis[W.idx(m.x, m.y)],
+               screen: Game.G.screen, top };
+    });
+    console.log(`      · 0점 상태: ${JSON.stringify(why)}`);
+  }
   const r = { plainO, plainP, oneO, twoP };
   console.log(`\n      평범할 때 잉걸 ${r.plainO}점 · 난초 ${r.plainP}점`);
   console.log(`      정예(속성 하나) 잉걸 ${r.oneO}점`);

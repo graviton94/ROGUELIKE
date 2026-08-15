@@ -103,7 +103,14 @@ export function takeRelic(id) {
      유물은 이 게임에서 규칙을 바꾸는 유일한 물건이라 「무엇을
      주웠는가」만큼 「무엇을 주웠는가」도 읽혀야 한다. */
   lore(first ? '처음 든 유물' : '유물', r.n,
-       r.lore ? `${r.t}\n\n${r.lore}` : r.t, r.spr);
+       /* lore가 함수면 지금 판의 번호를 받는다. 표에 굳은 숫자를 적어
+          두면 마흔 번째 판에서도 「스물둘까지」라고 말한다 — 실제로
+          회계사의 저울이 그러고 있었다. 이 표에서 함수인 것은 하나뿐이라
+          여기 한 줄이면 된다. */
+       (() => {
+         const lo = typeof r.lore === 'function' ? r.lore(G.sent || 1) : r.lore;
+         return lo ? `${r.t}\n\n${lo}` : r.t;
+       })(), r.spr);
   /* 그리고 다른 득템과 같은 자로 연출한다. 여태 유물만 제단 반짝임을
      빌려 쓰고 있었다 — 이 게임에서 가장 큰 획득이 가장 다른 소리를
      냈다는 뜻이다. */
@@ -1660,7 +1667,9 @@ export function useArt(id) {
         if (!swing(m, 1 + landed * FLURRY_STEP)) break;
         landed++;
       }
-      if (landed >= 3) say(`${landed}연타 — 마지막 한 대가 처음의 ${(1 + (landed - 1) * FLURRY_STEP).toFixed(2)}배였다.`, 'level');
+      /* 「1.55배였다」는 표의 말이다. 세계는 배율을 모른다 — 아는 것은
+         손이 점점 무거워진다는 것뿐이다. */
+      if (landed >= 3) say(`${landed}연타 — 마지막 한 대는 팔이 아니라 몸으로 들어갔다.`, 'level');
       else if (landed) say(`${landed}대를 이어 붙였다.`, 'level');
       else say('첫 대부터 빗나갔다.', 'warn');
       break;
@@ -3035,7 +3044,10 @@ function forceDoor(x, y) {
     fx({ t:'door', x, y, state:'broken' });
     rouse(x, y, 11, 0.9);          // splinters carry
   } else {
-    say(`문이 꿈쩍도 하지 않는다. 소리만 크게 났다. (${tries}번째)`, 'warn');
+    /* 「번째」를 회수한다. 이 게임에서 가장 무거운 명사가 문 두드린
+       횟수에 쓰이고 있었다 — 「23번째」가 사람이려면 「3번째」가 문
+       두드림이면 안 된다. */
+    say('문이 꿈쩍도 하지 않는다. 소리만 크게 났다. (또 한 번)', 'warn');
     fx({ t:'door', x, y, state:'stuck' });
     // Each shove is heard further than the last.
     rouse(x, y, FORCE_NOISE + tries * 2, Math.min(0.9, 0.45 + tries * 0.12));
@@ -3945,7 +3957,10 @@ function swing(m, scale, opt = {}) {
        inside a room and never carries. */
     if (hasResonance('tally')) {
       G.tally = (G.tally || 0) + 1;
-      if (G.tally % 5 === 0) say(`셈이 ${G.tally}에 이르렀다 — 문턱 +${G.tally}%p.`, 'level');
+      /* 「문턱 +15%p」는 통계 보고서의 어휘이고, 「재를 세는 자」와 같은
+         화면에 뜬다. 세는 것은 세계가 하는 일이니 세는 것만 말한다 —
+         그 값이 무엇을 하는지는 유물 설명이 이미 적어 두었다. */
+      if (G.tally % 5 === 0) say(`${G.tally}까지 셌다. 손이 그만큼 앞서 간다.`, 'level');
     }
     fx({ t:'execute', x:m.x, y:m.y });
     hurtMonster(m, m.hp + 999, null, { crit: true, execute: true });
@@ -4532,7 +4547,8 @@ export function descend() {
        실제로 40판에 한 판이 그렇게 막혔다(정직 벤치가 잡았다).
        잠긴 계단은 「기다리면 열린다」여야지 「여기서 끝」이면 안 된다. */
     const left = Math.max(0, TASK_PATIENCE - (G.floorTurn || 0));
-    say(`${shut.hint} (${left}턴쯤 버티면 문이 삭는다)`, 'warn');
+    const stage = left > 100 ? 0 : left > 40 ? 1 : 2;
+    say(shut.shut[stage] || shut.intro, 'warn');
     endTurn();
     return;
   }
@@ -4578,7 +4594,7 @@ function takeStairs(branch) {
    데만 쓴다 — 지금까지 그것으로 올라온 사람이 없었으므로, 아무도
    올리는 쪽을 만들어 두지 않았다. */
 export function ascend() {
-  say('올라가는 길은 없다. 도르래는 내려보내는 데만 쓴다.', 'warn');
+  say(`올라가는 길은 없다. 도르래는 ${G.sent}번을 내려보냈고 한 번도 감아 올린 적이 없다.`, 'warn');
 }
 
 export function endTurn(skipMonsters = false) {
@@ -4673,7 +4689,12 @@ export function endTurn(skipMonsters = false) {
     if (p.lightTurns === 360) say('기름이 절반쯤 남았다.', 'warn');
     if (p.lightTurns === 180) say('빛이 팔 길이만큼만 간다.', 'warn');
     if (p.lightTurns === 60)  say('불빛이 손바닥만큼 줄었다. 여기서부터는 듣고 걷는다.', 'warn');
-    if (p.lightTurns === 0)   say('불이 꺼졌다. 두 칸 앞이 벽인지 아닌지도 모른다.', 'hit');
+    /* 이 줄은 이미 「불이 꺼지면 무엇을 잃는가」를 말하는 자리인데, 잃는
+     것 중 **가장 비싼 것**을 안 세고 있었다. 「팔을 당긴다」는 이 게임이
+     이미 heavy 예고를 부르는 말이라(data.js의 mark: /팔을 당긴다/),
+     그대로 부정형으로 쓰면 설명이 아니라 같은 목소리의 연장이 된다. */
+  if (p.lightTurns === 0)
+    say('불이 꺼졌다. 두 칸 앞이 벽인지 아닌지도, 저것이 팔을 당겼는지도 모른다.', 'hit');
     if (p.lightTurns < 0) p.lightTurns = 0;
     G.floorTurn++;
     pressure();
@@ -6935,7 +6956,9 @@ export function haggle() {
   G.haggled[key] = true;
   if (Math.random() < odds) {
     G.haggleCut = { key, mult: HAGGLE_CUT };
-    say(`값을 깎았다. 이 수레에서는 ${Math.round((1 - HAGGLE_CUT) * 100)}% 싸다.`, 'good');
+    /* 값은 표가 말한다 — 화면의 가격표가 이미 내려가 있다. 로그는
+        그 사이에 무슨 일이 있었는지를 말한다. */
+    say('상대가 먼저 눈을 돌린다. 이 수레에서는 값이 내려갔다.', 'good');
     return true;
   }
   G.haggleSour = { key };
@@ -7227,7 +7250,11 @@ export function startGame(raceKey, classKey, base) {
   say(G.sent === 1
     ? '아무도 이 아래를 본 적이 없다. 네가 처음이다.'
     : `${G.sent}번째다. 앞의 ${G.sent - 1}명 중 아무도 돌아오지 않았다.`, 'bad');
-  say('배웅은 없다. 배웅할 사람들은 이미 이 일에 지쳤다.', '');
+  /* 오프닝 세 줄 중 둘만 번호를 알고 셋째만 몰랐다. 「사람들이 지쳤다」는
+     근거 없는 주장인데, 숫자가 들어가면 그것이 산수가 된다. */
+  say(G.sent === 1
+    ? '배웅은 없다. 아직 아무도 이 일에 익숙하지 않다.'
+    : `배웅은 없다. ${G.sent - 1}번을 배웅했으면 누구든 지친다.`, '');
   /* 그리고 어디로 가는지. 재 보니 들어선 자리에서 갱구까지 평균
      두 칸이다 — 「계단이 눈에 안 띈다」는 제보는 멀어서가 아니라
      **바로 옆에 있는데 그게 뭔지 몰라서**였다. 거리가 아니라 이름의

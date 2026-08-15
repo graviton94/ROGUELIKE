@@ -20,7 +20,7 @@ import fs from 'node:fs';
 
 /* 지금 걸려 있는 건수. 여기서 **늘지 않는다**가 전부다.
    한 건 고칠 때마다 이 숫자를 같이 내린다. */
-const CEILING = 4;
+const CEILING = 0;
 
 const FILES = ['game.js', 'data.js', 'ui.js', 'events.js', 'world.js'];
 

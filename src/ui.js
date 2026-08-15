@@ -2736,7 +2736,10 @@ function renderShop() {
   const buyList = $('shop-buy'); buyList.innerHTML = '';
   /* Each door says what only it does, right above the shelf.
      Six signs that all read "물약 있음" is the same as no signs. */
-  if (shop.t) buyList.appendChild(el('p', 'empty shopline', shop.t));
+  /* 상인이 당신의 번호를 안다. 표에는 굳은 문장을 두고, 세는 말은
+     함수로 받는다 — 「23번째」는 판마다 달라야 하는 값이다. */
+  const said = [shop.t, shop.line ? shop.line(G.sent || 1) : null].filter(Boolean).join(' ');
+  if (said) buyList.appendChild(el('p', 'empty shopline', said));
 
   /* 오늘 이 수레의 기분. 값이 왜 이런지 말해 주지 않으면 흔들리는
      값은 그냥 버그처럼 읽힌다. 그리고 흥정은 한 번뿐이라 버튼도
@@ -4073,8 +4076,14 @@ function renderEnd() {
      메타 진행(기억)이 왜 남는지가 이 한 줄로 설명된다 — 남는 것은
      네 실력이 아니라 네 시체를 본 다음 놈의 학습이다. */
   const nextLine = el('p', 'note',
-    e.win ? '아래가 조용하다. 처음으로, 아무도 세지 않아도 되는 밤이다.'
-          : '도르래가 한 번 더 감긴다. 다음 사람이 준비되고 있다.');
+    /* 「다음 사람」은 개념이고 「24번째」는 사람이다. 그리고 이 줄이
+       다음 판의 오프닝(「24번째다」)과 정확히 맞물린다 — 죽음 화면이
+       예고한 숫자를 다음 판의 첫 줄이 받는다. 지금까지 그 이음매가
+       비어 있었다.
+       승리 쪽: 「아무도 세지 않아도 되는」이 무엇을 세는지 말하지 않아서
+       뜬 말이었다. 세던 것은 번호이고, 승리란 번호가 늘지 않는 것이다. */
+    e.win ? `${s.sent || 1}에서 멈췄다. 도르래가 처음으로 비어 있다.`
+          : `도르래가 한 번 더 감긴다. ${(s.sent || 1) + 1}번째가 목에 쇠를 채우고 있다.`);
   $('end-sub').textContent = e.win
     ? `${MAX_DEPTH}층에서. 처음으로, 누군가 그만큼 내려갔다.`
     : `${s.depth === 0 ? '갱구' : s.depth + '층'}에서 ${e.by}에게.`;

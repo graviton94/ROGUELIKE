@@ -35,13 +35,13 @@ const NEAR     = 2;            // 「같은 층대」 = 대표 깊이 차 ±2층
 /* ── 기준선 ────────────────────────────────────────────────
    2026-08-15 실측. 전부 실패 개수이고, 전부 0이 되어야 할 숫자다. */
 const BASE = {
-  monPairsOver:  74,     // 같은 층대 몬스터 106쌍 중 IoU ≥ 0.70 인 것 — 70%
-  monWorst:   0.984,     // 그중 최악값 (ogre ↔ troll, troll ↔ warden)
+  monPairsOver:  11,     // 같은 층대 몬스터 106쌍 중 IoU ≥ 0.70 — 10% (74에서 내려왔다)
+  monWorst:   0.783,     // 그중 최악값 (troll ↔ giant)
   propPairsOver: 11,     // 사물 45쌍 중 IoU ≥ 0.70 — 24% (계단·문 넷을 다시 그려 29에서 내려왔다)
   propWorst:      1,     // stairsDown ↔ stairsUp ↔ door ↔ doorLocked, 넷이 같은 그림
-  fillOver:      60,     // 채움 > 140 인 스프라이트 수 (전체 76장, 63에서)
-  fillWorst:    254,     // 칸을 통째로 채운 것 — 실루엣이 없다는 뜻
-  fauxEight:     68,     // 16줄 주소를 쓰면서 2×2 덩어리뿐인 「실질 8×8」
+  fillOver:      46,     // 채움 > 140 인 스프라이트 수 (전체 76장, 63에서)
+  fillWorst:    252,     // 칸을 통째로 채운 것 — 실루엣이 없다는 뜻
+  fauxEight:     51,     // 16줄 주소를 쓰면서 2×2 덩어리뿐인 「실질 8×8」
 };
 
 const port = process.env.PORT || 8199;

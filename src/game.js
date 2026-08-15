@@ -4841,9 +4841,20 @@ function pressure() {
   spawnWave();
 }
 
+/* 층이 한 번에 담을 수 있는 것. 상한이 없었고, 라이브락 해부에서
+   **한 판이 파도 3712번에 몬스터 400마리**를 만들어 냈다(4층에서
+   59,685턴). 사람은 그 층에 그렇게 오래 있을 수 없으니 화면에서는
+   안 보이는 값이지만, 상한이 없다는 것은 「심연은 무한히 게워낸다」가
+   규칙이라는 뜻이고 그건 설계가 아니라 누락이다. 층이 가득 차면
+   더 나오지 않는다 — 대신 이미 나온 것들이 세다. */
+export const WAVE_CAP = 24;
+
 function spawnWave() {
   const L = G.level, p = G.player;
+  /* 이미 가득한 층은 더 게워내지 않는다. 파도 수(=세기)는 계속
+     오르므로 압박은 멈추지 않는다 — 멈추는 것은 마릿수뿐이다. */
   G.waves++;
+  if (G.monsters.length >= WAVE_CAP) return;
   const grow = 1 + WAVE_GROWTH * G.waves;
   const count = 1 + (G.waves >= 4 ? 1 : 0);
   let born = 0;

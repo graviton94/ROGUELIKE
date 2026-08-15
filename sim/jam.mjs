@@ -33,7 +33,14 @@ for (let i = 0; i < N; i++) {
   const r = runBot('human', CLASSES[i % CLASSES.length], i % 2 === 0, { onTurn: g => {
     const p = g.player; if (!p) return;
     if (g.depth !== lastDepth) { lastDepth = g.depth; depthAtTurn = g.turn; }
-    ring[k++ % ring.length] = { x: p.x, y: p.y, t: g.turn, s: g.screen };
+    ring[k++ % ring.length] = { x: p.x, y: p.y, t: g.turn, s: g.screen,
+      /* 갇힌 판이 「무엇을 하고 있었나」. 좌표만으로는 서 있는 것과
+         때리는 것을 구별할 수 없다. 화면과 발밑 타일도 같이 본다 —
+         턴이 안 흐르는 반복은 대개 화면 하나에서 난다. */
+      hp: p.hp, adj: g.monsters.filter(m =>
+        Math.max(Math.abs(m.x - p.x), Math.abs(m.y - p.y)) <= 1).length,
+      pr: Game.pressureLevel(), tile: g.level.tiles[W.idx(p.x, p.y)],
+      pend: (g.pendingBranch || []).length };
   } });
   runs++;
   if (!r.stuck) continue;
@@ -56,6 +63,15 @@ for (let i = 0; i < N; i++) {
     distinctSpots: spots.size,
     screens,
     hp: `${p.hp}/${p.maxhp}`, monsters: G.monsters.length,
+    /* 「무엇을 향해 걷고 있었나」가 없으면 좌표만 보고 추측하게 된다.
+       봇이 고르는 목표는 순서가 정해져 있으므로, 층에 그것들이
+       남아 있는지와 소비 가능한지를 같이 찍는다 — 소비할 수 없는
+       목표를 향해 계속 걷는 것이 걷는 라이브락의 가장 그럴듯한 꼴이다. */
+    campLeft: G.campUses, hasCamp: L.tiles.some(t => t === W.CAMP),
+    hasAnvil: L.tiles.some(t => t === W.ANVIL),
+    relicsOnFloor: G.items.filter(i => i.kind === 'relic').length,
+    tileNow: L.tiles[W.idx(p.x, p.y)],
+    tail: (() => { const a = []; for (let q = 8; q >= 1; q--) a.push(ring[(k - q + ring.length * 2) % ring.length]); return a.filter(Boolean); })(),
   });
 }
 
@@ -65,6 +81,15 @@ for (const j of jams) {
   console.log(`  ── ${j.cls} · ${j.depth}층 · ${j.turn}턴 (이 층에서 ${j.turnsOnFloor}턴) · Lv${j.lv} · 체력 ${j.hp}`);
   console.log(`     과업 ${j.task}${j.taskDone === null ? '' : j.taskDone ? ' (끝남)' : ' (안 끝남)'}`
     + ` · 층시계 ${j.floorTurn}/${j.budget} · 파도 ${j.waves} · 몬스터 ${j.monsters}`);
+  console.log(`     모닥불 ${j.hasCamp ? '있음' : '없음'}(남은 사용 ${j.campLeft})`
+    + ` · 모루 ${j.hasAnvil ? '있음' : '없음'} · 바닥의 유물 ${j.relicsOnFloor} · 발밑 타일 ${j.tileNow}`);
+  {
+    const tail = j.tail || [];
+    if (tail.length) {
+      console.log(`     마지막 여덟 번: ` + tail.map(t =>
+        `${t.t}턴(${t.x},${t.y})[${t.s}]타일${t.tile}갈림${t.pend}적${t.adj}`).join(' '));
+    }
+  }
   console.log(`     계단 타일 ${j.downAt >= 0 ? '있음' : '없음'}${j.onDown ? ' · 계단 위에 서 있다' : ''}`
     + ` · 마지막 400턴에 밟은 칸 ${j.distinctSpots}개`
     + ` · 화면 ${Object.entries(j.screens).map(([a, b]) => `${a}:${b}`).join(' ')}`);

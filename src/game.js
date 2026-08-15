@@ -966,10 +966,47 @@ export function traitState() {
 /* 응답: the priest heals harder the worse it is going. Every
    restore in the game funnels through here so the trait cannot
    be true of the potion and false of the spell. */
+/* ── 몸이 물약에 익숙해진다 ────────────────────────────────
+   장부를 떠 보니(sim/mend.mjs) **맞은 것의 87.5%를 도로 회복하고
+   있고, 그 회복의 81.5%가 물약**이다. 그래서 판이 아무 데도 안
+   아프다: 체력 30% 아래에서 보낸 턴이 0%이고, 70% 위에서 보낸 턴이
+   79%다(sim/tension.mjs). 몬스터가 약해서가 아니다 — 깊은 층에서
+   세 대면 죽는다(층 13에서 3.5대). 세 대가 연달아 들어오지 않을 뿐이고,
+   연달아 들어오지 않는 이유가 물약이다.
+
+   그렇다고 물약을 약하게 만들면 첫 병부터 약해진다. 문제는 첫 병이
+   아니라 **네 번째 병**이다. 그래서 값을 병이 아니라 **연달아 마시는
+   것**에 매긴다: 한 층에서 마실수록 몸이 덜 답한다(−22%씩, 바닥 34%).
+   층을 내려가거나 불 앞에 앉으면 셈이 풀린다.
+
+   이야기 쪽에서도 이게 맞다. 이 게임의 몸은 이미 아물지 않는 천장을
+   가졌다 — 그 몸이 물약 다섯 병에 똑같이 답하는 것이 오히려 이상했다. */
+export const TOLERANCE_STEP = 0.22;
+export const TOLERANCE_FLOOR = 0.34;
+
+/* 층을 내려간다고 셈이 풀리지는 않는다 — 한 층에 한 번씩 지워 봤더니
+   깊은 층에서 판당 다섯 병씩 마시며 회복률이 여전히 88~93%였다.
+   계단은 쉬는 자리가 아니다. 대신 층마다 하나씩 삭는다: 걸으면서
+   조금씩 빠지되, 제대로 지우려면 불 앞에 앉아야 한다. */
+export function walkOffTolerance() {
+  if (G.gulped > 0) G.gulped--;
+}
+
 export const healScale = () => {
   const p = G.player;
-  return (p?.cls === 'priest' && p.hp < p.maxhp * 0.5) ? 1.6 : 1;
+  const priest = (p?.cls === 'priest' && p.hp < p.maxhp * 0.5) ? 1.6 : 1;
+  const drunk = G.gulped || 0;
+  const dulled = Math.max(TOLERANCE_FLOOR, 1 - TOLERANCE_STEP * drunk);
+  return priest * dulled;
 };
+
+/* 회복을 쓴 것을 센다. 세는 자리가 healScale 옆이어야 둘이 갈리지
+   않는다 — 하나는 값을 매기고 하나는 세는데, 서로 다른 조건으로
+   세면 언젠가 「마셨는데 안 세는」 물약이 생긴다. */
+export function tookDraught() {
+  G.gulped = (G.gulped || 0) + 1;
+  if (G.gulped === 3) say('세 번째다. 몸이 아까만큼 답하지 않는다.', 'warn');
+}
 
 export const spellList = p => {
   const realm = CLASSES[p.cls].realm;
@@ -1342,11 +1379,13 @@ export function useItem(slotIdx) {
   switch (it.use) {
     case 'heal': {
       const h = Math.round(Math.min(p.maxhp - p.hp, (20 + roll(2, 8) + p.lv * 2) * gulp * healScale()));
-      p.hp += h; if (h) fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(h ? `상처가 아문다. 체력 +${h}.` : '이미 멀쩡하다.', 'good'); break;
+      p.hp += h; tookDraught();
+      if (h) fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(h ? `상처가 아문다. 체력 +${h}.` : '이미 멀쩡하다.', 'good'); break;
     }
     case 'bigHeal': {
       const h = Math.round(Math.min(p.maxhp - p.hp, (Math.floor(p.maxhp * 0.6) + roll(3, 10)) * gulp * healScale()));
-      p.hp += h; fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(`깊은 상처까지 닫힌다. 체력 +${h}.`, 'good'); break;
+      p.hp += h; tookDraught();
+      fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(`깊은 상처까지 닫힌다. 체력 +${h}.`, 'good'); break;
     }
     case 'mana': {
       if (!p.maxmana) { say('아무 일도 일어나지 않았다.'); break; }
@@ -5178,9 +5217,12 @@ function monsterTurn(m) {
   }
 
   const goal = sees ? p : (m.mark || p);
-  let sx = Math.sign(goal.x - m.x), sy = Math.sign(goal.y - m.y);
-  if (m.ai === 'erratic' && Math.random() < 0.45) { sx = rnd(3) - 1; sy = rnd(3) - 1; }
-  advance(m, sx, sy);
+  if (m.ai === 'erratic' && Math.random() < 0.45) { advance(m, rnd(3) - 1, rnd(3) - 1); return; }
+  /* 보고 쫓을 때만 흐름장을 쓴다. 자취(mark)를 쫓는 것은 「거기
+     있었다」는 기억이지 지금 위치가 아니므로, 그때는 방향으로 간다 —
+     기억을 향해 최단 경로로 달려가는 것은 자취를 쫓는 모습이 아니다. */
+  if (sees && rollDown(m, false)) return;
+  advance(m, Math.sign(goal.x - m.x), Math.sign(goal.y - m.y));
 }
 
 /* 자취를 몇 턴이나 쫓는가. 짧으면 후퇴가 공짜가 되고, 길면
@@ -5386,7 +5428,105 @@ function advance(m, sx, sy) {
   return go(sx, sy) || go(sx, 0) || go(0, sy);
 }
 
-const retreat = m => advance(m, Math.sign(m.x - G.player.x), Math.sign(m.y - G.player.y));
+/* ═══ 흐름장 — 한 번 계산해서 전부가 쓴다 ═══════════════
+   지금까지 몬스터는 `Math.sign(dx), Math.sign(dy)` 한 걸음으로
+   쫓았다. 그건 경로가 아니라 **방향**이고, 방향으로 걷는 것들은
+   벽 모서리에 끼고 복도에서 한 줄로 줄을 선다. 그리고 한 줄로 오는
+   넷은 하나를 네 번 상대하는 것이라, 판이 위험해지지 않는다 —
+   실측으로 체력 30% 아래에서 보낸 턴이 **0%**였다.
+
+   외부 평가 보고서가 다익스트라 맵(흐름장)을 권했다. 그 보고서의
+   성능 논거는 우리에게 안 맞지만(우리는 A*를 쓴 적이 없고 층당
+   몬스터는 24가 상한이다) **행동** 논거는 정확하다: 흐름장은
+   포위·측면 우회·막다른 길 피하기를 공짜로 준다.
+
+   1664칸 BFS 한 번을 턴마다 한다. 그 한 번을 스물넷이 나눠 쓴다.
+
+   두 장을 만든다. 하나는 「너에게로」, 하나는 그것을 뒤집은
+   「너에게서 멀리」 — 도망치는 것이 방 구석에 스스로 갇히지 않게
+   하는 것이 뒤집은 장의 전부다. 음수 배율 1.2는 도망자가 옆으로
+   빠지는 길을 곧장 뒤로 가는 길보다 싸게 만든다(정석적인 값이다). */
+const FLOW_FAR = 9999;
+const flowTo = new Int16Array(MW * MH);
+let flowTurn = -1, flowFrom = -1;
+
+function flowField() {
+  const p = G.player, L = G.level;
+  const src = idx(p.x, p.y);
+  if (flowTurn === G.turn && flowFrom === src) return flowTo;
+  flowTurn = G.turn; flowFrom = src;
+  flowTo.fill(FLOW_FAR);
+  flowTo[src] = 0;
+  const q = [src];
+  for (let h = 0; h < q.length; h++) {
+    const cur = q[h], cx = cur % MW, cy = (cur / MW) | 0, d = flowTo[cur];
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dy) continue;
+      const nx = cx + dx, ny = cy + dy;
+      if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) continue;
+      const ni = idx(nx, ny);
+      if (flowTo[ni] <= d + 1) continue;
+      /* 닫힌 문은 벽이 아니다 — 문을 여는 것들이 있고, 못 여는
+         것은 `advance`가 그 자리에서 되돌린다. 여기서 막으면
+         문 하나가 층 전체의 흐름을 끊는다. */
+      if (!walkable(L, nx, ny) && !isShut(L.tiles[ni])) continue;
+      flowTo[ni] = d + 1;
+      q.push(ni);
+    }
+  }
+  return flowTo;
+}
+
+/* 이 칸에 붙어 서 있는 동료 수. 같은 높이가 여럿일 때 빈 쪽으로
+   퍼지게 하는 값이고, 그 한 줄이 「한 줄로 오던 것」을 「둘러싸는
+   것」으로 바꾼다. */
+function crowdAt(self, x, y) {
+  let n = 0;
+  for (const o of G.monsters)
+    if (o !== self && Math.max(Math.abs(o.x - x), Math.abs(o.y - y)) <= 1) n++;
+  return n;
+}
+
+/* 내리막으로 한 걸음. 같은 높이가 여럿이면 **덜 붐비는 쪽**을 고른다 —
+   그것이 포위다. 한 줄로 서는 것은 길이 하나뿐이어서가 아니라 전부가
+   같은 칸을 고르기 때문이었다. */
+/* 흐름장 위에서 발을 디딜 수 있는 칸인가. 닫힌 문은 여기서 막지
+   않는다 — 여는 것들이 있고, 못 여는 것은 `advance`가 되돌린다. */
+const standable = (L, x, y) =>
+  x >= 0 && y >= 0 && x < MW && y < MH && !monsterAt(x, y)
+  && (walkable(L, x, y) || isShut(L.tiles[idx(x, y)]));
+
+const STEPS = [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]];
+
+function rollDown(m, uphill) {
+  const f = flowField(), L = G.level;
+  const here = f[idx(m.x, m.y)];
+  if (here >= FLOW_FAR) return false;
+  let best = null, bestScore = Infinity;
+  for (const [dx, dy] of STEPS) {
+    const nx = m.x + dx, ny = m.y + dy;
+    if (!standable(L, nx, ny)) continue;
+    const v = f[idx(nx, ny)];
+    if (v >= FLOW_FAR) continue;
+    const score = (uphill ? -1.2 * v : v) + crowdAt(m, nx, ny) * 0.34;
+    if (score < bestScore) { bestScore = score; best = [dx, dy]; }
+  }
+  if (!best) return false;
+  /* 내리막이 아니면 안 간다. 제자리보다 나쁜 칸으로 밀려가는 것은
+     추격이 아니라 배회다 — 쫓을 때만 그렇고, 도망은 오르막이 목적이다. */
+  const target = f[idx(m.x + best[0], m.y + best[1])];
+  if (!uphill && target >= here) return false;
+  const wasX = m.x, wasY = m.y;
+  advance(m, best[0], best[1]);
+  return m.x !== wasX || m.y !== wasY;
+}
+
+/* 도망. 예전에는 「플레이어 반대 방향으로 한 걸음」이었고, 그래서
+   방 구석으로 스스로 걸어 들어가 거기서 죽었다. 이제 안전 장을
+   따라 내려간다 — 열린 쪽으로 빠진다. 장이 막히면 옛 걸음으로
+   돌아간다(한 칸짜리 굴에서는 그것이 유일한 수다). */
+const retreat = m => rollDown(m, true)
+  || advance(m, Math.sign(m.x - G.player.x), Math.sign(m.y - G.player.y));
 
 /* ── telegraphed ground ───────────────────────────────────
    Mark tiles, print a countdown on them, then hit whatever is
@@ -5839,6 +5979,9 @@ export function campSear() {
 export function campRest() {
   const p = G.player;
   sitDown();
+  /* 불 앞에서는 셈이 풀린다. 앉는다는 것은 몸이 한 번 가라앉는
+     일이고, 이 게임에서 그것을 살 수 있는 자리는 여기뿐이다. */
+  G.gulped = 0;
   const heal = Math.min(p.maxhp - p.hp,
     Math.ceil(p.maxhp * CAMP_HEAL * (hasShackle('dryspring') ? 0.5 : 1)));
   p.hp += heal;
@@ -7300,7 +7443,7 @@ export function startGame(raceKey, classKey, base) {
   G.engraved = 0; G.memories = []; G.relicShelf = null;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
-  G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.snares = []; G.sanctum = null; G.bank = 0;
+  G.floorTurn = 0; G.waves = 0; G.campUses = 1; walkOffTolerance(); G.hazards = []; G.snares = []; G.sanctum = null; G.bank = 0;
   G.goldEarned = 0;
   /* 한 판에 한 번씩만 만난다는 표시. 판이 바뀌면 비워야 한다 —
      안 비웠더니 두 번째 판에서 앞사람이 안 나왔고, 벤치가 그걸

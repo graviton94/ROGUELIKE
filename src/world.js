@@ -337,6 +337,9 @@ export class Level {
      shape, its light and what lives in it, and says so on arrival
      so the player knows what they walked into. */
   pickTheme() {
+    /* 이물이 정해져 있으면 층 종류는 그것이다. 규칙이 정하고 세계는
+       따른다 — 여기서 확률을 다시 굴리면 판정이 두 곳이 된다. */
+    if (FACILITY_BIAS.strange) return FACILITY_BIAS.strange;
     if (this.depth <= 1) return THEMES.plain;
     const pool = Object.values(THEMES).filter(t => this.depth >= (t.from || 0));
     const total = pool.reduce((s, t) => s + t.weight, 0);

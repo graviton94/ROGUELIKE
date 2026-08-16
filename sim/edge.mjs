@@ -29,6 +29,22 @@ const Game = await import('/home/user/ROGUELIKE/src/game.js');
 const D    = await import('/home/user/ROGUELIKE/src/data.js');
 const W    = await import('/home/user/ROGUELIKE/src/world.js');
 const G = Game.G;
+/* ── 이 자에서는 이물이 안 뜨게 한다 ──────────────────────
+   9층 아래에서 층 이동마다 1%로 이물(異物)이 뜬다. 이 파일은 층을
+   수백 번 만들므로 그중 몇 개가 이물이 되고, 그러면 「뱃속」의
+   시계 절반과 「눈의 방」의 전원 각성이 표에 섞여 들어온다 — 실제로
+   층 여유 열이 196 → 98 로 흔들렸다. 재려는 것은 주목 하나다.
+
+   테스트용 뒷문을 뚫지 않는다. 게임에 이미 「이 판에서 이미 본
+   것은 다시 안 뜬다」는 규칙이 있으므로, 다섯을 다 본 것으로 둔다 —
+   실제 규칙을 지나는 억제다. */
+const STRANGE_IDS = (await import('../src/data.js')).STRANGE.map(o => o.id);
+/* ── 이물 억제는 startGame **뒤에** 다시 걸어야 한다 ────────
+   모듈 맨 위에서 한 번 걸었더니 아무 소용이 없었다. strangeSeen 은
+   판 상태(RUN_FIELDS)라 startGame 이 비우기 때문이다 — 그래서
+   이 파일은 층을 수백 번 만든다. 층을 만들기 직전에 건다. */
+const hushStrange = () => { G.strangeSeen = STRANGE_IDS.slice(); };
+
 let bad = 0;
 const ok = (c, m, g) => { console.log(`  ${c?'·':'✗'} ${m}${g!==undefined?` — ${g}`:''}`); if (!c) bad++; };
 
@@ -38,6 +54,7 @@ const ok = (c, m, g) => { console.log(`  ${c?'·':'✗'} ${m}${g!==undefined?` �
 function hero(cls, depth) {
   Meta.forget();
   Game.startGame('human', cls, Game.rollStats(cls));
+  hushStrange();
   Game.descend(); Game.enterDepth(depth);
   const p = G.player;
   p.lv = Math.max(1, Math.round(depth * 1.6));
@@ -72,6 +89,7 @@ function foe(depth, at = 1) {
     const keep = { x: p.x, y: p.y };
     const list = [];
     for (let t = 0; t < 12; t++) {
+      hushStrange();
       Game.enterDepth(depth);
       for (const m of G.monsters) if (!m.boss) list.push({ ...m });
     }

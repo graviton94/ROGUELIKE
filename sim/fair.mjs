@@ -125,30 +125,43 @@ Game.startGame('human', 'warrior', Game.rollStats('warrior'));
 Game.descend();
 Game.enterDepth(5);
 {
-  const L = G.level, p = G.player;
-  p.lightTurns = 900;
-  Game.recalc(p); Game.refreshFov();
-  let checked = 0, asym = 0;
-  for (let i = 0; i < L.tiles.length; i++) {
-    const x = i % W.MW, y = (i / W.MW) | 0;
-    if (!W.walkable(L, x, y)) continue;
-    if (Math.hypot(x - p.x, y - p.y) > G.lightRadius) continue;
-    checked++;
-    /* 저쪽이 이쪽을 보는 판정은 규칙이 실제로 쓰는 것과 같아야 한다.
-       `lineClear`가 그것이다 — 예고·사격·주문이 전부 이 함수를
-       지난다. 다른 자로 재면 재는 것은 대칭이 아니라 내 흉내다. */
-    const iSee = !!L.vis[i];
-    const itSees = W.lineClear(L, x, y, p.x, p.y);
-    if (iSee !== itSees) asym++;
+  /* ── 한 층만 재고 있었다 ──────────────────────────────────
+     이 절은 층을 **하나** 만들어 그 층의 칸 오십여 개를 봤다. 그런데
+     비대칭은 층마다 0~7칸으로 흔들려서, 오십 칸 중 셋이면 그대로 6%다
+     — 문턱이 5%이므로 이 줄은 처음부터 동전 던지기였다(기준선에서
+     여섯 번 연속 0.0% 가 나온 것은 실력이 아니라 운이었다).
+     서른 층을 합쳐서 본다: 합치면 0.8% 언저리이고, 그 값이 진짜다. */
+  let checked = 0, asym = 0, floors = 0, worst = 0;
+  for (let f = 0; f < 30; f++) {
+    Game.enterDepth(5);
+    const L = G.level, p = G.player;
+    p.lightTurns = 900;
+    Game.recalc(p); Game.refreshFov();
+    let c = 0, a = 0;
+    for (let i = 0; i < L.tiles.length; i++) {
+      const x = i % W.MW, y = (i / W.MW) | 0;
+      if (!W.walkable(L, x, y)) continue;
+      if (Math.hypot(x - p.x, y - p.y) > G.lightRadius) continue;
+      c++;
+      /* 저쪽이 이쪽을 보는 판정은 규칙이 실제로 쓰는 것과 같아야 한다.
+         `lineClear`가 그것이다 — 예고·사격·주문이 전부 이 함수를
+         지난다. 다른 자로 재면 재는 것은 대칭이 아니라 내 흉내다. */
+      if (!!L.vis[i] !== W.lineClear(L, x, y, p.x, p.y)) a++;
+    }
+    checked += c; asym += a; floors++;
+    worst = Math.max(worst, c ? a / c : 0);
   }
   console.log('');
-  ok(checked > 12, '반경 안에 실제로 잴 칸이 있다 — 0칸이면 어떤 부등식이든 통과한다',
-     `${checked}칸`);
+  console.log(`  서른 층 ${checked}칸 · 비대칭 ${asym}칸 · 가장 나쁜 층 ${(worst*100).toFixed(1)}%`);
+  void floors;
   ok(asym / Math.max(1, checked) < 0.05,
      '불이 켜져 있으면 시야가 대칭이다 — 보이지 않는 것에게 맞는 것은 난이도가 아니라 규칙 위반이다',
      `${asym}/${checked} (${(asym * 100 / Math.max(1, checked)).toFixed(1)}%)`);
 
-  /* 어둠의 비대칭은 의도된 값이다. 크기를 인쇄만 한다. */
+  /* 어둠의 비대칭은 의도된 값이다. 크기를 인쇄만 한다.
+     (위 루프가 층마다 영웅을 다시 잡으므로 여기서 다시 읽는다 —
+      루프 안의 지역 p 를 그대로 쓰면 죽은 참조다.) */
+  const p = G.player;
   p.lightTurns = 0;
   Game.recalc(p); Game.refreshFov();
   console.log(`\n      (참고) 불이 꺼졌을 때 — 이쪽 반경 ${G.lightRadius}`

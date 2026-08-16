@@ -28,6 +28,23 @@ const Game = await import('/home/user/ROGUELIKE/src/game.js');
 const D    = await import('/home/user/ROGUELIKE/src/data.js');
 const { runBot } = await import('/home/user/ROGUELIKE/sim/_botlib.mjs');
 const G = Game.G;
+/* ── 이 자에서는 이물이 안 뜨게 한다 ──────────────────────
+   9층 아래에서 층 이동마다 1%로 이물(異物)이 뜬다. 이 파일은 층을
+   수백 번 만들므로 그중 몇 개가 이물이 되고, 그러면 「뱃속」의
+   시계 절반과 「눈의 방」의 전원 각성이 표에 섞여 들어온다 — 실제로
+   층 여유 열이 196 → 98 로 흔들렸다. 재려는 것은 주목 하나다.
+
+   테스트용 뒷문을 뚫지 않는다. 게임에 이미 「이 판에서 이미 본
+   것은 다시 안 뜬다」는 규칙이 있으므로, 다섯을 다 본 것으로 둔다 —
+   실제 규칙을 지나는 억제다. */
+const STRANGE_IDS = (await import('../src/data.js')).STRANGE.map(o => o.id);
+/* ── 이물 억제는 startGame **뒤에** 다시 걸어야 한다 ────────
+   모듈 맨 위에서 한 번 걸었더니 아무 소용이 없었다. strangeSeen 은
+   판 상태(RUN_FIELDS)라 startGame 이 비우기 때문이다 — 그래서
+   층 여유 열이 124 → 161 로 뒤집혔고(「뱃속」이 섞였다), 하마터면
+   손잡이가 거꾸로 돈다고 적을 뻔했다. 층을 만들기 직전에 건다. */
+const hushStrange = () => { G.strangeSeen = STRANGE_IDS.slice(); };
+
 let bad = 0;
 const ok = (c, m, g) => { console.log(`  ${c?'·':'✗'} ${m}${g!==undefined?` — ${g}`:''}`); if (!c) bad++; };
 const mid = a => { const v = a.slice().sort((x, y) => x - y); return v[v.length >> 1]; };
@@ -46,6 +63,9 @@ for (const cls of ['warrior', 'mage', 'rogue', 'ranger'])
       awake.push(G.monsters.filter(m => m.awake).length / n);
       elite.push(G.monsters.filter(m => m.elite?.length).length / n);
       byPow.push({ h: G.heat || 0,
+        /* 곡선이 매기는 몫만 따로 담는다 — 총합에는 내가 스스로
+           올린 도발분이 섞여 있다. */
+        curve: Game.heatFor(),
         r: Game.powerOf() / Math.max(1, Game.expectedPower(G.depth)) });
     }});
   }
@@ -57,8 +77,17 @@ ok(qt(heats, 0.75) - qt(heats, 0.25) >= 20,
    `사분위 폭 ${qt(heats, 0.75) - qt(heats, 0.25)}`);
 
 /* 2번 — 이 파일에서 가장 중요한 단언. 곡선보다 **뒤처진** 판에
-   열기가 붙으면 그건 러버밴드가 아니라 처형이다. */
-const weak = byPow.filter(x => x.r <= 1).map(x => x.h);
+   열기가 붙으면 그건 러버밴드가 아니라 처형이다.
+
+   ── 다만 재는 것을 한 번 갈아야 했다 ────────────────────────
+   주목에 「스스로 올리는 몫」(provoke — 외침·이름 있는 것 도발)이
+   생기면서, 곡선보다 뒤처진 판도 **자기가 불러서** 뜨거워질 수 있게
+   됐다. 그건 고장이 아니라 설계다. 그래서 이 줄은 이제 총합(G.heat)이
+   아니라 **곡선이 매기는 몫**(heatFor)만 본다 — 「던전이 약한 사람을
+   더 미는가」가 이 단언의 질문이고, 「내가 소리쳐서 뜨거워졌는가」는
+   그 질문이 아니다. 처음에 총합으로 재다가 여섯 번에 한 번 8이
+   나왔고, 하마터면 러버밴드가 고장 났다고 적을 뻔했다. */
+const weak = byPow.filter(x => x.r <= 1).map(x => x.curve ?? x.h);
 const strong = byPow.filter(x => x.r >= 2).map(x => x.h);
 console.log(`  곡선 안(×1 이하) ${weak.length}회 → 주목 중앙 ${weak.length ? mid(weak) : '—'}`);
 console.log(`  곡선 밖(×2 이상) ${strong.length}회 → 주목 중앙 ${strong.length ? mid(strong) : '—'}`);
@@ -73,13 +102,13 @@ ok(!strong.length || mid(strong) >= 40,
 console.log('');
 Meta.forget();
 Game.startGame('human', 'warrior', Game.rollStats('warrior'));
+hushStrange();
 Game.descend();
 console.log('  주목이 손잡이에 하는 일 (같은 층, 주목만 바꿈)');
 console.log('  주목   깨어서시작   정예비율   층여유   몬스터체력');
 const knob = {};
 for (const h of [0, 30, 60, 100]) {
-  const A = [], E = [], HP = [];
-  let clock = 0;
+  const A = [], E = [], HP = [], C = [];
   for (let t = 0; t < 30; t++) {
     /* ── 이 자를 또 틀렸다 ────────────────────────────────
        처음에 enterDepth 를 부른 **뒤에** G.heat 을 덮어썼다. 그런데
@@ -101,13 +130,25 @@ for (const h of [0, 30, 60, 100]) {
        실제로 있는가」까지 함께 재게 된다. */
     G.provoked = 0;
     Game.provoke(h);
+    hushStrange();
     Game.enterDepth(9);
     const n = G.monsters.length || 1;
     A.push(G.monsters.filter(m => m.awake).length / n);
     E.push(G.monsters.filter(m => m.elite?.length).length / n);
     HP.push(mid(G.monsters.map(m => m.maxhp)) || 0);
-    clock = Game.floorBudget();
+    /* ── 층 여유만 **마지막 한 번**을 읽고 있었다 ──────────────
+       다른 세 열은 서른 번의 중앙값인데 이 열만 마지막 값이었다.
+       그런데 「재촉하는 과업」이 걸린 층은 그 층의 시계를 절반으로
+       접고(G.branch 사본에 ×0.5), 그 과업은 층의 23%에서 나온다 —
+       즉 이 칸은 다섯 번에 한 번 절반으로 찍혔다. 실제로 248과 124가
+       번갈아 나와 「주목이 오르면 여유가 는다」는 표가 만들어졌다.
+       (예전에 이걸 「과업이 G.branch 를 영구히 고쳐 쓴다」고 적어
+        뒀는데, 그것도 틀렸다 — enterDepth 가 매 층 G.branch 를 다시
+        잡으므로 누적되지 않는다. 하나만 읽은 것이 전부였다.)
+       나머지 셋과 같은 자로 읽는다. */
+    C.push(Game.floorBudget());
   }
+  const clock = mid(C);
   knob[h] = { a: mid(A), e: mid(E), hp: mid(HP), c: clock };
   G.provoked = 0;
   console.log(`  ${String(h).padStart(4)}     ${(mid(A) * 100).toFixed(0).padStart(4)}%`

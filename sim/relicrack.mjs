@@ -97,7 +97,11 @@ console.log('');
   p.hp = Math.round(p.maxhp * 0.45);
   wear(p, 'scale', false); const off = Game.gearBonus(p).dmgPct;
   wear(p, 'scale', true);  const on  = Game.gearBonus(p).dmgPct;
-  ok(off === 0 && on >= 1.2,
+  /* 1.2 를 손으로 적어 두고 있었다. 유물 값에 배율이 걸리는 순간
+     (RELIC_SCALE) 이 줄은 게임이 아니라 **옛 숫자**를 재게 된다.
+     깔때기를 읽는다 — 크랙은 「두 배」이지 「1.2」가 아니다. */
+  const want = Game.relicVal('scale') * 2;
+  ok(off === 0 && on >= want - 1e-9,
      '① 저울추 — 45%에서는 원래 안 켜지고, 크랙이 나면 켜지면서 두 배다',
      `${off} → ${on}`);
   p.hp = p.maxhp;
@@ -148,7 +152,12 @@ console.log('');
 console.log('');
 const worn = {}, split = {};
 for (const cls of ['warrior', 'mage', 'rogue', 'ranger'])
-  for (let i = 0; i < 15; i++) {
+  /* 15판이었다. 그런데 조건 갈래 중 combo 는 판당 표본이 8~12개라,
+     아래의 「죽은 갈래」 판정(표본 20 이상)에 **가끔만** 걸린다 —
+     걸린 그 판에서 0이면 실패로 뒤집힌다. 여섯 번에 한 번 그랬다.
+     문턱을 올려 눈을 감는 대신 표본을 늘린다: 판정이 흔들리는
+     이유가 게임이 아니라 표본 수였다. */
+  for (let i = 0; i < 30; i++) {
     runBot('human', cls, true);
     for (const id of Object.keys(G.relicFloors || {})) {
       const kind = D.crackOf(id)?.at[0] || '?';

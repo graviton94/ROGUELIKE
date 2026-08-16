@@ -19,6 +19,7 @@ import {
   ALTAR_OFFERS, rarityOf, isCursed, RARITY, TEMPLE_SHARE, JACKPOT,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   RELICS, RELIC_SLOTS, relicSlots, relicById, crackOf, crackSaid, crackNeed, CRACK_LEFT, BRANCHES,
+  STRANGE, strangeById, STRANGE_FROM, STRANGE_BASE, STRANGE_CAP,
   ARCANA, arcanaById, ARCANA_AT,
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH, REGIONS, regionOf,
   MEMORIES, memoryEarned, SHACKLES, shacklesAt, SHACKLE_STAT, tellsNeeded,
@@ -80,8 +81,27 @@ export const G = {
    does. Everything below is a lookup against the five the
    player is carrying — cheap enough to call per swing. */
 export const hasRelic = id => !!G.player?.relics?.some(r => r === id);
-export const relicVal = id =>
-  (hasRelic(id) ? relicById(id).v + (G.player.tuned?.[id] || 0) : 0);
+/* ── 유물 하나의 값 ───────────────────────────────────────
+   플레이어: 「일반 유물 단일 효과 좀 줄이는 대신 융합유물 조합을
+   좀 더 달성하기 어렵되 조합하면 더욱 효과 좋아지게 (슬롯 절약 +
+   재료 2개 합 이상의 효과로 강해지게)」
+
+   숫자를 마흔 줄 고쳐 쓰는 대신 **깔때기 하나에서 배율을 건다.**
+   그러면 표는 「이 유물이 무엇을 하는가」를 계속 말하고, 「그것이
+   지금 얼마인가」는 한 곳에서만 정해진다 — 다음에 다시 조정할 때도
+   한 줄이다.
+
+   융합물의 배율이 둘의 배율 합보다 커야 한다: 0.80 + 0.80 = 1.60
+   인데 융합은 1.75다. 자리를 하나만 쓰면서 값은 더 크다 — 그게
+   「재료 2개 합 이상」의 정확한 뜻이고, 융합을 어렵게 만든 값이다. */
+export const RELIC_SCALE = 0.80;
+export const FUSED_SCALE = 1.75;
+export const relicVal = id => {
+  if (!hasRelic(id)) return 0;
+  const r = relicById(id);
+  const scale = r.fused ? FUSED_SCALE : RELIC_SCALE;
+  return r.v * scale + (G.player.tuned?.[id] || 0);
+};
 export const relicList = () => (G.player?.relics || []).map(relicById).filter(Boolean);
 
 export const slotCount = () => relicSlots(G.deepest || G.depth || 0);
@@ -355,8 +375,15 @@ export function auraOf(p = G.player) {
   const w = p.equip?.weapon;
   const a = { plus: w?.plus || 0,
               marks: [...(w?.engrave || [])],
-              relics: [...(p.relics || [])] };
-  return (a.plus || a.marks.length || a.relics.length) ? a : null;
+              relics: [...(p.relics || [])],
+              /* 최정상급은 따로 실어 보낸다. 「확실하게 체감 가능하게
+                 (성능 + **외관** 모두)」의 외관 쪽 — 바닥의 빛기둥은
+                 줍기 전까지만 보이고, 그 뒤로는 손에 든 것이 화면에서
+                 평범한 물건과 똑같았다. 초월과 이름 있는 무기는
+                 휘두를 때마다 보여야 한다. */
+              boon: w?.boon || null,
+              unique: w?.unique || null };
+  return (a.plus || a.marks.length || a.relics.length || a.boon || a.unique) ? a : null;
 }
 
 export function fx(ev) {
@@ -696,19 +723,23 @@ export function gearBonus(p) {
       /* 크랙이 갈리는 자리. 두 번째 계산 경로를 만들지 않고 **같은
          줄에서** 갈린다 — 크랙용 gearBonus를 따로 두면 그 날로
          두 곳이 어긋난다. */
+      /* 리터럴로 적힌 유물들도 깔때기를 지나게 한다. 지금까지 마흔
+         중 열다섯만 relicVal 을 읽었고, 그래서 「일반 유물을 줄인다」가
+         그 열다섯에만 걸렸다 — 표에 적힌 v 가 화면에도 규칙에도
+         안 닿는 유물이 스물다섯 개 있었다는 뜻이다. */
       case 'pact':     if (!cracked('pact')) b.maxhpPct -= 0.25;
-                       b.crit += 0.20; break;
+                       b.crit += relicVal('pact'); break;
       /* 먹일 수 있는 것들은 리터럴이 아니라 relicVal을 읽는다 —
          먹인 값(p.tuned)이 닿는 통로가 그것 하나뿐이다. 안 먹였으면
          relicVal은 표의 v를 그대로 돌려주므로 값은 전과 같다. */
       case 'chain':    b.ac += relicVal('chain'); if (!cracked('chain')) b.noStealth = true; break;
       case 'reckless': b.hitPct *= 0.85;
                        b.critMult += relicVal('reckless') * (cracked('reckless') ? 2 : 1); break;
-      case 'eye':      b.manaFlat -= 3; break;
+      case 'eye':      b.manaFlat -= relicVal('eye'); break;
       case 'vow':      b.dmgPct += relicVal('vow'); break;
       case 'scale':    if (p.hp <= p.maxhp * (cracked('scale') ? 0.5 : 0.3))
                          b.dmgPct += relicVal('scale') * (cracked('scale') ? 2 : 1); break;
-      case 'lamp':     b.lightR += cracked('lamp') ? 2 : -2; break;
+      case 'lamp':     b.lightR += cracked('lamp') ? relicVal('lamp') : -relicVal('lamp'); break;
       case 'everflame': if (!cracked('everflame')) b.maxhpPct -= 0.20; break;
       case 'moth':     b.maxhpPct -= 0.10; break;
       case 'knot':     b.stealth -= 0.5; break;
@@ -724,8 +755,12 @@ export function gearBonus(p) {
       /* Fused. Each one is its two halves with the downside
          deepened and the upside paid out — a fused relic is not
          a better relic, it is a more extreme one. */
-      case 'martyr':   b.maxhpPct -= 0.40; b.crit += 0.25; b.critMult += 1.2; b.hitPct *= 0.90; break;
-      case 'paradox':  b.dmgPct += 0.20; break;
+      /* 융합물의 **좋은 쪽**이 relicVal 을 지난다 — 나쁜 쪽(최대
+         체력·명중)은 리터럴로 둔다. 배율을 대가에까지 걸면 「강해질수록
+         대가도 커진다」가 되어 융합이 다시 제자리다. */
+      case 'martyr':   b.maxhpPct -= 0.40; b.crit += relicVal('martyr');
+                       b.critMult += relicVal('martyr') * 3; b.hitPct *= 0.90; break;
+      case 'paradox':  b.dmgPct += relicVal('paradox'); break;
       case 'oracle':   b.manaFlat -= 3; b.lightR -= 2; break;
     }
   }
@@ -832,7 +867,9 @@ export const stealth = p =>
   /* 소리 없는 강철: too heavy to make a sound. Standing still in
      the wrong armour is the only way anyone has ever been
      invisible in this game. */
-  (oddAwake('quietsteel') && G.player?.stillFor > 0) ? 0.95
+  /* 눈의 방에서는 숨을 수 없다. 벽이 전부 보고 있다. */
+  strangeIs('eyes') ? 0
+  : (oddAwake('quietsteel') && G.player?.stillFor > 0) ? 0.95
   : (gearBonus(p).noStealth ? 0 : clamp(
   0.10 + statB(p, 'dex') * 0.05
   + (p.race === 'halfling' ? 0.20 : p.race === 'elf' ? 0.10 : p.race === 'halfTroll' ? -0.15 : 0)
@@ -1871,10 +1908,17 @@ export function useArt(id) {
     say('너를 보고 있는 것이 없다.', 'warn'); return;
   }
   if (a.faith && (p.faith || 0) < a.faith) { say('신앙이 모자란다.', 'warn'); return; }
-  p.stam -= a.stam || 0;
-  if (a.faith) p.faith -= a.faith;
-  if (a.oath) p.oath -= a.oath;
-  if (a.shade) p.shadow = Math.max(0, (p.shadow || 0) - a.shade);
+  /* 「이 판이 기예를 얼마나 썼나」. 비어 있는 성소를 부르는 값이라
+     여기서 센다 — 기예가 나가는 유일한 자리다. */
+  G.artsUsed = (G.artsUsed || 0) + 1;
+  /* 비어 있는 성소에서는 값이 없다. 이 층 하나뿐이고, 그래서 여기서
+     무엇을 할지가 그 판의 가장 사치스러운 결정이 된다. */
+  if (!strangeIs('sanctum')) {
+    p.stam -= a.stam || 0;
+    if (a.faith) p.faith -= a.faith;
+    if (a.oath) p.oath -= a.oath;
+    if (a.shade) p.shadow = Math.max(0, (p.shadow || 0) - a.shade);
+  }
 
   switch (id) {
     case 'shove': {
@@ -2589,6 +2633,7 @@ export const spellPower = (p, id) =>
 
 export const spellCost = (p, sp) => {
   const a = SPELL_AFFIXES.find(x => x.id === p.spellAffix?.[sp.id]);
+  if (strangeIs('sanctum')) return 0;    // 비어 있는 성소에는 값이 없다
   if (hasRelic('paradox')) return 0;
   // 마지막 등불: the shorter the wick, the brighter. Free while
   // you are nearly gone — which is exactly when a caster is out
@@ -2611,6 +2656,128 @@ function spellDrain(aff, dmg) {
 }
 
 /* ── level flow ─────────────────────────────────────────── */
+/* ── 이물(異物) — 여기 있으면 안 되는 층 ────────────────────
+   플레이어: 「10판 × 15스테이지 중 1스테이지 수준」, 「완전히 운으로
+   랜덤하되 특정 조건에서는 확률이 높은 개념」 — 아이작의 악마방이다.
+
+   그래서 두 층으로 짠다.
+     · **바닥은 순수한 운.** 9층 아래에서 층을 옮길 때 1%.
+     · **그 위에 판이 한 짓이 얹힌다.** 다섯 이물마다 자기를
+       불러들이는 짓이 다르고, 그 짓을 한 판에서만 그 이물의 몫이
+       커진다. 그러면 「운이 좋았다」가 아니라 「내가 불렀다」가 된다.
+
+   판정은 여기 한 곳에서만 한다. 세계(world.js)는 결과만 받는다 —
+   두 곳에서 굴리면 화면에 뜬 것과 규칙이 갈린다.
+
+   ── 왜 「끌림」을 이렇게 골랐나 ────────────────────────────
+   전부 **플레이어가 이미 하고 있는 것**이고, 전부 화면에 보이는
+   값이다. 숨은 카운터로 확률을 흔들면 그건 운도 결정도 아니다. */
+const STRANGE_PULL = {
+  /* 성소: 주문·기예를 많이 쓴 판. 그 값이 없는 방이 부른다. */
+  sanctum: () => Math.min(1, (G.artsUsed || 0) / 40),
+  /* 바깥: 주목. 깊은 곳이 너를 똑바로 보면, 보는 것이 하나 더 는다. */
+  void:    () => Math.min(1, (G.heat || 0) / HEAT_MAX),
+  /* 눈의 방: 들키지 않고 걸은 판. 안 보이려 애쓸수록 그것이 부른다. */
+  eyes:    () => Math.min(1, (G.sneaked || 0) / 30),
+  /* 뱃속: 체력. 반쯤 삼켜진 채로 걷고 있으면 나머지도 삼킨다. */
+  gullet:  () => { const p = G.player;
+                   return p ? Math.max(0, 1 - p.hp / Math.max(1, p.maxhp)) : 0; },
+  /* 지지직: 같은 것을 여러 번 본 판. 반복이 화면을 상하게 한다. */
+  static:  () => Math.min(1, (G.eventsSeen || 0) / 8),
+};
+/* 이 층에서 이물이 뜰 확률과, 떴다면 어느 것인가. 화면(도움말·
+   기록)도 이 함수를 읽으므로 「미리 다 적혀 있다」가 유지된다. */
+export function strangeOdds(depth = G.depth) {
+  if (depth < STRANGE_FROM || depth >= MAX_DEPTH) return { p: 0, weights: {} };
+  const weights = {};
+  let extra = 0;
+  for (const o of STRANGE) {
+    /* 이미 이 판에서 본 것은 다시 안 부른다 — 두 번 보면 사고가
+       아니라 지형이 된다. */
+    if ((G.strangeSeen || []).includes(o.id)) { weights[o.id] = 0; continue; }
+    const w = STRANGE_PULL[o.id]?.() || 0;
+    weights[o.id] = w;
+    extra += w;
+  }
+  const total = Object.values(weights).reduce((s, w) => s + w, 0);
+  /* 다섯 몫을 합쳐 봐야 상한을 못 넘는다. 여덟 판에 한 번은 「가끔」이
+     아니라 「자주」다. */
+  const p = Math.min(STRANGE_CAP, STRANGE_BASE + extra * 0.022);
+  return { p, weights, total };
+}
+export function rollStrange(depth) {
+  const { p, weights, total } = strangeOdds(depth);
+  if (!p || Math.random() >= p) return null;
+  /* 어느 이물인가는 끌림에 비례해서 고른다. 아무것도 안 불렀으면
+     다섯이 똑같다 — 순수한 사고다. */
+  const ids = Object.keys(weights).filter(id => weights[id] >= 0
+    && !(G.strangeSeen || []).includes(id));
+  if (!ids.length) return null;
+  if (!total) return ids[rnd(ids.length)];
+  let r = Math.random() * total;
+  for (const id of ids) { if (r < weights[id]) return id; r -= weights[id]; }
+  return ids[ids.length - 1];
+}
+/* 이 판이 지금 어느 이물 안에 있는가. 한 글자짜리 깔때기 —
+   다섯 규칙이 전부 이것만 읽는다. */
+export const strangeIs = id => G.strange === id;
+
+/* 이물의 층을 세계가 읽을 수 있는 모양으로. THEMES 와 같은 키를
+   쓰므로 생성기는 이것이 특별한 층이라는 것을 몰라도 된다. */
+const strangeTheme = id => { const o = strangeById(id);
+  return o ? { id: o.id, n: o.n, weight: 0, ...o.mods } : null; };
+
+
+/* 이물이 남기는 것. 층을 만든 직후, 몬스터가 서기 전에 놓는다 —
+   나중에 놓으면 「이미 다 치운 방」에 물건이 나타난다.
+
+   다섯을 if 사슬로 쌓았더니 매듭 린트가 바로 잡았다(복잡도 16).
+   표로 편다: 이물이 하나 늘면 줄이 하나 는다. */
+const dropAt = (it) => {
+  const L = G.level, p = G.player;
+  const r = L.rooms[rnd(L.rooms.length)];
+  const at = r ? { x: r.x + rnd(r.w), y: r.y + rnd(r.h) } : { x: p.x, y: p.y };
+  G.items.push({ ...it, x: at.x, y: at.y });
+};
+const dropRelic = () => {
+  const rid = unownedRelic();
+  if (rid) dropAt({ kind:'relic', id: rid, spr: relicById(rid).spr, n: relicById(rid).n });
+};
+const STRANGE_PAY = {
+  /* 성소: 아무도 못 가져간 것이 그대로 있다. */
+  sanctum: () => dropRelic(),
+  /* 바깥: 여기 것이 아닌 물건. 이름 있는 무기는 판에 하나뿐이라
+     이 층은 그 하나를 확정으로 만든다. */
+  void: () => {
+    const pool = UNIQUES.filter(u => !(G.uniques || {})[u.id]);
+    if (!pool.length) return dropRelic();
+    const u = pool[rnd(pool.length)];
+    (G.uniques = G.uniques || {})[u.id] = true;
+    dropAt({ kind:'weapon', unique:u.id, ...u });
+  },
+  /* 눈의 방: 벽이 본 것을 너도 본다 — 숨을 수 없는 대가로 숨은
+     것이 없다. */
+  eyes: () => { revealMap(); dropRelic(); },
+  /* 뱃속: 아직 소화되지 않은 것들. 시계가 절반인 대가다. */
+  gullet: (depth) => {
+    const p = G.player;
+    p.mats = p.mats || { scrap: 0, dust: 0, essence: 0 };
+    p.mats.scrap += 40 + depth * 6;
+    p.mats.dust += 14 + depth * 2;
+    p.mats.essence += 3 + Math.floor(depth / 4);
+  },
+  /* 지지직: 잘못 그려진 물건이라 지나치게 잘 벼려져 있다. */
+  static: (depth) => {
+    const it = pickItem(depth + 10);
+    if (it.kind === 'weapon' || it.kind === 'armour') {
+      it.plus = Math.max(it.plus || 0, 6 + rnd(3));
+      rollAffixes(it, depth + 20, true);
+    }
+    dropAt(it);
+  },
+};
+const strangePayoff = (id, depth) => { if (G.level && G.player) STRANGE_PAY[id]?.(depth); };
+
 export function enterDepth(depth, fromBelow = false, branch = null) {
   /* 허기로 부푼 몫은 한 층만 간다. 층에 들어서는 이 자리에서
      되돌린다 — 처음에는 판 시작 자리에 넣었는데, 그러면 판이 끝날
@@ -2628,8 +2795,14 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   G.branch = branch || BRANCHES[0];
   /* 층을 만들기 전에 규칙이 편향을 건넨다. 항아리가 깨졌으면 불이
      반드시 서고, 나방이 깨졌으면 시설 하나가 더 선다. */
+  /* 이물은 층을 만들기 **전에** 정해진다. 만들고 나서 갈아 끼우면
+     그건 다른 층 위에 페인트를 칠하는 것이고, 방 수와 빛과 몬스터
+     예산이 전부 원래 층 것으로 남는다. */
+  G.strange = depth > 0 ? rollStrange(depth) : null;
+  if (G.strange) (G.strangeSeen ||= []).push(G.strange);
   setFacilityBias({ camp: cracked('ember'), extra: cracked('moth'),
-                    noCamp: hasArcana('echo'), extraEvent: hasArcana('echo') });
+                    noCamp: hasArcana('echo'), extraEvent: hasArcana('echo'),
+                    strange: G.strange ? strangeTheme(G.strange) : null });
   G.level = new Level(depth, G.branch);
   G.monsters = [];
   G.items = [];
@@ -2861,6 +3034,23 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
 
      그래서 pendingRelic·pendingBranch 와 같은 문법을 쓴다: 규칙이
      화면을 세우고, ui 는 그것을 띄우기만 한다. */
+  /* ── 이물은 반드시 값을 낸다 ────────────────────────────
+     여기를 밟았는데 아무것도 없으면 그건 기괴한 것이 아니라 낭비다.
+     아이작의 악마방이 무서운 것은 무서워서가 아니라 **거기에만 있는
+     것이 있어서**다. 다섯이 각자 다른 값을 낸다 — 하나는 유물,
+     하나는 이름 있는 무기, 하나는 지도, 하나는 재료, 하나는 벼려진
+     물건. 어느 것이 나오는지가 그 이물의 성격이다. */
+  if (G.strange) {
+    const o = strangeById(G.strange);
+    strangePayoff(G.strange, depth);
+    /* 밟는 순간 이것이 사고라는 것을 말한다. 층 이름을 조용히 바꾸는
+       것으로는 부족하다 — 열 판에 한 번 보는 것이라, 본 사람이
+       「내가 뭘 본 거지」라고 물을 만큼은 크게 말해야 한다. */
+    say(`${o.n}. ${o.lore}`, 'level');
+    say(o.t, 'warn');
+    lore('strange', o.n, `${o.lore}\n\n${o.t}`, o.spr);
+    fx({ t:'arcana', n: o.n });
+  }
   if (depth > 0 && arcanaDue(depth)) G.screen = 'arcana';
 }
 
@@ -2935,7 +3125,8 @@ function populate(depth) {
          일이 없다」는 실측에 직접 답하는 줄이다 — 세진 만큼 층이 너를
          기다리고 있고, 그 기다림은 걸어 들어가는 순간부터다. */
       const one = { ...m, x: spot.x, y: spot.y,
-                    awake: (hasShackle('awake') && Math.random() < 0.5)
+                    awake: strangeIs('eyes')          // 눈의 방은 전부 깨어 있다
+                        || (hasShackle('awake') && Math.random() < 0.5)
                         || Math.random() < heatAwake(), energy: 0 };
       if (hasArcana('thin') || Math.random() < eliteChance(depth) * (br.elite ?? 1))
         makeElite(one, depth);
@@ -3308,7 +3499,15 @@ export function rollAffixes(item, depth, guaranteed) {
      붙어 있었다 — 절반이 희귀하면 희귀한 것이 없는 것이다.
      기울기를 절반으로 낮춘다. 깊은 층에서 붙는다는 성질은 남기고,
      얕은 층의 바닥값을 내렸다. */
-  const odds = clamp(0.05 + depth * 0.019 + luck, 0.03, 0.45);
+  /* ── 그리고 한 번 더 좁혔다 ──────────────────────────────
+     플레이어: 「최정상급 아이템 드롭 확률은 확 줄이되, 획득 시
+     확실하게 체감 가능하게 (성능 + 외관 모두)」.
+
+     0.05 + 층×0.019 는 15층에서 33%다 — 셋에 하나가 속성을 달고
+     나온다. 그러면 「붙었다」가 사건이 아니라 기본값이고, 아래에서
+     둘 다 붙은 물건에 얹어 둔 벼림도 덩달아 흔해진다. 바닥과
+     기울기를 함께 내려 15층 20%로 만든다. */
+  const odds = clamp(0.035 + depth * 0.011 + luck, 0.02, 0.30);
   if (guaranteed || Math.random() < odds) {
     const a = pickAffix(PREFIXES, tag, false);
     if (a) item.pre = a.id;
@@ -3330,8 +3529,11 @@ export function rollAffixes(item, depth, guaranteed) {
      이미 드문 것에 얹으면 그 하나가 사건이 된다. 깊이가 크기를 정한다.
      그리고 아주 드물게 각인까지 — 판에 한 번 볼까 말까다. */
   if (item.pre && item.suf) {
-    item.plus = Math.max(item.plus || 0, 1 + rnd(2 + Math.floor(depth / 4)));
-    if (Math.random() < 0.18 && depth >= 6) {
+    /* 둘 다 붙은 물건은 이제 판에 두어 번이다. 그러니 나올 때는
+       **확실히 크게** 나와야 한다 — 드물게 만든 값을 여기서 돌려
+       받지 못하면 그건 그냥 하향이다. +1~3 이던 것을 +3~7 로. */
+    item.plus = Math.max(item.plus || 0, 3 + rnd(3 + Math.floor(depth / 3)));
+    if (Math.random() < 0.34 && depth >= 6) {
       const pool = ENGRAVINGS.filter(e => e.tags.includes(tag));
       if (pool.length) item.engrave = [pool[rnd(pool.length)].id];
     }
@@ -3341,10 +3543,22 @@ export function rollAffixes(item, depth, guaranteed) {
      one in your hands. */
   if (Math.random() < transChance(depth)) {
     item.boon = BOONS[rnd(BOONS.length)].id;
-    /* It arrives already sharpened. A 초월 평범한 단검 would
-       read as a joke rather than a find. */
-    item.plus = Math.max(item.plus || 0, 1 + rnd(3));
+    /* ── 확실하게 체감 가능하게 ──────────────────────────────
+       예전에는 +1~3 과 접두 하나였다. 그래서 초월을 주웠는데도
+       배낭에서 「+2 날카로운 단검」으로 보였고, 초월인 것은 작은
+       글자 한 줄뿐이었다 — 이 게임에서 가장 드문 낙하가 가장
+       조용했다. 드물게 만든 값을 여기서 돌려준다.
+
+       나오면 셋 다 있다: 접두·접미가 모두 붙고, 벼려져 있고,
+       각인이 하나 돋아 있다. 이름 줄이 길어지는 것 자체가 신호다 —
+       배낭에서 한 줄만 봐도 다른 물건이라는 것을 안다. */
+    item.plus = Math.max(item.plus || 0, 5 + rnd(4));
     if (!item.pre) item.pre = pickAffix(PREFIXES, tag, false)?.id;
+    if (!item.suf) item.suf = pickAffix(SUFFIXES, tag, false)?.id;
+    if (!item.engrave?.length) {
+      const pool = ENGRAVINGS.filter(e => e.tags.includes(tag));
+      if (pool.length) item.engrave = [pool[rnd(pool.length)].id];
+    }
   }
   return item;
 }
@@ -4842,6 +5056,9 @@ function swing(m, scale, opt = {}) {
     if (crit && hasBoon('ruin') && !m.boss)
       dmg += Math.max(1, Math.round(m.maxhp * 0.08));
     if (perfect) fx({ t:'perfect', x:m.x, y:m.y });
+    /* 「들키지 않고 걸었나」. 눈의 방을 부르는 값 — 기습이 나가는
+       유일한 자리에서 센다. */
+    if (asleep) G.sneaked = (G.sneaked || 0) + 1;
     hurtMonster(m, dmg, null, { crit, sneak: asleep, weapon: kind, perfect, ...opt });
     // 모르고 휘두른 것: the stick answers.
     if (oddAwake('blindswing') && G.monsters.includes(m)) {
@@ -5759,7 +5976,8 @@ export function floorBudget() {
        빨리 조여 온다. */
     FLOOR_BUDGET(G.depth) * (G.branch?.clock || 1) * heatClock()
       * (hasArcana('clock') ? 0.6 : 1) * (hasArcana('flood') ? 0.5 : 1)
-      * (cracked('ember') ? 0.78 : 1)
+      * (cracked('ember') && !hasArcana('echo') ? 0.78 : 1)
+      * (strangeIs('gullet') ? 0.5 : 1)
       * (hasRelic('thief') ? (cracked('thief') ? 1.15 : 0.65) : 1)));
 }
 
@@ -8761,6 +8979,8 @@ export const RUN_FIELDS = {
   haggled: {}, haggleCut: null, haggleSour: null,
   forced: {}, credited: {}, fallenSeen: {}, did: {}, lit: {},
   relicFloorAt: -1, relicsTaken: 0, relicSrc: {}, gearTaken: 0,
+  /* 이물 — 이 판에서 무엇을 봤나, 그리고 그것을 불러들인 값들. */
+  strange: null, strangeSeen: [], artsUsed: 0, sneaked: 0,
   rareTaken: 0, rareFound: 0, resoFound: 0,
   floorTurns: {}, blowRatio: 0, funnelled: 0, clung: 0, clungSaid: 0,
   promiseFloor: 0, stillStep: false, taskDone: false, spoils: null,

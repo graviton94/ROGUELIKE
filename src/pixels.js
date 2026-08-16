@@ -1634,6 +1634,20 @@ export const TERRAIN = {
   flooded: { base:'b', grain:'B', mortar:'k', floor:'d', dust:'H',  style:'streak' },
   // 소굴: chitin and old web over the stone.
   nest:    { base:'p', grain:'P', mortar:'k', floor:'d', dust:'J',  style:'rough' },
+  /* ── 이물(異物)의 다섯 ────────────────────────────────────
+     여기 있으면 안 되는 층들이라, 돌을 쌓는 방식부터 나머지 여섯과
+     달라야 한다. 판을 밟는 순간 「이건 던전이 아니다」가 글자보다
+     먼저 와야 한다. */
+  // 비어 있는 성소: 표백된 돌, 아주 넓은 켜. 너무 깨끗해서 불편하다.
+  sanctum: { base:'w', grain:'W', mortar:'G', floor:'G', dust:'w',  style:'ashlar' },
+  // 바깥: 벽이 벽이 아니다. 고인 물빛 위에 아무것도 안 깔린다.
+  void:    { base:'b', grain:'P', mortar:'k', floor:'k', dust:'b',  style:'streak' },
+  // 눈의 방: 젖은 살. 켜가 없고 결이 사방으로 돈다.
+  eyes:    { base:'r', grain:'R', mortar:'k', floor:'r', dust:'r',  style:'rough' },
+  // 뱃속: 삭아 가는 살과 위액.
+  gullet:  { base:'e', grain:'E', mortar:'r', floor:'r', dust:'e',  style:'streak' },
+  // 지지직: 잘못 그려진 층. 강철빛 잡음이 켜를 끊어 놓는다.
+  static:  { base:'g', grain:'s', mortar:'k', floor:'k', dust:'s',  style:'brick' },
 };
 
 /* ── 구역의 열 ────────────────────────────────────────────

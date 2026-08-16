@@ -1533,7 +1533,12 @@ export const UNIQUES = [
 export const uniqueById = id => UNIQUES.find(u => u.id === id);
 /* 크랙이 붙은 뒤로는 이것 하나가 판을 바꾼다. 그러면 자주 나와서는
    안 된다 — 판에 한 자루 나올까 말까여야 「나왔다」가 사건이 된다. */
-export const UNIQUE_ODDS = 0.014;   // share of floor drops, past its depth
+/* 1.4% 였다. 「최정상급 드롭 확률은 확 줄이되」 — 0.5% 로. 대신
+   이름 있는 무기는 이제 **바깥**(이물)에서 확정으로 하나 나오고,
+   나오면 화면에서 즉시 다른 물건으로 읽힌다. 운이 나쁘면 평생 못
+   보고, 좋으면 그 판이 그것 하나로 기억된다 — 그게 이 게임에서
+   「죽었을 때 아까운 것」의 정확한 모양이다. */
+export const UNIQUE_ODDS = 0.005;   // share of floor drops, past its depth
 
 /* ── the oddities ─────────────────────────────────────────
    An enchantment that only wakes in the wrong hands.
@@ -2046,10 +2051,14 @@ export const BOONS = [
 ];
 export const boonById = id => BOONS.find(b => b.id === id);
 
-/* Per weapon or armour created. 1층 0.6%, 15층 3.0% — rare
-   enough that most runs never see one, common enough that a
-   player who plays for a week has a story. */
-export const transChance = depth => 0.006 + depth * 0.0016;
+/* Per weapon or armour created. 1층 0.6%, 15층 3.0% 이었다.
+   플레이어: 「최정상급 아이템 드롭 확률은 확 줄이되, 획득 시
+   확실하게 체감 가능하게」 — 1층 0.2%, 15층 1.4%로 내린다.
+
+   대신 나올 때는 접두·접미·벼림(+5~8)·각인이 전부 붙어서 나온다
+   (game.js 의 rollAffixes). 「이번 판에 하나 봤다」가 되게 하고,
+   봤으면 그 판이 그것으로 기억되게 한다. */
+export const transChance = depth => 0.002 + depth * 0.0008;
 
 export function rarityOf(item) {
   if (!item) return 0;
@@ -2406,8 +2415,15 @@ export const ALTAR_OFFERS = [
    the hand means the early game is tight and the late game is
    where the absurd combinations actually assemble — which is the
    part worth playing for. */
-export const RELIC_SLOTS_BASE = 4;
-export const RELIC_SLOT_DEPTHS = [4, 8, 12];      // +1 slot on reaching each
+/* ── 손이 하나 더 커졌다 ──────────────────────────────────
+   플레이어: 「유물 슬롯 좀 더 늘려주고」. 4+3=7 이었다.
+
+   그냥 늘리기만 하면 「더 많이 들 수 있다」로 끝난다. 같은 커밋에서
+   일반 유물의 값을 0.8배로 내리고 융합물을 1.75배로 올렸으므로,
+   늘어난 자리는 **조합을 짤 자리**다 — 여덟을 들고 다니다가 넷을
+   태워 둘을 만드는 판이 가능해진다. 그게 자리를 늘린 이유다. */
+export const RELIC_SLOTS_BASE = 5;
+export const RELIC_SLOT_DEPTHS = [4, 7, 10, 13];  // +1 slot on reaching each
 export const relicSlots = deepest =>
   RELIC_SLOTS_BASE + RELIC_SLOT_DEPTHS.filter(d => deepest >= d).length;
 export const RELIC_SLOTS = RELIC_SLOTS_BASE + RELIC_SLOT_DEPTHS.length;   // 7, the cap
@@ -2583,6 +2599,59 @@ export const relicById = id => RELICS.find(r => r.id === id);
    판당 셋을 고른다(4·8·12층). 고를 때마다 **셋 중 하나**이고, 전부
    양날이다 — 순증이 하나라도 있으면 그 판부터 나머지는 안 고른다.
    그리고 아르카나는 유물처럼 버릴 수 없다. 판이 끝날 때까지 간다.  */
+/* ── 이물(異物) — 여기 있으면 안 되는 층 ─────────────────
+   플레이어: 「다회차에도 가끔 나올법한, 정말 드문 케이스… 크툴루
+   신화급으로 기괴한 이스터에그 스테이지」.
+
+   그래서 이것들은 **콘텐츠가 아니라 사고**다. 열다섯 층을 열 번
+   내려가는 동안 한 번 볼까 말까 한 것이고, 봤다는 사실 자체가
+   그 판의 이야기가 되어야 한다. 세 가지를 지킨다.
+
+     · **깊은 곳에서만.** 9층 아래. 저층에서 나오면 「특이한 층
+       종류」가 되고, 그러면 이물이 아니라 목록의 한 줄이다.
+     · **운이되, 완전한 운은 아니다.** 아이작의 악마방처럼 기본
+       확률은 아주 낮고, 판이 그것을 **불러들이는 짓**을 했으면
+       올라간다. 그래야 「운이 좋았다」가 아니라 「내가 불렀다」가
+       된다.
+     · **반드시 값을 낸다.** 여길 밟았는데 아무것도 없으면 그건
+       기괴한 것이 아니라 낭비다. 다섯 다 확정 보상이 있다.
+
+   `mods` 는 층 생성기가 읽는 값이고(THEMES 와 같은 키), `pull` 은
+   이 층을 불러들이는 조건이다 — 판정은 game.js 의 oddityDue() 한
+   곳에서만 한다.                                              */
+export const STRANGE_FROM = 9;        // 이 층 아래에서만
+export const STRANGE_BASE = 0.010;    // 층 이동 한 번에 1%
+export const STRANGE_CAP  = 0.085;    // 아무리 불러도 여기까지
+export const STRANGE = [
+  { id:'sanctum', n:'비어 있는 성소', spr:'altar',
+    lore:'문이 안쪽에서 잠겨 있었다. 잠근 사람은 안에 없다.',
+    t:'주문과 기예의 값이 없다. 대신 여기서 나가는 길은 하나뿐이고, 그 길목에 무언가 앉아 있다.',
+    mods:{ rooms:[3,4], size:[8,12], light:1.4, water:0, web:0, mob:0.6 },
+    /* 마법을 쓰는 판이 마법이 공짜인 방을 만난다. */
+    pull:'주문이나 기예를 많이 쓴 판' },
+  { id:'void', n:'바깥', spr:'scroll',
+    lore:'발밑에 돌이 없다. 그런데도 서 있다. 아래를 보지 않는 편이 낫다.',
+    t:'벽이 없다 — 전부 트여 있고 전부 보인다. 그리고 전부 너를 본다.',
+    mods:{ rooms:[2,3], size:[13,16], light:2.0, water:0, web:0, mob:1.4 },
+    pull:'주목이 높은 판' },
+  { id:'eyes', n:'눈의 방', spr:'amulet',
+    lore:'벽이 젖어 있다. 젖은 것이 전부 같은 쪽을 본다.',
+    t:'숨을 수 없다. 이 층에서는 기습이 없고, 대신 모든 것이 처음부터 깨어 있다.',
+    mods:{ rooms:[8,11], size:[4,7], light:0.9, water:0, web:0.4, mob:1.25 },
+    pull:'들키지 않고 걸은 판' },
+  { id:'gullet', n:'뱃속', spr:'potion',
+    lore:'벽이 규칙적으로 조여든다. 세어 보면 네 숨과 박자가 같다.',
+    t:'바닥이 삭는다 — 층의 여유가 절반이다. 대신 여기서 죽는 것들은 전부 아직 소화되지 않은 것을 갖고 있다.',
+    mods:{ rooms:[5,7], size:[5,9], light:0.5, water:2.0, web:1.8, mob:1.5 },
+    pull:'체력이 얼마 없는 판' },
+  { id:'static', n:'지지직', spr:'wand',
+    lore:'무언가가 이 층을 잘못 그리고 있다. 고쳐 그릴 생각은 없어 보인다.',
+    t:'보이는 것을 믿을 수 없다. 대신 그것들도 너를 잘못 본다.',
+    mods:{ rooms:[9,12], size:[3,6], light:0.6, water:0.4, web:0.6, mob:1.1 },
+    pull:'같은 것을 여러 번 본 판' },
+];
+export const strangeById = id => STRANGE.find(o => o.id === id) || null;
+
 export const ARCANA = [
   { id:'famine', n:'굶주린 판', c:'세계',
     t:'바닥에 떨어지는 것이 **절반**이 된다. 대신 떨어지는 것마다 **속성이 하나씩 더** 붙는다.',
@@ -2642,7 +2711,14 @@ export const RELIC_CRACKS = {
   pact:    { c:'②', at:['crit', 30],   n:'벽이 먼저 물러선다',
              t:'치명타는 남고 **최대 체력이 돌아온다.** 손바닥으로 쉰다섯 번을 냈다. 받기로 한 것보다 많이 받은 쪽은 더 부르지 못한다.',
              half:'손바닥의 금이 아물지 않는다. 벌어지는 쪽이다.' },
-  echo:    { prize:'연격 셋이면 두 번 울린다', c:'①', at:['combo', 9],  n:'종이 멎지 않는다',
+  /* ── 연격 갈래 둘이 통째로 죽어 있었다 ────────────────────
+     9와 11이었다. 그런데 봇 열두 판의 **최고** 연격이 1·2·2·2·3·3·
+     3·4·4·5·6·8 — 중앙 3이다. 즉 이 두 크랙은 마흔 중 유일하게
+     **아무도 열 수 없는 조건**이었고, 벤치가 120판에서 0/41 로 그걸
+     잡았다(그전에는 표본이 8~12라 판정 자체가 안 걸렸다).
+     문턱을 만든 사람이 연격이 실제로 몇까지 가는지 안 재고 적은 값이다.
+     닿는 자리로 내린다 — 다섯과 여섯이면 잘 풀린 판의 꼬리다. */
+  echo:    { prize:'연격 셋이면 두 번 울린다', c:'①', at:['combo', 5],  n:'종이 멎지 않는다',
              t:'연격 **3**이면 울리고, 울린 것이 **또 한 번 울릴 수 있다.** 두 번째가 여기 것이 아니었다면 세 번째는 어디 것인지 묻지 않는 편이 낫다.' },
   hunger:  { c:'②', at:['kill', 70],   n:'자루가 배부르다',
              t:'회복은 남고 **기름을 두 배로 태우지 않는다.** 백서른을 먹였다. 배부른 자루는 당신 등불까지 핥지 않는다.',
@@ -2704,7 +2780,7 @@ export const RELIC_CRACKS = {
              t:'층을 내려갈 때 방어 **+2**. 아홉 층 아래에서 이것이 무엇을 붙잡고 자라는지는 만져 보면 안다. 갈비뼈다.' },
   wick:    { prize:'타는 범위가 두 칸, 화상이 두 배', c:'①', at:['gulp', 8],   n:'심지가 길어진다',
              t:'타는 범위가 **두 칸**, 화상이 **두 배**. 열네 번을 마시는 동안 손이 다 익어서, 이제 옮겨붙을 데가 없다. 그래서 밖으로 붙는다.' },
-  drum:    { c:'①', at:['combo', 11],  n:'북이 멎지 않는다',
+  drum:    { c:'①', at:['combo', 6],  n:'북이 멎지 않는다',
              t:'맞아도 **연격을 하나도 잃지 않는다.**',
              half:'가죽이 젖어 있다. 두드린 적 없는데 소리가 남아 있다.' },
   grip:    { c:'③', at:['kill', 65],   n:'힘이 민첩을 대신한다',
@@ -2789,7 +2865,15 @@ export const FUSIONS = [
    확실하게(1.0) 하지 않는 이유: 확실하면 그건 조합이 아니라 진행이다.
    반쯤 걸어 두면 「이 유물을 들고 다니면 짝이 온다」가 되고, 그게
    들고 다닐 이유가 된다. */
-export const FUSE_PULL = 0.55;
+/* ── 짝을 만나기가 더 어려워졌다 ──────────────────────────
+   0.55 였다. 플레이어: 「융합유물 조합을 좀 더 달성하기 어렵되
+   조합하면 더욱 효과 좋아지게」.
+
+   여기가 「어렵되」 쪽이다. 0.55 는 한쪽을 들고 두어 층만 걸으면
+   나머지가 오는 값이라, 짝짓기가 사실상 진행이었다. 0.32 면 들고
+   다니는 판이 실제로 위험을 감수한 값이 되고, 성사됐을 때 그것이
+   그 판의 사건이 된다. 값(FUSED_SCALE 1.75)은 game.js 쪽에 있다. */
+export const FUSE_PULL = 0.32;
 
 export const fusionOf = (x, y) =>
   FUSIONS.find(f => (f.a === x && f.b === y) || (f.a === y && f.b === x)) || null;

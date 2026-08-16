@@ -17,3 +17,4 @@ sim/_rev*.mjs
 sim/_shot*.mjs
 sim/_smoke*.mjs
 sim/_tmp*.mjs
+sim/rv*.mjs

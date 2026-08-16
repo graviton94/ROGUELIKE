@@ -1218,3 +1218,27 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .idesc.cmp      { color: var(--G); }
 .idesc.cmp.up   { color: var(--o); font-weight: 600; }
 .idesc.cmp.down { color: var(--r); }
+
+/* ── 유물의 크랙 ──────────────────────────────────────────
+   유물 줄 아래 한 칸. 아직 안 열린 것은 마른 회색에 채워지는 막대
+   하나, 열린 것은 자수정 테두리다 — 목록을 훑을 때 「무엇이 깨졌나」와
+   「무엇이 깨지는 중인가」가 색 하나로 갈려야 한다. */
+.crackline {
+  display: flex; gap: 5px; align-items: flex-start;
+  margin-top: 3px; padding: 3px 5px;
+  border-left: 2px solid var(--d);
+  background: rgba(255,255,255,0.02);
+}
+.crackline.lit {
+  border-left-color: var(--P);
+  background: rgba(160,110,190,0.10);
+}
+.crackcat { font-size: 11px; color: var(--d); line-height: 1.1; }
+.crackline.lit .crackcat { color: var(--P); }
+.crackbody { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.crackname { font-size: 10px; color: var(--G); }
+.crackline.lit .crackname { color: var(--P); font-weight: 600; }
+.cracktext { font-size: 9px; color: var(--G); line-height: 1.35; }
+.cracktext.dim { color: var(--d); }
+.crackbar { height: 2px; background: var(--d); opacity: 0.5; }
+.crackfill { height: 100%; background: var(--P); }

@@ -100,6 +100,31 @@ function number(x, y, text, color, size, drift) {
   });
 }
 
+/* 크랙이 열리는 순간. 이 판에서 그 유물이 다른 물건이 되는 한 번뿐인
+   프레임이라 레벨업과 같은 무게로 친다. pump 밖에 두는 이유는 하나다 —
+   저 함수는 이미 171갈래이고, 새 사건마다 한 갈래씩 더 얹으면 아무도
+   못 여는 함수가 된다(sim/knots.mjs가 이 커밋에서 바로 잡아냈다). */
+/* 순교의 두 프레임. 같은 유물의 같은 사건이라 한 함수에 둔다. */
+function martyrFx(e, spent) {
+  ring(e.x, e.y, spent ? 1.4 : 1.1, PALETTE.R, spent ? 640 : 260);
+  number(e.x, e.y - (spent ? 0.7 : 0.5), spent ? '순교' : '버틴다',
+         PALETTE.R, spent ? 1.25 : 1.05);
+  if (spent) { flashScreen = Math.max(flashScreen, 0.25); flashHue = 'r'; buzz([80, 40, 80]); sfx.warn(); }
+  else shake = Math.max(shake, 0.4);
+}
+
+function crackBurst(e) {
+  const p = G.player;
+  if (!p) return;
+  ring(p.x, p.y, 1.8, PALETTE.P, 720);
+  ring(p.x, p.y, 1.1, PALETTE.W, 480);
+  number(p.x, p.y - 0.9, e.n || '금이 갔다', PALETTE.P, 1.3);
+  flashScreen = Math.max(flashScreen, 0.22); flashHue = 'P';
+  shake = Math.max(shake, 0.5);
+  buzz([40, 30, 90]);
+  sfx.levelup();
+}
+
 function ring(x, y, maxr, color, life, shrink) {
   rings.push({ x: x + 0.5, y: y + 0.5, maxr, color, life: life || 380, age: 0, shrink });
 }
@@ -700,18 +725,9 @@ export function pump(queue, player) {
         sfx.levelup();
         break;
       }
-      case 'martyr':
-        ring(e.x, e.y, 1.4, PALETTE.R, 640);
-        number(e.x, e.y - 0.7, '순교', PALETTE.R, 1.25);
-        flashScreen = Math.max(flashScreen, 0.25); flashHue = 'r';
-        buzz([80, 40, 80]);
-        sfx.warn();
-        break;
-      case 'martyrHold':
-        ring(e.x, e.y, 1.1, PALETTE.R, 260);
-        number(e.x, e.y - 0.5, '버틴다', PALETTE.R, 1.05);
-        shake = Math.max(shake, 0.4);
-        break;
+      case 'crack':      crackBurst(e); break;
+      case 'martyr':     martyrFx(e, true); break;
+      case 'martyrHold': martyrFx(e, false); break;
 
       /* ── the ranger's four ─────────────────────────────
          The warrior's arts happen at arm's length and are drawn

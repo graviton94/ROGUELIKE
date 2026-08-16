@@ -11,6 +11,11 @@ export const MW = 52, MH = 32;
 /* 직전 층에 무엇이 서 있었나. 생성기의 기억이지 판의 상태가 아니라
    여기 둔다 — 같은 시설이 두 층 연달아 나오는 것을 막는 데만 쓴다. */
 let LAST_FLOOR = [];
+/* 규칙 쪽이 생성기에 거는 편향. 층을 만들기 직전에 game.js가 채우고,
+   planFacilities 한 곳에서만 읽는다 — 생성기가 유물을 알아야 하는
+   자리를 이 한 줄로 묶어 둔다. */
+let FACILITY_BIAS = {};
+export const setFacilityBias = o => { FACILITY_BIAS = o || {}; };
 
 /* Tiles 0-6 are the original set. A door is now four tiles
    rather than one, because a *closed* door is the thing that
@@ -580,6 +585,7 @@ export class Level {
      서면 걷기만 하는 층이 된다. */
   planFacilities() {
     const d = this.depth;
+    const bias = FACILITY_BIAS;
     const want = {
       camp:  d <= 2 ? 0.95 : 0.66,
       shop:  d <= 2 ? 0.75 : 0.58,
@@ -599,6 +605,15 @@ export class Level {
     /* 아무것도 안 서는 층은 없다. 그런 층은 「조용한 층」이 아니라
        그냥 빈 층이다 — 갈래의 `고요한 층`이 그 일을 따로 한다. */
     if (!Object.values(this.plan).some(Boolean)) this.plan[d <= 2 ? 'camp' : 'anvil'] = true;
+    /* 규칙 쪽에서 온 두 가지 편향. 생성기는 왜인지 모른다 — 불씨
+       항아리가 깨졌으면 불이 반드시 서고, 나방의 표식이 깨졌으면
+       꺼져 있는 것 하나가 더 선다. 층을 만드는 쪽에 유물 이름이
+       들어오면 그때부터 생성기가 규칙을 알게 된다. */
+    if (bias.camp) this.plan.camp = true;
+    if (bias.extra) {
+      const off = Object.keys(want).filter(k => !this.plan[k]);
+      if (off.length) this.plan[off[rnd(off.length)]] = true;
+    }
     LAST_FLOOR = Object.keys(this.plan).filter(k => this.plan[k]);
   }
 

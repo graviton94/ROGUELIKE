@@ -17,7 +17,7 @@ import {
   TASKS, TASK_PATIENCE, TASK_ODDS,
   ALTAR_OFFERS, rarityOf, isCursed, RARITY, TEMPLE_SHARE, JACKPOT,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
-  RELICS, RELIC_SLOTS, relicSlots, relicById, BRANCHES,
+  RELICS, RELIC_SLOTS, relicSlots, relicById, crackOf, crackNeed, BRANCHES,
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH, REGIONS, regionOf,
   MEMORIES, memoryEarned, SHACKLES, shacklesAt, SHACKLE_STAT, tellsNeeded,
   WEAPON_TYPES, PATTERNS, NAMED,
@@ -46,7 +46,7 @@ import {
   hearsayFor, rulebook,
 } from './data.js';
 import {
-  Level, computeFov, lineClear, idx, rnd, roll, clamp, MW, MH,
+  Level, computeFov, lineClear, setFacilityBias, idx, rnd, roll, clamp, MW, MH,
   FLOOR, DOWN, UP, DOOR, RUBBLE, DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN,
   WEB, WATER, CAMP, ALTAR, EVENT, ANVIL, PROP, propAt, isDoor, isShut, walkable,
 } from './world.js';
@@ -82,6 +82,68 @@ export const relicList = () => (G.player?.relics || []).map(relicById).filter(Bo
 
 export const slotCount = () => relicSlots(G.deepest || G.depth || 0);
 
+/* ── 크랙 ─────────────────────────────────────────────────
+   유물 하나에 붙은 두 번째 줄. 그 유물이 하는 일과 같은 것을 세다가
+   문턱을 넘으면 열리고, 열린 뒤로는 판이 끝날 때까지 열려 있다.
+
+   깔때기는 셋뿐이다: 세는 곳 ledger(), 묻는 곳 cracked(), 여는 곳
+   crackWatch(). 효과는 각 유물이 원래 살던 자리에서 한 줄로 갈린다 —
+   크랙을 위한 두 번째 계산 경로를 만들면 그 순간 두 곳이 어긋난다. */
+export const ledgerOf = k => G.ledger?.[k] || 0;
+export function ledger(k, n = 1) {
+  if (!G.ledger) G.ledger = {};
+  G.ledger[k] = (G.ledger[k] || 0) + n;
+  crackWatch();
+}
+/* 최고값을 재는 것들(연격)은 더하지 않고 밀어 올린다. */
+export function ledgerPeak(k, v) {
+  if (!G.ledger) G.ledger = {};
+  if (v > (G.ledger[k] || 0)) { G.ledger[k] = v; crackWatch(); }
+}
+export const cracked = id => !!G.cracks?.[id];
+export function crackProgress(id) {
+  const c = crackOf(id);
+  if (!c) return null;
+  const [k, n] = c.at;
+  if (k === 'fused') return { have: 1, need: 1 };
+  return { have: k === 'floor' ? (G.relicFloors?.[id] || 0) : ledgerOf(k), need: n };
+}
+function crackWatch() {
+  const p = G.player;
+  if (!p?.relics) return;
+  G.cracks = G.cracks || {};
+  for (const id of p.relics) {
+    if (G.cracks[id]) continue;
+    const c = crackOf(id), pr = crackProgress(id);
+    if (!c || !pr || pr.have < pr.need) continue;
+    G.cracks[id] = true;
+    const r = relicById(id);
+    say(`${r.n}에 금이 갔다 — ${c.n}.`, 'level');
+    say(c.t.replace(/\*\*/g, ''), 'good');
+    fx({ t:'crack', id, n: c.n });
+    recalc(p);
+  }
+}
+/* 「낀 채 몇 층」은 유물 쪽에서 센다 — 판 전체의 층수가 아니라
+   그 유물과 함께 내려간 층수여야 늦게 주운 것이 공짜로 깨지지 않는다. */
+function crackFloorTick() {
+  if (!G.player?.relics) return;
+  G.relicFloors = G.relicFloors || {};
+  for (const id of G.player.relics)
+    G.relicFloors[id] = (G.relicFloors[id] || 0) + 1;
+  crackWatch();
+}
+/* data.js의 표를 그대로 다시 내보낸다 — 화면은 game.js 하나만
+   보면 되고, 크랙이 어느 파일에 적혀 있는지 알 필요가 없다. */
+export { crackOf };
+export const crackHint = id => {
+  const c = crackOf(id);
+  if (!c) return '';
+  if (cracked(id)) return `${c.c} ${c.n} — ${c.t}`;
+  const pr = crackProgress(id);
+  return `${c.c} ${c.n} — ${crackNeed(id)} (${pr.have}/${pr.need})`;
+};
+
 export function takeRelic(id) {
   const p = G.player;
   if (!p || hasRelic(id)) return false;
@@ -92,6 +154,9 @@ export function takeRelic(id) {
      다르다 — 자리가 모자라 버린 것, 융합으로 합쳐진 것이 여기 남는다.
      「너무 많이 나온다」를 재려면 나온 쪽을 세야 한다. */
   G.relicsTaken = (G.relicsTaken || 0) + 1;
+  /* 융합 유물은 불에서 나온 순간 이미 깨져 있다 — 여기서 한 번 물어
+     보지 않으면 아무 것도 세지 않는 그것들이 영영 안 열린다. */
+  crackWatch();
   const r = relicById(id);
   const first = Meta.see('relics', id);
   say(`${r.n} — ${r.t}`, 'level');
@@ -352,26 +417,36 @@ export function effStats(p) {
   if (!p) return { str:10, int:10, wis:10, dex:10, con:10, chr:10 };
   const s = { ...p.stats };
   const held = p.relics || [];
-
-  // 균형추: the low end comes up to meet the high end. The whole
-  // point of the stat spread, bought with a quarter of your life.
-  if (held.includes('ballast')) {
-    const hi = Math.max(...STATS.map(k => s[k]));
-    for (const k of STATS) s[k] = hi;
-  }
-  if (held.includes('grip'))   { s.str = Math.max(s.str, 20); s.dex = Math.min(s.dex, 6); }
-  if (held.includes('specs'))  { const hi = Math.max(s.int, s.wis); s.int = hi; s.wis = hi; }
-  if (held.includes('acro'))   { s.dex += 6; s.str -= 4; }
-  if (held.includes('bull'))   { s.con += 6; s.chr -= 6; }
-  if (held.includes('mask'))   { s.chr = Math.max(s.chr, 18); for (const k of STATS) if (k !== 'chr') s[k] -= 1; }
-
+  for (const [id, apply] of STAT_RELICS) if (held.includes(id)) apply(s);
   for (const k of STATS) s[k] = clamp(s[k], 1, 26);
   return s;
 }
+/* 능력치를 고쳐 쓰는 여섯. 표로 두는 이유는 순서가 규칙이기 때문이다 —
+   균형추가 먼저 평평하게 만들고 나서 나머지가 그 위에 얹힌다. 그리고
+   여기 if를 여섯 개 늘어놓으면 effStats가 곧 복잡도 15를 넘는다
+   (sim/knots.mjs가 크랙을 넣던 이 커밋에서 바로 잡아냈다). */
+const STAT_RELICS = [
+  // 균형추: the low end comes up to meet the high end. The whole
+  // point of the stat spread, bought with a quarter of your life.
+  ['ballast', s => { const hi = Math.max(...STATS.map(k => s[k])); for (const k of STATS) s[k] = hi; }],
+  ['grip',    s => { s.str = Math.max(s.str, 20); s.dex = Math.min(s.dex, 6); }],
+  ['specs',   s => { const hi = Math.max(s.int, s.wis) + (cracked('specs') ? 4 : 0); s.int = hi; s.wis = hi; }],
+  ['acro',    s => { s.dex += 6; if (!cracked('acro')) s.str -= 4; }],
+  ['bull',    s => { s.con += cracked('bull') ? 10 : 6; s.chr -= 6; }],
+  ['mask',    s => { s.chr = Math.max(s.chr, 18); for (const k of STATS) if (k !== 'chr') s[k] -= 1; }],
+];
 
 /* The one reader. `statB(p, 'str')` replaced every
    `statB(p, 'str')` in the file. */
-export const statB = (p, k) => statBonus(effStats(p)[k]);
+export const statB = (p, k) => {
+  const s = effStats(p);
+  /* ③ 거인의 손아귀 크랙. 능력치를 고치지 않는다 — **민첩이 하던
+     일을 힘이 한다.** 판에 적힌 6은 6인 채이고, 6을 읽으러 오는 쪽이
+     20을 받아 간다. 규칙을 부수는 크랙은 숫자가 아니라 **누가 읽는가**를
+     바꾼다. */
+  if (k === 'dex' && cracked('grip')) return statBonus(Math.max(s.dex, s.str));
+  return statBonus(s[k]);
+};
 
 /* ── gear resolution ──────────────────────────────────────
    Every derived number the player has runs through here, so an
@@ -497,22 +572,30 @@ export function gearBonus(p) {
      than a stat. */
   for (const id of p.relics || []) {
     switch (id) {
-      case 'pact':     b.maxhpPct -= 0.25; b.crit += 0.20; break;
-      case 'chain':    b.ac += 4; b.noStealth = true; break;
-      case 'reckless': b.hitPct *= 0.85; b.critMult += 0.8; break;
+      /* 크랙이 갈리는 자리. 두 번째 계산 경로를 만들지 않고 **같은
+         줄에서** 갈린다 — 크랙용 gearBonus를 따로 두면 그 날로
+         두 곳이 어긋난다. */
+      case 'pact':     if (!cracked('pact')) b.maxhpPct -= 0.25;
+                       b.crit += 0.20; break;
+      case 'chain':    b.ac += 4; if (!cracked('chain')) b.noStealth = true; break;
+      case 'reckless': b.hitPct *= 0.85; b.critMult += cracked('reckless') ? 1.6 : 0.8; break;
       case 'eye':      b.manaFlat -= 3; break;
       case 'vow':      b.dmgPct += 0.30; break;
-      case 'scale':    if (p.hp <= p.maxhp * 0.3) b.dmgPct += 0.60; break;
-      case 'lamp':     b.lightR -= 2; break;
-      case 'everflame': b.maxhpPct -= 0.20; break;
+      case 'scale':    if (p.hp <= p.maxhp * (cracked('scale') ? 0.5 : 0.3))
+                         b.dmgPct += cracked('scale') ? 1.20 : 0.60; break;
+      case 'lamp':     b.lightR += cracked('lamp') ? 2 : -2; break;
+      case 'everflame': if (!cracked('everflame')) b.maxhpPct -= 0.20; break;
       case 'moth':     b.maxhpPct -= 0.10; break;
       case 'knot':     b.stealth -= 0.5; break;
       case 'seed':     b.maxhpPct -= 0.15; b.ac += p.seedAc || 0; break;
-      case 'grudge':   b.dmgPct += Math.min(0.60, (p.grudge || 0) * 0.04); break;
+      case 'grudge':   b.dmgPct += Math.min(cracked('grudge') ? 1.20 : 0.60,
+                                            (p.grudge || 0) * 0.04); break;
       // The stat relics pay for themselves in health, not in
       // a second stat — see effStats() for what they actually do.
       case 'specs':    b.maxhpPct -= 0.20; break;
-      case 'ballast':  b.maxhpPct -= 0.25; break;
+      case 'ballast':  if (!cracked('ballast')) b.maxhpPct -= 0.25; break;
+      case 'nighteye': if (cracked('nighteye') && G.depth > 0 && p.lightTurns <= 0)
+                         b.dmgPct += 0.25; break;
 
       /* Fused. Each one is its two halves with the downside
          deepened and the upside paid out — a fused relic is not
@@ -648,6 +731,7 @@ function bumpCombo(x, y) {
   G.combo++;
   G.comboT = 14 + (G.player?.perm?.comboHold || 0);
   if (G.combo > G.bestCombo) G.bestCombo = G.combo;
+  ledgerPeak('combo', G.combo);
   for (const [n, msg] of COMBO_TIERS)
     if (G.combo === n) { say(msg, 'level'); fx({ t:'comboTier', x, y, n }); }
 }
@@ -831,7 +915,18 @@ export function hurtPlayer(dmg, opt = {}) {
      합쳐지고, 상처가 천장을 줄이고, 레벨업이 천장을 늘린다) 나서야
      이 방법에 도달했다. */
   G.blowRatio = Math.max(G.blowRatio || 0, taken / cap);
+  /* ③ 사슬 갑주 크랙. 층마다 **첫 한 대는 사슬이 받는다.** 피해
+     상한과 같은 자리에 두는 이유는 하나다 — 체력을 깎는 열한 군데가
+     전부 이 깔때기를 지나므로, 여기 두면 어디서 맞아도 같다. */
+  if (cracked('chain') && !G.chainGuard) {
+    G.chainGuard = 1;
+    fx({ t:'resist', x:p.x, y:p.y });
+    say('사슬이 대신 울렸다.', 'good');
+    if (opt.combo !== false) breakCombo(false);
+    return 0;
+  }
   G.funnelled = (G.funnelled || 0) + taken;
+  ledger('hit');
   p.hp -= taken;
   if (opt.combo !== false) breakCombo(false);
   tookHit(taken, over);
@@ -879,7 +974,7 @@ function tookHit(dmg = 0, over = 0) {
     say(`상처가 남았다. 견딜 수 있는 몸이 ${w}만큼 줄었다.`, 'hit');
     fx({ t:'ail', x:p.x, y:p.y, kind:'wound' });
   }
-  if (hasRelic('grudge')) p.grudge = Math.min(15, (p.grudge || 0) + 1);
+  if (hasRelic('grudge')) p.grudge = Math.min(cracked('grudge') ? 30 : 15, (p.grudge || 0) + 1);
   /* 맹세 (팔라딘). Every blow taken hardens him a little more.
      Sits here rather than in the two damage sites so it counts
      an arrow the same as an axe. */
@@ -954,6 +1049,7 @@ function breakCombo(hard) {
   if (!G.combo) return;
   // 전쟁 북: a hit costs a quarter of the chain rather than half.
   if (hasRelic('march') && !hard) return;
+  if (!hard && cracked('drum')) return;
   const left = hard ? 0 : (hasRelic('drum') ? Math.round(G.combo * 0.75) : G.combo >> 1);
   if (left < G.combo) fx({ t:'comboDrop', from: G.combo, to: left });
   G.combo = left;
@@ -1033,6 +1129,7 @@ export const healScale = () => {
    세면 언젠가 「마셨는데 안 세는」 물약이 생긴다. */
 export function tookDraught() {
   G.gulped = (G.gulped || 0) + 1;
+  ledger('gulp');
   if (G.gulped === 3) say('세 번째다. 몸이 아까만큼 답하지 않는다.', 'warn');
 }
 
@@ -1394,12 +1491,15 @@ export function useItem(slotIdx) {
   // that makes the potions you were already hoarding matter.
   // 짧은 심지 turns the same act into an attack and takes the
   // healing back — a flask becomes a tactic, not a top-up.
-  const gulp = (hasRelic('gut') || hasRelic('famine') ? 2 : 1) * (hasRelic('wick') ? 0.7 : 1);
+  const gulp = (cracked('gut') && hasRelic('gut') ? 3
+              : hasRelic('gut') || hasRelic('famine') ? 2 : 1)
+             * (hasRelic('wick') && !cracked('wick') ? 0.7 : 1);
   if (hasRelic('wick') && it.spr === 'potion') {
-    const burn = relicVal('wick') + G.depth;
-    const near = adjacentMonsters(p);
+    const burn = (relicVal('wick') + G.depth) * (cracked('wick') ? 2 : 1);
+    const reach = cracked('wick') ? 2 : 1;
+    const near = G.monsters.filter(o => Math.max(Math.abs(o.x - p.x), Math.abs(o.y - p.y)) <= reach);
     if (near.length) {
-      fx({ t:'burst', x:p.x, y:p.y, r:1.6, color:'o' });
+      fx({ t:'burst', x:p.x, y:p.y, r: reach * 1.6, color:'o' });
       for (const o of near) hurtMonster(o, burn, '짧은 심지', {});
     }
   }
@@ -2057,6 +2157,7 @@ export function cast(spellId) {
      **다른 통화**가 되고, 시전자는 마르는 대신 죽어 간다. */
   const bled = bloodPrice(p, cost);
   if (bled < 0) return;              // 낼 수 없다 — 이유는 bloodPrice가 말했다
+  ledger('spell');
 
   /* 잔향 is read before anything is spent, because 지형 changes
      what counts as a target and 자취 changes whether this cast
@@ -2227,7 +2328,7 @@ export const spellPower = (p, id) =>
   (1 + (p.spellPlus?.[id] || 0) * 0.22
      + gearBonus(p).spellPow
      + (SPELL_AFFIXES.find(a => a.id === p.spellAffix?.[id])?.powPct || 0))
-  * (hasRelic('paradox') ? 0.55 : hasRelic('twin') ? 0.8 : 1);
+  * (hasRelic('paradox') ? 0.55 : hasRelic('twin') && !cracked('twin') ? 0.8 : 1);
 
 export const spellCost = (p, sp) => {
   const a = SPELL_AFFIXES.find(x => x.id === p.spellAffix?.[sp.id]);
@@ -2265,15 +2366,20 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     G.player.hp = Math.min(G.player.hp, G.player.maxhp);
   }
   G.depth = depth;
+  if (depth > 0) crackFloorTick();
   G.deepest = Math.max(G.deepest || 0, depth);
   G.branch = branch || BRANCHES[0];
+  /* 층을 만들기 전에 규칙이 편향을 건넨다. 항아리가 깨졌으면 불이
+     반드시 서고, 나방이 깨졌으면 시설 하나가 더 선다. */
+  setFacilityBias({ camp: cracked('ember'), extra: cracked('moth') });
   G.level = new Level(depth, G.branch);
   G.monsters = [];
   G.items = [];
   G.floorTurn = 0;
   G.waves = 0;
+  G.chainGuard = 0;                 // ③ 사슬 갑주 — 층마다 한 대
   G.hazards = []; G.snares = []; G.sanctum = null;
-  G.campUses = 1 + (hasRelic('ember') ? 1 : 0);
+  G.campUses = 1 + (hasRelic('ember') ? (cracked('ember') ? 2 : 1) : 0);
   G.tideUsed = false;
   /* ── 이 층의 과업 ────────────────────────────────────────
      계단을 찾는 것 말고 할 일을 하나 준다. 자세한 이유는 data.js의
@@ -2326,6 +2432,10 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   /* 재촉하는 과업. 계단을 지도에 찍어 주고 시계를 반으로 줄인다 —
      「어디로 갈지」가 사라지므로 남는 결정은 「무엇을 버리고 갈지」다.
      잠그지 않으므로 stairsLocked는 이쪽을 안 본다. */
+  /* ③ 부러진 나침반의 크랙. 함정은 여전히 안 보인다 — 부러진 바늘이
+     보는 것은 계단 하나뿐이고, 그것이 이 유물의 이야기다. */
+  if (cracked('compass'))
+    for (let i = 0; i < L.tiles.length; i++) if (L.tiles[i] === DOWN) L.seen[i] = 1;
   if (G.task?.rush) {
     G.taskDone = true;
     for (let i = 0; i < L.tiles.length; i++) if (L.tiles[i] === DOWN) L.seen[i] = 1;
@@ -2411,7 +2521,8 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     if (n) say(`나방이 ${n}곳으로 날아갔다.`, 'good');
   }
   // 뱃사공의 동전 takes its cut on the way down.
-  if (depth > 0 && (hasRelic('toll') || hasRelic('ledger')) && p.gold > 0) {
+  if (depth > 0 && p.gold > 0
+      && ((hasRelic('toll') && !cracked('toll')) || (hasRelic('ledger') && !cracked('ledger')))) {
     const rate = hasRelic('ledger') ? 0.20 : 0.10;
     const fee = Math.ceil(p.gold * rate);
     p.gold -= fee;
@@ -2419,7 +2530,7 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   }
   // 돌씨 hardens a little every floor, for the whole run.
   if (depth > 0 && hasRelic('seed')) {
-    p.seedAc = (p.seedAc || 0) + 1;
+    p.seedAc = (p.seedAc || 0) + (cracked('seed') ? 2 : 1);
     recalc(p);
     say(`돌씨가 자란다. 방어 +${p.seedAc}.`, 'good');
   }
@@ -2444,7 +2555,7 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
      손에서 이 단검은 대검을 넘어선다. */
   // G.ashCount는 이제 판 단위다 — 층에서 안 지운다.
   G.hushUntil = -1;
-  if (depth > 0) p.grudge = 0;      // 앙심 forgets between floors
+  if (depth > 0 && !cracked('grudge')) p.grudge = 0;   // 앙심 forgets between floors — 크랙 전까지만
   if (depth > 0) { p.oath = 0; p.chain3 = 0; p.markN = 0; p.chainOn = null; p.markOn = null; }
 
   /* The wager climbs with every floor you take without sitting
@@ -3085,6 +3196,7 @@ export function fallenTake(id) {
   } else if (id === 'purse') {
     p.gold += rec.gold;
     G.goldEarned = (G.goldEarned || 0) + rec.gold;
+    ledger('gold', rec.gold);
     say(`${rec.gold}닢을 거뒀다.`, 'good');
     fx({ t:'found', x:p.x, y:p.y, rar:1 });
   } else if (id === 'relic' && rec.relic) {
@@ -3425,6 +3537,11 @@ export function closeDoor() {
 /* Noise wakes things. Volume 0..1 scales the chance so that
    shouldering a stuck door is quieter than smashing one. */
 function rouse(x, y, radius, volume) {
+  /* ③ 침묵의 서약의 크랙. 이 게임에서 소리는 정보이자 무기다 —
+     문을 부수고, 외치고, 미끼를 놓는다. 서약이 깨지면 그 통로가
+     통째로 닫힌다: 잠든 것은 **보아야만** 깨어난다. 대신 미끼도
+     못 놓는다 — 규칙을 부수는 크랙은 양쪽을 부순다. */
+  if (cracked('vow')) return 0;
   let woke = 0;
   for (const m of G.monsters) {
     const d = Math.hypot(m.x - x, m.y - y);
@@ -3537,6 +3654,23 @@ function springTrap(x, y, trap) {
   }
   L.traps.delete(idx(x, y));
   G.trapsSprung++;
+  ledger('trap');
+  /* ③ 도굴꾼의 장갑 크랙. 이 게임에서 함정은 값을 받는 칸이다 —
+     이 장갑은 그 칸을 **주는 칸으로 바꾼다.** 함정을 못 보는 대가는
+     그대로 남고, 못 보는 것이 이제 이득이 된다. */
+  if (cracked('glove')) {
+    say('장갑이 발밑을 파헤친다. 함정이 아니라 묻힌 것이었다.', 'good');
+    fx({ t:'spot', x, y });
+    dropFromProp(x, y, 1, true);
+    return false;
+  }
+  /* ① 매듭 밧줄의 크랙. 거미줄과 구덩이만 통하던 밧줄이 **전부**
+     통한다 — 부러진 나침반과 같은 자리에 선다, 눈은 뜬 채로. */
+  if (cracked('knot')) {
+    say('밧줄이 발보다 먼저 걸렸다.', 'good');
+    fx({ t:'resist', x, y });
+    return false;
+  }
   // 부러진 나침반: you walk into every one of them and none of
   // them matter. Blind and immune is a build, not a handicap.
   if (hasRelic('compass') || hasRelic('oracle')) {
@@ -4233,7 +4367,7 @@ function swing(m, scale, opt = {}) {
 
   // 낙인: sharpened against the things that telegraph, blunted
   // against everything else.
-  if (hasRelic('brand')) dmg *= (m.elite?.length || m.boss) ? 1.5 : 0.85;
+  if (hasRelic('brand')) dmg *= (m.elite?.length || m.boss) ? (cracked('brand') ? 2 : 1.5) : 0.85;
   // 진노의: the same idea without the downside, which is what
   // makes a 은총 a 은총 and not an affix.
   if (hasBoon('wrath') && (m.elite?.length || m.boss || m.named)) dmg *= 1.35;
@@ -4266,6 +4400,7 @@ function swing(m, scale, opt = {}) {
   const crit = asleep || forced
     || Math.random() < critChance(p) + (kind === 'dagger' ? 0.08 : 0);
   if (crit) {
+    ledger('crit');
     dmg *= critMult(p) * (asleep ? 1.5 : 1);
     /* 치명타는 원래 숫자가 붉게 뜨지만, **왜 자주 뜨는지**는 안 나온다.
        예리한·파멸은 그 확률과 배수에만 사는 속성이라, 이름을 한 번
@@ -4369,13 +4504,18 @@ function swing(m, scale, opt = {}) {
      streak with the right two suffixes turns one tap into a
      room-clearing cascade. That is the absurd combination this
      relic exists to make possible. */
-  if ((hasRelic('echo') || hasRelic('march')) && G.combo >= (hasRelic('march') ? relicVal('march') : relicVal('echo'))
-      && G.monsters.includes(m) && !p.echoing) {
-    p.echoing = true;
+  /* 크랙이 나면 문턱이 3으로 내려가고, **울린 것이 다시 울릴 수
+     있다** — 다만 두 번까지다. 무한 재귀는 재미가 아니라 정지다. */
+  const echoAt = hasRelic('march') ? relicVal('march')
+               : cracked('echo') ? 3 : relicVal('echo');
+  const echoDepth = cracked('echo') ? 2 : 1;
+  if ((hasRelic('echo') || hasRelic('march')) && G.combo >= echoAt
+      && G.monsters.includes(m) && (p.echoing || 0) < echoDepth) {
+    p.echoing = (p.echoing || 0) + 1;
     fx({ t:'arc', fx:p.x, fy:p.y, tx:m.x, ty:m.y });
     say('종이 한 번 더 울렸다.', 'level');
     playerAttack(m);
-    p.echoing = false;
+    p.echoing--;
   }
   return true;
 }
@@ -4398,6 +4538,7 @@ export const goldGain = n => {
       * (hasRelic('toll') || hasRelic('ledger') ? 2 : 1) * (hasRelic('quill') ? 0.75 : 1)
       * (hasBoon('hoard') ? 1.6 : 1)));
   G.goldEarned = (G.goldEarned || 0) + got;
+  ledger('gold', got);
   return got;
 };
 
@@ -4414,7 +4555,7 @@ function onKill(m) {
   if (hasUnique('ashcount')) G.ashCount = (G.ashCount || 0) + 1;
   if (UNDEAD.includes(m.spr)) faithGain(FAITH_PER_UNDEAD);
   feedOnKill(p);
-  if (hasRelic('bone') && (p.boneHp || 0) < 30) {
+  if (hasRelic('bone') && (cracked('bone') || (p.boneHp || 0) < 30)) {
     p.boneHp = (p.boneHp || 0) + 1;
     recalc(p);
     p.hp += 1;
@@ -4686,6 +4827,8 @@ export function hurtMonster(m, dmg, source, opt = {}) {
     }
     fx({ t:'kill', x:m.x, y:m.y, spr:m.spr, dmg, crit:!!opt.crit, over, boss:!!m.boss, combo:G.combo });
     G.kills = (G.kills || 0) + 1;
+    ledger('kill');
+    if (m.elite?.length || m.boss) ledger('elite');
     quarry(m);
     /* One more body in the ledger. The count is what buys the
        tells — a monster you have met is in the codex, a monster
@@ -4710,7 +4853,7 @@ export function hurtMonster(m, dmg, source, opt = {}) {
         G.items.push({ ...rec.weapon, x:m.x, y:m.y });
         fx({ t:'drop', x:m.x, y:m.y, rar: rarityOf(rec.weapon) });
       }
-      if (rec.gold) { G.player.gold += rec.gold; G.goldEarned = (G.goldEarned || 0) + rec.gold; }
+      if (rec.gold) { G.player.gold += rec.gold; G.goldEarned = (G.goldEarned || 0) + rec.gold; ledger('gold', rec.gold); }
       if (rec.relic) {
         const at = freeSpotNear(m.x, m.y);
         if (at) { G.items.push({ kind:'relic', id:rec.relic, spr: relicById(rec.relic).spr,
@@ -5069,6 +5212,10 @@ export function endTurn(skipMonsters = false) {
       if (!G.running) return;
     } else say('일어섰다. 빚은 없었다.', 'good');
   }
+  /* ③ 심연의 눈·눈먼 예언자의 크랙. 새 표시 경로를 만들지 않고
+     이미 있는 깔때기를 매 턴 되살린다 — 그리는 쪽은 「감지 중」
+     하나만 알면 된다. */
+  if (cracked('eye') || cracked('oracle')) G.detectPulse = 2;
   if (G.detectPulse > 0) G.detectPulse--;
 
   if (G.comboT > 0 && --G.comboT === 0) breakCombo(true);
@@ -5099,7 +5246,7 @@ export function endTurn(skipMonsters = false) {
     if (!hasRelic('lamp'))
       p.lightTurns -= (G.branch?.drain || 1) * OIL_BURN(G.depth)
         * (packLoad(p) >= LADEN_AT ? 2 : 1)
-        * (hasRelic('famine') ? 3 : hasRelic('hunger') ? 2 : 1)
+        * (hasRelic('famine') ? 3 : hasRelic('hunger') && !cracked('hunger') ? 2 : 1)
         + (hasShackle('hunger') && G.turn % 10 < 3 ? 1 : 0);
     if (p.lightTurns === 640) say('불빛이 한 뼘 줄었다. 벽이 가까워진 것은 아니다.', 'warn');
     if (p.lightTurns === 360) say('기름이 절반쯤 남았다.', 'warn');
@@ -5194,7 +5341,8 @@ export function endTurn(skipMonsters = false) {
    It just makes standing still the losing move. */
 export function floorBudget() {
   return Math.max(60, Math.round(
-    FLOOR_BUDGET(G.depth) * (G.branch?.clock || 1) * (hasRelic('thief') ? 0.65 : 1)));
+    FLOOR_BUDGET(G.depth) * (G.branch?.clock || 1)
+      * (hasRelic('thief') ? (cracked('thief') ? 1.35 : 0.65) : 1)));
 }
 
 export const pressureLevel = () => {
@@ -5690,7 +5838,7 @@ function reflect(m, dmg) {
   // 거울 방패 and 가시의 각인 stack — one funnel so they can never
   // be applied twice or missed once.
   const g = gearBonus(G.player);
-  const rate = (hasRelic('mirror') ? relicVal('mirror') : 0) + g.reflect;
+  const rate = (hasRelic('mirror') ? (cracked('mirror') ? 1 : relicVal('mirror')) : 0) + g.reflect;
   if (rate <= 0) return;
   /* 가시밭 prices the thorn on what the armour *stopped* rather
      than on what got through, so the tankier the build the harder
@@ -6732,7 +6880,9 @@ export function anvilEnchant(key, reroll, cat = null) {
   /* 빈 물건에 거는 것은 싸고 안전하고, 이미 둘 다 붙은 물건을 다시
      건드리는 것은 도박이다. 그래야 「지금 멈출까」가 매번 결정이 된다. */
   const worn = (it.pre ? 1 : 0) + (it.suf ? 1 : 0);
-  const cursed = !reroll && c?.id !== 'seal'
+  /* ① 서기의 깃펜 크랙. 판별하는 펜이 **적는 펜**이 된다 — 적힌
+     것은 나쁘게 나오지 않는다. 인챈트의 도박에서 나쁜 면이 사라진다. */
+  const cursed = !reroll && c?.id !== 'seal' && !cracked('quill')
               && Math.random() < ENCHANT_CURSE + ENCHANT_CURSE_STEP * worn;
 
   let usePrefix = Math.random() < 0.5;
@@ -6847,7 +6997,7 @@ function eventApi() {
     chance: q => Math.random() < q,
 
     /* state queries the gates use */
-    hasRelic,
+    hasRelic, cracked, crackHint, crackProgress, crackOf,
     hasAffix: key => (gearBonus(p)[key] || 0) > 0,
     canCast: () => spellList(p).length > 0,
     has: cost => canAfford(cost),
@@ -7624,8 +7774,12 @@ export const priceOf = (item, buying) => {
      값에도 나와야 그 수레가 기억에 남는다. 파는 값에는 안 건다:
      이쪽은 사람의 물건이지 수레의 물건이 아니다. */
   const cart = (buying && G.shop?.wander) ? (wanderLoad()?.cut ?? 1) : 1;
+  /* ③ 웃는 가면의 크랙. 매력 18은 값을 몇 푼 깎을 뿐이었는데 —
+     굳은 얼굴이 값의 절반을 깎는다. 파는 값은 안 건드린다: 양쪽을
+     다 뒤집으면 상인이 자선 사업가가 된다. */
+  const face = (buying && cracked('mask')) ? 0.5 : 1;
   const swing = (buying ? mood.buy(G.player) * (hag?.cut ?? 1)
-                        : mood.sell(G.player)) * cart;
+                        : mood.sell(G.player)) * cart * face;
   return buying
     ? Math.max(1, Math.round(base * (1.25 - chrB * 0.03) * mk * swing))
     : Math.max(1, Math.round(base * (0.42 + chrB * 0.02) / mk * swing));
@@ -7764,6 +7918,16 @@ function death(killer) {
      inside it. Checked here for the same reason 역류의 is: eleven
      things can bring you to zero and none of them should have to
      know about this. */
+  /* ③ 순교자의 맹세 크랙. 이 게임에서 죽음은 되돌릴 수 없다 —
+     그 한 줄을 판에 딱 한 번 부순다. 되살아나는 자리는 절반이고,
+     맹세가 원래 지불하던 −40%는 그대로다. */
+  if (cracked('martyr') && !G.martyred) {
+    G.martyred = 1;
+    p.hp = Math.max(1, Math.round(p.maxhp * 0.5));
+    fx({ t:'martyrHold', x:p.x, y:p.y });
+    say('맹세가 마지막 줄까지 탔다. 일어선다.', 'level');
+    return;
+  }
   if (p.martyr > 0) {
     p.martyrDebt = (p.martyrDebt || 0) + (1 - p.hp);
     p.hp = 1;
@@ -7834,6 +7998,8 @@ export function startGame(raceKey, classKey, base) {
   G.log = []; G.turn = 0; G.running = true; G.ending = null;
   G.fx = []; G.combo = 0; G.comboT = 0; G.bestCombo = 0;
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0; G.kills = 0; G.eventsSeen = 0;
+  G.ledger = {}; G.cracks = {}; G.relicFloors = {}; G.chainGuard = 0; G.mothHop = 0;
+  G.martyred = 0;
   G.regionAt = null;
   G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0; G.fused = 0; G.catUsed = 0;
   G.did = {}; G.act = null; G.lit = {}; G.uproar = 0; G.uproarTier = 0;

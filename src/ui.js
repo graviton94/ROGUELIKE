@@ -1645,6 +1645,32 @@ function paintSlotRow(row, slots) {
 
 /* 지금 들고 있는 것들. 살펴보기 카드를 그대로 빌려 쓴다 — 읽는
    창이 하나면 밀어내기도 한 곳에서만 손보면 된다. */
+/* 크랙 한 줄. 열렸으면 무엇이 깨졌는지, 아직이면 **무엇을 세고 있고
+   얼마나 왔는지** 같은 자리에 쓴다. 조건을 숨기면 크랙은 우연이 되고,
+   우연은 빌드가 안 된다 — 세는 것이 보여야 그쪽으로 논다. */
+function crackRow(id) {
+  const c = Game.crackOf(id);
+  if (!c) return null;
+  const on = Game.cracked(id);
+  const row = el('div', 'crackline' + (on ? ' lit' : ''));
+  row.appendChild(el('span', 'crackcat', c.c));
+  const b = el('div', 'crackbody');
+  b.appendChild(el('span', 'crackname', c.n));
+  if (on) {
+    b.appendChild(el('span', 'cracktext', c.t.replace(/\*\*/g, '')));
+  } else {
+    const pr = Game.crackProgress(id);
+    b.appendChild(el('span', 'cracktext dim',
+      `${Game.crackHint(id).split(' — ')[1] || ''}`));
+    const bar = el('div', 'crackbar');
+    const fill = el('div', 'crackfill');
+    fill.style.width = `${Math.min(100, Math.round(pr.have / pr.need * 100))}%`;
+    bar.appendChild(fill); b.appendChild(bar);
+  }
+  row.appendChild(b);
+  return row;
+}
+
 function showRelicList() {
   const held = Game.relicList();
   if (!held.length) return;
@@ -1664,6 +1690,7 @@ function showRelicList() {
     const box = el('div', 'codextext');
     box.appendChild(el('div', 'iname', r.n));
     box.appendChild(el('div', 'idesc', r.t || ''));
+    const ck = crackRow(r.id); if (ck) box.appendChild(ck);
     row.appendChild(box);
     rows.appendChild(row);
   }
@@ -2682,6 +2709,7 @@ function renderInventory() {
     const mid = el('div', 'imid');
     mid.appendChild(el('span', 'iname magic', r.n));
     mid.appendChild(el('span', 'idesc', r.t));
+    const ck = crackRow(r.id); if (ck) mid.appendChild(ck);
     row.appendChild(mid);
     rl.appendChild(row);
   }
@@ -3046,7 +3074,12 @@ function affixBlurb(it) {
   const odd = Game.oddityOf(G.player, it);
   if (odd) parts.unshift(`❉ ${odd.n} — ${odd.t}`);
   // A named weapon leads with its rule; the name is the affix.
-  if (it.unique) parts.unshift(it.rule);
+  if (it.unique) {
+    /* 크랙은 이 물건이 다른 장비와 다른 이유 그 자체인데, 표에만
+       적혀 있고 화면에 한 번도 안 나왔다. 규칙 위에 올린다. */
+    if (it.crackN) parts.unshift(`✧ ${it.crack} ${it.crackN} — ${it.crackT.replace(/\*\*/g, '')}`);
+    parts.unshift(it.rule);
+  }
   // Rules first, numbers after: the 은총 and the engravings change
   // what the item does, the affixes only change how much.
   for (const id of [...(it.engrave || [])].reverse())
@@ -3437,6 +3470,7 @@ function renderFuse() {
     if (r.fused) nm.classList.add('transcend');
     mid.appendChild(nm);
     mid.appendChild(el('span', 'idesc', r.t));
+    const ck = crackRow(r.id); if (ck) mid.appendChild(ck);
     row.appendChild(mid);
     row.appendChild(el('span', 'iact', on ? '넣음' : ''));
     row.onclick = () => {
@@ -4054,6 +4088,7 @@ export function renderRelicSwap() {
     const mid = el('div', 'imid');
     mid.appendChild(el('span', 'iname magic', r.n));
     mid.appendChild(el('span', 'idesc', r.t));
+    const ck = crackRow(r.id); if (ck) mid.appendChild(ck);
     row.appendChild(mid);
     row.appendChild(el('span', 'iact', '버린다'));
     row.onclick = () => { Game.swapRelic(i); setScreen('play'); refresh(); };

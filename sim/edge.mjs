@@ -49,27 +49,51 @@ function hero(cls, depth) {
   if (b) b.plus = Math.min(8, Math.round(depth * 0.4));
   Game.recalc(p);
   p.hp = p.maxhp; p.mana = p.maxmana;
-  const L = G.level;
+  stage(depth);
+  Game.recalc(p); Game.refreshFov();
+  return p;
+}
+/* 이 층의 평범한 몬스터 하나.
+
+   ── 이걸 손으로 만들다가 자를 세 번째로 틀렸다 ────────────
+   처음에는 표에서 종을 하나 고르고 배율을 직접 곱해서 만들었다.
+   그랬더니 12·15층 명중률이 10%로 나왔는데, 같은 층의 **실제 스폰**을
+   재면 46%다. 손으로 만든 몬스터는 그 층에 실제로 서는 몬스터가
+   아니었다(정예도 없고, 풀의 가중치도 무시하고, scaleMonster 를
+   안 지난다).
+
+   그래서 층을 진짜로 만들고 거기 선 것을 데려온다. 이 파일이 재려는
+   것은 「이 층이 얼마나 위험한가」이고, 그 답은 생성기만 안다.  */
+const REAL = {};
+function foe(depth, at = 1) {
+  const p = G.player;
+  /* 층을 한 번 만들어 그 층의 몬스터 명단을 떠 둔다(층마다 한 번). */
+  if (!REAL[depth]) {
+    const keep = { x: p.x, y: p.y };
+    const list = [];
+    for (let t = 0; t < 12; t++) {
+      Game.enterDepth(depth);
+      for (const m of G.monsters) if (!m.boss) list.push({ ...m });
+    }
+    REAL[depth] = list;
+    /* 층을 다시 만들었으므로 무대를 복구한다. */
+    stage(depth); p.x = keep.x; p.y = keep.y;
+  }
+  const src = REAL[depth][Math.floor(Math.random() * REAL[depth].length)];
+  const m = { ...src, x: p.x + at, y: p.y, awake: true, energy: 0,
+    hp: src.maxhp, mark: null, home: null };
+  G.monsters.push(m);
+  return m;
+}
+/* 무대만 다시 세운다 — hero() 는 능력치까지 다시 굴리므로 여기서
+   쓰면 재는 대상이 매번 달라진다. */
+function stage(depth) {
+  const L = G.level, p = G.player;
   for (let i = 0; i < L.tiles.length; i++) L.tiles[i] = W.ROCK;
   for (let x = 3; x <= 40; x++) L.tiles[W.idx(x, 12)] = W.FLOOR;
   p.x = 10; p.y = 12; p.lightTurns = 900;
   G.monsters.length = 0;
-  Game.recalc(p); Game.refreshFov();
-  return p;
-}
-/* 이 층의 평범한 몬스터 하나. 실제 스폰 표에서 뽑는다 — 손으로
-   적으면 그 순간 이 파일이 재는 것은 세계가 아니라 내 상상이 된다. */
-function foe(depth, at = 1) {
-  const pool = D.MONSTERS.filter(m => m.d <= depth && m.d >= depth - 4 && !m.boss);
-  const spec = pool[pool.length >> 1] || D.MONSTERS[0];
-  const p = G.player;
-  const grow = Math.pow(1.017, Math.max(0, depth - spec.d));
-  const m = { ...spec, hp: Math.round(spec.hp * grow), maxhp: Math.round(spec.hp * grow),
-    atk: Math.round(spec.atk * Math.pow(1.015, Math.max(0, depth - spec.d))),
-    ac: Math.round((spec.ac || 0) * Math.pow(1.020, Math.max(0, depth - spec.d))),
-    x: p.x + at, y: p.y, awake: true, energy: 0 };
-  G.monsters.push(m);
-  return m;
+  Game.refreshFov();
 }
 
 console.log('\n날 벤치 — 평타보다 나은 것이 있는가\n');

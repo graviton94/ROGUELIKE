@@ -307,7 +307,13 @@ export function recalc(p, init) {
     p.maxmana = Math.max(0, Math.floor((b + 1) * Math.ceil(p.lv / 2) * 1.7));
   } else p.maxmana = 0;
   const g = gearBonus(p);
-  p.maxhp = Math.max(8, Math.round(p.maxhp * (1 + g.maxhpPct)) + (p.boneHp || 0) + (p.permHp || 0));
+  /* 크랙이 부풀린 몫은 여기서 더한다. 처음에는 `p.maxhp += add`로
+     직접 올렸는데, 천장은 **파생값**이라 다음 recalc 한 번에 지워진다 —
+     그러면 장부(G.famineSwell)만 남아서 층을 내려갈 때 있지도 않은
+     몫을 도로 빼앗아 간다. 벤치가 그것을 잡았다(25 → 55 → 15).
+     파생값은 파생되는 자리에서 더해야 한다. */
+  p.maxhp = Math.max(8, Math.round(p.maxhp * (1 + g.maxhpPct)) + (p.boneHp || 0) + (p.permHp || 0)
+    + (G.famineSwell || 0));
   /* ── 상처 ────────────────────────────────────────────────
      체력은 차오르지만 차오를 수 있는 높이가 낮아진다. 재 보니 판의
      60%를 체력 90~100%에서 보내고 30% 아래는 0%였다 — 몸이 안 닳으니
@@ -513,7 +519,7 @@ export function gearBonus(p) {
          a better relic, it is a more extreme one. */
       case 'martyr':   b.maxhpPct -= 0.40; b.crit += 0.25; b.critMult += 1.2; b.hitPct *= 0.90; break;
       case 'paradox':  b.dmgPct += 0.20; break;
-      case 'oracle':   b.manaFlat -= 6; b.lightR -= 2; break;
+      case 'oracle':   b.manaFlat -= 3; b.lightR -= 2; break;
     }
   }
   return b;
@@ -2045,7 +2051,12 @@ export function cast(spellId) {
   // damage in the hand — the sharpest build commitment here.
   if (hasRelic('vow')) { say('서약이 혀를 막는다. 주문은 나오지 않는다.', 'warn'); return; }
   const cost = spellCost(p, sp);
-  if (p.mana < cost) { say('마나가 모자란다.', 'warn'); return; }
+  /* ② 크랙 「마르지 않는다」. 지팡이가 지불하는 값은 하나다 — 마나가
+     마르면 시전자는 몽둥이를 든 사람이 된다. 이 지팡이는 그 줄을
+     지운다: 모자란 만큼을 **피로 낸다.** 그러면 마나는 자원이 아니라
+     **다른 통화**가 되고, 시전자는 마르는 대신 죽어 간다. */
+  const bled = bloodPrice(p, cost);
+  if (bled < 0) return;              // 낼 수 없다 — 이유는 bloodPrice가 말했다
 
   /* 잔향 is read before anything is spent, because 지형 changes
      what counts as a target and 자취 changes whether this cast
@@ -2065,7 +2076,15 @@ export function cast(spellId) {
      a routine one. */
   if (TARGETED.includes(sp.id) && !nearest) { say('시야에 적이 없다.', 'warn'); return; }
 
-  p.mana -= cost;
+  p.mana = Math.max(0, p.mana - cost);
+  if (bled) {
+    /* 피로 낸 것도 한 대다 — 단일 깔때기를 지난다. 여기서 죽을 수
+       있고, 죽어야 한다: 낼 수 없는 값을 냈으니까. */
+    say(`등불이 피를 받아 갔다. 체력 −${bled}.`, 'warn');
+    fx({ t:'ail', x:p.x, y:p.y, kind:'fear' });
+    hurtPlayer(bled, { by:'마지막 등불', combo:false });
+    if (!G.running) return;
+  }
   G.act = 'cast';                 // 마나가 실제로 나간 지점에서만 센다
   // 술사의 지팡이: the rod gives one back. Small, constant, and
   // the reason a mage keeps a wand in hand rather than a sword.
@@ -2235,6 +2254,16 @@ function spellDrain(aff, dmg) {
 
 /* ── level flow ─────────────────────────────────────────── */
 export function enterDepth(depth, fromBelow = false, branch = null) {
+  /* 허기로 부푼 몫은 한 층만 간다. 층에 들어서는 이 자리에서
+     되돌린다 — 처음에는 판 시작 자리에 넣었는데, 그러면 판이 끝날
+     때까지 안 빠져서 크랙이 아니라 무한 성장이 된다(벤치가 잡았다).
+     무한은 설계가 아니다. */
+  G.promiseFloor = 0;
+  if (G.famineSwell && G.player) {
+    G.famineSwell = 0;
+    recalc(G.player);
+    G.player.hp = Math.min(G.player.hp, G.player.maxhp);
+  }
   G.depth = depth;
   G.deepest = Math.max(G.deepest || 0, depth);
   G.branch = branch || BRANCHES[0];
@@ -2409,7 +2438,11 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     }
   }
   G.tally = 0;                      // 처형인의 셈 starts over each floor
-  G.ashCount = 0;                   // and so does 재를 세는 자
+  /* ① 크랙 「셈이 끝나지 않는다」. 예전에는 층마다 지웠다 — 그것이
+     이 칼의 값이자 한계였다. 크랙은 그 한계를 지운다: 판이 끝날
+     때까지 센다. 여덟마다 주사위가 한 면씩 커지므로, 오래 든 사람의
+     손에서 이 단검은 대검을 넘어선다. */
+  // G.ashCount는 이제 판 단위다 — 층에서 안 지운다.
   G.hushUntil = -1;
   if (depth > 0) p.grudge = 0;      // 앙심 forgets between floors
   if (depth > 0) { p.oath = 0; p.chain3 = 0; p.markN = 0; p.chainOn = null; p.markOn = null; }
@@ -2756,6 +2789,69 @@ function rollOddity(it) {
 }
 
 export const hasUnique = id => G.player?.equip?.weapon?.unique === id;
+
+/* ── 크랙 ────────────────────────────────────────────────
+   이름 붙은 것 하나마다 규칙을 하나씩 부순다. 여기 모아 두는 이유는
+   깔때기 때문이다 — 「이 무기가 지금 몇 면짜리인가」를 묻는 자리가
+   피해식·카드·배낭·벤치 넷인데, 넷이 각자 계산하면 언젠가 갈린다. */
+export function crackDice(w) {
+  if (!w) return [1, 3];
+  if (w.unique === 'ashcount')
+    return [w.dice[0], w.dice[1] + Math.floor((G.ashCount || 0) / 8)];
+  return w.dice;
+}
+/* ② 크랙 「빗맞지 않는다」 — 대검이 지불하는 값(0.88)을 지운다. */
+export const crackAim = () => hasUnique('emberpull') ? 1.14 : 1;
+/* ② 크랙 「붙어도 활이다」 — 활이 지불하는 값(근접 배율)을 지운다. */
+export const crackBowMelee = () => hasUnique('longhush') ? 1 : BOW_MELEE;
+/* ③ 크랙 「천장이 올라간다」가 한 층에서 올릴 수 있는 최대. */
+export const PROMISE_CAP = 5;
+/* ③ 크랙 「그 자리에 박힌다」 — 몇 번 맞으면 영영 못 움직이는가. */
+export const NAILED_AT = 3;
+/* ② 크랙 「마르지 않는다」 — 모자란 마나 1당 내는 피. */
+export const LAMP_BLOOD = 2.2;
+
+/* 모자란 마나를 피로 낼 수 있는가. 낼 수 있으면 낼 피의 양,
+   못 내면 −1(이유는 여기서 말한다). 시전 함수가 이미 복잡도 59라,
+   새 규칙을 그 안에 또 얹는 대신 이 자리를 만든다. */
+function bloodPrice(p, cost) {
+  if (p.mana >= cost) return 0;
+  /* ② 크랙 「마르지 않는다」. 지팡이가 지불하는 값은 하나다 — 마나가
+     마르면 시전자는 몽둥이를 든 사람이 된다. 이 지팡이는 그 줄을
+     지운다: 모자란 만큼을 피로 낸다. 마나가 자원이 아니라 **다른
+     통화**가 되고, 시전자는 마르는 대신 죽어 간다. */
+  if (!hasUnique('lastlamp')) { say('마나가 모자란다.', 'warn'); return -1; }
+  const bled = Math.max(1, Math.round((cost - p.mana) * LAMP_BLOOD));
+  if (p.hp <= bled) { say('여기서 더 내면 남는 것이 없다.', 'warn'); return -1; }
+  return bled;
+}
+/* ③ 크랙 「천장을 넘겨서」 — 한 층에서 부풀릴 수 있는 최대. */
+export const FAMINE_SWELL = 40;
+
+/* 처치할 때 먹는 것. 굶주림 계열 둘이 여기 모인다 — 한 자리에 있어야
+   「가득 찬 몸에 무슨 일이 일어나는가」가 한 번만 정해진다. */
+function feedOnKill(p) {
+  const famine = hasRelic('famine');
+  if (!famine && !hasRelic('hunger')) return;
+  if (!famine && p.hp >= p.maxhp) return;
+  const base = famine ? relicVal('famine') : relicVal('hunger');
+  /* 굶주린 무리는 연격만큼 곱한다 — 셋을 연달아 재우면 세 배다. */
+  const meal = base * (hasResonance('pack') ? Math.max(1, G.combo || 1) : 1);
+  const over = Math.max(0, (p.hp + meal) - p.maxhp);
+  p.hp = Math.min(p.maxhp, p.hp + meal);
+  /* ③ 크랙 「천장을 넘겨서」. 이 게임의 체력은 천장에서 멈춘다 — 그
+     규칙이 회복의 값과 물약의 값과 모닥불의 값을 한꺼번에 정한다.
+     끝없는 허기는 그 줄을 부순다: 가득 찬 몸에도 먹은 것이 쌓인다.
+     대신 그 몫은 **한 층만 간다**(enterDepth에서 되돌린다) — 안
+     되돌리면 그건 크랙이 아니라 무한 성장이다. */
+  const add = famine ? Math.min(FAMINE_SWELL - (G.famineSwell || 0), over) : 0;
+  if (add > 0) {
+    G.famineSwell = (G.famineSwell || 0) + add;
+    recalc(p);                 // 천장은 파생값이다 — 장부를 올리고 다시 센다
+    p.hp = Math.min(p.maxhp, p.hp + add);
+  }
+  fx({ t:'drain', x:p.x, y:p.y, amt: meal });
+}
 /* Awake oddities on the whole kit, for the rules to ask about. */
 export const oddAwake = id =>
   GEAR_SLOTS.some(k => oddityOf(G.player, G.player?.equip?.[k])?.id === id);
@@ -3919,7 +4015,7 @@ function playerAttack(m) {
   // A bow up close is a stick. That is the price of reach, and it
   // is what stops a bow from being a free extra button on a build
   // that never wanted to stand back.
-  swing(m, weaponType(p) === 'bow' && !fitRule(p, 'bowButt') ? BOW_MELEE : 1);
+  swing(m, weaponType(p) === 'bow' && !fitRule(p, 'bowButt') ? crackBowMelee() : 1);
 }
 
 /* ── shooting ─────────────────────────────────────────────
@@ -4040,7 +4136,17 @@ export function shoot() {
   loose(m, 1);
   /* 두 번 우는 활: a second arrow at half, out of the same nock.
      One arrow spent, two in the air. */
-  if (hasUnique('twicewept') && G.monsters.includes(m)) loose(m, 0.5, { quietFx: true });
+  if (hasUnique('twicewept') && G.monsters.includes(m)) {
+    /* ① 크랙 「울음이 멎지 않는다」. 두 번째가 절반이 아니라 온전해지고,
+       그 화살이 무언가를 끝내면 세 번째가 나간다. */
+    const dead = !G.monsters.includes(m);
+    loose(m, 1, { quietFx: true });
+    if (!G.monsters.includes(m) && !dead) {
+      const next = G.monsters.find(o => o.awake && !o.disguise
+        && G.level.vis[idx(o.x, o.y)] && lineClear(G.level, p.x, p.y, o.x, o.y));
+      if (next) { say('울음이 멎지 않는다.', 'level'); loose(next, 1, { quietFx: true }); }
+    }
+  }
   G.hushShot = false;
   endTurn();
 }
@@ -4076,7 +4182,7 @@ function swing(m, scale, opt = {}) {
   const kind = weaponType(p);
   const armour = m.ac * 1.15 * (1 - gp.pierce);   // 꿰뚫는: armour counts for less
   // 대검류 is wilder; everything else swings true.
-  const aim = kind === 'great' ? 0.88 : 1;
+  const aim = (kind === 'great' ? 0.88 : 1) * crackAim();
   /* 불이 꺼지면 반경만 줄어드는 것이 아니라 손도 무뎌진다. 두 칸
      앞이 벽인지도 모르는 자리에서 정확히 때릴 수는 없다. 잠든 것은
      예외 — 어둠 속에서 자는 것을 찾아낸 것은 오히려 공이다. */
@@ -4103,7 +4209,9 @@ function swing(m, scale, opt = {}) {
   markTarget(m);
 
   const w = p.equip.weapon;
-  const dice = w ? w.dice : [1, 3];
+  /* ① 크랙 「셈이 끝나지 않는다」. 세는 칼이 세는 것을 멈추지 않으면
+     그 칼은 판이 끝날 때까지 자란다 — 여덟마다 주사위가 한 면. */
+  const dice = w ? crackDice(w) : [1, 3];
   const g = gp;
   /* ── 무기가 척추다 ──────────────────────────────────────
      예전 식은 `주사위 + 힘×2 + 레벨/3 + 장비` 였다. 전부 가산이라
@@ -4233,6 +4341,16 @@ function swing(m, scale, opt = {}) {
     if (hasUnique('nailer') && G.monsters.includes(m)) {
       m.energy = Math.min(m.energy, -1);
       fx({ t:'snared', x:m.x, y:m.y });
+      /* ③ 크랙 「그 자리에 박힌다」. 이 게임은 「쫓기면 걸어서
+         떨어뜨릴 수 없다」를 가르친다(따라붙기). 이 망치는 그 줄을
+         뒤집는다 — 세 번 맞은 것은 죽을 때까지 제자리다. 쫓는 쪽과
+         쫓기는 쪽이 바뀐다. */
+      m.nails = (m.nails || 0) + 1;
+      if (m.nails === NAILED_AT) {
+        m.nailed = true;
+        say(`${m.n}이(가) 바닥에 박혔다. 이제 오지 못한다.`, 'level');
+        fx({ t:'execute', x:m.x, y:m.y });
+      }
     }
   }
   if (!G.running) return true;
@@ -4295,17 +4413,7 @@ function onKill(m) {
   if (p.cls === 'paladin') oathGain(OATH_PER_KILL);
   if (hasUnique('ashcount')) G.ashCount = (G.ashCount || 0) + 1;
   if (UNDEAD.includes(m.spr)) faithGain(FAITH_PER_UNDEAD);
-  if ((hasRelic('hunger') || hasRelic('famine')) && p.hp < p.maxhp) {
-    const base = hasRelic('famine') ? relicVal('famine') : relicVal('hunger');
-    /* 굶주린 무리 multiplies the bite by the streak. Three in a
-       row is three times the meal, ten is ten — and one blow
-       taken halves the streak, so it is a build that has to keep
-       moving and cannot stand and trade. */
-    const mult = hasResonance('pack') ? Math.max(1, G.combo || 1) : 1;
-    const got = Math.min(p.maxhp - p.hp, base * mult);
-    p.hp += got;
-    fx({ t:'drain', x:p.x, y:p.y, amt:got });
-  }
+  feedOnKill(p);
   if (hasRelic('bone') && (p.boneHp || 0) < 30) {
     p.boneHp = (p.boneHp || 0) + 1;
     recalc(p);
@@ -4505,11 +4613,33 @@ export function hurtMonster(m, dmg, source, opt = {}) {
        rewards hitting far harder than you needed to, which is the
        opposite of every efficiency instinct the game teaches. */
     if (hasUnique('promise') && m.hp < 0) {
-      const back = Math.min(G.player.maxhp - G.player.hp, Math.round(-m.hp));
+      const pl = G.player;
+      const over = Math.round(-m.hp);
+      const back = Math.min(pl.maxhp - pl.hp, over);
       if (back > 0) {
-        G.player.hp += back;
-        fx({ t:'heal', x:G.player.x, y:G.player.y, amt:back });
+        pl.hp += back;
+        fx({ t:'heal', x:pl.x, y:pl.y, amt:back });
         say(`넘친 것이 돌아왔다. 체력 +${back}.`, 'good');
+      }
+      /* ③ 크랙 「천장이 올라간다」. 이 게임에서 최대 체력은 내려가기만
+         한다 — 상처는 아물어도 담기는 양이 줄고, 그 규칙 위에 난이도
+         곡선 전체가 서 있다. 이 검은 그 줄을 부순다: 이미 가득 찬
+         몸에 넘치게 때리면 **담을 수 있는 양 자체가** 자란다.
+         층마다 다섯까지 — 무한이면 그건 규칙 파괴가 아니라 버그다. */
+      /* 층마다 다섯까지. 얻은 몫 자체는 **영구**라 `permHp`로 들어가고
+         (그래야 recalc 한 번에 안 지워진다), 여기 세는 것은 「이 층에서
+         이미 얼마나 올렸나」뿐이다. 처음에 둘을 한 장부로 뒀다가
+         층마다 지워 버려서 얻은 천장이 사라졌다 — 영구한 것과 이번
+         층의 몫은 다른 물건이다. */
+      const room = PROMISE_CAP - (G.promiseFloor || 0);
+      if (back < over && room > 0) {
+        const gain = Math.min(room, Math.max(1, Math.round((over - back) / 6)));
+        G.promiseFloor = (G.promiseFloor || 0) + gain;
+        pl.permHp = (pl.permHp || 0) + gain;
+        recalc(pl);
+        pl.hp = Math.min(pl.maxhp, pl.hp + gain);
+        fx({ t:'levelup', x:pl.x, y:pl.y });
+        say(`약속이 지켜졌다. 담을 수 있는 것이 ${gain} 늘었다.`, 'level');
       }
     }
     G.monsters.splice(G.monsters.indexOf(m), 1);
@@ -5601,16 +5731,21 @@ function monsterShoot(m) {
 
 /* Movement shared by every AI, including what to do about a
    shut door: most things are simply stopped by one. */
+/* 성역: 이미 조용해야 할 것들은 돌에 다가오지 못한다. 나머지는
+   전부 다가온다 — 이건 벽이 아니라 결계다. */
+function wardedOff(m) {
+  const s2 = G.sanctum;
+  if (!s2 || s2.left <= 0 || !UNDEAD.includes(m.spr)) return false;
+  if (Math.max(Math.abs(s2.x - m.x), Math.abs(s2.y - m.y)) > 1) return false;
+  return Math.hypot(m.x - s2.x, m.y - s2.y) <= 1.5;
+}
+
 function advance(m, sx, sy) {
   const p = G.player, L = G.level;
-  /* 성역: the things that should already be still cannot come to
-     the stone. Everything else can — it is a ward, not a wall. */
-  const s2 = G.sanctum;
-  if (s2 && s2.left > 0 && UNDEAD.includes(m.spr)
-      && Math.max(Math.abs(s2.x - m.x), Math.abs(s2.y - m.y)) <= 1) {
-    const away = Math.hypot(m.x - s2.x, m.y - s2.y);
-    if (away <= 1.5) { m.energy = Math.min(m.energy, 0); return; }
-  }
+  /* 박힌 것은 걷지 않는다. 여기 한 줄로 막는다 — 몬스터가 걷는
+     자리는 이 함수뿐이므로, 다른 곳에 같은 검사를 두면 언젠가 갈린다. */
+  if (m.nailed) return;
+  if (wardedOff(m)) { m.energy = Math.min(m.energy, 0); return; }
 
   const go = (a, b) => {
     if (!a && !b) return false;
@@ -6073,7 +6208,12 @@ export function forgeBlock(t, mode) {
   if (!it) return '고를 수 있는 것이 없다';
   /* 이름 붙은 것은 이미 제 모습이다. 여기서 한 줄로 막고, 화면도
      같은 줄을 읽어 「왜 안 되는지」를 그대로 보여 준다. */
-  if (it.unique) return '이름이 붙은 것은 벼려지지도, 물들지도 않는다';
+  /* 「이름이 붙은 것은 이미 제 모습이다」라며 막아 두었던 줄이다.
+     그 한 줄이 이 물건들을 판 중반의 죽은 가지로 만들고 있었다 —
+     강화가 곱이 된 지금 +8은 1.72배이고, 그것을 못 받는 무기는
+     주우면 곧 뒤처진다. 이름이 붙었다고 자라지 못할 이유는 없다.
+     대신 값이 다르다: 이름 붙은 것을 두들기는 데는 두 배가 든다
+     (upgradeCostFor의 `dear`). */
   if (mode === 'reroll' && !it.pre && !it.suf) return '다시 굴릴 속성이 없다';
   if (mode === 'upgrade' && (it.plus || 0) >= MAX_PLUS) return `더 벼릴 수 없다 (최대 +${MAX_PLUS})`;
   return null;
@@ -6232,7 +6372,11 @@ export const upgradeCostFor = (key, careful = false) => {
   if (!t) return null;
   // 식은 모루 raises the bill as well as lowering the odds, so the
   // shackle bites the gold sink rather than only the dice.
-  const dear = hasShackle('coldanvil') ? 1.4 : 1;
+  /* 이름 붙은 것은 두 배로 든다. 벼릴 수는 있게 하되 값이 달라야
+     한다 — 안 그러면 「고유를 주웠으니 이제 모루는 이것만」이 되고,
+     그러면 나머지 장비가 전부 죽은 가지가 된다. */
+  const named = (t.item?.unique) ? 2 : 1;
+  const dear = (hasShackle('coldanvil') ? 1.4 : 1) * named;
   const raw = upgradeCost(plusOf(t));
   const base = {};
   for (const k of Object.keys(raw)) base[k] = Math.ceil(raw[k] * dear);
@@ -7670,7 +7814,7 @@ export function startGame(raceKey, classKey, base) {
   G.haggled = {}; G.haggleCut = null; G.haggleSour = null;
   G.engraved = 0; G.memories = []; G.relicShelf = null;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
-  G.nextMods = null; G.campPromise = 0; G.deepest = 0;
+  G.nextMods = null; G.campPromise = 0; G.deepest = 0; G.famineSwell = 0;
   G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.clungSaid = 0; G.credited = {}; walkOffTolerance(); G.hazards = []; G.snares = []; G.sanctum = null; G.bank = 0;
   G.goldEarned = 0;
   /* 한 판에 한 번씩만 만난다는 표시. 판이 바뀌면 비워야 한다 —

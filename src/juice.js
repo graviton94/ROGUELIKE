@@ -191,6 +191,103 @@ function bulwarkFx(e) {
   sfx.levelup();
 }
 
+/* ── 빌려 쓰던 넷 ──────────────────────────────────────────
+   그림자 밟기는 회피 굴림의 파란 줄을, 칼 부채는 궁수의 화살비를,
+   급소 찌르기는 전사의 마무리를 그대로 빌려 쓰고 있었다. 규칙은
+   서로 다른 일을 하는데 화면은 같은 말을 하고 있었다는 뜻이다.
+   연타는 아예 제 프레임이 없었다 — 평타 세 번과 구분이 안 됐다.
+
+   bigFx 와 같은 이유로 한 문 뒤에 둔다: pump 는 이미 갈래가 표
+   수준이고, 새 기예마다 case 를 하나씩 얹으면 아무도 못 여는
+   함수가 된다. */
+function artFx(e) {
+  if (e.t === 'stepIn') return stepInFx(e);
+  if (e.t === 'fanOut') return fanOutFx(e);
+  if (e.t === 'vitals') return vitalsFx(e);
+  return flurryFx(e);
+}
+function stepInFx(e) {
+  /* 떠난 자리에 남는 그을음, 도착한 자리에 서는 몸. 굴림과 달리
+     **두 곳**에서 일어난다 — 그게 「이동」과 「등 뒤에 섰다」의 차이다. */
+  const f = e.from || e;
+  ring(f.x, f.y, 1.3, PALETTE.p, 420, true);
+  beams.push({ fx: f.x + 0.5, fy: f.y + 0.5, tx: e.x + 0.5, ty: e.y + 0.5,
+               color: PALETTE.P, age: 0, life: 220, thin: true });
+  ring(e.x, e.y, 0.9, PALETTE.P, 300);
+  burstShards(e.x, e.y, [PALETTE.p, PALETTE.P, PALETTE.k], 10, 1.2);
+  buzz([14, 10, 24]); sfx.roll();
+}
+function fanOutFx(e) {
+  /* 앞쪽 반원으로만 펼쳐지는 다섯 줄. 화살비는 방 전체이고 이건
+     내가 보고 있는 쪽이다 — 방향이 있는 것이 이 기예의 전부다. */
+  const base = Math.atan2(e.ay || 0, e.ax || 1);
+  for (let i = 0; i < 5; i++) {
+    const a = base + (i - 2) * 0.30;
+    beams.push({ fx: e.x + 0.5, fy: e.y + 0.5,
+                 tx: e.x + 0.5 + Math.cos(a) * (e.rng || 4),
+                 ty: e.y + 0.5 + Math.sin(a) * (e.rng || 4),
+                 color: PALETTE.s, age: -i * 18, life: 200, thin: true });
+    slashes.push({ x: e.x + 0.5, y: e.y + 0.5, a, kind: 'dagger', age: -i * 18, life: 180 });
+  }
+  shake = Math.max(shake, 0.16 + (e.n || 0) * 0.04);
+  buzz(18); sfx.roll();
+}
+function vitalsFx(e) {
+  /* 한 점. 고리도 파편도 없고 흰 선 하나와 글자 하나 — 이 기예가
+     하는 일이 정확히 그것이다. */
+  beams.push({ fx: e.x + 0.5, fy: e.y + 0.5, tx: e.tx + 0.5, ty: e.ty + 0.5,
+               color: PALETTE.W, age: 0, life: 160, thin: true });
+  ring(e.tx, e.ty, 0.6, PALETTE.W, 220, true);
+  number(e.tx, e.ty - 0.6, '급소', PALETTE.W, 1.25);
+  freeze = Math.max(freeze, 60);
+  shake = Math.max(shake, 0.3);
+  buzz([26, 12, 26]); sfx.crit();
+}
+function flurryFx(e) {
+  /* 이어 붙인 대수만큼 짧은 호가 겹친다. 연타의 값은 마지막 한
+     대가 무겁다는 것이라, 뒤로 갈수록 커진다. */
+  const a = Math.atan2((e.ty ?? e.y) - e.y, (e.tx ?? e.x) - e.x);
+  for (let i = 0; i < (e.n || 1); i++)
+    slashes.push({ x: e.x + 0.5, y: e.y + 0.5, a: a + (i % 2 ? 0.24 : -0.24),
+                   kind: i + 1 >= (e.n || 1) ? 'great' : 'sword',
+                   age: -i * 42, life: 180 });
+  number(e.x, e.y - 0.9, `${e.n || 1}연타`, PALETTE.o, 0.95 + (e.n || 1) * 0.1);
+  shake = Math.max(shake, 0.12 * (e.n || 1));
+  buzz(10 * (e.n || 1));
+}
+
+/* ── 손에 든 것 ────────────────────────────────────────────
+   game.js 의 auraOf() 가 기예 사건마다 「지금 손에 든 것」을 얹어
+   보낸다. 여기서 하는 일은 그걸 색으로 옮기는 것뿐이다 — 규칙은
+   색을 모르고, 화면은 규칙을 모른다.
+
+   두 가지를 조심했다. 하나, 유물 일곱을 낀 후반에 기예 한 번마다
+   무지개가 터지면 그건 정보가 아니라 소음이라 **둘까지만** 그린다.
+   둘, 이건 기존 연출 **위에** 얹히는 것이라 원래 프레임보다 작고
+   짧아야 한다 — 안 그러면 무슨 기예를 썼는지가 안 보인다. */
+const MARK_TINT = { pierce:'W', reap:'R', storm:'E', hunt:'o', duel:'y', thirst:'r',
+                    bedrock:'g', thorn:'R', dawn:'y', mend:'E', shrug:'G', anchor:'N' };
+const RELIC_TINT = { everflame:'o', ember:'o', lamp:'o', pact:'R', reckless:'R',
+                     martyr:'R', hunger:'r', mirror:'W', vow:'y', scale:'y',
+                     chain:'g', bone:'w', grudge:'P', nighteye:'B', eye:'P' };
+function auraWash(e) {
+  const a = e.aura;
+  if (!a) return;
+  const x = e.x ?? e.fx, y = e.y ?? e.fy;
+  if (x === undefined || y === undefined) return;
+  const tints = [...a.marks.map(m => MARK_TINT[m]), ...a.relics.map(r => RELIC_TINT[r])]
+    .filter(Boolean).slice(0, 2).map(k => PALETTE[k]);
+  /* 강화는 색이 아니라 **양**으로 말한다 — +3마다 한 단계, 셋에서
+     멈춘다. +12 와 +9 가 화면에서 달라야 할 이유는 없다. */
+  const step = Math.min(3, Math.floor(a.plus / 3));
+  if (step) burstShards(x, y, [PALETTE.y, PALETTE.w], 2 + step * 3, 0.7 + step * 0.2);
+  if (step >= 3) ring(x, y, 1.1, PALETTE.y, 220, true);
+  for (let i = 0; i < tints.length; i++) {
+    ring(x, y, 1.4 + i * 0.55, tints[i], 260 + i * 70);
+    burstShards(x, y, [tints[i]], 4, 1.0);
+  }
+}
+
 function vanishBurst(e) {
   for (let i = 0; i < (e.n || 0); i++) {
     const a = (i / Math.max(1, e.n)) * Math.PI * 2;
@@ -251,6 +348,12 @@ export function pump(queue, player) {
        arrive quieter — that is the one thing sound does better
        than a screen, and it was being thrown away. */
     earFrom(e.x, e.y);
+    /* 기예에는 「지금 손에 든 것」이 실려 온다. 원래 연출보다 **먼저**
+       그린다 — 뒤에 그리면 강화·인챈트가 기예 자체를 덮는다.
+       조건 없이 부른다: 「기예인가」 판정을 여기 두면 pump 가 한 갈래
+       더 굵어지고, 저 함수는 이미 이 저장소에서 가장 굵다. 판정은
+       auraWash 제 안에 있다. */
+    auraWash(e);
     switch (e.t) {
       case 'lunge': {
         const s = at(player);
@@ -787,19 +890,12 @@ export function pump(queue, player) {
         break;
       }
 
-      // 버티기 — nothing flies. A mark on the ground under the
-      // feet, because the art is about *not* moving.
-      case 'brace': {
-        ring(e.x, e.y, 1.15, PALETTE.y, 520);
-        ring(e.x, e.y, 0.75, PALETTE.s, 620);
-        number(e.x, e.y - 0.5, '버틴다', PALETTE.y, 1.1);
-        buzz([20, 30, 20]);
-        sfx.heal();
-        break;
-      }
+      /* 여기 예전 버티기(brace)의 case 가 하나 더 있었다. switch 는
+         먼저 만나는 갈래를 쓰므로, 한계돌파로 다시 쓴 버티기의 연출
+         (standFx)은 **한 번도 화면에 나온 적이 없다** — 조용한 고리
+         하나가 대신 나가고 있었다. 갈래를 지운다. 사건 하나에 갈래
+         하나. */
 
-      // Each blow the stance turns away: a short spark back down
-      // the line it came from. Quiet on purpose — it happens a lot.
       /* ── the priest's four ─────────────────────────────
          The mage throws things; the priest marks them. Three of
          these are lines drawn on something rather than objects
@@ -840,6 +936,7 @@ export function pump(queue, player) {
       case 'arcana': case 'deathZoom': case 'crack': case 'vanishOut':
       case 'brace': case 'kite': case 'bulwark':
       case 'martyr': case 'martyrHold': bigFx(e); break;
+      case 'stepIn': case 'fanOut': case 'vitals': case 'flurry': artFx(e); break;
       /* ── the ranger's four ─────────────────────────────
          The warrior's arts happen at arm's length and are drawn
          at the hero. These happen across the room and are drawn

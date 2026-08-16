@@ -272,12 +272,23 @@ console.log('');
      그대로 남는다. 실제 스폰을 쓰면 첫 발에 죽어서 나머지가 허공을
      때리고, 그러면 0으로 읽힌다 — 처음에 그렇게 재서 통과하던 것이
      실패로 뒤집혔다. */
+  /* 그리고 **한 번만 쏘면 안 된다.** 화살은 빗나갈 수 있으므로 한
+     발짜리 탐침은 같은 코드로 9 피해와 0 피해를 번갈아 냈다. 그건
+     기예가 아니라 명중 굴림을 잰 것이다 — 여덟 번 쏴서 합친다. */
   const foeR = dummy(r, 1); foeR.hp = foeR.maxhp = 99999;
-  const rx = r.x, rhp = foeR.hp;
-  Game.useArt('kite');
-  ok(Math.abs(r.x - rx) >= 3 && rhp - foeR.hp > 0,
+  const rx = r.x;
+  let backs = 0, dealt = 0;
+  for (let i = 0; i < 8; i++) {
+    r.x = rx; r.y = foeR.y; foeR.x = rx + 1; r.stam = 99;
+    Game.refreshFov();
+    const before = foeR.hp;
+    Game.useArt('kite');
+    if (Math.abs(r.x - rx) >= 3) backs++;
+    dealt += before - foeR.hp;
+  }
+  ok(backs >= 7 && dealt > 0,
      '궁수 물러서며 쏘기 — 거리를 벌리는 일이 그대로 공격이 된다',
-     `${Math.abs(r.x - rx)}칸 물러나며 ${rhp - foeR.hp} 피해`);
+     `여덟 번 중 ${backs}번 3칸 이상 물러나며 합계 ${dealt} 피해`);
 
   /* 팔라딘 — 세 턴 동안 안 쓰러진다, 빚 없이 */
   const pa = seat('paladin', 12);

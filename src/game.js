@@ -323,7 +323,37 @@ function lore(kind, name, text, spr) {
    The rules never draw. They describe what just happened and
    ui.js decides how loud it looks. Headless runs simply let
    the queue fill and roll off the front.                    */
+/* ── 손에 든 것이 화면에 보이게 ────────────────────────────
+   기예 연출은 지금까지 「무슨 기예인가」만 그렸다. 그래서 대장간에서
+   두 번 실패하고 얻은 +9 관통의 대검으로 휘두른 휩쓸기와, 바닥에서
+   주운 몽둥이로 휘두른 휩쓸기가 화면에서 **똑같았다** — 이 게임이
+   플레이어에게 시킨 가장 비싼 선택(모루·제단·유물)이 정작 그 선택을
+   쓰는 순간에 안 보인다는 뜻이다.
+
+   그래서 기예 사건마다 「지금 손에 든 것」을 한 줄 얹는다. 규칙은 한
+   글자도 안 바뀐다 — 이건 전적으로 화면의 일이다. 그리고 색은 여기서
+   안 고른다. 규칙은 **무엇을 들었는지**만 말하고, 그걸 무슨 색으로
+   그릴지는 juice 쪽이 정한다.                                   */
+const ART_FX = new Set([
+  'shove', 'cleave', 'flurry', 'finisher', 'brace',
+  'stepIn', 'fanOut', 'vanishOut', 'vitals',
+  'charge', 'judgest', 'storm', 'crusade', 'bulwark',
+  'sanctum', 'anathema', 'judge', 'martyr',
+  'aimed', 'pierceShot', 'snare', 'volley', 'kite',
+]);
+export function auraOf(p = G.player) {
+  if (!p) return null;
+  const w = p.equip?.weapon;
+  const a = { plus: w?.plus || 0,
+              marks: [...(w?.engrave || [])],
+              relics: [...(p.relics || [])] };
+  return (a.plus || a.marks.length || a.relics.length) ? a : null;
+}
+
 export function fx(ev) {
+  /* 한 곳. 스물세 군데의 fx 호출을 고치는 대신 깔때기에서 얹는다 —
+     기예가 하나 늘 때 목록에 한 줄만 더하면 된다. */
+  if (ART_FX.has(ev.t)) ev.aura = auraOf();
   G.fx.push(ev);
   if (G.fx.length > 300) G.fx.shift();
 }
@@ -1887,9 +1917,9 @@ export function useArt(id) {
       const from = { x:p.x, y:p.y };
       p.x = to[0]; p.y = to[1];
       refreshFov();
-      fx({ t:'roll', x:p.x, y:p.y,
-           dx: Math.sign(p.x - from.x), dy: Math.sign(p.y - from.y),
-           dist: Math.max(1, Math.round(Math.hypot(p.x - from.x, p.y - from.y))) });
+      /* 예전에는 회피 굴림(roll)의 연출을 빌려 썼다 — 같은 파란 줄 하나라
+         「굴렀다」와 「등 뒤에 섰다」가 화면에서 구분이 안 됐다. */
+      fx({ t:'stepIn', x:p.x, y:p.y, from, tx:t.x, ty:t.y });
       say(`${t.n}의 등 뒤에 섰다.`, 'level');
       /* Unaware is how this game already spells "ambush", so the
          art borrows that rather than inventing a second kind of
@@ -1912,7 +1942,9 @@ export function useArt(id) {
         if (d < 0.5) return true;
         return ((o.x - p.x) / d) * ax + ((o.y - p.y) / d) * ay >= FAN_ARC;
       });
-      fx({ t:'volley', x:p.x, y:p.y, n:hit.length });
+      /* 궁수의 화살비(volley)를 빌려 쓰던 자리. 저건 방 전체이고
+         이건 앞쪽 반원이라, 화면에서도 부채꼴이어야 한다. */
+      fx({ t:'fanOut', x:p.x, y:p.y, ax, ay, n:hit.length, rng:FAN_RANGE });
       say(hit.length > 1 ? `칼이 부채처럼 펼쳐졌다 — ${hit.length}에게.`
                          : '칼 한 자루가 날아갔다.', 'level');
       for (const o of [...hit]) if (G.monsters.includes(o)) swing(o, FAN_SHARE);
@@ -1956,7 +1988,9 @@ export function useArt(id) {
          costs, so unlike 마무리 it is worth the same on a full
          health bar as on a sliver. */
       const m = near.sort((x, y) => y.hp - x.hp)[0];
-      fx({ t:'finisher', x:p.x, y:p.y, tx:m.x, ty:m.y, power:1 });
+      /* 전사의 마무리(finisher)를 빌려 쓰던 자리. 저건 위에서 내리치는
+         무게이고 이건 갑옷 틈으로 들어가는 한 점이다. */
+      fx({ t:'vitals', x:p.x, y:p.y, tx:m.x, ty:m.y });
       say('칼끝이 갑옷 사이를 찾았다.', 'level');
       swing(m, VITALS_MULT, { pierce: true });
       break;
@@ -2017,6 +2051,7 @@ export function useArt(id) {
       }
       /* 「1.55배였다」는 표의 말이다. 세계는 배율을 모른다 — 아는 것은
          손이 점점 무거워진다는 것뿐이다. */
+      if (landed) fx({ t:'flurry', x:p.x, y:p.y, tx:m.x, ty:m.y, n:landed });
       if (landed >= 3) say(`${landed}연타 — 마지막 한 대는 팔이 아니라 몸으로 들어갔다.`, 'level');
       else if (landed) say(`${landed}대를 이어 붙였다.`, 'level');
       else say('첫 대부터 빗나갔다.', 'warn');

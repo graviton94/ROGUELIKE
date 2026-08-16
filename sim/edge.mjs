@@ -230,5 +230,60 @@ ok(pack[13] === undefined || pack[12] <= 8,
 console.log(`      (1:1 죽는 턴은 판정하지 않는다 — 같은 코드로 14.5~34턴,`
   + ` 층 풀에서 어떤 종을 뽑느냐가 결과를 지배한다.)`);
 
+/* ── 3. 한계돌파 셋이 실제로 판을 바꾸는가 ────────────────
+   직업마다 하나씩, 「누가 봐도 이 직업이 위험한 순간」에 쓰는 것.
+   피해가 아니라 **판**을 바꾸는 기예라, 여기서 재는 것도 피해가
+   아니다: 덜 맞나 · 거리를 벌렸나 · 안 쓰러지나. */
+console.log('');
+{
+  const seat = (cls, lv) => {
+    Meta.forget();
+    Game.startGame('human', cls, Game.rollStats(cls));
+    Game.descend(); Game.enterDepth(8);
+    const p = G.player; p.lv = lv; Game.recalc(p);
+    stage(8); p.x = 20; p.hp = p.maxhp; p.stam = 99; p.oath = 99;
+    Game.recalc(p); Game.refreshFov();
+    return p;
+  };
+  const dummy = (p, dx) => {
+    const spec = D.MONSTERS.find(m => m.spr === 'orc');
+    const m = { ...spec, hp: 9999, maxhp: 9999, atk: 30, ac: 0,
+      x: p.x + dx, y: p.y, awake: true, energy: 0 };
+    G.monsters.push(m); return m;
+  };
+
+  /* 전사 — 덜 맞고, 옆의 것이 못 물러나고, 나도 못 간다 */
+  const w = seat('warrior', 12); dummy(w, 1);
+  w.hp = w.maxhp; Game.hurtPlayer(40, { by:'벤치' });
+  const openTake = w.maxhp - w.hp;
+  Game.useArt('brace');
+  w.hp = w.maxhp; Game.hurtPlayer(40, { by:'벤치' });
+  const braceTake = w.maxhp - w.hp;
+  const wx = w.x; Game.step(1, 0);
+  ok(braceTake < openTake * 0.6 && w.x === wx && G.monsters[0].pinned > 0,
+     '전사 버텨선다 — 덜 맞고, 옆의 것이 못 물러나고, 나도 못 간다(대가)',
+     `피해 ${openTake} → ${braceTake} · 이동 ${w.x === wx ? '막힘' : '됨'}`);
+
+  /* 궁수 — 거리를 벌리면서 그것이 곧 공격이다 */
+  const r = seat('ranger', 12);
+  r.equip.weapon = { kind:'weapon', t:'bow', spr:'bow', n:'활', dice:[2,6], rng:7, plus:0 };
+  r.quiver = { kind:'quiver', qty:99, n:'화살' }; Game.recalc(r);
+  const foeR = dummy(r, 1);
+  const rx = r.x, rhp = foeR.hp;
+  Game.useArt('kite');
+  ok(Math.abs(r.x - rx) >= 3 && rhp - foeR.hp > 0,
+     '궁수 물러서며 쏘기 — 거리를 벌리는 일이 그대로 공격이 된다',
+     `${Math.abs(r.x - rx)}칸 물러나며 ${rhp - foeR.hp} 피해`);
+
+  /* 팔라딘 — 세 턴 동안 안 쓰러진다, 빚 없이 */
+  const pa = seat('paladin', 12);
+  Game.useArt('bulwark');
+  pa.hp = pa.maxhp;
+  for (let i = 0; i < 20; i++) Game.hurtPlayer(9999, { by:'벤치' });
+  ok(G.running && pa.hp >= 1,
+     '팔라딘 불굴 — 스무 대를 맞아도 쓰러지지 않는다',
+     `체력 ${pa.hp} · 살아 있음 ${G.running}`);
+}
+
 console.log(bad ? `\n날 벤치: ${bad}건 실패\n` : '\n날 벤치: 날이 서 있다\n');
 process.exit(bad ? 1 : 0);

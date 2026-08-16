@@ -117,6 +117,42 @@ function martyrFx(e, spent) {
    따라간다 — 칼이 먼저 사방으로 나가고, 그 다음에 연기가 덮는다.
    예전에는 파란 원 하나가 퍼지고 끝이라 「임팩트가 없다」는 말을
    들었고, 그 말은 규칙에도 화면에도 둘 다 맞았다. */
+/* 한계돌파 셋의 연출. 셋 다 「피해가 나갔다」가 아니라 **판이
+   바뀌었다**를 그려야 해서, 숫자가 아니라 형태로 말한다. 한 곳에
+   묶는 이유는 pump 가 이미 169갈래이기 때문이다. */
+function breakFx(e) {
+  if (e.t === 'brace') return standFx(e);
+  if (e.t === 'kite') return kiteFx(e);
+  return bulwarkFx(e);
+}
+function standFx(e) {
+  /* 전사 — 땅으로 박히는 두 겹의 고리. 밖에서 안으로 조인다(shrink). */
+  ring(e.x, e.y, 2.4, PALETTE.N, 620, true);
+  ring(e.x, e.y, 1.3, PALETTE.y, 420, true);
+  number(e.x, e.y - 0.8, '버틴다', PALETTE.y, 1.2);
+  shake = Math.max(shake, 0.5);
+  buzz([60, 30, 60]);
+  sfx.levelup();
+}
+function kiteFx(e) {
+  /* 궁수 — 지나온 자리로 그어지는 선. 물러난 궤적 자체가 공격이다. */
+  if (e.from) beams.push({ fx: e.from.x + 0.5, fy: e.from.y + 0.5,
+    tx: e.x + 0.5, ty: e.y + 0.5, color: PALETTE.E, age: 0, life: 300, thin: true });
+  ring(e.x, e.y, 1.4, PALETTE.E, 340);
+  number(e.x, e.y - 0.7, `${e.n || 0}발`, PALETTE.E, 1.1);
+  buzz([20, 15, 20]);
+  sfx.roll();
+}
+function bulwarkFx(e) {
+  /* 팔라딘 — 금빛 껍질. 쓰러지지 않는다는 것은 밝은 사건이다. */
+  ring(e.x, e.y, 1.9, PALETTE.y, 700);
+  ring(e.x, e.y, 1.1, PALETTE.w, 480);
+  number(e.x, e.y - 0.8, '불굴', PALETTE.y, 1.2);
+  shake = Math.max(shake, 0.3);
+  buzz([40, 20, 40]);
+  sfx.levelup();
+}
+
 function vanishBurst(e) {
   for (let i = 0; i < (e.n || 0); i++) {
     const a = (i / Math.max(1, e.n)) * Math.PI * 2;
@@ -749,10 +785,10 @@ export function pump(queue, player) {
         sfx.levelup();
         break;
       }
-      case 'crack':      crackBurst(e); break;
-      case 'vanishOut':  vanishBurst(e); break;
+      case 'crack': crackBurst(e); break;
+      case 'vanishOut': vanishBurst(e); break;
+      case 'brace': case 'kite': case 'bulwark': breakFx(e); break;
       case 'martyr': case 'martyrHold': martyrFx(e, e.t === 'martyr'); break;
-
       /* ── the ranger's four ─────────────────────────────
          The warrior's arts happen at arm's length and are drawn
          at the hero. These happen across the room and are drawn

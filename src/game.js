@@ -29,6 +29,7 @@ import {
   ECHO_ROOM_HOPS, ECHO_ROOM_TOLL, ECHO_ROOM_KEEP,
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   ARTS, SHOVE_DIST, SHOVE_WALL, CLEAVE_SHARE,
+  STAND_TURNS, STAND_CUT, KITE_DIST, KITE_MULT, BULWARK_TURNS,
   SHADOW_MAX, SHADOW_TICK, FAN_RANGE, FAN_ARC, FAN_SHARE, VANISH_HUSH, VITALS_MULT,
   VANISH_MULT, VANISH_PUSH,
   ECHOES, ECHO_TURNS, ECHO_POWER, ECHO_SPLASH,
@@ -1001,6 +1002,11 @@ export function hurtPlayer(dmg, opt = {}) {
   /* ③ 사슬 갑주 크랙. 층마다 **첫 한 대는 사슬이 받는다.** 피해
      상한과 같은 자리에 두는 이유는 하나다 — 체력을 깎는 열한 군데가
      전부 이 깔때기를 지나므로, 여기 두면 어디서 맞아도 같다. */
+  /* 전사의 버텨선다. 피해 깔때기 한 곳에서만 깎인다 — 열한 군데가
+     전부 여기를 지나므로 어디서 맞아도 같다. */
+  if ((p.brace || 0) > 0) taken = Math.max(1, Math.round(taken * STAND_CUT));
+  /* 팔라딘의 불굴. 순교와 달리 빚이 없다 — 맹세 다섯이 그 값이다. */
+  if ((p.bulwark || 0) > 0 && p.hp - taken < 1) taken = Math.max(0, p.hp - 1);
   if (cracked('chain') && !G.chainGuard) {
     G.chainGuard = 1;
     fx({ t:'resist', x:p.x, y:p.y });
@@ -1710,6 +1716,30 @@ function teleport() {
 /* Arts that are pointless with nothing in reach, so the row can
    grey them out the way it greys out a bolt with no target. */
 const ART_NEEDS_BODY = ['shove', 'cleave', 'finisher', 'vitals', 'judgest', 'storm'];
+
+/* 궁수의 물러서기. 뒤로 갈 수 있는 만큼 가고, 지나온 칸에 붙어 있던
+   것을 돌려준다 — 「물러나는 일이 곧 공격」이라는 이 기예의 전부다. */
+function kiteAway(p, dist) {
+  const from = { x: p.x, y: p.y };
+  /* 가장 가까운 것의 반대쪽으로 간다. 아무도 없으면 바라보던 쪽 뒤로. */
+  const near = G.monsters.filter(m => G.level.vis[idx(m.x, m.y)])
+    .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
+  const dx = near ? -Math.sign(near.x - p.x) : -(p.fx || 1);
+  const dy = near ? -Math.sign(near.y - p.y) : -(p.fy || 0);
+  /* 떠나기 **전에** 붙어 있던 것부터 담는다. 처음에 발을 뗀 뒤부터
+     담았더니, 네 칸을 물러나고 나면 아무도 안 붙어 있어서 0발이
+     나갔다 — 「물러나는 일이 곧 공격」인데 물러나고 나서 세고 있었다. */
+  const passed = adjacentMonsters(p).slice();
+  let moved = 0;
+  for (let i = 0; i < dist; i++) {
+    const nx = p.x + dx, ny = p.y + dy;
+    if (G.level.solid(nx, ny) || monsterAt(nx, ny)) break;
+    p.x = nx; p.y = ny; moved++;
+    for (const m of adjacentMonsters(p)) if (!passed.includes(m)) passed.push(m);
+  }
+  if (moved) refreshFov();
+  return { from, moved, passed };
+}
 /* And the ones that need something down a clear line instead —
    the ranger's row greys out on the same reading of the room that
    the 쏘기 button uses. */
@@ -1919,6 +1949,41 @@ export function useArt(id) {
       break;
     }
 
+    /* ── 한계돌파 셋 ────────────────────────────────────
+       직업마다 하나씩, 「누가 봐도 이 직업이 위험한 순간」에 쓰는 것.
+       셋 다 피해가 아니라 **판을 바꾼다** — 버티고, 벌리고, 안 쓰러진다. */
+    case 'brace': {
+      /* 전사. 예전 버티기가 「언제나 옳다」였던 것을 대가로 푼다:
+         버티는 동안 한 칸도 못 움직인다. 도망칠 수 있으면 도망치는
+         편이 낫고, 도망칠 수 없을 때만 이것이 옳다. */
+      p.brace = STAND_TURNS;
+      for (const m of adjacentMonsters(p)) m.pinned = STAND_TURNS;
+      fx({ t:'brace', x:p.x, y:p.y, n: adjacentMonsters(p).length });
+      say('발을 박고 섰다. 여기서는 아무도 못 지나간다.', 'level');
+      break;
+    }
+    case 'kite': {
+      /* 궁수. 활은 붙으면 막대기이고, 이 직업의 축은 거리다.
+         뒤로 물러나면서 **지나온 자리에 있던 것 전부**에게 한 발씩 —
+         물러나는 일이 곧 공격이 된다. */
+      const back = kiteAway(p, KITE_DIST);
+      const hitList = back.passed.filter(m => G.monsters.includes(m));
+      for (const m of hitList) if (G.monsters.includes(m)) loose(m, KITE_MULT);
+      fx({ t:'kite', x:p.x, y:p.y, from: back.from, n: hitList.length });
+      say(back.moved
+        ? `${back.moved}칸 물러나며 ${hitList.length}발을 박았다.`
+        : '물러설 자리가 없다. 그대로 쏜다.', 'level');
+      break;
+    }
+    case 'bulwark': {
+      /* 팔라딘. 앞으로 나가는 직업이라 위험한 순간이 자기가 만든
+         것이다 — 들어갔고 나올 수가 없다. 순교와 달리 **빚이 없다**:
+         맹세 다섯이 그 값이고, 그래서 아무 때나 못 쓴다. */
+      p.bulwark = BULWARK_TURNS;
+      fx({ t:'bulwark', x:p.x, y:p.y });
+      say('맹세가 뼈를 대신한다. 세 턴 동안은 쓰러지지 않는다.', 'level');
+      break;
+    }
     case 'flurry': {
       /* Every exit from this loop is a thing the player did: the
          breath ran out, the body fell, or a blow missed. It rides
@@ -3373,6 +3438,13 @@ export function step(dx, dy) {
   if (!dx && !dy) G.act = 'wait';
   if (!G.running) return;
   const p = G.player, L = G.level;
+  /* 버텨선다의 대가. 이 한 줄이 없으면 「받는 피해 절반 + 인접한 것
+     묶음」이 대가 없는 순증이 되고, 그건 예전 버티기가 빠진 함정이다
+     (봇이 판당 10.2번 눌렀다). 치는 것은 되고 **가는 것만** 안 된다. */
+  if ((p.brace || 0) > 0 && (dx || dy) && !monsterAt(p.x + dx, p.y + dy)) {
+    say('발을 박아 두었다. 이 자리에서는 못 움직인다.', 'warn');
+    return;
+  }
 
   // Paralysis eats the turn outright — that is what makes a lich
   // frightening rather than merely damaging.
@@ -5383,6 +5455,9 @@ export function endTurn(skipMonsters = false) {
   if (p.blessed > 0) p.blessed--;
   if (p.might > 0 && --p.might === 0) say('끓던 피가 식는다.');
   if (p.iron > 0 && --p.iron === 0) say('굳었던 살갗이 풀린다.');
+  if (p.brace > 0 && --p.brace === 0) say('발을 뗀다. 다시 움직일 수 있다.');
+  if (p.bulwark > 0 && --p.bulwark === 0) say('맹세가 물러난다.');
+  for (const m of G.monsters) if (m.pinned > 0) m.pinned--;
   if (G.sanctum && --G.sanctum.left <= 0) { G.sanctum = null; say('빛이 스러졌다.'); }
   if (G.smoke && --G.smoke.left <= 0) { G.smoke = null; say('연기가 걷힌다.'); }
   if (p.martyr > 0 && --p.martyr === 0) {
@@ -6313,7 +6388,10 @@ function rollDown(m, uphill) {
    방 구석으로 스스로 걸어 들어가 거기서 죽었다. 이제 안전 장을
    따라 내려간다 — 열린 쪽으로 빠진다. 장이 막히면 옛 걸음으로
    돌아간다(한 칸짜리 굴에서는 그것이 유일한 수다). */
-const retreat = m => rollDown(m, true)
+/* 버텨선 전사 옆에서는 물러날 수 없다. 「여기서는 아무도 못 지나간다」가
+   규칙이 되는 자리 — 이것이 없으면 버팀은 그냥 방어 버프이고, 있으면
+   **길을 막는 기술**이 된다. */
+const retreat = m => (m.pinned > 0 ? false : rollDown(m, true))
   || advance(m, Math.sign(m.x - G.player.x), Math.sign(m.y - G.player.y));
 
 /* ── telegraphed ground ───────────────────────────────────

@@ -2803,7 +2803,12 @@ function paintIcon(canvas, sprName) {
 /* shop */
 function renderShop() {
   const shop = G.shop, p = G.player;
-  $('shop-name').textContent = `${shop.id}. ${shop.n}`;
+  /* 떠돌이 수레는 층마다 다른 짐을 끌고 온다. 그 짐이 곧 이름이다 —
+     「떠돌이 상인」이라고만 쓰면 몇 번째로 만나든 같은 상인이고,
+     실제로 재 보니 판을 통틀어 열일곱 품목이 전부 이 한 수레에서
+     나왔다. 이름이 바뀌면 재고를 보기 전에 무엇을 실었는지 안다. */
+  const load = shop.wander ? Game.wanderLoad() : null;
+  $('shop-name').textContent = load ? `${load.n}` : `${shop.id}. ${shop.n}`;
   $('shop-gold').textContent = p.gold;
 
   const buyList = $('shop-buy'); buyList.innerHTML = '';
@@ -2811,7 +2816,8 @@ function renderShop() {
      Six signs that all read "물약 있음" is the same as no signs. */
   /* 상인이 당신의 번호를 안다. 표에는 굳은 문장을 두고, 세는 말은
      함수로 받는다 — 「23번째」는 판마다 달라야 하는 값이다. */
-  const said = [shop.t, shop.line ? shop.line(G.sent || 1) : null].filter(Boolean).join(' ');
+  const said = [load ? load.line : shop.t,
+                shop.line ? shop.line(G.sent || 1) : null].filter(Boolean).join(' ');
   if (said) buyList.appendChild(el('p', 'empty shopline', said));
 
   /* 오늘 이 수레의 기분. 값이 왜 이런지 말해 주지 않으면 흔들리는
@@ -3142,12 +3148,6 @@ export function renderCamp() {
   /* Only offered when there is something to offer. A dead row
      that says "you need two relics" is a row that is dead for
      most of most runs. */
-  if (Game.canFuse()) options.push({
-    id:'fuse', n:'융합', desc:
-      `유물 둘을 불에 넣는다. 대부분은 도박이지만, 서로를 알아보는 짝이 있다. (${Game.costText(FUSE_COST)})`,
-    tag: Game.canAfford(FUSE_COST) ? '유물 둘 소모' : '재료 부족',
-    poor: !Game.canAfford(FUSE_COST),
-  });
 
   for (const o of options) {
     const row = el('button', 'campopt' + (o.poor ? ' poor' : ''));
@@ -3210,12 +3210,12 @@ let campCareful = false;
 
 /* The fire now offers rest, the wager and fusion — nothing that
    touches metal. So this is only ever the fusion path. */
+/* 모닥불의 융합 화면은 없어졌다 — 융합은 모루로 갔다(index.html 참고).
+   이 자리는 남겨 둔다: 모닥불이 다시 무언가를 「고른 뒤에 대상을
+   고르는」 일을 갖게 되면 여기로 돌아온다. */
 function renderCampTargets() {
   $('camp-choices').hidden = true;
   $('camp-targets').hidden = false;
-  $('camp-target-head').textContent = '무엇과 무엇을 넣을까';
-  teach('fuse');
-  renderFuse();
 }
 
 /* ── the anvil ──────────────────────────────────────────────
@@ -3265,6 +3265,22 @@ export function renderAnvil() {
       ? `값은 ${CAREFUL_MULT}배. 성공률 +${Math.round(CAREFUL_BONUS * 100)}%p, 실패해도 깎이거나 부서지지 않는다.`
       : `값은 그대로. ${Math.round(UPGRADE_CRIT * 100)}% 확률로 두 단계가 오른다 — 대신 실패하면 깎이고, 깊은 +에서는 부서진다.`;
 
+  /* 융합은 두들기는 일이 아니라 넣는 일이라, 촉매도 대상 목록도
+     안 쓴다. 화면을 통째로 바꿔 준다. */
+  const fusing = anvilMode === 'fuse';
+  $('anvil-list').hidden = fusing;
+  $('anvil-list-head').hidden = fusing;
+  $('anvil-cat-head').hidden = fusing || $('anvil-cat-head').hidden;
+  $('fuse-box').hidden = !fusing;
+  if (fusing) {
+    $('anvil-list-head').textContent = '무엇과 무엇을 넣을까';
+    $('anvil-note').textContent = Game.canFuse()
+      ? `유물 둘을 불에 넣는다. 대부분은 도박이지만 서로를 알아보는 짝이 여섯 있다. ${Game.costText(FUSE_COST)}`
+      : '유물이 둘은 있어야 한다.';
+    teach('fuse');
+    renderFuse();
+    return;
+  }
   renderCatalysts();
   renderAnvilTargets();
 }
@@ -3406,7 +3422,6 @@ let fusePick = [];
 function renderFuse() {
   const box = $('fuse-box');
   box.hidden = false;
-  $('camp-target-head').textContent = '무엇과 무엇을 넣을까';
 
   const held = Game.relicList();
   fusePick = fusePick.filter(id => held.some(r => r.id === id));
@@ -3476,7 +3491,10 @@ function renderFuse() {
     const [x, y] = fusePick;
     fusePick = [];
     Game.fuseRelics(x, y);
-    setScreen('play');
+    /* 모루는 닳지 않는다 — 융합도 그렇다. 넣고 나서 화면을 닫지 않고
+       그 자리에 남는다: 유물이 셋이면 두 번 넣을 수 있어야 하고,
+       그 「한 번 더」가 조합을 계획으로 만든다. */
+    renderAnvil();
     refresh();
   };
 }

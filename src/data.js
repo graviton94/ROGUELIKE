@@ -1822,6 +1822,12 @@ export const SHOPS = [
     t:'두루마리와 지팡이. 아래에서 주워 온 것을 베껴 판다. 원본은 늘 한 장이 모자란다.' },
   /* Not in town. This one walks the dungeon, which is the only
      reason the gold in your purse means anything after floor 1. */
+  /* ── 수레가 하나뿐이었다 ────────────────────────────────
+     던전에서 만나는 상인은 이 하나이고, 재고에 여덟 종이 통째로
+     들어 있었다. 재 보니 판을 통틀어 열일곱 품목이 전부 이 한
+     수레에서 나왔다 — 그러면 몇 번째로 만나든 **같은 수레**다.
+     그래서 짐을 나눈다: 만날 때마다 무엇을 싣고 왔는지가 다르고,
+     그 짐이 그날의 이름이 된다(SHOP_LOADS). */
   { id:7, n:'떠돌이 상인', spr:'amulet', wander:true,
     stock:['potHeal','potCure','potMana','scrTele','scrMap','scrFlee','torch','smoke'],
     mats:['scrap','dust','essence'], cats:true,
@@ -1833,6 +1839,38 @@ export const SHOPS = [
       ? '「첫 손님이오.」 어떻게 여기서 살아 있는지는 묻지 않는 편이 좋다.'
       : `「${n - 1}명이 지나갔소. 사는 사람은 드물었고.」 어떻게 여기서 살아 있는지는 묻지 않는 편이 좋다.` },
 ];
+
+/* ── 이 수레가 오늘 싣고 온 것 ────────────────────────────
+   떠돌이 상인은 층마다 다른 짐을 끌고 온다. 짐마다 이름이 다르고,
+   파는 것이 다르고, 값이 다르다 — 그러면 「또 그 상인」이 아니라
+   「오늘은 무엇을 싣고 왔나」가 된다.
+
+   깊이로 무엇이 나올지를 가른다: 얕은 층에서는 불과 물약처럼 당장
+   목숨을 사는 것, 깊은 층에서는 재료와 촉매처럼 판을 바꾸는 것.
+   그러면 「적재적소」가 규칙이 된다 — 1층에서 정수를 팔아 봐야
+   살 사람도 쓸 자리도 없다. */
+export const SHOP_LOADS = [
+  { id:'wick',  n:'심지 수레',   d:1, w:10, cut:0.85, mats:[],
+    stock:['torch','torch','potHeal','smoke'],
+    line:'「불부터 사시오. 아래는 어둡고, 어두운 데서 죽은 사람은 값을 못 치르오.」' },
+  { id:'flask', n:'약 수레',     d:1, w:9, mats:[],
+    stock:['potHeal','potCure','potMana'],
+    line:'「병은 무겁지 않소. 무거운 건 안 산 뒤에 오는 후회지.」' },
+  { id:'paper', n:'종이 수레',   d:3, w:8, mats:['scrap'],
+    stock:['scrMap','scrTele','scrFlee'],
+    line:'「읽을 줄 아시오? 아니어도 상관없소. 태우면 다 같은 값이오.」' },
+  { id:'iron',  n:'쇠 수레',     d:4, w:8, mats:['scrap','dust'],
+    stock:['picks','torch'], cats:true,
+    line:'「두들길 것이 있으면 사 가시오. 아래로 갈수록 모루는 많고 재료는 없소.」' },
+  { id:'ash',   n:'재 수레',     d:7, w:7, cut:1.25, mats:['essence','dust'],
+    stock:['potHeal'], cats:true,
+    line:'「이건 위에서 안 팔더군. 팔 수가 없지 — 여기서만 나오니까.」' },
+  { id:'odd',   n:'이상한 수레', d:5, w:5, cut:1.4, mats:['essence'],
+    stock:['scrTele','smoke'], cats:true,
+    line:'「값은 좀 하오. 대신 이 물건들은 다른 데서 못 보오.」' },
+];
+export const loadsFor = depth =>
+  SHOP_LOADS.filter(l => l.d <= depth);
 
 /* ── affixes ──────────────────────────────────────────────
    One vocabulary, three users: gear, spells and monsters. The
@@ -2460,7 +2498,13 @@ export const FUSE_ODDS = [
   { id:'slag',  n:'잿더미', w:14, tone:'g',
     t:'둘 다 녹아버리고 재료만 남는다.' },
 ];
-export const FUSE_COST = { dust: 3, gold: 180 };
+/* ── 값을 내렸다: 유물 둘이 이미 값이다 ────────────────────
+   3가루 · 180금이었다. 그런데 융합은 **유물 두 개를 태우는** 일이고,
+   그 둘이 이 게임에서 가장 구하기 어려운 물건이다. 그 위에 재료값을
+   또 얹으면 문이 셋이 된다: 짝을 든다 · 모루를 만난다 · 값을 낸다.
+   봇으로 재니 모루로 옮긴 뒤에도 24판에 1회였고, 값을 물었을 때
+   못 넣은 판이 대부분이었다. 문 하나를 뺀다. */
+export const FUSE_COST = { dust: 1, gold: 40 };
 
 /* ── the descent ──────────────────────────────────────────
    Slay the Spire's map, folded into one screen. Two ways down,

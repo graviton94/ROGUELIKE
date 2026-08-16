@@ -8,6 +8,10 @@ import { SHOPS } from './data.js';
    걷는 턴이 그대로 남는다 — 걸음을 줄이려면 거리를 줄여야 한다. */
 export const MW = 52, MH = 32;
 
+/* 직전 층에 무엇이 서 있었나. 생성기의 기억이지 판의 상태가 아니라
+   여기 둔다 — 같은 시설이 두 층 연달아 나오는 것을 막는 데만 쓴다. */
+let LAST_FLOOR = [];
+
 /* Tiles 0-6 are the original set. A door is now four tiles
    rather than one, because a *closed* door is the thing that
    makes archers and hounds interesting: it breaks line of
@@ -391,6 +395,19 @@ export class Level {
     this.tiles[idx(st.x, st.y)] = DOWN;
     this.downRoom = far;
 
+    /* ── 무엇을 놓을지 먼저 정한다 ────────────────────────
+       예전에는 넷이 각자 주사위를 굴렸다(모닥불 60% · 모루 55% ·
+       제단 52% · 수레 58%). 그러면 두 가지가 동시에 일어난다:
+       한 층에 넷이 다 서기도 하고, **연달아 같은 것만 나오기도**
+       한다. 실측으로 1층에 모루가 63%인데 그중 두들길 재료가 있는
+       판은 65%였고 — 1층에서 재료가 있을 리 없다 — 제단은 1층에
+       0%, 2층부터 40~60%로 층마다 똑같이 반복됐다.
+
+       그래서 깊이가 성격을 갖게 한다. 얕은 곳은 **보급**(불과 수레),
+       가운데는 **벼림**(모루), 아래는 **거래**(제단). 그리고 직전
+       층에 있던 것은 이번 층에서 무게를 반으로 줄인다 — 같은 것이
+       두 층 연달아 나오는 것이 「똑같은 이벤트」의 정체다. */
+    this.planFacilities();
     this.scatterHazards(start, st);
     this.placeCamp(start, st);
     this.placeAnvil(start, st);
@@ -452,8 +469,7 @@ export class Level {
      the one place a floor can hand you something enormous or take
      something away. Visible from arrival so it can be *wanted*. */
   placeAltar(start, down) {
-    if (this.depth < 2) return;
-    if (!this.branch.altar && Math.random() > 0.52) return;
+    if (!this.branch.altar && !this.plan?.altar) return;
     for (let t = 0; t < 60; t++) {
       const r = this.rooms[rnd(this.rooms.length)];
       if (!r) return;
@@ -472,7 +488,7 @@ export class Level {
      gold rather than ignore it, and the reason a floor with one
      feels different from the floor before it. */
   placeMerchant(start, down) {
-    if (this.depth < 2 || Math.random() > 0.58) return;
+    if (!this.plan?.shop) return;
     for (let t = 0; t < 60; t++) {
       const r = this.rooms[rnd(this.rooms.length)];
       if (!r) return;
@@ -500,7 +516,7 @@ export class Level {
        free and turns the choice into "always upgrade"; making it
        scarce is what puts weight on the one you do find. */
     if (this.branch.noCamp) return;
-    if (this.depth > 1 && Math.random() > 0.6) return;
+    if (!this.plan?.camp) return;
     const banned = new Set([this.roomOf[idx(start.x, start.y)], this.roomOf[idx(down.x, down.y)]]);
     const rooms = this.rooms.filter((r, i) => !banned.has(i));
     const pool = rooms.length ? rooms : this.rooms;
@@ -559,8 +575,35 @@ export class Level {
      Commoner than the fire (55%) because it costs materials
      every time — a floor with an anvil and no scrap is just a
      floor with an anvil. */
+  /* 이번 층에 무엇이 서는가. 깊이가 성격을 정하고, 직전 층이 반복을
+     막는다. 둘 또는 셋 — 넷이 다 서면 층이 시장이 되고, 하나만
+     서면 걷기만 하는 층이 된다. */
+  planFacilities() {
+    const d = this.depth;
+    const want = {
+      camp:  d <= 2 ? 0.95 : 0.66,
+      shop:  d <= 2 ? 0.75 : 0.58,
+      /* 모루는 재료가 모이기 시작하는 3층부터. 1~2층의 모루는
+         「두들길 것이 없는 모루」이고, 그건 시설이 아니라 장식이다.
+         (융합이 모루로 온 뒤로는 유물 둘이 모이는 시점이기도 하다.) */
+      anvil: d <= 2 ? 0 : d <= 5 ? 0.55 : 0.65,
+      /* 제단은 낼 것이 있어야 무섭다 — 피는 처음부터 있지만
+         금화와 장비는 4층쯤부터 아깝다. */
+      altar: d <= 3 ? 0 : 0.55,
+    };
+    this.plan = {};
+    for (const k of Object.keys(want)) {
+      const w = want[k] * (LAST_FLOOR.includes(k) ? 0.5 : 1);
+      this.plan[k] = Math.random() < w;
+    }
+    /* 아무것도 안 서는 층은 없다. 그런 층은 「조용한 층」이 아니라
+       그냥 빈 층이다 — 갈래의 `고요한 층`이 그 일을 따로 한다. */
+    if (!Object.values(this.plan).some(Boolean)) this.plan[d <= 2 ? 'camp' : 'anvil'] = true;
+    LAST_FLOOR = Object.keys(this.plan).filter(k => this.plan[k]);
+  }
+
   placeAnvil(start, down) {
-    if (this.depth < 1 || Math.random() > 0.55) return;
+    if (!this.plan?.anvil) return;
     const banned = new Set([this.roomOf[idx(start.x, start.y)]]);
     const rooms = this.rooms.filter((r, i) => !banned.has(i));
     const pool = rooms.length ? rooms : this.rooms;

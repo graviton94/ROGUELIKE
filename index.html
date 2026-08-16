@@ -347,12 +347,6 @@
     <div id="camp-targets" hidden>
       <h3 class="sect" id="camp-target-head">대상</h3>
       <!-- fusion: two relics into the fire -->
-      <div id="fuse-box" hidden>
-        <div id="fuse-pick"></div>
-        <div id="fuse-odds"></div>
-        <p class="note" id="fuse-note"></p>
-        <button class="big" id="fuse-go" disabled>불에 넣는다</button>
-      </div>
       <button class="mini" id="camp-back">← 돌아가기</button>
     </div>
   </div>
@@ -373,6 +367,12 @@
       <button data-mode="upgrade">강화</button>
       <button data-mode="enchant">인챈트</button>
       <button data-mode="reroll">재련</button>
+      <!-- 융합이 모닥불에 있었다. 그런데 모닥불은 심지·지짐·숨 셋 중
+           하나를 고르는 자리라, 융합은 그 셋과 경쟁해서 **언제나
+           졌다** — 24판에서 조합 가능한 짝을 든 턴이 46%인데 실제
+           조합은 0회였다. 불에 넣는 일이면 모루가 더 맞는 자리이고,
+           모루는 초반에 재료가 없어 놀고 있었다. -->
+      <button data-mode="fuse">융합</button>
     </div>
     <div id="anvil-style" class="styleswitch">
       <button data-style="bold">과감</button>
@@ -381,8 +381,14 @@
     <p class="note" id="anvil-note"></p>
     <h3 class="sect" id="anvil-cat-head">촉매</h3>
     <div id="anvil-cats"></div>
-    <h3 class="sect">무엇을 두들길까</h3>
+    <h3 class="sect" id="anvil-list-head">무엇을 두들길까</h3>
     <div id="anvil-list"></div>
+    <div id="fuse-box" hidden>
+      <div id="fuse-pick"></div>
+      <div id="fuse-odds"></div>
+      <p class="note" id="fuse-note"></p>
+      <button class="big" id="fuse-go" disabled>불에 넣는다</button>
+    </div>
   </div>
 </section>
 

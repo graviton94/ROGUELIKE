@@ -669,6 +669,22 @@ function runBot(race, cls, clear, opt = {}) {
           enchanted++; st.enchants = (st.enchants || 0) + 1;
         }
       }
+      /* 융합이 모루로 왔다. 봇이 조합을 한 번도 안 하면 「짝을 들고도
+         못 한다」가 고쳐졌는지 잴 수가 없다 — 넣을 수 있으면 넣는다.
+         무엇이 나올지는 안 보고 고른다: 그게 이 화면의 성격이다. */
+      for (let f = 0; f < 3; f++) {
+        const rel = (p.relics || []);
+        if (rel.length < 2 || !Game.canAfford(BOWDATA.FUSE_COST)) break;   // 값은 융합의 값으로 물어야 한다
+        let pair = null;
+        for (let x = 0; x < rel.length && !pair; x++)
+          for (let y = x + 1; y < rel.length && !pair; y++)
+            if (BOWDATA.fusionOf(rel[x], rel[y])) pair = [rel[x], rel[y]];
+        const two = pair || [rel[0], rel[1]];
+        const before = rel.length;
+        Game.fuseRelics(two[0], two[1]);
+        if ((p.relics || []).length >= before) break;   // 못 넣었다
+        st.fusions = (st.fusions || 0) + 1;
+      }
       st.anvils = (st.anvils || 0) + 1;
       /* ── 걷는 라이브락의 정체 ──────────────────────────────
          모루는 닳지 않는다. 그래서 봇의 경로 목록에서 모루는 **재료가

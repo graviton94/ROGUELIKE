@@ -4,7 +4,7 @@
 
 import {
   MAX_DEPTH, MAX_LEVEL, STATS, STAT_NAME, RACES, CLASSES, SPELLS, MONSTERS, BOSS, mimicFor,
-  WEAPONS, ARMOURS, CONSUMABLES, SHOPS, AILMENTS, IMMUNE, TRAPS,
+  WEAPONS, ARMOURS, CONSUMABLES, SHOPS, SHOP_LOADS, loadsFor, AILMENTS, IMMUNE, TRAPS,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, ELITES, affixName,
   MATS, salvageYield, worthOf, upgradeCost, ENCHANT_COST, REROLL_COST,
   ENGRAVINGS, engraveById, engraveSlots, isMilestone, ENGRAVE_PENALTY,
@@ -6602,6 +6602,13 @@ export function fusePreview(a, b) {
   return { special: true, out: f.out, known: Meta.seen('fusions', f.out) };
 }
 
+/* 융합은 이제 모루에서 한다. 모닥불에서 하던 시절에는 심지·지짐·숨
+   셋과 같은 한 번을 놓고 겨뤄야 했고, 그래서 **한 번도 안 일어났다** —
+   24판에서 조합 가능한 짝을 든 턴이 46.2%(26,598턴 중 12,282턴)이고
+   판의 절반이 짝을 손에 든 채 끝났는데 실제 조합은 0회였다.
+   불에 넣는 일이면 모루가 더 맞는 자리이고, 모루는 초반에 재료가
+   없어 놀고 있었다. 그리고 모루는 닳지 않으므로 융합도 이제 층의
+   유일한 한 번을 잡아먹지 않는다. */
 export function fuseRelics(a, b) {
   const p = G.player;
   if (!p || a === b) return;
@@ -6627,7 +6634,6 @@ export function fuseRelics(a, b) {
     say(`— ${r.n}. ${r.t}${first ? ' (처음 찾아낸 조합)' : ''}`, 'level');
     fx({ t:'transcend', x:p.x, y:p.y });
     recalc(p);
-    spendCamp();
     return;
   }
 
@@ -6665,7 +6671,6 @@ export function fuseRelics(a, b) {
     fx({ t:'forge', x:p.x, y:p.y, fail:true });
   }
   recalc(p);
-  spendCamp();
 }
 
 function pickWeighted(table) {
@@ -7445,6 +7450,16 @@ export function cleanse(offer) {
   say(`${nameOf(it)}에서 붙어 있던 것이 떨어져 나갔다. (-${cost})`, 'level');
 }
 
+/* 이 층의 수레가 끌고 온 짐. 층에 들어설 때 한 번 정해진다. */
+export function wanderLoad() {
+  if (G.loadAt === G.depth && G.load) return SHOP_LOADS.find(l => l.id === G.load) || null;
+  const pool = loadsFor(G.depth);
+  if (!pool.length) return null;
+  const pick = pickWeighted(pool.map(l => ({ ...l, w: l.w })));
+  G.load = pick.id; G.loadAt = G.depth;
+  return pick;
+}
+
 export function shopStock(shop) {
   /* The weapon rack used to return here, which meant the quiver
      rack hung below an early return and the one shop that sells
@@ -7460,7 +7475,12 @@ export function shopStock(shop) {
   }
   if (shop.stock === 'armour')
     return ARMOURS.filter(a => a.d <= 12).map(a => ({ kind:'armour', ...a }));
-  const out = shop.stock.map(id => makeConsumable(id));
+  /* 떠돌이 수레는 「오늘 무엇을 싣고 왔나」가 재고다. 짐은 층마다
+     한 번 굴려 두고(G.load), 그 층에서는 안 바뀐다 — 화면을 닫았다
+     열 때마다 물건이 바뀌면 그건 상인이 아니라 뽑기다. */
+  const load = shop.wander ? wanderLoad() : null;
+  const ids = load ? load.stock : shop.stock;
+  const out = ids.map(id => makeConsumable(id)).filter(Boolean);
   /* Rods are read, not swung, so they hang with the scrolls
      rather than on the weapon rack — the one shelf a caster has
      any reason to walk to. */
@@ -7474,8 +7494,11 @@ export function shopStock(shop) {
   if (hasShackle('ledger') && out.length > 1) out.length = Math.ceil(out.length / 2);
   /* The wandering merchant also deals in materials, which is what
      turns a purse of gold into a +1 you actually wanted. */
-  if (shop.mats)
-    for (const k of shop.mats)
+  /* 재료도 짐을 따른다. 예전에는 수레 하나가 셋을 늘 실었다 —
+     그러면 「무엇을 싣고 왔나」가 재고에서 안 읽힌다. */
+  const matList = load ? (load.mats || []) : (shop.mats || []);
+  if (matList.length)
+    for (const k of matList)
       out.push({ kind:'mat', mat:k, id:`mat_${k}`, spr: k === 'essence' ? 'amulet' : k === 'dust' ? 'potion' : 'armor',
                  n: MATS[k].n, cost: MATS[k].cost, desc: MATS[k].note });
   /* 행상인의 기억: the general store carries one relic you have
@@ -7495,7 +7518,7 @@ export function shopStock(shop) {
   /* Catalysts are the only thing worth crossing a floor for a
      merchant. He carries two, drawn from what the depth has
      unlocked — never the whole rack, or they stop being rare. */
-  if (shop.cats) {
+  if (load ? load.cats : shop.cats) {
     const pool = CATALYSTS.filter(c => c.d <= Math.max(1, G.deepest || G.depth));
     const seen = new Set();
     for (let i = 0; i < 2 && pool.length; i++) {
@@ -7596,8 +7619,13 @@ export const priceOf = (item, buying) => {
      계산대가 받는 값이 갈라지면 그것은 흥정이 아니라 사기다. */
   const mood = shopMood(G.shop);
   const hag = haggleState();
-  const swing = buying ? mood.buy(G.player) * (hag?.cut ?? 1)
-                       : mood.sell(G.player);
+  /* 짐마다 값이 다르다. 심지 수레는 싸게 넘기고(0.85) 재 수레는
+     비싸게 부른다(1.25) — 「오늘 무엇을 싣고 왔나」가 재고만이 아니라
+     값에도 나와야 그 수레가 기억에 남는다. 파는 값에는 안 건다:
+     이쪽은 사람의 물건이지 수레의 물건이 아니다. */
+  const cart = (buying && G.shop?.wander) ? (wanderLoad()?.cut ?? 1) : 1;
+  const swing = (buying ? mood.buy(G.player) * (hag?.cut ?? 1)
+                        : mood.sell(G.player)) * cart;
   return buying
     ? Math.max(1, Math.round(base * (1.25 - chrB * 0.03) * mk * swing))
     : Math.max(1, Math.round(base * (0.42 + chrB * 0.02) / mk * swing));

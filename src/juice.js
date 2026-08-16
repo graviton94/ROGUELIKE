@@ -113,6 +113,22 @@ function martyrFx(e, spent) {
   else shake = Math.max(shake, 0.4);
 }
 
+/* 되감기가 「사라진다」에서 「빠져나온다」가 됐다. 연출도 그 순서를
+   따라간다 — 칼이 먼저 사방으로 나가고, 그 다음에 연기가 덮는다.
+   예전에는 파란 원 하나가 퍼지고 끝이라 「임팩트가 없다」는 말을
+   들었고, 그 말은 규칙에도 화면에도 둘 다 맞았다. */
+function vanishBurst(e) {
+  for (let i = 0; i < (e.n || 0); i++) {
+    const a = (i / Math.max(1, e.n)) * Math.PI * 2;
+    ring(e.x + Math.cos(a) * 0.9, e.y + Math.sin(a) * 0.9, 0.8, PALETTE.w, 240);
+  }
+  ring(e.x, e.y, 3.2, PALETTE.B, 520);
+  ring(e.x, e.y, 2.0, PALETTE.b, 380);
+  shake = Math.max(shake, 0.34 + (e.n || 0) * 0.08);
+  buzz([30, 20, 40]);
+  sfx.hit();
+}
+
 function crackBurst(e) {
   const p = G.player;
   if (!p) return;
@@ -734,8 +750,8 @@ export function pump(queue, player) {
         break;
       }
       case 'crack':      crackBurst(e); break;
-      case 'martyr':     martyrFx(e, true); break;
-      case 'martyrHold': martyrFx(e, false); break;
+      case 'vanishOut':  vanishBurst(e); break;
+      case 'martyr': case 'martyrHold': martyrFx(e, e.t === 'martyr'); break;
 
       /* ── the ranger's four ─────────────────────────────
          The warrior's arts happen at arm's length and are drawn

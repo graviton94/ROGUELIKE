@@ -340,7 +340,7 @@ for (const [k, c] of Object.entries(CLASSES)) c.trait = TRAITS[k];
    Unlocked by class level; cost mana.                       */
 export const SPELLS = {
   arcane: [
-    { id:'bolt',   name:'마력 화살',   short:'화살', lv:1,  cost:1,  desc:'시야의 적 하나에게 마력을 쏜다.' },
+    { id:'bolt',   name:'마력 화살',   short:'화살', lv:1,  cost:2,  desc:'시야의 적 하나에게 마력을 쏜다. 마법사의 기본기 — 결승타는 서리가 맡는다.' },
     { id:'blink',  name:'점멸',        short:'점멸', lv:3,  cost:2,  desc:'가까운 곳으로 순간 이동한다.' },
     { id:'detect', name:'생명 탐지',   short:'탐지', lv:5,  cost:3,  desc:'층의 모든 몬스터 위치를 읽는다.' },
     { id:'frost',  name:'서리 폭발',   short:'서리', lv:9,  cost:6,  desc:'주변 모든 적을 얼려 찢는다.' },
@@ -350,7 +350,7 @@ export const SPELLS = {
     { id:'cure',   name:'경상 치유',   short:'치유', lv:1,  cost:1,  desc:'상처를 닫는다.' },
     { id:'bless',  name:'축복',        short:'축복', lv:3,  cost:2,  desc:'잠시 명중과 방어가 오른다.' },
     { id:'detect', name:'악 감지',     short:'감지', lv:5,  cost:3,  desc:'층의 모든 몬스터 위치를 읽는다.' },
-    { id:'smite',  name:'응징의 빛',   short:'응징', lv:9,  cost:5,  desc:'시야의 적 하나를 빛으로 태운다.' },
+    { id:'smite',  name:'응징의 빛',   short:'응징', lv:9,  cost:4,  desc:'시야의 적 하나를 빛으로 태운다.' },
     { id:'heal',   name:'중상 치유',   short:'회복', lv:13, cost:8,  desc:'깊은 상처까지 되돌린다.' },
   ],
 };
@@ -1034,7 +1034,7 @@ export const ARTS = {
     { id:'fan',        name:'칼부채',      short:'부채', lv:4,  stam:2, shade:2,
       desc:'부채꼴로 칼을 던진다. 그 안의 모든 것이 맞는다. (그림자 2)' },
     { id:'vanish',     name:'어둠 되감기',  short:'되감기', lv:8,  stam:2, shade:1,
-      desc:'싸움 한가운데서 자취를 지운다. 깨어 있던 것들이 너를 놓친다. (그림자 1)' },
+      desc:'붙어 있는 것을 전부 찌르고 두 칸씩 밀어낸 뒤 자취를 지운다. 그 한 대는 전부 기습이다. (그림자 1)' },
     { id:'vitals',     name:'급소',        short:'급소', lv:12, stam:3, shade:3,
       desc:'모은 것을 한 번에 태운다. 갑옷을 지나가는 한 방. (그림자 3)' },
   ],
@@ -1132,6 +1132,11 @@ export const FAN_RANGE   = 4;
 export const FAN_ARC     = 0.35;  // dot-product floor: a touch wider than 90°
 export const FAN_SHARE   = 0.7;
 export const VANISH_HUSH = 3;     // the turn it is used on is itself spent
+/* 되감기가 나가면서 붙어 있던 것을 찌르고 민다. 「임팩트가 없다」는
+   말을 들은 뒤에 붙인 두 값이다 — 도적이 실제로 위험한 순간은 들켰고
+   **이미 붙었을 때**인데, 예전 되감기는 그때 아무것도 안 했다. */
+export const VANISH_MULT = 0.85;  // 밀려나는 것마다 기습 판정 한 대
+export const VANISH_PUSH = 2;     // 그리고 두 칸 밀린다 — 포위가 풀린다
 export const VITALS_MULT = 2.6;
 
 /* ── 잔향 ─────────────────────────────────────────────────

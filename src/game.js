@@ -30,6 +30,7 @@ import {
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   ARTS, SHOVE_DIST, SHOVE_WALL, CLEAVE_SHARE,
   SHADOW_MAX, SHADOW_TICK, FAN_RANGE, FAN_ARC, FAN_SHARE, VANISH_HUSH, VITALS_MULT,
+  VANISH_MULT, VANISH_PUSH,
   ECHOES, ECHO_TURNS, ECHO_POWER, ECHO_SPLASH,
   FLURRY_MAX, FLURRY_STEP, FLURRY_STAM, MARK_STEP, MARK_MAX,
   AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE, SMOKE_RADIUS, SMOKE_TURNS,
@@ -1791,12 +1792,7 @@ export function useArt(id) {
          that tile into a stagger. */
       const m = near.sort((x, y) => y.hp - x.hp)[0];
       const dx = Math.sign(m.x - p.x), dy = Math.sign(m.y - p.y);
-      let moved = 0;
-      for (let i = 0; i < SHOVE_DIST; i++) {
-        const nx = m.x + dx, ny = m.y + dy;
-        if (G.level.solid(nx, ny) || monsterAt(nx, ny)) break;
-        m.x = nx; m.y = ny; moved++;
-      }
+      const moved = shoveBack(m, dx, dy, SHOVE_DIST);
       m.awake = true;
       fx({ t:'shove', x:p.x, y:p.y, tx:m.x, ty:m.y, dx, dy, hit: moved < SHOVE_DIST });
       if (moved < SHOVE_DIST) {
@@ -1880,16 +1876,36 @@ export function useArt(id) {
       break;
     }
     case 'vanish': {
-      /* Stealth as something you can re-enter. Everything awake
-         that can see you loses you — which makes your next blow an
-         ambush by the ordinary rule, which hands a shade back.
-         A boss does not lose you, and neither does a named thing
-         you have already picked a fight with. */
+      /* ── 되감기가 「임팩트가 없다」는 말을 들었다 ──────────
+         맞는 말이었다. 이것이 하던 일은 **아무 일도 안 일어나게**
+         하는 것이다 — 깨어 있던 것이 조용히 안 깨어 있게 된다.
+         화면에서는 파란 원 하나가 퍼지고 끝이고, 도적이 실제로
+         위험한 순간(들켰고 **이미 붙었을 때**)에는 붙은 것이 여전히
+         옆에 서 있다. 놓쳤다고 적혀 있을 뿐이다.
+
+         도적의 한계돌파는 「사라진다」가 아니라 **「빠져나온다」**여야
+         한다. 그래서 세 가지를 한 번에 한다:
+           · 인접한 것을 전부 밀어낸다 — 포위가 그 자리에서 풀린다
+           · 밀려난 것마다 **기습 판정 한 대**를 먹인다 — 도적의
+             가장 센 판정이 가장 위험한 순간에 나간다
+           · 그러고 나서 자취를 지운다 — 원래 하던 일은 그대로
+
+         「아무 일도 안 일어남」이 「셋을 밀치고 셋을 찌르고 사라짐」이
+         된다. 같은 자원, 같은 자리, 다른 사건.                */
+      const hugged = adjacentMonsters(p);
+      for (const m of hugged) {
+        const dx = Math.sign(m.x - p.x), dy = Math.sign(m.y - p.y);
+        /* 찌르고 나서 민다 — 순서가 반대면 기습이 사거리를 벗어난다. */
+        swing(m, VANISH_MULT, { forceCrit: true });
+        if (G.monsters.includes(m)) shoveBack(m, dx, dy, VANISH_PUSH);
+      }
       const lost = awakeWatchers().filter(m => !(m.named && m.provoked));
       for (const m of lost) m.awake = false;
       G.hushUntil = G.turn + VANISH_HUSH;
-      fx({ t:'burst', x:p.x, y:p.y, r:3, color:'B' });
-      say(lost.length ? `${lost.length}이(가) 너를 놓쳤다.` : '자취를 지웠다.', 'good');
+      fx({ t:'vanishOut', x:p.x, y:p.y, n: hugged.length });
+      say(hugged.length
+        ? `칼이 먼저 나가고 연기가 뒤따랐다. ${hugged.length}을(를) 떼어 냈다.`
+        : (lost.length ? `${lost.length}이(가) 너를 놓쳤다.` : '자취를 지웠다.'), 'level');
       break;
     }
     case 'vitals': {
@@ -2310,9 +2326,24 @@ export function cast(spellId) {
     case 'smite': {
       if (!nearest) { say('시야에 적이 없다.'); break; }
       const holy = sp.id === 'smite';
+      /* ── 화살 하나로 판이 끝나고 있었다 ────────────────────
+         실측: 마력 화살 한 방이 평타의 **20배**인데 값이 1이라 한 층에
+         예순여덟 번 쏜다. 층 총량으로 ×33.5 — 마법사는 평타를 칠 이유가
+         아예 없고, 판 내내 버튼 하나만 누르면 된다. 「스킬이 평타보다
+         좋나 모르겠다」는 반대쪽 직업의 말이었고, 이쪽은 정반대로
+         깨져 있었다.
+
+         주사위가 레벨에 **선형**으로 붙는 것이 원인이다(lv/3 — 24레벨이면
+         10개). 상한을 둔다: 화살은 마법사의 기본기이지 결승타가 아니고,
+         결승타 자리는 서리 폭발이 맡는다. 값도 1 → 2로 올려 마나가
+         실제 예산이 되게 한다(data.js).
+
+         응징의 빛은 반대로 값에 비해 약했다(×1.8). 주사위는 그대로
+         두고 값을 5 → 4로 내린다 — 팔라딘의 마나는 맹세와 나눠 쓰는
+         자원이라 한 번 더 쏘는 것이 실제로 크다. */
       const raw = holy
-        ? roll(3 + Math.floor(p.lv / 3), 6) + statB(p, 'wis') * 2
-        : roll(2 + Math.floor(p.lv / 3), 5) + statB(p, 'int') * 2;
+        ? roll(3 + Math.min(5, Math.floor(p.lv / 3)), 6) + statB(p, 'wis') * 2
+        : roll(2 + Math.min(3, Math.floor(p.lv / 5)), 5) + statB(p, 'int') * 2;
       const dmg = Math.max(1, Math.round(raw * pow));
       fx({ t:'beam', fx:p.x, fy:p.y, tx:nearest.x, ty:nearest.y, color: holy ? 'y' : 'P' });
       hurtMonster(nearest, dmg, holy ? '응징의 빛' : '마력 화살', { weapon: 'spell' });
@@ -3173,6 +3204,18 @@ export const DARK_SIGHT = 7;
 /* 눈을 뗀 한 턴에 이것이 좁히는 칸 수. 둘이면 「걸어서 도망칠 수
    있다」가 거짓이 되고, 셋이면 방을 가로지르므로 도망 자체가 없어진다. */
 export const UNSEEN_STEP = 2;
+
+/* 무언가를 밀어내는 일. 밀쳐내기와 그림자 되감기가 같은 규칙을 쓴다 —
+   둘이 따로 밀면 「벽에 처박힌다」가 한쪽에서만 참이 된다. */
+function shoveBack(m, dx, dy, dist) {
+  let moved = 0;
+  for (let i = 0; i < dist; i++) {
+    const nx = m.x + dx, ny = m.y + dy;
+    if (G.level.solid(nx, ny) || monsterAt(nx, ny)) break;
+    m.x = nx; m.y = ny; moved++;
+  }
+  return moved;
+}
 /* 그리고 어둠 속의 손. 0.78이었는데, 어둠이 은신이던 시절에는 그것이
    유일한 벌이었다. 이제 어둠은 그 자체로 위험하므로 손은 조금 더
    무뎌져도 된다 — 「불을 켤까」가 매번 계산이 되어야 한다. */
@@ -4527,8 +4570,8 @@ function swing(m, scale, opt = {}) {
      p.shadow for a guaranteed crit. That is what made the shade a
      blinking light rather than a resource — it was banked and
      burned by the same button you press anyway. */
-  const forced = (p.cls === 'warrior' && (p.chain3 || 0) >= 3);
-  if (forced) { p.chain3 = 0; say('세 번째 손 — 급소가 열렸다.', 'level'); }
+  const forced = (p.cls === 'warrior' && (p.chain3 || 0) >= 3) || !!opt.forceCrit;
+  if (forced && !opt.forceCrit) { p.chain3 = 0; say('세 번째 손 — 급소가 열렸다.', 'level'); }
   const crit = asleep || forced
     || Math.random() < critChance(p) + (kind === 'dagger' ? 0.08 : 0);
   if (crit) {

@@ -64,6 +64,47 @@ for (const [n, it] of SAMPLES) {
     + `   (쇳조각 ${y.scrap} · 가루 ${y.dust} · 정수 ${y.essence})`);
 }
 const lo = Math.min(...ratios), hi = Math.max(...ratios);
+
+/* ── 손으로 고른 표본이 이 파일을 한 번 속였다 ──────────────
+   위 여섯은 내가 적은 물건이다. 그 표를 보고 「깊은 물건은 부수면
+   더 나온다」고 판정하고 분해 상한을 고쳤는데, **실제로 바닥에
+   떨어지는 장비는 평균 +0.03에 각인 0.00**이었다. 위 표에서 그 사실을
+   말해 주는 줄이 하나도 없었고, 그래서 상한을 30으로 놓아 10층 아래
+   드롭을 38% 깎아 놓고 「고쳤다」고 적었다.
+
+   손으로 고른 표본은 설계를 설명하는 데는 좋고 **판정하는 데는
+   못 쓴다.** 판정은 생성기가 실제로 뱉는 것으로 한다. */
+console.log('');
+console.log('  실제로 바닥에 떨어진 장비 (층마다 40판 생성)');
+console.log('  층    표본   평균+   각인   쇳조각중앙   부수기/팔기중앙');
+const mid1 = a => { const v = a.slice().sort((x, y) => x - y); return v[v.length >> 1]; };
+const realRatio = {}, realScrap = {};
+for (const d of [1, 5, 8, 12, 15]) {
+  const sc = [], rt = []; let plus = 0, eng = 0, n = 0;
+  for (let t = 0; t < 40; t++) {
+    Game.enterDepth(d);
+    for (const it of G.items) {
+      if (it.kind !== 'weapon' && it.kind !== 'armour') continue;
+      n++; plus += it.plus || 0; eng += (it.engrave || []).length;
+      const y = D.salvageYield(it);
+      sc.push(y.scrap);
+      rt.push(matGold(y) / Math.max(1, Game.priceOf(it, false)));
+    }
+  }
+  realRatio[d] = mid1(rt); realScrap[d] = mid1(sc);
+  console.log(`  ${String(d).padStart(2)}   ${String(n).padStart(5)}   ${(plus/n).toFixed(2)}   ${(eng/n).toFixed(2)}`
+    + `      ${String(mid1(sc)).padStart(4)}         ${mid1(rt).toFixed(2)}`);
+}
+console.log('');
+/* 옛 상한(48 고정)이 하던 일을 지키는가. 이 한 줄이 없었기 때문에
+   30으로 내린 것이 통과했다. */
+ok(realScrap[12] >= 48,
+   '깊은 층의 **주운** 장비도 부수면 옛 상한(48)만큼은 나온다 — 여기가 실제로 부수는 물건이다',
+   `12층 ${realScrap[12]} · 15층 ${realScrap[15]}`);
+ok(Math.min(...[1, 5, 8, 12, 15].map(d => realRatio[d])) < 1
+   && Math.max(...[1, 5, 8, 12, 15].map(d => realRatio[d])) > 1,
+   '주운 장비로 재도 얕은 층은 부수는 쪽, 깊은 층은 파는 쪽이 이긴다',
+   [1, 5, 8, 12, 15].map(d => `${d}층 ×${realRatio[d].toFixed(2)}`).join(' · '));
 console.log('');
 /* 한쪽이 늘 이기면 버튼 하나는 장식이다. 둘 다 이기는 구간이 있어야
    「이건 팔고 저건 부순다」가 생긴다. */
@@ -110,11 +151,40 @@ ok(!!Game.tradeLine(SAMPLES[3][1]),
    '팔 값과 부술 값이 한 줄로 같이 읽힌다 — 안 보이면 이 결정은 감으로 내려간다',
    Game.tradeLine(SAMPLES[3][1]));
 
+/* 정수를 먹는 쪽이 실제로 뭔가를 사는가. 처음에 든 유물 전부를
+   목록에 올렸더니 40개 중 40개가 먹여도 숫자가 안 움직였다 — 규칙이
+   유물의 v를 읽는 곳이 몇 줄뿐이고 나머지는 리터럴이었기 때문이다.
+   그리고 둘은 v가 **연격 문턱**이라 먹이면 나빠졌다(6 → 9).
+   구멍을 팠는데 그 구멍이 아무것도 안 주고 둘에게는 손해였다. */
+console.log('');
+{
+  Meta.forget();
+  Game.startGame('human', 'warrior', Game.rollStats('warrior'));
+  Game.descend();
+  const p = G.player;
+  const shot = () => { const g = Game.gearBonus(p); return `${g.dmgPct}|${g.critMult}|${g.ac}|${p.maxhp}`; };
+  const dead = [];
+  for (const id of D.FEEDABLE) {
+    const r = D.relicById(id);
+    p.relics = [id]; p.tuned = {}; G.cracks = {}; p.grudge = 10;
+    Game.recalc(p); const a = shot();
+    p.tuned = { [id]: Game.attuneStep(r) * 3 };
+    Game.recalc(p); const b = shot();
+    if (a === b && Game.relicVal(id) <= r.v) dead.push(id);
+  }
+  ok(dead.length === 0, '먹일 수 있다고 적힌 유물은 전부 먹으면 숫자가 움직인다',
+     dead.length ? dead.join(' ') : `${D.FEEDABLE.size}종 전부`);
+  /* 문턱형이 목록에 끼면 그건 구멍이 아니라 함정이다. */
+  const bad = ['echo', 'march'].filter(id => D.FEEDABLE.has(id));
+  ok(bad.length === 0, 'v가 문턱인 유물은 먹이는 목록에 없다 — 올리면 나빠지는 것을 팔면 안 된다',
+     bad.length ? bad.join(' ') : '메아리·진군 제외됨');
+}
+
 /* ── 3·4. 판이 끝날 때 얼마가 남는가 ───────────────────── */
 console.log('');
 const runs = [];
 for (let i = 0; i < 40; i++) {
-  runBot('human', 'warrior', 12, { seed: i });
+  runBot('human', 'warrior', true);
   const p = G.player;
   runs.push({ d: G.deepest || 1, gold: p?.gold || 0,
     earned: G.goldEarned || 0, ...(p?.mats || {}) });

@@ -1529,7 +1529,17 @@ export function refresh() {
   const rel = $('hud-relics');
   const held = Game.relicList();
   rel.hidden = !held.length;
-  $('hud-relics-n').textContent = `${held.length}/${RELIC_SLOTS}`;
+  /* 칩이 「유물 4/7」만 말하던 동안, 크랙은 두 번 탭해야 나오는 창
+     안에만 있었다. 크랙은 이 층에서 무엇을 할지를 바꾸는 장치다 —
+     함정을 밟을까, 연격을 노릴까, 정예를 피할까. 그 판단은 걷는 중에
+     일어나는데 정보가 창 안에 있으면 사람은 그냥 안 본다. 향할 곳이
+     화면 밖에 있는 것이 「루즈하다」의 직접 원인이다.
+
+     가장 가까운 하나만 건다. 넷을 걸면 그건 목록이지 목표가 아니다. */
+  const near = Game.nearestCrack();
+  $('hud-relics-n').textContent = `${held.length}/${RELIC_SLOTS}`
+    + (near ? ` · ✧ ${near.n} ${near.left}` : '');
+  rel.classList.toggle('close', !!near && near.at >= 0.9);
   /* 들고 있는 유물을 어디서도 볼 수 없었다. 숫자만 있고 목록이 없으면
      그것은 정보가 아니라 알림이다 — 칩을 누르면 편다. */
   rel.style.cursor = 'pointer';
@@ -1671,8 +1681,16 @@ function crackRow(id) {
     b.appendChild(el('span', 'cracktext', c.t.replace(/\*\*/g, '')));
   } else {
     const pr = Game.crackProgress(id);
-    b.appendChild(el('span', 'cracktext dim',
-      `${Game.crackHint(id).split(' — ')[1] || ''}`));
+    /* 여태 안 열린 줄에는 조건만 있고 **상금이 없었다**. 「170마리를
+       재우면」 옆에 「실이 끝나지 않는다」만 있으면, 그것이 체력인지
+       시야인지 피해인지 모르는 채로 170마리를 향해 놀 사람은 없다 —
+       조건만 보이고 상금이 안 보이면 목표가 아니라 잡음이다.
+       전문은 열렸을 때 읽는다. 여기서는 굵게 표시된 한 구절만. */
+    const prize = (c.t.match(/\*\*(.+?)\*\*/) || [])[1];
+    if (prize) b.appendChild(el('span', 'cracktext', prize));
+    /* 그리고 남은 수를 절대값으로. 「129마리 더」가 「(41/170)」보다
+       짧고, 사람이 계산을 안 해도 된다. */
+    b.appendChild(el('span', 'cracktext dim', Game.crackLeft(id)));
     const bar = el('div', 'crackbar');
     const fill = el('div', 'crackfill');
     fill.style.width = `${Math.min(100, Math.round(pr.have / pr.need * 100))}%`;
@@ -3310,9 +3328,9 @@ export function renderAnvil() {
       : anvilMode === 'reroll'
       ? `이미 붙은 속성을 다시 굴린다. 저주는 절대 붙지 않는다. ${Game.costText(REROLL_COST)}`
       : anvilMode === 'refine'
-      ? `마지막에 돋은 각인을 갈아 내고 다시 새긴다. 무엇이 나올지는 모른다. ${Game.costText(REFINE_COST)}`
+      ? `마지막에 돋은 각인을 지져 없앤다. 자리는 남고, 그 자리에서 다시 돋는다 — 무엇이 돋을지는 쇠가 정한다. ${Game.costText(REFINE_COST)}`
       : anvilMode === 'attune'
-      ? `유물 하나의 수치를 한 단계 올린다. 유물마다 ${ATTUNE_MAX}번까지. ${Game.costText(ATTUNE_COST)}`
+      ? `유물에게 정수를 먹인다. 한 번에 한 단계, 유물마다 ${ATTUNE_MAX}번까지. ${Game.costText(ATTUNE_COST)}`
       : campCareful
       ? `값은 ${CAREFUL_MULT}배. 성공률 +${Math.round(CAREFUL_BONUS * 100)}%p, 실패해도 깎이거나 부서지지 않는다.`
       : `값은 그대로. ${Math.round(UPGRADE_CRIT * 100)}% 확률로 두 단계가 오른다 — 대신 실패하면 깎이고, 깊은 +에서는 부서진다.`;
@@ -3335,7 +3353,7 @@ export function renderAnvil() {
   }
   /* 조율은 장비가 아니라 유물을 다룬다 — 촉매도 강화 방식도 안 쓴다. */
   if (anvilMode === 'attune') {
-    $('anvil-list-head').textContent = '무엇을 맞출까';
+    $('anvil-list-head').textContent = '무엇에게 먹일까';
     $('anvil-cat-head').hidden = true; $('anvil-cats').hidden = true;
     renderAttune();
     return;
@@ -3345,13 +3363,24 @@ export function renderAnvil() {
 }
 
 /* 정수가 갈 두 번째 곳. 유물의 수치는 판이 시작할 때 정해져서 끝까지
-   그대로였다 — 크랙이 「무엇을 하는가」를 바꾼다면 조율은 「얼마나」를
-   바꾼다. 둘 다 그 유물을 밀고 가기로 한 판에서만 의미가 있다. */
+   그대로였다 — 크랙이 「무엇을 하는가」를 바꾼다면 먹이는 것은
+   「얼마나」를 바꾼다. 둘 다 그 유물을 밀고 가기로 한 판에서만 의미가
+   있다. 「조율」이 아니라 「먹이기」인 이유는 game.js 쪽에 적어 뒀다. */
 function renderAttune() {
   const list = $('anvil-list');
   list.innerHTML = '';
-  const held = Game.relicList();
-  if (!held.length) { list.appendChild(el('p', 'empty', '조율할 유물이 없다.')); return; }
+  /* 받아먹는 것만 올린다. 처음에는 든 유물 전부를 올렸는데, 실측하니
+     40개 중 40개가 먹여도 아무 숫자도 안 움직였다 — 규칙이 v를 읽는
+     유물이 몇 개뿐이었기 때문이다. 그리고 둘(메아리·진군)은 v가
+     연격 문턱이라 먹이면 나빠졌다. */
+  const held = Game.relicList().filter(r => Game.feedable(r.id));
+  const all = Game.relicList();
+  if (!held.length) {
+    list.appendChild(el('p', 'empty', all.length
+      ? '든 유물 중 받아먹는 것이 없다. 되돌리고 · 태우고 · 재는 것들이 먹는다.'
+      : '먹일 유물이 없다.'));
+    return;
+  }
   const poor = !Game.canAfford(ATTUNE_COST);
   for (const r of held) {
     const left = Game.attuneLeft(r.id);
@@ -3362,11 +3391,11 @@ function renderAttune() {
     mid.appendChild(el('span', 'idesc', r.t));
     const now = r.v + (G.player.tuned?.[r.id] || 0);
     mid.appendChild(el('span', 'idesc plus',
-      left > 0 ? `${trim(now)} → ${trim(now + Game.attuneStep(r))} · ${left}번 남았다`
-               : '더 맞출 수 없다'));
+      left > 0 ? `${trim(now)} → ${trim(now + Game.attuneStep(r))} · ${left}번 더 먹는다`
+               : '더 안 먹는다'));
     row.appendChild(mid);
     const blocked = poor || left <= 0;
-    row.appendChild(el('span', 'iact', left <= 0 ? '—' : poor ? '재료 부족' : '조율'));
+    row.appendChild(el('span', 'iact', left <= 0 ? '—' : poor ? '재료 부족' : '먹인다'));
     if (blocked) { row.classList.add('poor'); row.disabled = true; }
     else row.onclick = () => { Game.attuneRelic(r.id); renderAnvil(); refresh(); };
     list.appendChild(row);
@@ -3471,7 +3500,7 @@ function renderAnvilTargets() {
       label = blocked ? '재료 부족' : '정련';
       const last = t.item?.engrave?.[t.item.engrave.length - 1];
       if (last) mid.appendChild(el('span', 'idesc mark',
-        `${engraveById(last)?.n} 자리를 갈아 낸다 — 무엇이 돋을지는 모른다.`));
+        `${engraveById(last)?.n}이(가) 돋은 자리를 지진다 — 그 자리에서 다시 돋는다.`));
     } else {
       blocked = !Game.canAfford(ENCHANT_COST);
       label = blocked ? '재료 부족' : '인챈트';
@@ -3567,6 +3596,16 @@ function renderFuse() {
   const go = $('fuse-go');
   const poor = !Game.canAfford(FUSE_COST);
   go.disabled = fusePick.length !== 2 || poor;
+  /* 잠긴 계단에서 이미 배운 것: 못 누르는 버튼이 누를 수 있는 버튼과
+     픽셀 단위로 같으면 그건 고장으로 읽힌다. 실측으로 이 버튼은
+     disabled인데 글자색·테두리색이 살아 있는 것과 같았다. 그리고
+     **못 하는 일의 확률표를 먼저 보여 주고** 안 되는 이유는 그 위에
+     작은 회색으로 놓여 있었다 — 순서가 뒤집혀 있었다. */
+  go.classList.toggle('shut', go.disabled);
+  go.textContent = fusePick.length !== 2 ? '유물 둘을 고르시오'
+                 : poor ? `${Game.costText(FUSE_COST)}가 모자란다`
+                 : '불에 넣는다';
+  odds.hidden = !Game.canFuse();
 
   if (fusePick.length !== 2) {
     $('fuse-note').textContent = `둘을 고르시오. ${Game.costText(FUSE_COST)}가 듭니다. 넣은 둘은 돌아오지 않습니다.`;
@@ -3796,10 +3835,24 @@ const LESSONS = [
                     'HP 막대 오른쪽 끝의 <b>빗금 친 회색</b>이 영영 잃은 몫입니다 — ' +
                     '체력을 다 채워도 그만큼은 안 돌아옵니다.<br>' +
                     '닫을 수 있는 곳은 <b>모닥불</b>뿐입니다.' },
-  { id:'fire',   t:'모닥불은 <b>한 번만</b> 씁니다 — 휴식 · 판돈 · 유물 융합 중 하나.<br>' +
-                    '쇠를 두들기는 일(강화 · 인챈트 · 재련)은 <b>모루</b>에서 하고, 모루는 닳지 않습니다.' },
+  /* 이 카드가 없어진 기능을 가르치고 있었다 — 융합은 모루로 갔고
+     모닥불의 일은 셋으로 바뀌었는데 카드는 옛 화면을 설명했다.
+     카드가 없는 것보다 나쁘다: 배운 대로 갔는데 그 선택지가 없으면
+     사람은 자기가 뭘 잘못했다고 생각한다. */
+  { id:'fire',   t:'모닥불은 <b>한 번만</b> 씁니다 — 심지를 갈거나 · 지지거나 · 숨을 돌리거나, <b>셋 중 하나</b>.<br>' +
+                    '벼리고 물들이고 융합하는 일은 전부 <b>모루</b>에서 하고, 모루는 닳지 않습니다.' },
   { id:'fork',   t:'계단이 갈라지면 <b>주는 것과 가져가는 것이 전부 적혀 있습니다.</b> 평범한 계단은 항상 있습니다.' },
-  { id:'relic',  t:'<b>유물</b>은 숫자가 아니라 규칙을 바꿉니다. 자리는 4칸에서 시작해 7칸까지 늘어납니다.' },
+  { id:'relic',  t:'<b>유물</b>은 숫자가 아니라 규칙을 바꿉니다. 자리는 4칸에서 시작해 7칸까지 늘어납니다.<br>' +
+                    '유물마다 <b>잠긴 두 번째 줄</b>이 있습니다. 그 유물을 쓴 만큼 열립니다 — ' +
+                    '위의 <b>유물 칩</b>이 지금 무엇을 세고 있는지 말해 줍니다.' },
+  /* 막대가 반쯤 찼을 때가 가르칠 때다. 주운 순간에 가르치면 아직
+     아무것도 안 세고 있어서 할 말이 없다. */
+  { id:'crack',  t:'유물 하나가 <b>반쯤 찼습니다.</b> 크랙은 그 유물이 하는 일과 같은 것을 셉니다 — ' +
+                    '거울 방패는 맞은 수를, 저울추는 재운 수를.<br>' +
+                    '<b>①</b> 컨셉을 끝까지 밉니다 · <b>②</b> 그 유물이 치르던 값을 지웁니다 · ' +
+                    '<b>③</b> 게임이 가르친 규칙 하나를 부숩니다.' },
+  { id:'cart',   t:'이 상인은 층마다 <b>다른 짐</b>을 끌고 옵니다 — 심지 · 약 · 종이 · 쇠 · 재 · 이상한 수레.<br>' +
+                    '파는 것도 부르는 값도 다릅니다. <b>지도의 간판</b>이 오늘 무엇을 싣고 왔는지 말해 줍니다.' },
   { id:'clock',  t:'층마다 <b>여유 턴</b>이 있습니다. 다 쓰면 몬스터가 계속 나타납니다 — 그때는 정리를 포기하고 계단으로.' },
   { id:'bank',   t:'쉬지 않고 내려갈수록 <b>판돈</b>이 불어납니다. 모닥불에서 챙길 수 있고, <b>죽으면 전부 잃습니다.</b>' },
   { id:'oil',    t:'기름이 줄면 <b>보이는 반경이 좁아집니다.</b> 횃불을 쓰거나, 좁은 시야로 싸우거나.' },
@@ -3889,6 +3942,10 @@ function checkLessons() {
   if (G.monsters.some(m => m.thief && G.level.vis[idx(m.x, m.y)])) teach('thief');
   if (Game.pressureLevel() > 0) teach('clock');
   if ((G.player.relics || []).length) teach('relic');
+  /* 크랙은 주웠을 때가 아니라 **반쯤 찼을 때** 가르친다 — 그때가
+     「이걸 향해 놀 수 있다」가 처음 참이 되는 순간이다. */
+  { const near = Game.nearestCrack(); if (near && near.at >= 0.5) teach('crack'); }
+  if (G.level?.merchant) teach('cart');
   if (G.level?.props?.size) teach('prop');
 }
 

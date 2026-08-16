@@ -90,7 +90,7 @@ ok(sameEvent === 0, '그리고 그 둘은 서로 다른 사건이다 — 같으�
 console.log('');
 {
   const seen = [];
-  for (let i = 0; i < 40; i++) { runBot('human', 'warrior', 12, { seed: i }); seen.push(G.eventsSeen || 0); }
+  for (let i = 0; i < 40; i++) { runBot('human', 'warrior', true); seen.push(G.eventsSeen || 0); }
   const v = seen.slice().sort((a,b)=>a-b);
   const per = v.reduce((a,b)=>a+b,0) / v.length;
   console.log(`  봇 40판에서 판당 만난 사건 ${per.toFixed(2)}개 (중앙 ${v[v.length>>1]})`);

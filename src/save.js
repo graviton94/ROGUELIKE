@@ -17,7 +17,7 @@ import { BRANCHES, shacklesAt } from './data.js';
 
 const PREFIX = 'deepdelve.slot.';
 export const SLOTS = 3;
-const FORMAT = 5;
+const FORMAT = 6;
 
 /* ── byte packing ───────────────────────────────────────── */
 function toB64(bytes) {
@@ -56,7 +56,12 @@ function packLevel(L) {
     theme: L.theme?.id || 'plain',
     campSpent: !!L.campSpent,
     event: L.event || null,
-    eventId: L.eventId || null,
+    /* 사건은 층당 하나(eventId)에서 칸마다(eventAt)로 옮겼는데 저장이
+       옛 필드를 계속 적고 있었다. 그러면 불러온 층에서는 모든 ? 가
+       「이미 먹은 칸」으로 읽힌다 — 세이브를 한 번 지나면 이 기능이
+       바뀌기 전보다 나빠진다. eventTiles는 나방의 표식이 읽는다. */
+    eventAt: [...(L.eventAt || [])],
+    eventTiles: [...(L.eventTiles || [])],
     downRoom: L.downRoom ? L.rooms.indexOf(L.downRoom) : -1,
     shopAt: [...L.shopAt],
     keeperAt: [...(L.keeperAt || [])],
@@ -87,7 +92,8 @@ function unpackLevel(d) {
   L.merchant = d.merchant || null;
   L.altar = d.altar || null;
   L.event = d.event || null;
-  L.eventId = d.eventId || null;
+  L.eventAt = new Map(d.eventAt || []);
+  L.eventTiles = d.eventTiles || [];
   L.branch = {};                 // generation-time only; nothing reads it after
   L.theme = THEMES[d.theme] || THEMES.plain;
   L.campSpent = !!d.campSpent;
@@ -124,6 +130,12 @@ export function snapshot() {
     tally: G.tally || 0, hushUntil: G.hushUntil ?? -1,
     snares: [...(G.snares || [])],
     uniques: { ...(G.uniques || {}) }, ashCount: G.ashCount || 0,
+    /* 크랙 계통 다섯. 안 적으면 불러오기 한 번에 판이 유물의 두 번째
+       줄을 통째로 잃고, **더 나쁘게** — apply가 지우지도 않아서 앞
+       판의 크랙이 다음 판으로 샌다. 둘 다 실측으로 확인됐다. */
+    ledger: { ...(G.ledger || {}) }, cracks: { ...(G.cracks || {}) },
+    relicFloors: { ...(G.relicFloors || {}) }, murmured: { ...(G.murmured || {}) },
+    chainGuard: G.chainGuard || 0, martyred: G.martyred || 0,
     sanctum: G.sanctum || null,
     smoke: G.smoke || null,
     relicShelf: G.relicShelf ?? null,
@@ -178,6 +190,14 @@ export function apply(data) {
   G.snares = data.snares || [];
   G.uniques = data.uniques || {};
   G.ashCount = data.ashCount || 0;
+  /* `|| {}` 가 여기서는 기본값이 아니라 **지우개**다. 이 다섯 줄이
+     없으면 저장에 없던 값이 남아서 앞 판의 크랙이 다음 판에 걸린다. */
+  G.ledger = data.ledger || {};
+  G.cracks = data.cracks || {};
+  G.relicFloors = data.relicFloors || {};
+  G.murmured = data.murmured || {};
+  G.chainGuard = data.chainGuard || 0;
+  G.martyred = data.martyred || 0;
   G.sanctum = data.sanctum || null;
   G.smoke = data.smoke || null;
   G.hushUntil = data.hushUntil ?? -1;

@@ -511,6 +511,20 @@ export class Level {
       if (open < 6) continue;                 // never in a chokepoint
       this.shopAt.set(i, 7);
       this.keeperAt.set(i, 7);
+      /* 간판. 화면 쪽에 「층의 상인은 오늘 끌고 온 짐을 간판에 건다」는
+         코드를 써 놓고, 그 코드가 한 번도 실행되지 않고 있었다 —
+         signAt을 세팅하는 곳은 온 저장소에서 마을 좌판 한 줄뿐이고
+         거기 7번은 없다. 그래서 짐 정보의 유일한 통로가 8×8 그림의
+         물감 22%였다.
+
+         간판은 상인 **위 칸**에 건다. 벽이면 벽에 걸린 판자로 읽히고,
+         바닥이면 세워 둔 판자로 읽힌다 — 어느 쪽이든 층 한복판에서
+         「여기 장사 중」을 말하는 것은 사람 그림이 아니라 판자다. */
+      const above = idx(x, y - 1);
+      if (y - 1 > 0 && !this.shopAt.has(above) && !this.keeperAt.has(above)) {
+        this.signAt.set(above, 7);
+        this.seen[above] = 1;
+      }
       this.merchant = { x, y };
       this.seen[i] = 1;                 // his lamp is visible from afar
       return;

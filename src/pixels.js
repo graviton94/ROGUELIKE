@@ -739,15 +739,27 @@ export const SPRITES = {
      종 어느 것과도 안 닮는 것이 이 그림의 일이다.
 
      C는 짐마다 물든다 — 어느 수레가 왔는지 방 건너에서 읽힌다.  */
+  /* 두 번째 그림이다. 첫 판은 주석이 「후드 쓴 형체 왼쪽, 수레
+     오른쪽, 바퀴 하나」라고 적어 놓고 실제로는 3열 대칭의 둥근
+     덩어리를 그렸다 — 채움 196/256(이 저장소가 스스로 정한 상한은
+     140), urn·well과 IoU 0.855, orc·wraith와 0.87. 실루엣이 없었다.
+
+     그리고 그 사실을 벤치가 못 잡은 이유는 sim/silhouette.mjs의 소품
+     목록이 **손으로 적혀** 있어서 pedlar가 비교 대상이 아니었기
+     때문이다. 목록을 고치고 다시 잰 뒤에 다시 그린다.
+
+     이번에는 비대칭이 규칙이다: 왼쪽에 세로로 긴 형체, 오른쪽에
+     가로로 넓은 짐칸, 오른쪽 아래에 바퀴. 항아리·우물 같은 둥근
+     덩어리에서 IoU가 떨어지는 것은 색이 아니라 이 모양이다. */
   pedlar: [
-    '..kkk...',
-    '.kCCCk..',
-    '.kCkCk..',
-    '.nCCCn..',
-    'nNNCNNn.',
-    'nNNCNNn.',
-    '.n.C.n..',
-    '..n.n...',
+    '..kk....',
+    '.kCCk...',
+    '.kCkk...',
+    '..CCknnn',
+    '.CCCk.Nn',
+    '..CCknnn',
+    '..n.nyy.',
+    '..n..y..',
   ],
   /* A blank plank. The shop's goods sprite is drawn on top, and
      the goods sprites all have transparent margins, so the plank
@@ -1446,7 +1458,12 @@ function wrongen(grid, name) {
 export const SHOP_TINT = ['e', 's', 'r', 'W', 'P', 'b'];
 /* 여섯 수레의 물. SHOP_LOADS의 차례와 같다 — 심지(잉걸) · 약(초록) ·
    종이(뼈) · 쇠(쇠회색) · 재(마른 피) · 이상한(자수정). */
-export const LOAD_TINT = { wick:'o', flask:'E', paper:'w', iron:'g', ash:'r', odd:'P' };
+/* 처음에 여섯을 색조로만 갈랐더니 **휘도로는 세 단계**뿐이었다:
+   심지(o)와 약(E)의 휘도비가 1.00, 쇠(g)는 바로 옆 가죽(n)과 1.11 —
+   물이 안 든 것과 구분이 안 됐다. 저채도 팔레트에 안개 알파까지
+   곱해지는 화면에서 색조 차이는 살아남지 못한다. 밝기로 가른다:
+   뼈(w) · steel(s) · 잉걸(o) · 난초(P) · 이끼(e) · 곰팡이(p). */
+export const LOAD_TINT = { wick:'o', flask:'e', paper:'w', iron:'s', ash:'p', odd:'P' };
 
 /* Race under, class over. Any cell the kit leaves as '.' shows
    the body beneath, which is why the face survives the helmet. */

@@ -116,13 +116,21 @@ function martyrFx(e, spent) {
 function crackBurst(e) {
   const p = G.player;
   if (!p) return;
+  /* 처음에 흰 섬광 고리 + 화면 밝힘 + 레벨업 효과음으로 그렸다.
+     크랙의 정의는 「게임이 가르친 규칙 하나를 부순다」인데, 그런
+     순간을 밝은 팡파르로 축하하면 그건 이 게임이 아니라 가챠의
+     「획득!」이다. 다크소울·디아블로에서 무언가가 갈라질 때는 소리가
+     낮아지고 화면이 어두워진다.
+
+     그래서 흰 고리를 뺀다(PALETTE.W는 STYLE.md가 하이라이트 4.83%로
+     규정한 색이고, 화면 전체 섬광으로 쓸 색이 아니다). 남는 것은
+     자수정 고리 하나, 흔들림, 진동, 그리고 낮은 소리다. */
   ring(p.x, p.y, 1.8, PALETTE.P, 720);
-  ring(p.x, p.y, 1.1, PALETTE.W, 480);
+  ring(p.x, p.y, 2.6, PALETTE.p, 900);
   number(p.x, p.y - 0.9, e.n || '금이 갔다', PALETTE.P, 1.3);
-  flashScreen = Math.max(flashScreen, 0.22); flashHue = 'P';
-  shake = Math.max(shake, 0.5);
-  buzz([40, 30, 90]);
-  sfx.levelup();
+  shake = Math.max(shake, 0.62);
+  buzz([70, 50, 70]);
+  sfx.warn();
 }
 
 function ring(x, y, maxr, color, life, shrink) {

@@ -53,7 +53,20 @@ const NEAR     = 2;            // 「같은 층대」 = 대표 깊이 차 ±2층
 const BASE = {
   monPairsOver:  74,     // 같은 층대 몬스터 106쌍 중 IoU ≥ 0.70 인 것 — 70%
   monWorst:   0.984,     // 그중 최악값 (ogre ↔ troll, troll ↔ warden)
-  propPairsOver: 11,     // 사물 45쌍 중 IoU ≥ 0.70 — 24% (계단·문 넷을 다시 그려 29에서 내려왔다)
+  /* 11에서 37로 올려 적는다. 그림이 나빠져서가 아니라 **재는 대상을
+     늘려서**다: 이 목록에 서 있는 사람(pedlar·keeper)과 좌판·모루·
+     제단·모닥불을 새로 넣었고, 소품이 10종에서 17종이 되면서 쌍이
+     45개에서 136개로 늘었다. 새로 걸린 26쌍 중 pedlar 가 낀 것은
+     7쌍이고 나머지 19쌍은 **원래 있었는데 안 재고 있던 것**이다
+     (urn↔stall 0.828 · chest↔stall 0.826 · doorLocked↔urn 0.761 …).
+
+     즉 이 숫자가 오른 것은 그림이 나빠진 사건이 아니라 **자가 정직해진
+     사건**이다. 그리고 그 19쌍이 다음 재작업 목록이다 — 위에 인쇄된
+     순서 그대로.
+
+     (다음 사람에게: 목록에 이름을 더 넣어 이 숫자가 오르는 것은
+     괜찮다. **목록을 그대로 두고** 이 숫자가 오르면 그건 회귀다.) */
+  propPairsOver: 37,     // 사물 136쌍 중 IoU ≥ 0.70
   propWorst:      1,     // stairsDown ↔ stairsUp ↔ door ↔ doorLocked, 넷이 같은 그림
   /* 이 둘은 **비율이 아니라 개수**다. 그래서 그림을 한 장 더 그리면
      그림이 나빠지지 않아도 숫자가 오른다 — 떠돌이 상인의 `pedlar`를
@@ -105,8 +118,21 @@ const r = await pg.evaluate(async ({ NEAR }) => {
 
   /* 사물은 층을 안 가린다 — 계단·문·상자·통·항아리·우물은
      한 층에 전부 같이 있을 수 있으므로 전부가 같은 층대다. */
+  /* ── 이 목록이 이 파일의 약점이다 ──────────────────────
+     손으로 적은 목록은 언젠가 반드시 어긋난다고 이 파일 스스로 적어
+     놓고, 그대로 어긋났다. 떠돌이 상인의 `pedlar`를 새로 그리면서
+     「monPairsOver도 monWorst도 안 움직였으니 나빠진 것은 없다」고
+     판정하고 기준선을 올렸는데 — **pedlar가 이 목록에 없었다.**
+     비교 대상이 아닌 그림을 두고 「안 닮았다」고 말한 것이다.
+     실제로 재 보니 urn 0.855 · well 0.855 · orc 0.871 · wraith 0.873이다.
+
+     그래서 서 있는 사람과 좌판도 여기 넣는다. 이것들은 몬스터가
+     아니지만 **몬스터와 같은 칸에 서고 같은 크기로 그려진다** —
+     실루엣이 갈려야 하는 이유가 몬스터끼리와 똑같다. */
   const props = ['stairsDown', 'stairsUp', 'door', 'doorOpen', 'doorLocked', 'doorBroken',
-                 'chest', 'barrel', 'urn', 'well'].filter(n => P.hasSprite(n));
+                 'chest', 'barrel', 'urn', 'well',
+                 'pedlar', 'keeper', 'sign', 'stall', 'anvil', 'altar', 'camp']
+                .filter(n => P.hasSprite(n));
 
   const all = Object.keys(P.SPRITES).filter(n => P.hasSprite(n));
   const M = {}; for (const n of new Set([...all, ...mon, ...props])) M[n] = maskOf(n);

@@ -131,66 +131,95 @@ console.log('');
 }
 
 /* ── 3. 거저 열리지 않는가 ─────────────────────────────
-   판당 각 장부가 얼마나 차는지를 봇으로 재고, 문턱과 나란히 둔다.
-   여기서 「전부 열린다」가 나오면 크랙은 지연된 기본값이다.        */
-console.log('');
-const KINDS = ['kill','crit','hit','spell','gulp','trap','combo','elite','gold'];
-/* 처음에 전사 마흔 판으로 쟀더니 spell 중앙값이 0이었다. 전사는
-   주문을 안 쓴다 — 그건 세계가 아니라 자가 「주문을 안 세는 봇」이라는
-   뜻이다. 직업을 갈라서 재고, 각 장부는 **그것을 실제로 쓰는 직업**의
-   중앙값으로 읽는다. 그리고 8층이 아니라 12층까지 민다: 크랙은
-   판 중반에 열리라고 만든 것이라, 판을 반만 재면 전부 「못 연다」로
-   나온다. */
-const byCls = { warrior: [], mage: [] };
-for (const cls of ['warrior', 'mage'])
-  for (let i = 0; i < 20; i++) {
-    runBot('human', cls, 12, { seed: i });
-    const l = { ...(G.ledger || {}) };
-    l.floor = G.deepest || 0;
-    byCls[cls].push(l);
-  }
-/* 총합의 중앙값으로 재면 자가 못 쓸 만큼 흔들린다 — 같은 코드로 세 번
-   재서 kill이 91·64·41로 나왔다. 원인은 장부가 아니라 **봇이 몇 층까지
-   갔느냐**였다(도달 6~10층). 그래서 층으로 나눠서 재고 12층으로 곱한다:
-   「12층까지 갔다면 이 장부가 얼마나 찼겠는가」. 분자에서 도달 깊이의
-   흔들림이 빠지면 남는 것이 그 장부의 성질이다. */
-const PROJECT = 12;
-const mid = (rows, k) => {
-  const v = rows.map(r => (r[k] || 0) / Math.max(1, r.floor)).sort((a,b) => a-b);
-  return Math.round(v[v.length >> 1] * PROJECT);
-};
-/* 그 장부를 더 많이 채우는 쪽을 그 장부의 대표로 삼는다. */
-const med = k => k === 'floor' ? PROJECT
-             : Math.max(mid(byCls.warrior, k), mid(byCls.mage, k));
-const depths = [...byCls.warrior, ...byCls.mage].map(r => r.floor).sort((a,b)=>a-b);
-console.log(`  봇 도달 깊이 ${depths[0]}~${depths[depths.length-1]}층`
-  + ` (중앙 ${depths[depths.length>>1]}) — 그래서 총합이 아니라 층당으로 잰다`);
-console.log(`  ${PROJECT}층까지 갔다면 장부가 이만큼 (전사 20판 · 마법사 20판, 높은 쪽)`);
-for (const k of [...KINDS, 'floor'])
-  console.log(`    ${k.padEnd(6)} ${String(med(k)).padStart(5)}`);
+   이 절을 두 번 다시 썼다.
 
-/* 문턱을 넘긴 유물이 몇 개인가 — 유물마다 그 판에 끼고 있었다고
-   가정한 상한이다. 실제로는 일곱 칸뿐이라 이보다 훨씬 적게 열린다. */
+   처음에는 판 전체 장부의 중앙값을 문턱과 나란히 놓고 「끼고 있었다면
+   깨졌겠는가」를 셌다. 그 계산은 이제 틀렸다 — 크랙 조건이 유물별로
+   바뀌었기 때문이다(주운 뒤부터 센다). 판 전체 장부로는 아무 말도
+   못 한다.
+
+   그리고 그 계산이 틀린 채로 초록이었던 이유가 하나 더 있었다:
+   floor 조건 열한 개를 `G.deepest`로 쟀는데 규칙은 `G.relicFloors[id]`
+   (그 유물과 함께 내려간 층수)를 본다. 열한 개가 전부 자동 통과였고,
+   실제로는 90판에서 한 개가 한 번 열렸다.
+
+   그래서 이제 **봇이 실제로 깬 것**을 센다. 세는 자와 게임이 같은
+   숫자를 보게 하는 방법은 그것뿐이다.                            */
 console.log('');
-const openable = [];
-for (const r of D.RELICS) {
-  const c = D.crackOf(r.id);
-  if (!c || c.at[0] === 'fused') continue;
-  const [k, n] = c.at;
-  if (med(k) >= n) openable.push(r.id);
+const worn = {}, split = {};
+for (const cls of ['warrior', 'mage', 'rogue', 'ranger'])
+  for (let i = 0; i < 15; i++) {
+    runBot('human', cls, true);
+    for (const id of Object.keys(G.relicFloors || {})) {
+      const kind = D.crackOf(id)?.at[0] || '?';
+      (worn[id] ||= [0, 0])[1]++;
+      (split[kind] ||= [0, 0])[1]++;
+      if (G.cracks?.[id]) { worn[id][0]++; split[kind][0]++; }
+    }
+  }
+const tookN = Object.values(worn).reduce((s, v) => s + v[1], 0);
+const brokeN = Object.values(worn).reduce((s, v) => s + v[0], 0);
+console.log(`  봇 60판 · 유물 착용 ${tookN}건 · 그중 깨진 것 ${brokeN}건`);
+console.log('  조건 갈래별 (깨짐/착용)');
+for (const [k, [b, t]] of Object.entries(split).sort((a, c) => c[1][1] - a[1][1]))
+  console.log(`    ${k.padEnd(6)} ${String(b).padStart(3)}/${String(t).padStart(3)}`
+    + `  ${String(Math.round(b / t * 100)).padStart(3)}%`);
+
+const rate = brokeN / Math.max(1, tookN);
+ok(rate <= 0.60,
+   '낀 유물이 전부 깨지지는 않는다 — 전부 깨지면 크랙이 아니라 지연된 기본값이다',
+   `${Math.round(rate * 100)}%`);
+ok(rate >= 0.15,
+   '그러나 낀 유물의 상당수는 깨진다 — 못 보는 두 번째 줄은 없는 줄이다',
+   `${Math.round(rate * 100)}%`);
+/* 갈래 하나가 통째로 죽어 있으면 그 조건은 설계가 아니라 장식이다.
+   floor 열한 개가 정확히 그랬다(90판에 1건).
+
+   표본 문턱을 10에서 20으로 올렸다. 10으로 걸었더니 같은 코드에서
+   gold 가 1/7 → 0/6 으로 흔들리며 판정이 뒤집혔다 — 표본 예닐곱으로
+   「죽었다」를 말할 수 없다. deep.mjs 가 「N<90이면 판정하지 않는다」로
+   같은 규율을 이미 적어 뒀다. 표본이 모자란 갈래는 인쇄만 한다. */
+const thin = Object.entries(split).filter(([, [, t]]) => t < 20 && t > 0).map(([k]) => k);
+if (thin.length) console.log(`  (표본 20 미만이라 판정하지 않는 갈래: ${thin.join(' ')})`);
+const deadKinds = Object.entries(split).filter(([, [b, t]]) => t >= 20 && b === 0).map(([k]) => k);
+ok(deadKinds.length === 0,
+   '열 번 이상 껴 봤는데 한 번도 안 깨지는 조건 갈래가 없다',
+   deadKinds.length ? deadKinds.join(' ') : '전부 열린 적 있음');
+
+/* 그리고 **주운 그 층에서 바로** 깨지면 안 된다 — 그건 그 유물을
+   쓴 것이 아니라 판이 쌓아 둔 것을 상속한 것이다. */
+{
+  let inherited = 0, opened = 0;
+  for (let i = 0; i < 40; i++) {
+    runBot('human', 'warrior', true);
+    for (const id of Object.keys(G.cracks || {})) {
+      if (D.crackOf(id)?.at[0] === 'fused') continue;
+      opened++;
+      if ((G.relicFloors?.[id] || 0) <= 1) inherited++;
+    }
+  }
+  ok(opened === 0 || inherited / opened <= 0.2,
+     '주운 그 층에서 바로 깨지는 일이 드물다 — 그건 밀고 간 보상이 아니라 판 길이에 대한 배당이다',
+     `${inherited}/${opened}`);
 }
-const gated = D.RELICS.filter(r => D.crackOf(r.id)?.at[0] !== 'fused').length;
-/* 읽는 법: 이 숫자는 「그 유물을 12층 내내 끼고 있었다면 깨졌겠는가」다.
-   일곱 칸뿐이므로 실제 한 판에서 깨지는 수는 이보다 훨씬 적다. 목표는
-   절반쯤 — 끝까지 끼고 논 유물은 깨져야 하고, 그냥 주워 둔 것은 안
-   깨져야 한다. 세 번 재서 20·18·17이 나왔다(층당으로 재기 전에는
-   28·10·0이었다). */
-ok(openable.length <= gated * 0.7,
-   '끝까지 끼고 있어도 전부 깨지지는 않는다 — 전부 깨지면 크랙이 아니라 지연된 기본값이다',
-   `${openable.length}/${gated}`);
-ok(openable.length >= gated * 0.25,
-   '그러나 아무것도 안 열리지는 않는다 — 못 보는 두 번째 줄은 없는 줄이다',
-   openable.length ? openable.join(' ') : '없음');
+
+/* 절반의 중얼거림이 실제로 나오는가. 문장만 표에 있고 규칙이 안
+   부르면 그건 없는 줄이다 — 크랙 자체가 그랬다(UNIQUES의 crackT가
+   데이터에만 있고 화면에 한 번도 안 나오고 있었다). */
+{
+  const p = stage();
+  p.relics = ['mirror']; G.cracks = {}; G.ledger = {}; G.murmured = {};
+  const said = [];
+  const c = D.crackOf('mirror');
+  for (let i = 0; i < c.at[1]; i++) {
+    const before = G.murmured.mirror;
+    Game.ledger('hit');
+    if (!before && G.murmured.mirror) said.push(i + 1);
+  }
+  ok(said.length === 1, '절반쯤에서 유물이 한 번 중얼거린다 — 딱 한 번',
+     said.length ? `${said[0]}/${c.at[1]}대째` : '한 번도 안 함');
+  ok(Game.cracked('mirror'), '그리고 문턱에서 실제로 깨진다');
+}
 
 /* 융합 유물은 불에서 나오는 순간 깨져 있어야 한다. */
 {

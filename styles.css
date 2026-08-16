@@ -1295,3 +1295,12 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .chip.heat.burn b { color: var(--R); }
 @keyframes heatBurn { 0%,100% { opacity: .78; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .chip.heat.burn { animation: none; } }
+
+/* 밀어서 닫는 면은 제스처를 **우리가** 가져야 한다. body 의
+   `touch-action: manipulation` 이 살아 있으면 브라우저가 옆으로 미는
+   손가락을 스크롤로 채 가고, 그때부터 pointermove 가 한 번도 안 온다 —
+   양피지 카드를 밀어도 안 닫히던 이유가 이것이다. */
+.askbox, .askbox .sheet { touch-action: none; }
+/* 다만 카드 안의 목록은 여전히 스크롤돼야 한다. 긴 유물 목록이
+   안 넘어가면 아래쪽 유물을 영영 못 본다. */
+.askbox #look-rows, .askbox .scrollable { touch-action: pan-y; }

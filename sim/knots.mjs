@@ -36,7 +36,7 @@ const BASE = {
   over30: 23,      // 복잡도 30 초과 — 「유지보수 불가」 구간
   over15: 66,      // 복잡도 15 초과 — 「버그가 숨는」 구간
   worst: 169,      // 최악값 (juice.js의 pump — 갈래 70짜리 표를 뺀 값)
-  longest: 868,    // 가장 긴 함수의 줄 수 (같은 pump)
+  longest: 867,    // 가장 긴 함수의 줄 수 (같은 pump)
 };
 
 const FILES = ['src/game.js', 'src/ui.js', 'src/world.js', 'src/juice.js'];

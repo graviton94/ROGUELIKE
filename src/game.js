@@ -1015,6 +1015,11 @@ export function hurtPlayer(dmg, opt = {}) {
     return 0;
   }
   G.funnelled = (G.funnelled || 0) + taken;
+  /* 마지막 몇 대. 끝 화면이 「왜 죽었는지」를 말하려면 죽기 직전의
+     서너 턴이 남아 있어야 하고, 그건 이 깔때기 말고는 아무도 모른다. */
+  (G.lastBlows ||= []).push({ by: opt.by || '무언가', dmg: taken,
+    left: Math.max(0, p.hp - taken), max: p.maxhp, turn: G.turn, depth: G.depth });
+  if (G.lastBlows.length > 6) G.lastBlows.shift();
   ledger('hit');
   p.hp -= taken;
   if (opt.combo !== false) breakCombo(false);
@@ -8396,9 +8401,59 @@ function death(killer) {
     return;
   }
   G.running = false;
-  G.ending = { win:false, by: killer.n, summary: summarise(false, killer.n) };
+  /* ── 왜 죽었는지 ────────────────────────────────────────
+     플레이어: 「질때는 슬로우모션으로 주인공 확대되면서 왜 죽는지 좀
+     알법하게 게임오버 화면 구현해」.
+
+     끝 화면이 여태 말한 것은 「무엇에게 죽었나」 하나였다. 그건
+     사인(死因)이지 이유가 아니다. 이유는 **안 쓴 것**에 있다 —
+     주머니에 물약이 셋 있었는데 안 마셨다든가, 한계돌파가 열려
+     있었는데 안 눌렀다든가, 여유 시계를 백 턴 넘겨서 파도가 셋째로
+     오고 있었다든가. 그것들을 여기서 한 번에 뜬다. */
+  G.ending = { win:false, by: killer.n, summary: summarise(false, killer.n),
+               post: postMortem(killer) };
+  fx({ t:'deathZoom', x:p.x, y:p.y });
   G.screen = 'end';
 }
+
+/* 부검. 규칙만 안다 — 화면은 이 목록을 줄로 읽을 뿐이다.
+   두 조각으로 나눈다: **무엇이 때렸나**(지나간 일)와 **무엇을 안
+   썼나**(다음 판에 쓸 것). 뒤쪽이 이 화면의 진짜 값이다. */
+function lastBlowLines(p) {
+  const blows = (G.lastBlows || []).slice(-4);
+  if (!blows.length) return [];
+  const out = [{ k: '마지막 네 대', v: blows.map(b => `${b.by} ${b.dmg}`).join(' → ') }];
+  const worst = blows.reduce((a, b) => (b.dmg > a.dmg ? b : a));
+  if (worst.dmg >= p.maxhp * 0.3)
+    out.push({ k: '가장 컸던 한 대', hot: true,
+      v: `${worst.by}에게 ${worst.dmg} — 최대 체력의 ${Math.round(worst.dmg / p.maxhp * 100)}%` });
+  return out;
+}
+/* 안 쓴 것들. 여기가 「판단이 중요하다」를 사후에 가르치는 자리다 —
+   주머니에 물약이 셋 있었는데 안 마셨다는 한 줄이, 다음 판의 손을
+   바꾼다. */
+const unspentPotions = p => (p.pack || [])
+  .filter(s => s.item?.use && s.item.spr === 'potion')
+  .reduce((n, s) => n + (s.qty || 1), 0);
+const unspentArts = p => artList(p).filter(a =>
+  (!a.stam || p.stam >= a.stam) && (!a.oath || (p.oath || 0) >= a.oath)
+  && (!a.shade || (p.shadow || 0) >= a.shade));
+const crowdedBy = p => G.monsters.filter(m => m.awake
+  && Math.hypot(m.x - p.x, m.y - p.y) <= 6).length;
+/* 표로 둔다. if 를 여섯 개 늘어놓으면 이 함수가 곧 복잡도 15를 넘고
+   (sim/knots.mjs 가 이 커밋에서 잡았다), 무엇보다 **줄을 하나 더
+   붙이는 일**이 표에 한 줄 적는 일이 된다. */
+const UNSPENT = [
+  p => { const n = unspentPotions(p); return n && { k:'안 마신 물약', v:`${n}병이 주머니에 남았다` }; },
+  p => { const a = unspentArts(p); return a.length && { k:'쓸 수 있었던 기예', v:a.map(x => x.name).join(' · ') }; },
+  p => p.lightTurns <= 0 && { k:'불', v:'꺼진 채로 걷고 있었다' },
+  () => { const o = G.floorTurn - floorBudget();
+          return o > 0 && { k:'층의 여유', v:`${o}턴 넘겼다 — 파도가 ${pressureLevel()}번째였다` }; },
+  () => (G.heat || 0) >= 45 && { k:'주목', v:`${G.heat} — ${HEAT_WORD(G.heat)}` },
+  p => { const n = crowdedBy(p); return n >= 2 && { k:'둘러싸였다', v:`여섯 칸 안에 깨어 있는 것 ${n}` }; },
+];
+const unspentLines = p => UNSPENT.map(f => f(p)).filter(Boolean).map(r => ({ ...r, hot: true }));
+const postMortem = () => [...lastBlowLines(G.player), ...unspentLines(G.player)];
 
 function victory() {
   G.running = false;
@@ -8452,7 +8507,7 @@ export function startGame(raceKey, classKey, base) {
   G.fx = []; G.combo = 0; G.comboT = 0; G.bestCombo = 0;
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0; G.kills = 0; G.eventsSeen = 0;
   G.ledger = {}; G.cracks = {}; G.relicFloors = {}; G.chainGuard = 0; G.murmured = {};
-  G.relicBase = {}; G.heat = 0; G.provoked = 0;
+  G.relicBase = {}; G.heat = 0; G.provoked = 0; G.lastBlows = [];
   G.martyred = 0;
   G.regionAt = null;
   G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0; G.fused = 0; G.catUsed = 0;

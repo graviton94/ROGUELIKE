@@ -29,6 +29,17 @@ let freeze = 0;        // hit-stop, ms
 let flashScreen = 0;   // full-screen tint, 0..1
 let vignette = 0;      // damage read at the edges, 0..1
 let flashHue = 'W';
+/* ── 죽는 순간 ──────────────────────────────────────────
+   플레이어: 「질때는 슬로우모션으로 주인공 확대되면서 왜 죽는지 좀
+   알법하게」. 규칙 쪽이 deathZoom 사건을 던지면 여기서 시간이 늘어지고
+   카메라가 그 자리로 조인다. 화면 쪽(ui.js)이 deathLens() 를 읽어
+   타일 크기와 중심을 그 값으로 민다 — juice 는 규칙도 그리기도
+   모르고, 「얼마나 조였나」만 안다. */
+let deathZoom = 0, deathAt = null;
+export const deathLens = () =>
+  (deathZoom > 0 ? { k: 1 + 1.15 * ease(deathZoom), at: deathAt, dim: 0.55 * ease(deathZoom) } : null);
+/* 처음엔 빠르게 조이고 끝에서 멎는다 — 슬로우모션의 형태가 이것이다. */
+const ease = t => 1 - Math.pow(1 - Math.min(1, t), 3);
 
 const MAX_SHARDS = 260;
 
@@ -120,6 +131,17 @@ function martyrFx(e, spent) {
 /* 한계돌파 셋의 연출. 셋 다 「피해가 나갔다」가 아니라 **판이
    바뀌었다**를 그려야 해서, 숫자가 아니라 형태로 말한다. 한 곳에
    묶는 이유는 pump 가 이미 169갈래이기 때문이다. */
+/* 판을 바꾸는 사건들의 한 문. pump 는 이미 169갈래·868줄이고, 새
+   사건마다 case 를 하나씩 얹으면 아무도 못 여는 함수가 된다 —
+   sim/knots.mjs 가 이 커밋에서 두 번 잡았다. */
+function bigFx(e) {
+  if (e.t === 'deathZoom') return openLens(e);
+  if (e.t === 'crack') return crackBurst(e);
+  if (e.t === 'vanishOut') return vanishBurst(e);
+  if (e.t === 'martyr' || e.t === 'martyrHold') return martyrFx(e, e.t === 'martyr');
+  return breakFx(e);
+}
+
 function breakFx(e) {
   if (e.t === 'brace') return standFx(e);
   if (e.t === 'kite') return kiteFx(e);
@@ -190,6 +212,20 @@ function ring(x, y, maxr, color, life, shrink) {
 }
 
 const buzz = ms => { try { navigator.vibrate?.(ms); } catch { /* not supported */ } };
+
+/* 죽음의 렌즈를 한 프레임 진행시킨다. 1.4초에 걸쳐 다 조인다 —
+   그보다 짧으면 확대가 안 읽히고, 길면 화면이 멈춘 것처럼 보인다. */
+export function tickDeath(dt) {
+  if (deathZoom > 0 && deathZoom < 1) deathZoom = Math.min(1, deathZoom + dt / 1400);
+}
+export function clearDeath() { deathZoom = 0; deathAt = null; }
+/* 0이 아니라 아주 작은 값으로 시작한다 — 1로 넣으면 tickDeath 가
+   「이미 다 왔다」고 보고 한 프레임 만에 끝난다. 슬로우모션이 아니라
+   컷이 된다. */
+function openLens(e) { deathZoom = 0.001; deathAt = { x: e.x, y: e.y }; freeze = 300; }
+/* 렌즈가 아직 조이는 중인가. 화면 쪽이 이걸 보고 끝 화면을 **늦춘다** —
+   죽자마자 명세서를 띄우면 무엇이 나를 죽였는지 볼 틈이 없다. */
+export const deathHolding = () => deathZoom > 0 && deathZoom < 1;
 
 /* ── event intake ───────────────────────────────────────── */
 export function pump(queue, player) {
@@ -785,10 +821,9 @@ export function pump(queue, player) {
         sfx.levelup();
         break;
       }
-      case 'crack': crackBurst(e); break;
-      case 'vanishOut': vanishBurst(e); break;
-      case 'brace': case 'kite': case 'bulwark': breakFx(e); break;
-      case 'martyr': case 'martyrHold': martyrFx(e, e.t === 'martyr'); break;
+      case 'deathZoom': case 'crack': case 'vanishOut':
+      case 'brace': case 'kite': case 'bulwark':
+      case 'martyr': case 'martyrHold': bigFx(e); break;
       /* ── the ranger's four ─────────────────────────────
          The warrior's arts happen at arm's length and are drawn
          at the hero. These happen across the room and are drawn

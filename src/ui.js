@@ -95,6 +95,7 @@ export function resize() {
    offsets in juice.js this is what turns a tile hop into a
    step. */
 let camX = 0, camY = 0, camReady = false;
+let endHold = null;
 let heroFacing = 1, heroLastX = null;
 
 function cameraTarget() {
@@ -111,6 +112,7 @@ function camera() {
 }
 
 export function snapCamera() {
+  Juice.clearDeath();
   if (!G.player) return;
   const { cx, cy } = cameraTarget();
   camX = cx; camY = cy; camReady = true;
@@ -126,8 +128,18 @@ export function draw() {
   /* 층의 성격과 깊이를 같이 넘긴다 — 무늬는 성격이 정하고, 온도는
      구역이 정한다. 열다섯 층을 내려가는 동안 돌이 실제로 달아오른다. */
   setTerrainTheme(L.theme?.id || 'plain', G.depth > 0 ? REGIONS.indexOf(regionOf(G.depth)) : 0);
-  const t = CELL_SIZE * scale;
+  /* 죽는 순간의 렌즈. 카메라가 그 자리로 조이고 타일이 커진다 —
+     「왜 죽었는지」를 읽으려면 먼저 **무엇이 거기 서 있었는지**가
+     보여야 한다. juice 가 얼마나 조였는지만 알려 주고, 어디를 어떻게
+     그릴지는 여기서 정한다. */
+  const lens = Juice.deathLens();
+  const t = Math.round(CELL_SIZE * scale * (lens ? lens.k : 1));
   if (!camReady) snapCamera();
+  if (lens?.at) {
+    const lc = Math.ceil(viewW / t), lr = Math.ceil(viewH / t);
+    camX = lens.at.x - (lc - 1) / 2;
+    camY = lens.at.y - (lr - 1) / 2;
+  }
 
   const jolt = Juice.shakeVec();
   const cx = camX + jolt.x, cy = camY + jolt.y;
@@ -1219,6 +1231,26 @@ function autosave(reason) {
   savedTurn = G.turn;
 }
 
+/* ── 죽음의 렌즈만 화면 전환 앞에서 통과시킨다 ──────────────
+   죽으면 규칙이 G.screen='end' 로 바꾸고, 그러면 frame 이 그 줄에서
+   끝난다 — Juice.pump 가 영영 안 돌고, 죽음 사건이 큐에 남은 채 화면은
+   곧장 명세서로 넘어간다. 「슬로우모션으로 확대」가 한 프레임도 안
+   그려지던 이유가 이것이다.
+
+   그 사건 하나만 먼저 꺼내 렌즈를 켠다. 켜져 있는 동안은 판을 계속
+   그린다 — 그게 이 연출의 전부다. */
+function dyingFrame(dt) {
+  if (G.fx.some(e => e.t === 'deathZoom')) {
+    Juice.pump(G.fx.filter(e => e.t === 'deathZoom'), G.player);
+    G.fx = G.fx.filter(e => e.t !== 'deathZoom');
+  }
+  if (!Juice.deathHolding() || !G.level) return false;
+  Juice.tickDeath(dt);
+  Juice.update(dt, [G.player, ...G.monsters]);
+  draw();
+  return true;
+}
+
 function frame(ts) {
   rafId = requestAnimationFrame(frame);
   const dt = Math.min(50, ts - (lastTs || ts));
@@ -1227,6 +1259,7 @@ function frame(ts) {
      screen that is running before anybody exists. */
   if (!$('sc-title').hidden) { drawTitleScene(); return; }
   if (!G.player) return;
+  Juice.tickDeath(dt);
 
   /* Permadeath: the slot dies with the run. This lives in the
      loop rather than on the ending screen because death can
@@ -1238,6 +1271,7 @@ function frame(ts) {
     Save.clear(activeSlot);
   }
 
+  if (dyingFrame(dt)) return;
   if (!G.level || G.screen !== 'play') return;
 
   if (lastDepth !== G.depth) {
@@ -1785,6 +1819,18 @@ export const armScreens = () => { armUntil = Date.now() + ARM_MS; };
 export const armed = () => Date.now() >= armUntil;
 
 export function setScreen(name) {
+  /* ── 죽는 순간은 화면을 늦춘다 ─────────────────────────
+     죽자마자 명세서를 띄우면 **무엇이 나를 죽였는지 볼 틈이 없다.**
+     규칙 쪽은 이미 끝났다고 말했지만(G.running=false), 화면은 렌즈가
+     다 조일 때까지 판을 계속 그린다 — 카메라가 그 자리로 들어가고
+     시간이 늘어지는 1.4초. 그 뒤에 명세서가 온다. */
+  if (name === 'end' && Juice.deathHolding()) {
+    G.screen = 'play';
+    clearTimeout(endHold);
+    endHold = setTimeout(() => setScreen('end'), 1500);
+    draw();
+    return;
+  }
   /* 같은 화면을 다시 그리는 것은 새로 열리는 것이 아니다 — d-pad가
      모닥불 화면을 매 걸음 다시 그리므로, 여기서 구분하지 않으면
      불 앞에서는 아무 버튼도 영영 눌리지 않는다. */
@@ -2366,9 +2412,26 @@ export function pushLore(ev) {
    선택을 요구하는 창(#ask)에는 붙이지 않는다. 질문을 밀어서 없앨 수
    있으면 그것은 질문이 아니다. */
 const SWIPE_GO = 40;
+/* ── 밀어도 안 닫히던 이유 ────────────────────────────────
+   플레이어: 「지금 팝업들(양피지) 위나 좌우로 밀어내도 화면에서
+   안꺼짐」.
+
+   코드는 멀쩡했다. 막고 있던 것은 CSS다 — body 에 `touch-action:
+   manipulation` 이 걸려 있어서, 손가락이 옆으로 움직이는 순간 브라우저가
+   그것을 **스크롤 제스처로 채 간다.** 그러면 pointermove 가 우리에게
+   한 번도 안 오고, 대신 pointercancel 이 온다. dx·dy 는 0인 채로
+   남고, 밀어낸 거리는 언제나 문턱(40px) 아래다.
+
+   그래서 두 곳을 고친다: 미는 면에 `touch-action: none` 을 걸어
+   제스처를 우리가 갖고(styles.css), 채였을 때는 닫지 말고 제자리로
+   돌린다(아래). 그리고 카드 바깥을 눌러도 닫히게 한다 — 모바일에서
+   그건 「밀어내기」와 같은 뜻의 동작이다. */
 function swipeAway(box, done) {
   if (box.__swipe) return;
   box.__swipe = true;
+  /* 카드 바깥(어두운 바닥)을 누르면 닫힌다. 카드 자체의 클릭은
+     아래 surface 쪽이 먹으므로 여기까지 안 올라온다. */
+  box.addEventListener('pointerdown', e => { if (e.target === box) done(); });
   let id = null, sx = 0, sy = 0, dx = 0, dy = 0, moved = false;
   const surface = box.querySelector('.sheet') || box;
 
@@ -2397,6 +2460,10 @@ function swipeAway(box, done) {
   const finish = e => {
     if (e.pointerId !== id) return;
     id = null;
+    /* 브라우저가 제스처를 채 가면 pointercancel 이 온다. 그때는
+       **닫으면 안 된다** — 손가락이 아직 화면에 있고, 사용자는 아직
+       아무것도 결정하지 않았다. 제자리로 돌린다. */
+    if (e.type === 'pointercancel') { reset(); return; }
     const far = Math.max(Math.abs(dx), Math.max(0, -dy));
     if (!moved) { done(); return; }              // 밀지 않았으면 탭이다
     if (far < SWIPE_GO) { reset(); return; }
@@ -4419,6 +4486,19 @@ function renderEnd() {
     box.appendChild(row);
   };
 
+  /* ── 왜 죽었는지 ────────────────────────────────────────
+     여태 이 화면이 말한 것은 「무엇에게 죽었나」 하나였다. 그건 사인이지
+     이유가 아니다. 이유는 **안 쓴 것**에 있다 — 주머니에 물약이 셋
+     있었는데 안 마셨다든가, 한계돌파가 열려 있었는데 안 눌렀다든가,
+     여유를 백 턴 넘겨서 파도가 셋째로 오고 있었다든가.
+
+     그래서 부검을 맨 위에 놓는다. 아래의 기록(인물·도달·무기)은
+     지나간 판의 명세서이고, 이쪽은 **다음 판에 쓸 것**이다. */
+  if (!e.win && e.post?.length) {
+    box.appendChild(el('h3', 'sect', '왜 죽었나'));
+    for (const row of e.post) line(row.k, row.v, row.hot ? 'R' : 'G');
+    box.appendChild(el('div', 'endsep'));
+  }
   line('인물', `${RACES[s.race || p.race].name} ${CLASSES[s.cls || p.cls].name} · Lv ${s.lv}`);
   line('도달', `${s.depth}층 / ${MAX_DEPTH}`, s.depth >= 10 ? 'o' : '');
   line('무기', s.weapon || '맨손', s.weaponType ? 'w' : 'g');

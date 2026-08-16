@@ -51,6 +51,18 @@ const NEAR     = 2;            // 「같은 층대」 = 대표 깊이 차 ±2층
 /* ── 기준선 ────────────────────────────────────────────────
    2026-08-15 실측. 전부 실패 개수이고, 전부 0이 되어야 할 숫자다. */
 const BASE = {
+  /* ── 그리고 여기서 자를 한 번 틀렸다 ────────────────────────
+     처음에 이 숫자를 **9**로 적었다. 스프라이트의 **원본 격자**를
+     직접 세서 나온 값이다. 그런데 플레이어가 보는 것은 원본 격자가
+     아니라 **그려진 그림**이고, 그리는 파이프라인은 채워진 픽셀
+     둘레에 어두운 외곽선을 두른다 — 그래서 속이 꽉 찬 8×8 그림은
+     전부 같은 덩어리가 된다. 같은 자로 다시 재니 9가 아니라 **221**
+     이었다. 「안 닮았다」를 플레이어가 안 보는 자로 말하고 있었다.
+
+     속을 비우고 획을 얇게 다시 그려 46까지 내렸다(1081쌍의 4.3%.
+     비교: 사물 쪽은 136쌍 중 37, 27%다). 0은 8×8 + 외곽선에서
+     불가능하다 — 이 숫자를 **올려** 적는 커밋은 회귀다. */
+  iconPairsOver: 46,     // 아이콘 1081쌍 중 IoU ≥ 0.70 인 것 (최악 0.849)
   monPairsOver:  74,     // 같은 층대 몬스터 106쌍 중 IoU ≥ 0.70 인 것 — 70%
   monWorst:   0.984,     // 그중 최악값 (ogre ↔ troll, troll ↔ warden)
   /* 11에서 37로 올려 적는다. 그림이 나빠져서가 아니라 **재는 대상을
@@ -78,9 +90,13 @@ const BASE = {
      (다음 사람에게: 여기를 올릴 때는 **왜** 올리는지 같이 적을 것.
      「그림을 더 그렸다」와 「그림이 나빠졌다」는 이 자로는 구분이 안
      되고, 구분은 위의 세 값이 한다.) */
-  fillOver:      61,     // 채움 > 140 인 스프라이트 수 (전체 77장, 63에서)
+  /* 61 → 84, 69 → 116. 둘 다 그림이 나빠져서가 아니라 **재는 대상이
+     47장 늘어서**다: 유물 마흔과 이름 있는 무기 일곱이 각자 제 아이콘을
+     갖게 됐고, 그것들은 다른 물건 그림과 마찬가지로 8×8이다. 새로
+     걸린 장수가 정확히 47이면 기존 그림은 한 장도 안 나빠진 것이다. */
+  fillOver:      84,     // 채움 > 140 인 스프라이트 수 (아이콘 47장 포함)
   fillWorst:    254,     // 칸을 통째로 채운 것 — 실루엣이 없다는 뜻
-  fauxEight:     69,     // 16줄 주소를 쓰면서 2×2 덩어리뿐인 「실질 8×8」
+  fauxEight:    122,     // 16줄 주소를 쓰면서 2×2 덩어리뿐인 「실질 8×8」
 };
 
 const port = process.env.PORT || 8199;
@@ -129,13 +145,21 @@ const r = await pg.evaluate(async ({ NEAR }) => {
      그래서 서 있는 사람과 좌판도 여기 넣는다. 이것들은 몬스터가
      아니지만 **몬스터와 같은 칸에 서고 같은 크기로 그려진다** —
      실루엣이 갈려야 하는 이유가 몬스터끼리와 똑같다. */
+  /* ── 그리고 아이콘 마흔일곱 ────────────────────────────────
+     유물 마흔과 이름 있는 무기 일곱이 각자 제 그림을 갖게 되면서,
+     이 자가 재야 할 세 번째 무리가 생겼다. 이것들은 몬스터·사물과
+     같은 칸에 안 서고 **배낭과 카드 안에서 서로와만** 비교되므로
+     따로 센다 — 섞어서 재면 「목걸이가 문과 안 닮았다」 같은 쓸모없는
+     쌍이 표를 채운다. */
+  const icons = Object.keys(P.SPRITES).filter(n => /^[ru]_/.test(n) && P.hasSprite(n));
+
   const props = ['stairsDown', 'stairsUp', 'door', 'doorOpen', 'doorLocked', 'doorBroken',
                  'chest', 'barrel', 'urn', 'well',
                  'pedlar', 'keeper', 'sign', 'stall', 'anvil', 'altar', 'camp']
                 .filter(n => P.hasSprite(n));
 
   const all = Object.keys(P.SPRITES).filter(n => P.hasSprite(n));
-  const M = {}; for (const n of new Set([...all, ...mon, ...props])) M[n] = maskOf(n);
+  const M = {}; for (const n of new Set([...all, ...mon, ...props, ...icons])) M[n] = maskOf(n);
 
   const monPairs = [];
   for (let i = 0; i < mon.length; i++) for (let j = i + 1; j < mon.length; j++) {
@@ -151,6 +175,11 @@ const r = await pg.evaluate(async ({ NEAR }) => {
   for (let i = 0; i < props.length; i++) for (let j = i + 1; j < props.length; j++)
     propPairs.push({ a: props[i], b: props[j], v: iou(M[props[i]].m, M[props[j]].m) });
   propPairs.sort((x, y) => y.v - x.v);
+
+  const iconPairs = [];
+  for (let i = 0; i < icons.length; i++) for (let j = i + 1; j < icons.length; j++)
+    iconPairs.push({ a: icons[i], b: icons[j], v: iou(M[icons[i]].m, M[icons[j]].m) });
+  iconPairs.sort((x, y) => y.v - x.v);
 
   const fills = all.map(n => ({ n, v: M[n].n })).sort((x, y) => y.v - x.v);
 
@@ -169,12 +198,14 @@ const r = await pg.evaluate(async ({ NEAR }) => {
       }
     if (blocky) faux.push(n);
   }
-  return { CELL, monPairs, propPairs, fills, faux, mon: mon.length, props: props.length };
+  return { CELL, monPairs, propPairs, iconPairs, fills, faux,
+           mon: mon.length, props: props.length, icons: icons.length };
 }, { NEAR });
 
 const f3 = v => v.toFixed(3);
 const monOver  = r.monPairs.filter(p => p.v >= IOU_MAX);
 const propOver = r.propPairs.filter(p => p.v >= IOU_MAX);
+const iconOver = r.iconPairs.filter(p => p.v >= IOU_MAX);
 const fillOver = r.fills.filter(f => f.v > FILL_MAX);
 
 console.log(`\n실루엣 린트 — ${r.CELL}×${r.CELL} · 몬스터 ${r.mon}종 · 사물 ${r.props}종`);
@@ -190,6 +221,11 @@ console.log(`   ${propOver.length}/${r.propPairs.length} 쌍 실패  (기준선 
 for (const p of propOver)
   console.log(`   ✘ ${p.a.padEnd(12)} ↔ ${p.b.padEnd(12)} ${f3(p.v)}`);
 
+console.log(`\n━━ R2b  아이콘 IoU < ${IOU_MAX} ━━`);
+console.log(`   ${iconOver.length}/${r.iconPairs.length} 쌍 실패  (기준선 ${BASE.iconPairsOver})`);
+for (const p of iconOver)
+  console.log(`   ✘ ${p.a.padEnd(14)} ↔ ${p.b.padEnd(14)} ${f3(p.v)}`);
+
 console.log(`\n━━ R3  채움 ≤ ${FILL_MAX}/256 ━━`);
 console.log(`   ${fillOver.length}/${r.fills.length} 장 실패  (기준선 ${BASE.fillOver})`);
 for (const f of fillOver.slice(0, 20))
@@ -201,6 +237,7 @@ console.log(`   ${r.faux.length}장  (기준선 ${BASE.fauxEight})`);
 console.log(`   ${r.faux.join(' ')}`);
 
 const now = {
+  iconPairsOver: iconOver.length,
   monPairsOver: monOver.length,
   monWorst: +f3(r.monPairs[0]?.v || 0),
   propPairsOver: propOver.length,

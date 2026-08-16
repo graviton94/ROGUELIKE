@@ -3112,7 +3112,13 @@ function populate(depth) {
   for (let guard = 0; placed < budget && guard < budget * 4; guard++) {
     const m = pickMonster(depth);
     if (!m) continue;
-    const room = L.rooms[1 + rnd(Math.max(1, L.rooms.length - 1))];
+    /* 방 0(들어선 방)을 피해 1번부터 고른다 — 그런데 방이 **하나뿐인**
+       층이면 `rooms[1]` 은 undefined 이고, openSpot 이 그 자리에서
+       터진다. 「바깥」은 벽이 없는 층이라 방이 하나로 나올 수 있고,
+       실제로 봇 판이 여기서 죽었다. 하나뿐이면 그 방을 쓴다 —
+       들어서자마자 마주치는 것이 그 층의 성격이다. */
+    const room = L.rooms[1 + rnd(Math.max(1, L.rooms.length - 1))] || L.rooms[0];
+    if (!room) continue;
     const lead = L.openSpot(room, busy);
     if (!lead) continue;
 

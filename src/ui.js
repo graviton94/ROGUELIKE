@@ -435,6 +435,11 @@ export function draw() {
     }
     ctx.globalAlpha = vis ? 1 : 0.6;
     ctx.drawImage(sprite(it.spr), ix, iy + bob, t, t);
+    /* 초월은 절차적으로 만들어지므로 제 그림을 미리 못 갖는다.
+       대신 은총의 문장을 물건 위에 찍는다 — 여섯이 각자 다르고,
+       바닥에서도 배낭에서도 같은 표시다. 「획득 시 확실하게 체감
+       가능하게(외관)」의 마지막 조각. */
+    if (it.boon) ctx.drawImage(sprite(`b_${it.boon}`), ix, iy + bob, t, t);
     ctx.globalAlpha = 1;
   }
 

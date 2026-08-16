@@ -188,9 +188,15 @@ ok(rate >= 0.15,
    gold 가 1/7 → 0/6 으로 흔들리며 판정이 뒤집혔다 — 표본 예닐곱으로
    「죽었다」를 말할 수 없다. deep.mjs 가 「N<90이면 판정하지 않는다」로
    같은 규율을 이미 적어 뒀다. 표본이 모자란 갈래는 인쇄만 한다. */
-const thin = Object.entries(split).filter(([, [, t]]) => t < 20 && t > 0).map(([k]) => k);
+/* 문턱을 20에서 40으로 올린다. 눈을 감는 것이 아니라 **이항분포**
+   때문이다: 살아 있는 갈래도 열리는 비율이 10~17% 라, 표본 25에서
+   한 번도 안 열릴 확률이 1.7% 다. 갈래가 여덟이면 판마다 몇 %가
+   허위 실패로 뒤집힌다 — 실제로 hit 갈래가 그렇게 한 번 뒤집혔다.
+   40이면 12% 짜리 갈래가 0으로 나올 확률이 0.6% 이고, 진짜 죽은
+   갈래(combo 는 0/41 이었다)는 여전히 잡힌다. */
+const thin = Object.entries(split).filter(([, [, t]]) => t < 40 && t > 0).map(([k]) => k);
 if (thin.length) console.log(`  (표본 20 미만이라 판정하지 않는 갈래: ${thin.join(' ')})`);
-const deadKinds = Object.entries(split).filter(([, [b, t]]) => t >= 20 && b === 0).map(([k]) => k);
+const deadKinds = Object.entries(split).filter(([, [b, t]]) => t >= 40 && b === 0).map(([k]) => k);
 ok(deadKinds.length === 0,
    '열 번 이상 껴 봤는데 한 번도 안 깨지는 조건 갈래가 없다',
    deadKinds.length ? deadKinds.join(' ') : '전부 열린 적 있음');

@@ -106,18 +106,28 @@ ok(brightestFloor < 0.12,
    brightestFloor.toFixed(4));
 
 /* 깊이가 읽히는가. 같은 지형의 열0과 열4를 비교한다 — 지형을
-   고정해야 「깊이가 하는 일」만 남는다. */
+   고정해야 「깊이가 하는 일」만 남는다.
+
+   ── 이물(異物) 다섯은 여기서 뺀다 ──────────────────────────
+   구역의 열은 「아래로 갈수록 돌이 따뜻해진다」는 말이고, 그 말이
+   성립하려면 그 층이 **이 사다리 위에 있어야** 한다. 비어 있는
+   성소·바깥·눈의 방·뱃속·지지직은 정의상 사다리 밖이다 — 거기
+   돌이 9층답게 따뜻하면 그건 이물이 아니라 층 종류다. 그래서 벽:바닥
+   대비(길이 보이는가)는 똑같이 물리되, 깊이 색조는 안 묻는다.
+   빼는 이유를 안 적으면 다음 사람이 이걸 「봐준 것」으로 읽는다. */
 console.log('');
+const LADDER_OFF = new Set(['sanctum', 'void', 'eyes', 'gullet', 'static']);
+const ladder = themes.filter(t => !LADDER_OFF.has(t));
 let readable = 0;
-for (const t of themes) {
+for (const t of ladder) {
   const a = data.find(d => d.t === t && d.heat === 0);
   const z = data.find(d => d.t === t && d.heat === 4);
   const dw = Math.abs(z.wall - a.wall) / Math.max(1e-6, a.wall);
   if (dw > 0.25) readable++;
 }
-ok(readable >= themes.length - 1,
-   '지형을 고정해도 가장 얕은 곳과 가장 깊은 곳의 벽이 다르다 — 깊이가 화면에 있어야 한다',
-   `${readable}/${themes.length} 지형`);
+ok(readable >= ladder.length - 1,
+   '지형을 고정해도 가장 얕은 곳과 가장 깊은 곳의 벽이 다르다 — 깊이가 화면에 있어야 한다 (이물 다섯 제외)',
+   `${readable}/${ladder.length} 지형`);
 
 console.log(bad ? `\n무대 벤치: ${bad}건 실패\n` : '\n무대 벤치: 무대가 배우 아래에 있다\n');
 process.exit(bad ? 1 : 0);

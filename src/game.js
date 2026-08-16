@@ -372,13 +372,21 @@ export const statB = (p, k) => statBonus(effStats(p)[k]);
    affix only ever has to be declared once in data.js. Cheap
    enough to recompute per swing: three slots, two affixes each. */
 const EMPTY_BONUS = {
-  dmg:0, dmgPct:0, hit:0, hitPct:1, crit:0, critMult:0, ac:0, stealth:0,
+  dmg:0, dmgPct:0, hit:0, hitPct:1, crit:0, critMult:0, ac:0, acPct:0, stealth:0,
   lifesteal:0, chain:0, burst:0, execute:0, pierce:0,
   regen:0, lightR:0, maxhpPct:0, manaPct:0, manaFlat:0, spellPow:0,
   on:null, resistAll:false, noStealth:false,
   // engraving-only rules — see ENGRAVINGS in data.js
   firstStrike:0, vsElite:0, flatDR:0, reflect:0, dawn:0, ailShrug:0, anchor:false,
 };
+
+/* 강화 한 단계의 값. 곱이라 층과 무관하게 같은 무게를 갖는다. */
+export const PLUS_DMG = 0.09;   // +8이면 피해 ×1.72
+/* 힘과 레벨도 곱 쪽에 선다. 몸이 자라면 **들고 있는 것이 하는 일**이
+   커지는 것이지, 맨손 피해가 붙는 것이 아니다. */
+export const STR_DMG = 0.09;
+export const LV_DMG  = 0.02;
+export const PLUS_AC  = 0.07;   // +8이면 방어 ×1.56
 
 export function gearBonus(p) {
   const b = { ...EMPTY_BONUS };
@@ -387,11 +395,20 @@ export function gearBonus(p) {
     const it = p.equip[slot];
     if (!it) continue;
 
-    // Enhancement is flat and boring on purpose — it is the safe
-    // pick at the fire, the one you take when a gamble would end you.
+    /* ── 강화는 곱이다 ──────────────────────────────────
+       예전에는 `+1 = 피해 +2` 고정이었다. 재 보니 그 값이 1층에서는
+       한 방의 **+19%**이고 15층에서는 **+4%**다 — 판당 평균 +5.2까지
+       올려도 총 +10.4인데, 그때 한 방이 51.6이다. 반올림 오차다.
+       그래서 후반의 강화가 「해도 그만」이 되고, 모루 앞의 결정이
+       사라진다.
+
+       비율로 바꾼다. `+1 = 피해 ×1.09`. 그러면 +8이 1.99배가 되고,
+       그 값은 1층에서든 15층에서든 같은 무게다 — 강화는 「지금 내
+       무기를 두 배로 만드는 일」이 된다. 명중은 그대로 가산으로
+       둔다: 명중률은 원래 비율이라 곱하면 두 번 곱하는 셈이 된다. */
     if (it.plus) {
-      if (it.kind === 'weapon') { b.dmg += it.plus * 2; b.hit += it.plus * 1.5; }
-      else b.ac += it.plus * 2;
+      if (it.kind === 'weapon') { b.dmgPct += it.plus * PLUS_DMG; b.hit += it.plus * 1.5; }
+      else b.acPct += it.plus * PLUS_AC;
     }
     if (it.kind === 'armour') b.ac += it.ac || 0;
     /* A rod is not swung, it is held. Its two numbers go straight
@@ -502,11 +519,16 @@ export function gearBonus(p) {
   return b;
 }
 
-export const armourClass = p =>
-  gearBonus(p).ac
-  + statB(p, 'dex') + Math.floor(p.lv / 4)
-  + (p.blessed > 0 ? 4 : 0) + (p.iron > 0 ? 10 : 0)
-  + (p.cls === 'paladin' ? Math.floor((p.oath || 0) / 2) : 0);   // 맹세
+/* 갑옷의 강화도 곱이다(gearBonus의 acPct). 곱하는 자리는 **장비에서
+   온 값**뿐 — 민첩과 레벨과 축복은 몸의 것이지 판금의 것이 아니고,
+   거기까지 곱하면 판금 +8이 맨몸까지 두껍게 만든다. */
+export const armourClass = p => {
+  const g = gearBonus(p);
+  return Math.round(g.ac * (1 + g.acPct))
+    + statB(p, 'dex') + Math.floor(p.lv / 4)
+    + (p.blessed > 0 ? 4 : 0) + (p.iron > 0 ? 10 : 0)
+    + (p.cls === 'paladin' ? Math.floor((p.oath || 0) / 2) : 0);   // 맹세
+};
 
 /* 힘의 아래쪽. Heavy gear asks for a number, and a hero who does
    not have it swings badly rather than being refused — a refusal
@@ -2206,6 +2228,9 @@ function spellDrain(aff, dmg) {
   if (got <= 0) return;
   p.hp += got;
   fx({ t:'drain', x:p.x, y:p.y, amt:got });
+  /* 주문의 흡수는 주문 속성이 하는 일이다. 무기 이름을 부르면
+     엉뚱한 물건이 공을 가져간다 — 여기서는 주문이 말한다. */
+  credit('spellsteal', `${aff.n || '흡수하는'} 주문이 되마셨다. 체력 +${got}.`);
 }
 
 /* ── level flow ─────────────────────────────────────────── */
@@ -2587,6 +2612,20 @@ function pickMonster(depth) {
    it the deepest monster in the book topped out at 143 health
    against a hero with 554, so the bestiary simply stopped
    being a threat somewhere around floor 6. */
+/* 층당 배율. 나는 판 전체에서 20.6배 자란다(실측) — 세계는 그보다
+   조금 느려야 한다. 표 자체가 이미 종을 따라 커지므로 여기 값은
+   그 위에 얹는 얇은 층이다. */
+export const MON_DEEP     = 1.017;   // 15층에서 ×1.29
+export const MON_DEEP_ATK = 1.015;
+export const MON_DEEP_AC  = 1.020;
+/* 제 집보다 깊은 곳에서 만난 것. 처음에 1.11로 잡았다가 되돌렸다 —
+   15층 풀은 5층치를 끌어 쓰므로 1.11^5 = 1.69가 되어, 층 배율을
+   낮춘 것을 여기서 도로 다 물어냈다(세계 성장 29.2배로 거의 그대로).
+   표 자체가 이미 7.6 → 107.8(14.2배)로 자란다. 여기 얹는 것은
+   얇아야 한다. */
+export const MON_OVER     = 1.05;
+export const MON_OVER_ATK = 1.04;
+
 function scaleMonster(m, depth) {
   const over = Math.max(0, depth - m.d);
   /* Kept deliberately mild. The bestiary already ramps hard on
@@ -2594,7 +2633,16 @@ function scaleMonster(m, depth) {
      twelve — so a large multiplier on top compounds into a
      cliff around floor 11 where a single monster trades evenly
      with the hero and there are eighteen of them. */
-  const deep = 1 + depth * 0.055;
+  /* ── 세계도 곱으로 자란다 ────────────────────────────
+     예전에는 `1 + depth*0.055` — 층에 대해 **선형**이었다. 그런데
+     플레이어 쪽은 (이제) 전부 곱이고, 선형과 곱을 붙여 놓으면 둘의
+     차가 층마다 벌어진다. 실측으로 판 전체에서 나는 20.6배 자라는데
+     세계는 32배 자랐고, 그래서 **죽이는 데 드는 합이 3.1 → 4.9로
+     늘었다** — 득템을 해도 제자리인 이유가 이것이다.
+
+     같은 종류의 수로 바꾼다. 그리고 총량을 낮춘다: 세계가 나보다
+     조금 느리게 자라야 「이번에 주운 것」이 값을 한다. */
+  const deep = MON_DEEP ** depth;
   /* 심연 rides on top of the depth curve, on the two numbers that
      decide a fight rather than on how many things are in the room.
      More monsters is more turns; harder monsters is a harder game. */
@@ -2603,10 +2651,13 @@ function scaleMonster(m, depth) {
      rule rather than a number. */
   const heavy = hasShackle('weight') ? SHACKLE_STAT : 1;
   return { ...m,
-    hp:  Math.round(m.hp  * (1 + over * 0.10) * deep * heavy),
-    atk: Math.round(m.atk * (1 + over * 0.06) * (1 + depth * 0.02) * heavy),
-    ac:  Math.round(m.ac  * (1 + depth * 0.025)),
-    xp:  Math.round(m.xp  * (1 + over * 0.10)) };
+    hp:  Math.round(m.hp  * MON_OVER ** over * deep * heavy),
+    atk: Math.round(m.atk * MON_OVER_ATK ** over * MON_DEEP_ATK ** depth * heavy),
+    ac:  Math.round(m.ac  * MON_DEEP_AC ** depth),
+    /* 경험치는 제 집보다 깊은 곳에서 만난 만큼 더 준다. 이 줄이
+       「깊이 내려간 판이 레벨도 높다」를 만든다 — 그리고 레벨이
+       이제 곱이므로, 그 차이가 다음 층에서 복리로 돌아온다. */
+    xp:  Math.round(m.xp  * MON_OVER ** over) };
 }
 
 /* Elites are the monster side of the affix vocabulary. A
@@ -3564,6 +3615,61 @@ function pickUp() {
   say(`${nameOf(it)}을(를) 주웠다.`, grade >= 2 ? 'level' : 'good');
 }
 
+/* ── 이게 지금 든 것보다 나은가 ────────────────────────────
+   플레이 평이 「아이템이 뭐가 가치있는지 모르겠다」였다. 카드가
+   주사위와 속성 **이름**은 말하는데, 그것이 지금 손에 든 것보다
+   나은지는 한 번도 말하지 않는다. 2d6과 1d10 중 무엇이 나은지를
+   사람이 암산하게 두면, 그 카드는 정보가 아니라 장식이다.
+
+   그래서 **같은 식에 넣어 본다.** 규칙이 실제로 쓰는 피해식(swing의
+   그 줄)을 한 곳으로 빼서, 카드와 배낭과 벤치가 전부 그 하나를
+   지난다 — 화면이 약속하는 값과 손이 내는 값이 갈릴 수가 없다. */
+export function swingAvg(p, it) {
+  if (!p) return 0;
+  const keep = p.equip[it?.kind === 'armour' ? 'body' : 'weapon'];
+  if (it) p.equip[it.kind === 'armour' ? 'body' : 'weapon'] = it;
+  const g = gearBonus(p);
+  const w = p.equip.weapon;
+  const dice = w ? w.dice : [1, 3];
+  const mid = dice[0] * (dice[1] + 1) / 2;
+  let d = (mid + g.dmg) * (1 + statB(p, 'str') * STR_DMG + p.lv * LV_DMG + g.dmgPct);
+  if (w && weaponType(p) === 'great') d *= 1.45;
+  /* 치명타는 기댓값에 녹여 넣는다 — 「예리한」이 카드에서 0%로
+     보이던 것이 이 한 줄 때문이었다. */
+  d *= 1 + critChance(p) * (critMult(p) - 1);
+  if (it) p.equip[it.kind === 'armour' ? 'body' : 'weapon'] = keep;
+  return d;
+}
+
+/* 「지금 든 것 대비 몇 %」. 같은 칸의 장비에만 답한다 — 물약과
+   두루마리는 비교할 상대가 없다. */
+export function compareToHeld(it) {
+  const p = G.player;
+  if (!p || !it) return null;
+  if (it.kind === 'weapon') {
+    const now = swingAvg(p, null), next = swingAvg(p, it);
+    if (!now) return null;
+    return { what: '한 방', pct: Math.round((next / now - 1) * 100) };
+  }
+  if (it.kind === 'armour') {
+    const keep = p.equip.body;
+    const now = armourClass(p);
+    p.equip.body = it;
+    const next = armourClass(p);
+    p.equip.body = keep;
+    return { what: '방어', pct: Math.round((next / Math.max(1, now) - 1) * 100) };
+  }
+  return null;
+}
+
+/* 한 줄로 읽는 비교. 카드와 배낭이 같은 문장을 쓰게 하려고 뺐다. */
+export function compareLine(it) {
+  const c = compareToHeld(it);
+  if (!c) return null;
+  if (c.pct === 0) return `지금 든 것과 ${c.what}이(가) 같다`;
+  return `지금 든 것보다 ${c.what} ${c.pct > 0 ? '+' : ''}${c.pct}%`;
+}
+
 /* 주운 것이 무엇인지 한 문단으로. 카드에 「사용 가능」만 뜨면 카드를
    띄운 의미가 없다 — 멈춰 세웠으면 멈출 값을 줘야 한다. */
 function itemBlurb(it) {
@@ -3580,6 +3686,10 @@ function itemBlurb(it) {
     if (e) bits.push(`${e.n} — ${e.t}`);
   }
   if (isCursed(it)) bits.push('저주받았다. 벗을 수 없다.');
+  /* 그리고 마지막 줄에 답을 적는다: 지금 든 것보다 나은가. 2d6과
+     1d10 중 무엇이 나은지를 사람이 암산하게 두면 카드는 장식이다. */
+  const line = compareLine(it);
+  if (line) bits.push(line);
   return bits.join('\n');
 }
 
@@ -3995,8 +4105,21 @@ function swing(m, scale, opt = {}) {
   const w = p.equip.weapon;
   const dice = w ? w.dice : [1, 3];
   const g = gp;
-  let dmg = roll(dice[0], dice[1]) + statB(p, 'str') * 2 + Math.floor(p.lv / 3) + g.dmg;
-  dmg *= (1 + g.dmgPct + (p.might > 0 ? 0.6 : 0));
+  /* ── 무기가 척추다 ──────────────────────────────────────
+     예전 식은 `주사위 + 힘×2 + 레벨/3 + 장비` 였다. 전부 가산이라
+     **무기가 좋아져도 나머지가 그대로 붙어 오는** 구조였고, 그래서
+     판 전체에서 한 방이 2.8 → 51.6(18배)로 자라는 동안 무엇이
+     그 18배를 만들었는지 화면에서 읽히지 않았다. 룬검을 주워도
+     「+13」이었고, 그 13은 다음 층 몬스터 체력 앞에서 사라졌다.
+
+     이제 주사위가 밑이고 나머지가 지수 쪽에 선다:
+         (주사위 + 장비의 고정값) × (1 + 힘 + 레벨 + 비율들)
+     무기를 바꾸면 힘도 레벨도 강화도 **같이 커진다.** 이것이
+     「득템의 순간」이 존재하기 위한 최소 조건이다 — 곱이 아니면
+     새 무기는 언제나 옛 무기 더하기 몇이다. */
+  let dmg = (roll(dice[0], dice[1]) + g.dmg)
+          * (1 + statB(p, 'str') * STR_DMG + p.lv * LV_DMG
+               + g.dmgPct + (p.might > 0 ? 0.6 : 0));
   dmg *= scale;
   if (kind === 'great') dmg *= 1.45;
 
@@ -4034,7 +4157,16 @@ function swing(m, scale, opt = {}) {
   if (forced) { p.chain3 = 0; say('세 번째 손 — 급소가 열렸다.', 'level'); }
   const crit = asleep || forced
     || Math.random() < critChance(p) + (kind === 'dagger' ? 0.08 : 0);
-  if (crit) dmg *= critMult(p) * (asleep ? 1.5 : 1);
+  if (crit) {
+    dmg *= critMult(p) * (asleep ? 1.5 : 1);
+    /* 치명타는 원래 숫자가 붉게 뜨지만, **왜 자주 뜨는지**는 안 나온다.
+       예리한·파멸은 그 확률과 배수에만 사는 속성이라, 이름을 한 번
+       불러 주지 않으면 영영 「운이 좋았다」로 읽힌다. */
+    if (!asleep && !forced) {
+      const byK = bearerOf('crit') || bearerOf('critMult');
+      if (byK) credit('crit', `${byK}이(가) 갈비뼈 사이를 찾아냈다.`);
+    }
+  }
   dmg = Math.max(1, Math.round(dmg * comboMult()));
 
   /* 절단. One crit in forty becomes something else entirely: the
@@ -4066,7 +4198,9 @@ function swing(m, scale, opt = {}) {
      more turn to hit back. */
   const cut = g.execute + (hasResonance('tally') ? (G.tally || 0) * 0.01 : 0);
   if (cut > 0 && !m.boss && m.hp <= m.maxhp * cut) {
-    say(`${m.n}을(를) 처형했다.`, 'level');
+    const byX = bearerOf('execute');
+    say(byX ? `${byX}이(가) ${m.n}의 숨을 끊었다 — 더 볼 것도 없이.`
+            : `${m.n}을(를) 처형했다.`, 'level');
     /* Each one makes the next easier, for this floor only. The
        reset on descending is the whole balance: it snowballs
        inside a room and never carries. */
@@ -4251,10 +4385,43 @@ function chainOut(m, dmg, depth) {
   const o = near[rnd(near.length)];
   const spill = Math.max(1, Math.round(dmg * (saw ? CHAIN_KEEP_RESO : CHAIN_KEEP)));
   fx({ t:'arc', fx:m.x, fy:m.y, tx:o.x, ty:o.y });
+  const byC = bearerOf('chain');
+  if (byC) credit('chain', `${byC}에서 튄 것이 옆의 것까지 갔다.`);
   hurtMonster(o, spill, '연쇄', {});
   drainLife(spill);
   if (saw && depth < CHAIN_MAX && G.monsters.includes(o))
     chainOut(o, spill, depth + 1);
+}
+
+/* ── 무엇이 그것을 했는가 ──────────────────────────────────
+   속성 열여섯 개 중 다섯만 한 방의 숫자에 나타난다(실측: 묵직한
+   +38%, 분노 +28%, 그을음 +24%, 폭풍 +19%, 갈증 +19% — 나머지 열하나는
+   0%). 나머지가 약한 것이 아니라 **치명·연쇄·처형·흡혈처럼 다른
+   축에서 작동하고, 그 축이 화면에 한 번도 안 나온다.** 「예리한 장검」을
+   끼고 스무 번을 때려도 무엇이 달라졌는지 알 방법이 없었다.
+
+   그래서 속성이 실제로 발동한 그 턴에, **그 물건의 이름을 부른다.**
+   층마다 한 번씩만 — 매번 부르면 로그가 이 줄로 덮이고 정작 읽어야
+   할 것이 밀려 나간다. 두 번째부터는 이펙트만 남는다: 한 번 배우고
+   나면 필요한 것은 설명이 아니라 신호다. */
+function credit(key, line) {
+  G.credited = G.credited || {};
+  if (G.credited[key]) return;
+  G.credited[key] = 1;
+  say(line, 'level');
+}
+/* 그 속성을 달고 있는 물건의 이름. 어느 칸에 붙어 있든 찾아서
+   부른다 — 「무기가」가 아니라 「흡혈의 장검이」여야 배운 것이 된다. */
+function bearerOf(prop) {
+  const p = G.player;
+  for (const slot of GEAR_SLOTS) {
+    const it = p.equip[slot];
+    if (!it) continue;
+    for (const a of [it.pre && PREFIXES.find(x => x.id === it.pre),
+                     it.suf && SUFFIXES.find(x => x.id === it.suf)])
+      if (a && (a[prop] || 0) > 0) return affixName(it);
+  }
+  return null;
 }
 
 function drainLife(dmg) {
@@ -4265,6 +4432,8 @@ function drainLife(dmg) {
   if (got <= 0) return;
   p.hp += got;
   fx({ t:'drain', x:p.x, y:p.y, amt:got });
+  const by = bearerOf('lifesteal');
+  if (by) credit('lifesteal', `${by}이(가) 상처에서 되마신다. 체력 +${got}.`);
 }
 
 function poisonMonster(m, kind) {
@@ -7502,7 +7671,7 @@ export function startGame(raceKey, classKey, base) {
   G.engraved = 0; G.memories = []; G.relicShelf = null;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
   G.nextMods = null; G.campPromise = 0; G.deepest = 0;
-  G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.clungSaid = 0; walkOffTolerance(); G.hazards = []; G.snares = []; G.sanctum = null; G.bank = 0;
+  G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.clungSaid = 0; G.credited = {}; walkOffTolerance(); G.hazards = []; G.snares = []; G.sanctum = null; G.bank = 0;
   G.goldEarned = 0;
   /* 한 판에 한 번씩만 만난다는 표시. 판이 바뀌면 비워야 한다 —
      안 비웠더니 두 번째 판에서 앞사람이 안 나왔고, 벤치가 그걸

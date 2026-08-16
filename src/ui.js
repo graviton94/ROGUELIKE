@@ -2731,6 +2731,18 @@ function renderInventory() {
       : Game.isKnown(it.id) ? (it.desc || '사용 가능') : '마셔 보기 전에는 알 수 없다'));
     const pt = plusText(it);
     if (pt) mid.appendChild(el('span', 'idesc plus', pt));
+    /* 「지금 든 것보다」. 배낭은 결정을 내리는 화면인데, 지금까지
+       주사위와 속성 이름만 있고 **그래서 이게 나은가**는 없었다.
+       2d6과 1d10 중 무엇이 나은지를 사람이 암산하게 두면 그 줄은
+       정보가 아니라 장식이다. 규칙이 쓰는 피해식을 그대로 지난다
+       (Game.compareToHeld) — 화면이 약속한 값과 손이 내는 값이
+       갈릴 수 없다. */
+    const cmp = Game.compareToHeld(it);
+    if (cmp) {
+      const up = cmp.pct > 0, same = cmp.pct === 0;
+      mid.appendChild(el('span', 'idesc cmp' + (up ? ' up' : same ? '' : ' down'),
+        Game.compareLine(it)));
+    }
     row.appendChild(mid);
     row.appendChild(el('span', 'iact',
       it.kind === 'cat' ? '모루에서' : it.kind === 'use' ? '사용' : '장착'));

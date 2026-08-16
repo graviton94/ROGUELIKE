@@ -1212,3 +1212,9 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 @media (prefers-reduced-motion: reduce) {
   #acts .quick button.urgent { animation: none; }
 }
+
+/* 배낭에서 「지금 든 것보다」. 좋아지는 쪽은 잉걸, 나빠지는 쪽은
+   마른 피 — 색 하나로 결정이 끝나야 목록을 훑을 수 있다. */
+.idesc.cmp      { color: var(--G); }
+.idesc.cmp.up   { color: var(--o); font-weight: 600; }
+.idesc.cmp.down { color: var(--r); }

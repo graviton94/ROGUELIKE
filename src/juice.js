@@ -135,11 +135,27 @@ function martyrFx(e, spent) {
    사건마다 case 를 하나씩 얹으면 아무도 못 여는 함수가 된다 —
    sim/knots.mjs 가 이 커밋에서 두 번 잡았다. */
 function bigFx(e) {
+  if (e.t === 'arcana') return arcanaFx(e);
   if (e.t === 'deathZoom') return openLens(e);
   if (e.t === 'crack') return crackBurst(e);
   if (e.t === 'vanishOut') return vanishBurst(e);
   if (e.t === 'martyr' || e.t === 'martyrHold') return martyrFx(e, e.t === 'martyr');
   return breakFx(e);
+}
+
+/* 아르카나를 고른 순간. 판 전체의 성격이 바뀌는 일이라 화면 전체가
+   한 번 물든다 — 유물이나 크랙과 달리 이건 **내 몸이 아니라 세계**에
+   일어난 일이다. */
+function arcanaFx(e) {
+  const p = G.player;
+  if (!p) return;
+  for (let i = 0; i < 3; i++)
+    ring(p.x, p.y, 2.2 + i * 1.6, i % 2 ? PALETTE.p : PALETTE.P, 700 + i * 200);
+  number(p.x, p.y - 1.1, e.n || '아르카나', PALETTE.P, 1.4);
+  flashScreen = Math.max(flashScreen, 0.2); flashHue = 'P';
+  shake = Math.max(shake, 0.45);
+  buzz([50, 40, 50, 40, 90]);
+  sfx.levelup();
 }
 
 function breakFx(e) {
@@ -821,7 +837,7 @@ export function pump(queue, player) {
         sfx.levelup();
         break;
       }
-      case 'deathZoom': case 'crack': case 'vanishOut':
+      case 'arcana': case 'deathZoom': case 'crack': case 'vanishOut':
       case 'brace': case 'kite': case 'bulwark':
       case 'martyr': case 'martyrHold': bigFx(e); break;
       /* ── the ranger's four ─────────────────────────────

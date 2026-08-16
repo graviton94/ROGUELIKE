@@ -1774,6 +1774,38 @@ function showHeat() {
   $('look').hidden = false;
 }
 
+/* ── 아르카나 ────────────────────────────────────────────
+   4·8·12층에 한 번씩, 셋 중 하나. 전부 양날이라 「좋은 것 고르기」가
+   아니라 **이 판을 어떤 판으로 만들 것인가**를 고르는 화면이다.
+   그래서 좋은 쪽과 값을 같은 크기로 적는다 — 한쪽만 크게 쓰면
+   그건 광고지 결정이 아니다. */
+function renderArcana() {
+  const list = $('arcana-list'); list.innerHTML = '';
+  const have = (G.arcana || []).length;
+  $('arcana-sub').textContent =
+    `${G.depth}층. 이 판의 ${have + 1}번째 — 고른 것은 판이 끝날 때까지 간다.`;
+  for (const a of Game.arcanaOffer()) {
+    const row = el('button', 'itemrow arcanarow');
+    const mid = el('div', 'imid');
+    const nm = el('span', 'iname', a.n);
+    nm.style.color = 'var(--P)';
+    nm.classList.add('transcend');
+    mid.appendChild(nm);
+    mid.appendChild(el('span', 'idesc arcanacat', a.c));
+    /* 좋은 쪽과 값은 문장 안에서 「대신」으로 갈린다. 그 경계를 색으로
+       한 번 더 긋는다 — 읽지 않고 고르는 손을 막는 유일한 장치다. */
+    const parts = a.t.split('대신');
+    const good = el('span', 'idesc arcanagood', parts[0].replace(/\*\*/g, '').trim());
+    mid.appendChild(good);
+    if (parts[1]) mid.appendChild(el('span', 'idesc arcanacost',
+      '대신 ' + parts[1].replace(/\*\*/g, '').trim()));
+    mid.appendChild(el('span', 'idesc arcanalore', a.lore));
+    row.appendChild(mid);
+    row.onclick = () => { if (!armed()) return; Game.takeArcana(a.id); setScreen('play'); refresh(); };
+    list.appendChild(row);
+  }
+}
+
 function showRelicList() {
   const held = Game.relicList();
   if (!held.length) return;
@@ -1818,6 +1850,24 @@ let armUntil = 0;
 export const armScreens = () => { armUntil = Date.now() + ARM_MS; };
 export const armed = () => Date.now() >= armUntil;
 
+/* 어느 화면 하나만 남기고 전부 감춘다. setScreen 밖으로 뺀 이유는
+   매듭 린트가 이 커밋에서 그 함수를 복잡도 30 위로 밀어 올렸다고
+   잡았기 때문이고, 실제로 이건 「무엇을 보여줄까」 하나뿐이다.
+
+   판을 가리지 않고 그 위에 얹히는 여섯(SHEETS)은 예외다 — 층에
+   무엇이 남았고 내가 어디 섰는지가 바로 그 창이 묻는 정보라서. */
+const SCREEN_IDS = ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help',
+                    'camp', 'slots', 'altar', 'stairs', 'relic', 'event', 'anvil',
+                    'codex', 'arcana'];
+function showOnly(name) {
+  const sheeted = SHEETS.includes(name);
+  for (const s of SCREEN_IDS) {
+    const box = $(`sc-${s}`);
+    box.hidden = (s !== name) && !(s === 'play' && sheeted);
+    box.classList.toggle('assheet', s === name && sheeted);
+  }
+}
+
 export function setScreen(name) {
   /* ── 죽는 순간은 화면을 늦춘다 ─────────────────────────
      죽자마자 명세서를 띄우면 **무엇이 나를 죽였는지 볼 틈이 없다.**
@@ -1846,18 +1896,16 @@ export function setScreen(name) {
      instead of replacing it. Losing the map loses "what is left on
      this floor and where I am standing" — which is precisely the
      information the fire is asking you to decide with. */
-  const sheeted = SHEETS.includes(name);
-  for (const s of ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help',
-                   'camp', 'slots', 'altar', 'stairs', 'relic', 'event', 'anvil', 'codex']) {
-    const box = $(`sc-${s}`);
-    box.hidden = (s !== name) && !(s === 'play' && sheeted);
-    box.classList.toggle('assheet', s === name && sheeted);
-  }
+  showOnly(name);
   if (name === 'play') {
+    /* 아르카나가 밀린 채로 판에 돌아오면 안 된다 — 4층에 들어선 순간
+       고르는 화면이 떠야 그 층부터 그 판이 된다. */
+    if (Game.arcanaDue(G.depth)) { setScreen('arcana'); return; }
     resize(); refresh();
     // Back on the map: whatever was waiting can be read now.
     if (loreQueue.length && $('lorecard').hidden) showLore();
   }
+  if (name === 'arcana') renderArcana();
   if (name === 'inv')  renderInventory();
   if (name === 'shop') renderShop();
   if (name === 'spell') renderSpells();

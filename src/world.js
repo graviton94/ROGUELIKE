@@ -433,6 +433,7 @@ export class Level {
     if (this.depth < 1) return;
     this.spotEvent(start, down);
     if (this.depth >= 5 && Math.random() < 0.5) this.spotEvent(start, down, true);
+    if (FACILITY_BIAS.extraEvent) this.spotEvent(start, down, true);
   }
 
   spotEvent(start, down, second) {
@@ -628,6 +629,8 @@ export class Level {
        꺼져 있는 것 하나가 더 선다. 층을 만드는 쪽에 유물 이름이
        들어오면 그때부터 생성기가 규칙을 알게 된다. */
     if (bias.camp) this.plan.camp = true;
+    /* 되풀이하는 판 — 물어볼 곳은 늘고 쉴 곳은 없다. */
+    if (bias.noCamp) this.plan.camp = false;
     if (bias.extra) {
       const off = Object.keys(want).filter(k => !this.plan[k]);
       if (off.length) this.plan[off[rnd(off.length)]] = true;

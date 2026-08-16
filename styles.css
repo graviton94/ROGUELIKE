@@ -1304,3 +1304,11 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 /* 다만 카드 안의 목록은 여전히 스크롤돼야 한다. 긴 유물 목록이
    안 넘어가면 아래쪽 유물을 영영 못 본다. */
 .askbox #look-rows, .askbox .scrollable { touch-action: pan-y; }
+
+/* 아르카나 — 판 자체를 비트는 것. 유물의 자수정을 쓰되 면이 아니라
+   왼쪽 선으로만 — 세 장이 나란히 서면 면은 무지개가 된다. */
+.arcanarow { border-left: 3px solid var(--P); padding-left: 9px; margin-bottom: 10px; }
+.idesc.arcanacat { color: var(--P); opacity: .8; font-size: 9px; }
+.idesc.arcanagood { color: var(--o); }
+.idesc.arcanacost { color: var(--r); }
+.idesc.arcanalore { color: var(--G); opacity: .7; font-style: italic; margin-top: 3px; }

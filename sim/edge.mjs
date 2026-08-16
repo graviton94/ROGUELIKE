@@ -268,7 +268,11 @@ console.log('');
   const r = seat('ranger', 12);
   r.equip.weapon = { kind:'weapon', t:'bow', spr:'bow', n:'활', dice:[2,6], rng:7, plus:0 };
   r.quiver = { kind:'quiver', qty:99, n:'화살' }; Game.recalc(r);
-  const foeR = dummy(r, 1);
+  /* 허수아비를 체력 무한으로 두면 화살이 죽이지 못해 「몇 대 맞았나」가
+     그대로 남는다. 실제 스폰을 쓰면 첫 발에 죽어서 나머지가 허공을
+     때리고, 그러면 0으로 읽힌다 — 처음에 그렇게 재서 통과하던 것이
+     실패로 뒤집혔다. */
+  const foeR = dummy(r, 1); foeR.hp = foeR.maxhp = 99999;
   const rx = r.x, rhp = foeR.hp;
   Game.useArt('kite');
   ok(Math.abs(r.x - rx) >= 3 && rhp - foeR.hp > 0,

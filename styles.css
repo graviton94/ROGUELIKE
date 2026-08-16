@@ -1284,3 +1284,14 @@ table.keys td:first-child { width: 40%; color: var(--G); }
   color: var(--G); border-color: #4a4045; background: #141014;
   opacity: 1;
 }
+
+/* 주목 — 깊은 곳이 너를 보는 정도. 평소엔 조용한 회색, 45를 넘으면
+   잉걸, 80을 넘으면 상처의 붉은색으로 맥이 뛴다. */
+.chip.heat { color: var(--G); border-color: var(--g); }
+.chip.heat b { color: var(--G); }
+.chip.heat.hot { color: var(--o); border-color: #7a3f12; }
+.chip.heat.hot b { color: var(--o); }
+.chip.heat.burn { color: var(--R); border-color: #7a1c18; animation: heatBurn 1.2s ease-in-out infinite; }
+.chip.heat.burn b { color: var(--R); }
+@keyframes heatBurn { 0%,100% { opacity: .78; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .chip.heat.burn { animation: none; } }

@@ -1536,6 +1536,17 @@ export function refresh() {
      화면 밖에 있는 것이 「루즈하다」의 직접 원인이다.
 
      가장 가까운 하나만 건다. 넷을 걸면 그건 목록이지 목표가 아니다. */
+  /* 주목. 이 판의 risk & take 계기다 — 세지면 아래가 너를 보고,
+     본 만큼 층이 깨어 있고 정예가 잦고 시계가 짧다. 누르면 무엇이
+     달라지는지 전부 적힌 카드가 뜬다. */
+  const heat = G.heat || 0;
+  const hc = $('hud-heat');
+  hc.hidden = !(G.depth > 0);
+  $('hud-heat-n').textContent = String(heat);
+  hc.className = 'chip heat' + (heat >= 80 ? ' burn' : heat >= 45 ? ' hot' : '');
+  hc.style.cursor = 'pointer';
+  hc.onclick = () => showHeat();
+
   const near = Game.nearestCrack();
   $('hud-relics-n').textContent = `${held.length}/${RELIC_SLOTS}`
     + (near ? ` · ✧ ${near.n} ${near.left}` : '');
@@ -1698,6 +1709,35 @@ function crackRow(id) {
   }
   row.appendChild(b);
   return row;
+}
+
+/* 주목이 지금 무엇을 하고 있는지, 전부. 숫자 하나만 띄우면 그건
+   경고등이지 거래 조건이 아니다. */
+function showHeat() {
+  const h = G.heat || 0;
+  $('look-name').textContent = '깊은 곳이 너를 본다';
+  $('look-sub').textContent = `주목 ${h}/${Game.HEAT_MAX}`;
+  const rows = $('look-rows'); rows.innerHTML = '';
+  const line = (k, v) => {
+    const r = el('div', 'endrow');
+    r.appendChild(el('span', 'endlabel', k));
+    r.appendChild(el('span', 'endval', v));
+    rows.appendChild(r);
+  };
+  rows.appendChild(el('p', 'empty', Game.HEAT_WORD(h)));
+  const pow = Math.round(Game.powerOf());
+  const want = Math.round(Game.expectedPower(G.depth));
+  line('네 힘', `${pow} — 이 층에서 예상되는 것은 ${want}`);
+  line('그래서', pow > want
+    ? `곡선보다 ${(pow / Math.max(1, want)).toFixed(1)}배 앞서 있다. 아래가 그만큼 본다.`
+    : '아직 곡선 안이다. 아래는 너를 대충 본다.');
+  rows.appendChild(el('div', 'endsep'));
+  line('깨어 있는 것', `층에 들어설 때 ${Math.round(h * 0.6)}% 가 이미 깨어 있다`);
+  line('알아채는 거리', `평소의 ${(1 + h * 0.035).toFixed(1)}배`);
+  line('정예', `평소의 ${(1 + h * 0.022).toFixed(1)}배`);
+  line('층의 여유', `평소의 ${Math.round((1 - h * 0.0035) * 100)}%`);
+  line('몬스터 세기', `평소의 ${Math.round((1 + h * 0.0025) * 100)}%`);
+  $('look').hidden = false;
 }
 
 function showRelicList() {

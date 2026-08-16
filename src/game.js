@@ -2465,6 +2465,9 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   G.floorTurn = 0;
   G.waves = 0;
   G.chainGuard = 0;                 // ③ 사슬 갑주 — 층마다 한 대
+  /* 열기는 층에 들어설 때 한 번 굳는다. 아래의 스폰과 시계가 전부
+     이 값을 읽으므로 **무엇보다 먼저** 정해져야 한다. */
+  if (depth > 0) settleHeat();
   G.hazards = []; G.snares = []; G.sanctum = null;
   G.campUses = 1 + (hasRelic('ember') ? (cracked('ember') ? 2 : 1) : 0);
   G.tideUsed = false;
@@ -2738,8 +2741,12 @@ function populate(depth) {
       const spot = k === 0 ? lead
         : L.openSpot({ x: lead.x - 2, y: lead.y - 2, w: 5, h: 5 }, busy);
       if (!spot) continue;
+      /* 열기가 층을 깨워 놓는다. 「보이는 몬스터가 0.5%뿐이라 둘러싸일
+         일이 없다」는 실측에 직접 답하는 줄이다 — 세진 만큼 층이 너를
+         기다리고 있고, 그 기다림은 걸어 들어가는 순간부터다. */
       const one = { ...m, x: spot.x, y: spot.y,
-                    awake: hasShackle('awake') && Math.random() < 0.5, energy: 0 };
+                    awake: (hasShackle('awake') && Math.random() < 0.5)
+                        || Math.random() < heatAwake(), energy: 0 };
       if (Math.random() < eliteChance(depth) * (br.elite ?? 1)) makeElite(one, depth);
       one.maxhp = one.hp;
       G.monsters.push(one);
@@ -2892,9 +2899,13 @@ function scaleMonster(m, depth) {
      it touches them once. Everything else on the ladder changes a
      rule rather than a number. */
   const heavy = hasShackle('weight') ? SHACKLE_STAT : 1;
+  /* 열기가 스탯에 거는 자리. 얇다(최대 ×1.25) — 두껍게 걸면 방금 주운
+     것이 그 자리에서 상쇄되고, 그건 이 판에서 이미 한 번 고친 병이다.
+     열기의 무게는 조우 쪽(각성·정예·파도)에 있다. */
+  const hot = heatStat();
   return { ...m,
-    hp:  Math.round(m.hp  * MON_OVER ** over * deep * heavy),
-    atk: Math.round(m.atk * MON_OVER_ATK ** over * MON_DEEP_ATK ** depth * heavy),
+    hp:  Math.round(m.hp  * MON_OVER ** over * deep * heavy * hot),
+    atk: Math.round(m.atk * MON_OVER_ATK ** over * MON_DEEP_ATK ** depth * heavy * hot),
     ac:  Math.round(m.ac  * MON_DEEP_AC ** depth),
     /* 경험치는 제 집보다 깊은 곳에서 만난 만큼 더 준다. 이 줄이
        「깊이 내려간 판이 레벨도 높다」를 만든다 — 그리고 레벨이
@@ -2907,7 +2918,10 @@ function scaleMonster(m, depth) {
    worth the risk: roughly double experience and a guaranteed
    affixed drop. Rolled per individual — rolling it per pack
    turned one lucky draw into four identical elites at once. */
-export const eliteChance = depth => Math.min(0.20, 0.025 + depth * 0.009);
+/* 열기가 정예를 부른다. 상한도 같이 올린다 — 상한이 굳어 있으면
+   열기 80과 열기 20이 깊은 층에서 같은 판이 된다. */
+export const eliteChance = depth =>
+  Math.min(0.20 * heatElite(), (0.025 + depth * 0.009) * heatElite());
 
 function makeElite(m, depth) {
   const count = depth >= 12 && Math.random() < 0.35 ? 2 : 1;
@@ -5472,10 +5486,82 @@ export function floorBudget() {
        중 압박을 **더하는** 것은 하나도 없고 빼는 것이 열둘이라는
        지적을 받았다. 여기서 값을 받는다: 불은 늘 있고, 대신 층이 더
        빨리 조여 온다. */
-    FLOOR_BUDGET(G.depth) * (G.branch?.clock || 1)
+    FLOOR_BUDGET(G.depth) * (G.branch?.clock || 1) * heatClock()
       * (cracked('ember') ? 0.78 : 1)
       * (hasRelic('thief') ? (cracked('thief') ? 1.15 : 0.65) : 1)));
 }
+
+/* ═══ 깊은 곳이 너를 본다 ═══════════════════════════════
+   플레이어의 말: 「후반 난이도 하향 장치를 만들어놨으면 그만큼 내
+   전투력에 맞춰서 몬스터가 더 강해지던가. risk & take 가 전혀 없다.」
+
+   맞는 지적이고, 재 보니 근거도 있다. **같은 층에서 전투력이 하위와
+   상위 사분위 사이에 ×2.2~3.2로 벌어진다**(6직업 72판, 층에 첫발을
+   디딘 순간의 `한 방 기댓값 × 최대 체력`). 정적인 깊이 곡선은 약한
+   빌드에도 강한 빌드에도 안 맞는다 — 약한 쪽은 벽에 부딪히고 강한
+   쪽은 산책한다.
+
+   ── 무엇에 거는가 ────────────────────────────────────────
+   처음에 스탯만 올리려 했는데, 실측이 그걸 말렸다: 15층에서 셋에
+   둘러싸이면 이미 **3턴**에 죽는다. 전투는 이미 치명적이고, 안 죽는
+   이유는 세기가 아니라 **둘러싸이는 일이 안 일어나기 때문**이다
+   (층의 몬스터 중 보이는 것이 0.5%뿐이다).
+
+   그래서 열기는 **조우**에 먼저 걸고 스탯에는 얇게 건다:
+     · 깨어 있는 것이 늘고, 더 멀리서 깨어난다
+     · 정예가 잦아진다
+     · 파도가 더 일찍 오고 더 크다
+     · 그리고 스탯이 조금 오른다 (여기는 얇게 — 두껍게 걸면
+       강화·유물의 체감이 그 자리에서 상쇄된다)
+
+   ── 그리고 보인다 ───────────────────────────────────────
+   이 게임의 문법은 「거래 조건은 미리 다 적혀 있다」다. 숨은 러버밴드는
+   그 문법을 깬다. 열기는 HUD에 뜨고, 무엇이 올렸는지 말하고,
+   **일부러 올릴 수도 있다** — 그래야 벌금이 아니라 판돈이 된다.  */
+const POWER_BASE = 78;      // 1층 전투력 중앙값 (실측)
+const POWER_STEP = 1.34;    // 층당 배율 — 15층 4307 (실측 55배)
+export const expectedPower = d => POWER_BASE * POWER_STEP ** Math.max(0, d - 1);
+/* 지금 이 손의 전투력. 한 방 기댓값 × 버틸 수 있는 양 — 둘 중 하나만
+   보면 종이 한 장짜리 딜러와 못 때리는 벽이 같은 값을 받는다. */
+export function powerOf(p = G.player) {
+  if (!p) return 0;
+  return Math.max(1, swingAvg(p, p.equip?.weapon) * p.maxhp);
+}
+/* 0이 기준선. 양수면 곡선보다 앞서 있다는 뜻이고, 그만큼 깊은 곳이
+   너를 본다. 한 층에 한 번만 갱신한다 — 매 턴 흔들리면 계기가 아니라
+   잡음이고, 층 안에서 조건이 바뀌면 「미리 적혀 있다」가 거짓이 된다. */
+export const HEAT_MAX = 100;
+export function heatFor(p = G.player, d = G.depth) {
+  const ratio = powerOf(p) / Math.max(1, expectedPower(d));
+  /* ×1 이면 0, ×2 면 50, ×3.2(실측 상위 사분위 폭) 면 84. 로그로
+     읽는 이유는 전투력이 곱으로 자라기 때문이다. */
+  return clamp(Math.round(Math.log2(Math.max(0.25, ratio)) * 50), 0, HEAT_MAX);
+}
+/* 층에 들어설 때 한 번 굳는다. 그리고 판이 스스로 올린 몫(도발)이
+   더해진다 — 그쪽이 이 시스템의 risk & take 쪽 절반이다. */
+export function settleHeat() {
+  const was = G.heat || 0;
+  G.heat = clamp(heatFor() + (G.provoked || 0), 0, HEAT_MAX);
+  if (G.depth > 0 && G.heat >= 25 && G.heat > was + 8)
+    say(HEAT_WORD(G.heat), 'warn');
+  return G.heat;
+}
+export const HEAT_WORD = h =>
+  h >= 80 ? '아래가 전부 이쪽을 향했다. 숨을 곳이 없다.'
+: h >= 55 ? '깊은 곳이 너를 똑바로 본다.'
+: h >= 30 ? '무언가가 네 발소리를 세고 있다.'
+          : '아직은 아무도 너를 모른다.';
+/* 열기가 실제로 돌리는 손잡이 넷. 전부 여기 한 곳에서 나온다 —
+   흩어 놓으면 계기가 말하는 값과 판이 하는 일이 갈린다. */
+export const heatWake  = () => 1 + (G.heat || 0) * 0.035;   // 각성 거리 ×1 ~ ×4.5
+export const heatElite = () => 1 + (G.heat || 0) * 0.022;   // 정예 확률 ×1 ~ ×3.2
+export const heatClock = () => 1 - (G.heat || 0) * 0.0035;  // 여유 시계 ×1 ~ ×0.65
+/* 스탯은 얇게. 여기를 두껍게 걸면 방금 주운 것이 그 자리에서
+   상쇄되고, 그건 이 판에서 이미 한 번 고친 병이다. */
+export const heatStat  = () => 1 + (G.heat || 0) * 0.0025;  // ×1 ~ ×1.25
+/* 판이 이미 깨어 있는 채로 시작하는 비율. 열기가 높으면 층이 너를
+   기다리고 있다. */
+export const heatAwake = () => (G.heat || 0) * 0.006;       // 0 ~ 60%
 
 export const pressureLevel = () => {
   const over = G.floorTurn - floorBudget();
@@ -5502,14 +5588,22 @@ function pressure() {
    더 나오지 않는다 — 대신 이미 나온 것들이 세다. */
 export const WAVE_CAP = 24;
 
+/* 한 파도에 몇이 오는가. spawnWave 밖에 두는 이유는 매듭 린트가 이
+   커밋에서 그 함수를 복잡도 15 위로 밀어 올렸다고 잡았기 때문이고,
+   실제로 이건 「파도의 크기」라는 독립된 규칙이다. */
+const waveCount = () =>
+  1 + (G.waves >= 4 ? 1 : 0) + ((G.heat || 0) >= 60 ? 1 : 0);
+
 function spawnWave() {
   const L = G.level, p = G.player;
   /* 이미 가득한 층은 더 게워내지 않는다. 파도 수(=세기)는 계속
      오르므로 압박은 멈추지 않는다 — 멈추는 것은 마릿수뿐이다. */
   G.waves++;
   if (G.monsters.length >= WAVE_CAP) return;
-  const grow = 1 + WAVE_GROWTH * G.waves;
-  const count = 1 + (G.waves >= 4 ? 1 : 0);
+  /* 파도의 세기와 마릿수에도 열기가 얹힌다. 시계(heatClock)가 이미
+     파도를 **일찍** 부르므로, 여기는 **크게**를 맡는다. */
+  const grow = (1 + WAVE_GROWTH * G.waves) * heatStat();
+  const count = waveCount();
   let born = 0;
   for (let i = 0; i < count; i++) {
     // Far enough away to be a warning rather than an ambush.
@@ -5647,7 +5741,11 @@ function monsterTurn(m) {
     const quiet = wading ? stealth(p) * 0.25 : stealth(p);
     // 전쟁 북 is loud: it hears you two tiles sooner.
     const reach = dist - (hasRelic('march') ? 3 : hasRelic('drum') ? 2 : 0);
-    const notice = clamp((1 - quiet) * (0.62 - reach * 0.055), 0.02, 0.9);
+    /* 열기가 각성에 거는 자리. 곱이 아니라 **거리를 당긴다** —
+       확률에 곱하면 멀리 있는 것은 여전히 못 보고 붙은 것만 더 잘
+       보게 되는데, 이 시스템이 만들려는 것은 「멀리서부터 온다」다. */
+    const pull = reach / heatWake();
+    const notice = clamp((1 - quiet) * (0.62 - pull * 0.055), 0.02, 0.95);
     /* 그림자 걸음: a throat opened quietly does not announce
        itself. Nothing notices you on the turn you take a sleeping
        thing, so a room can be emptied one at a time — which is
@@ -7219,6 +7317,7 @@ function eventApi() {
 
     /* state queries the gates use */
     hasRelic, cracked, crackHint, crackProgress, crackOf, crackLeft, nearestCrack, feedable,
+    powerOf, expectedPower, heatFor, HEAT_WORD, HEAT_MAX,
     hasAffix: key => (gearBonus(p)[key] || 0) > 0,
     canCast: () => spellList(p).length > 0,
     has: cost => canAfford(cost),
@@ -8232,7 +8331,7 @@ export function startGame(raceKey, classKey, base) {
   G.fx = []; G.combo = 0; G.comboT = 0; G.bestCombo = 0;
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0; G.kills = 0; G.eventsSeen = 0;
   G.ledger = {}; G.cracks = {}; G.relicFloors = {}; G.chainGuard = 0; G.murmured = {};
-  G.relicBase = {};
+  G.relicBase = {}; G.heat = 0; G.provoked = 0;
   G.martyred = 0;
   G.regionAt = null;
   G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0; G.fused = 0; G.catUsed = 0;

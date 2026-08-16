@@ -128,6 +128,32 @@ ok(c1 < c0 * 0.75, '재촉하는 판 — 시계가 확실히 짧아진다', `${c
      `피해 +${Math.round((d1-d0)*100)}%p · 맞은 값 ${t0.toFixed(1)} → ${t1.toFixed(1)}`);
 }
 
+/* 탐욕의 판은 「양날인가」를 카드 문장으로만 재고 있었다. 실제로는
+   금화 ×2 가 **크랙 장부 쪽에만** 붙어 있어서 지갑은 한 닢도 안 늘고
+   장부만 두 배로 올랐고, 재료 ×2 도 모루 값 ×2 도 없었다 — 남는 것은
+   상인 값 ×2 뿐인 **순감**이었다. 문장이 아니라 네 축을 직접 잰다. */
+{
+  const p = G.player;
+  const read = () => {
+    Game.recalc(p);
+    const before = p.gold;
+    const got = Game.goldGain(1000);
+    p.gold = before;
+    return { got, cost: Game.upgradeCostFor('eq:weapon')?.gold ?? null };
+  };
+  G.arcana = []; const a = read();
+  G.arcana = ['greed']; const b = read();
+  G.arcana = [];
+  show('탐욕의 판', '금화 1000이', [a.got, b.got]);
+  ok(b.got >= a.got * 1.9, '탐욕의 판 — 벌이가 실제로 두 배다 (장부가 아니라 지갑)',
+     `${a.got} → ${b.got}닢`);
+  if (a.cost !== null) {
+    show('', '강화 값', [a.cost, b.cost]);
+    ok(b.cost >= a.cost * 1.9, '탐욕의 판 — 쓰는 것도 두 배다 (그래야 양날이다)',
+       `${a.cost} → ${b.cost}닢`);
+  }
+}
+
 /* ── 3. 판당 셋 ──────────────────────────────────────── */
 console.log('');
 {

@@ -57,7 +57,19 @@ for (let i = 0; i < 10; i++) {
    내려가 ? 자리를 하나 만들고, 그 자리를 밟은 것으로 친다. */
 await pg.evaluate(async () => {
   const Game = await import('/src/game.js');
-  Game.enterDepth(4);
+  Game.enterDepth(5);
+  /* ── 이 자가 아무것도 안 재고 있었다 ────────────────────
+     층만 내려가고 「그 자리를 밟은 것으로 친다」고 적어 놓았는데,
+     실제로 밟지 않았다. 그래서 사건 화면에 버튼이 하나도 없었고,
+     `#sc-event button:not([hidden])` 이 null 이라 UI.armed() 가
+     찍히기도 전에 갈래가 끝났다 — 「손가락 밑에서 열리는 창」 방어를
+     **아무도 안 재고 있었다.** 실제로 ? 칸 위에 세운다.
+     (그리고 4층이 아니라 5층이다 — 4층은 아르카나를 고르는 층이라
+      화면이 그쪽으로 잡힌다.) */
+  const G = Game.G, L = G.level, W = await import('/src/world.js');
+  const at = [...(L.eventAt?.keys() || [])][0];
+  if (at !== undefined) { G.player.x = at % W.MW; G.player.y = (at / W.MW) | 0; }
+  Game.refreshFov();
 });
 await pg.waitForTimeout(300);
 

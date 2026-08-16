@@ -166,6 +166,45 @@ console.log('');
   const tinted = D.RELICS.filter(r => known(r.id)).length;
   ok(tinted >= 10, '유물 중 성격이 뚜렷한 것들이 색을 갖는다',
      `${tinted} / ${D.RELICS.length}`);
+
+  /* ── 색을 「갖는다」와 「보인다」는 다르다 ──────────────────
+     이 절이 처음에는 「열두 종이 전부 제 색을 갖는다」만 셌다. 그런데
+     갈증·기반·굶주림·사슬 넷이 --r(1.28:1)·--g(1.54:1)로, 이 저장소
+     자신의 대비 하한 3:1 아래였다 — 자리를 차지하고도 화면에는 없는
+     색이다. 게다가 자리는 둘뿐이라, 안 보이는 색이 그 자리를 쓰면
+     **뒤의 보이는 것까지 밀어냈다.** 색을 세지 말고 재야 한다. */
+  const P = (await import('../src/pixels.js')).PALETTE;
+  const lin = c => { c /= 255; return c <= 0.03928 ? c/12.92 : ((c+0.055)/1.055)**2.4; };
+  const lum = h => { const n = parseInt(h.slice(1), 16);
+    return 0.2126*lin(n>>16 & 255) + 0.7152*lin(n>>8 & 255) + 0.0722*lin(n & 255); };
+  const FLOOR = lum('#1d1a20');                       // 평범한 돌바닥의 결
+  const ratio = k => { const a = lum(P[k]), b = FLOOR;
+    return (Math.max(a,b) + 0.05) / (Math.min(a,b) + 0.05); };
+  const tab = src.slice(src.indexOf('const MARK_TINT'), src.indexOf('function auraWash'));
+  const used = [...new Set([...tab.matchAll(/:\s*'([A-Za-z])'/g)].map(m => m[1]))];
+  const dim = used.filter(k => ratio(k) < 3);
+  ok(dim.length === 0, '아우라 색이 전부 바닥 위에서 보인다 (3:1 이상)',
+     dim.length ? dim.map(k => `${k} ${ratio(k).toFixed(2)}:1`).join(' ')
+                : used.map(k => `${k} ${ratio(k).toFixed(1)}`).join(' '));
+}
+
+/* ── 5. 유물이 실제로 화면까지 도달하는가 ──────────────── */
+console.log('');
+{
+  /* 각인 자리와 유물 자리를 한 줄로 이어 붙이고 앞에서 둘을 자르던
+     동안, 각인 슬롯이 +3·+5·+7에 열리므로 **+5부터 유물이 영구히
+     잘려 나갔다.** 규칙 쪽 벤치로는 절대 못 잡는다 — 사건에는
+     제대로 실려 나갔으니까. 그리는 쪽의 고르기를 직접 판정한다. */
+  const tab = await import('node:fs').then(fs =>
+    fs.readFileSync(new URL('../src/juice.js', import.meta.url), 'utf8'));
+  const body = tab.slice(tab.indexOf('function auraWash'), tab.indexOf('function vanishBurst'));
+  ok(/MARK_TINT\)/.test(body) && /RELIC_TINT\)/.test(body)
+     && !/\.slice\(0,\s*2\)/.test(body),
+     '각인과 유물이 각자의 자리를 갖는다 — 각인이 셋이어도 유물이 안 밀린다',
+     '역할별 두 자리');
+  ok(/0\.5 \+ i \* 0\.4/.test(body) && /140 \+ i \* 60/.test(body),
+     '아우라 고리가 기예 자신의 고리보다 작고 짧다 (형용사가 문장보다 크면 안 된다)',
+     '0.5~0.9칸 · 140~200ms');
 }
 
 /* ── 4. 그 프레임이 실제로 화면 쪽에 닿는가 ───────────── */

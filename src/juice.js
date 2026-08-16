@@ -265,26 +265,46 @@ function flurryFx(e) {
    무지개가 터지면 그건 정보가 아니라 소음이라 **둘까지만** 그린다.
    둘, 이건 기존 연출 **위에** 얹히는 것이라 원래 프레임보다 작고
    짧아야 한다 — 안 그러면 무슨 기예를 썼는지가 안 보인다. */
-const MARK_TINT = { pierce:'W', reap:'R', storm:'E', hunt:'o', duel:'y', thirst:'r',
-                    bedrock:'g', thorn:'R', dawn:'y', mend:'E', shrug:'G', anchor:'N' };
+const MARK_TINT = { pierce:'W', reap:'R', storm:'E', hunt:'o', duel:'y', thirst:'R',
+                    bedrock:'s', thorn:'R', dawn:'y', mend:'E', shrug:'G', anchor:'N' };
 const RELIC_TINT = { everflame:'o', ember:'o', lamp:'o', pact:'R', reckless:'R',
-                     martyr:'R', hunger:'r', mirror:'W', vow:'y', scale:'y',
-                     chain:'g', bone:'w', grudge:'P', nighteye:'B', eye:'P' };
+                     martyr:'P', hunger:'R', mirror:'W', vow:'y', scale:'y',
+                     chain:'s', bone:'w', grudge:'P', nighteye:'B', eye:'P' };
 function auraWash(e) {
   const a = e.aura;
   if (!a) return;
   const x = e.x ?? e.fx, y = e.y ?? e.fy;
   if (x === undefined || y === undefined) return;
-  const tints = [...a.marks.map(m => MARK_TINT[m]), ...a.relics.map(r => RELIC_TINT[r])]
-    .filter(Boolean).slice(0, 2).map(k => PALETTE[k]);
+  /* 두 자리를 **역할별로** 나눈다. 처음에는 각인과 유물을 한 줄로
+     이어 붙이고 앞에서 둘을 잘랐는데, 각인 슬롯이 +3·+5·+7에 열리므로
+     **+5부터 각인 둘이 자리를 다 먹고 유물은 몇 개를 끼든 영구히
+     잘려 나갔다.** 「유물 일곱 낀 후반에 무지개가 터지면 소음」이라고
+     걱정한 바로 그 구간이, 정작 유물이 하나도 안 그려지는 구간이었다.
+     덤으로 +5 이후 아우라가 절대 안 변해서 정보가 아니라 고정 물감이
+     됐다. 각인 하나(손이 무엇을 하는가) + 유물 하나(내가 무엇이
+     되었는가). 같은 색이면 뒤엣것은 버린다 — 같은 색 고리 둘은 두
+     개의 정보가 아니라 한 개의 겹줄이다. */
+  const pick = (list, tab) => { for (const k of list) if (tab[k]) return tab[k]; return null; };
+  const mk = pick(a.marks, MARK_TINT);
+  const rl = pick(a.relics, RELIC_TINT);
+  const keys = [mk, rl !== mk ? rl : null].filter(Boolean);
   /* 강화는 색이 아니라 **양**으로 말한다 — +3마다 한 단계, 셋에서
-     멈춘다. +12 와 +9 가 화면에서 달라야 할 이유는 없다. */
+     멈춘다. +12와 +9가 화면에서 달라야 할 이유는 없다. */
   const step = Math.min(3, Math.floor(a.plus / 3));
-  if (step) burstShards(x, y, [PALETTE.y, PALETTE.w], 2 + step * 3, 0.7 + step * 0.2);
-  if (step >= 3) ring(x, y, 1.1, PALETTE.y, 220, true);
-  for (let i = 0; i < tints.length; i++) {
-    ring(x, y, 1.4 + i * 0.55, tints[i], 260 + i * 70);
-    burstShards(x, y, [tints[i]], 4, 1.0);
+  /* ── 그리고 원래 프레임보다 **작고 짧아야** 한다 ────────────
+     주석에 그렇게 적어 놓고 정반대를 만들었다: 아우라 고리가 1.4/1.95
+     고정이었는데, 기예 스물셋 중 열다섯의 자기 고리가 그보다 작다
+     (급소 0.6 · 관통 0.8 · 그림자 도약 0.9 · 덫 0.9…). 수명도 330ms
+     로 급소의 220ms보다 오래 남았다. 「고리도 파편도 없이 흰 선 하나」
+     라고 적어 둔 기예가 금빛 고리와 파편 열아홉에 파묻혔다.
+
+     그래서 고리를 **작게** 깐다(0.5~0.9칸, 140~200ms). 고리는 이
+     파일에서 「사건이 일어났다」의 원시형이고 아우라는 사건이 아니라
+     형용사다 — 형용사가 문장보다 크면 안 된다. */
+  if (step) burstShards(x, y, [PALETTE.y, PALETTE.w], 2 + step * 2, 0.55 + step * 0.15);
+  for (let i = 0; i < keys.length; i++) {
+    ring(x, y, 0.5 + i * 0.4, PALETTE[keys[i]], 140 + i * 60, true);
+    burstShards(x, y, [PALETTE[keys[i]]], 3, 0.8);
   }
 }
 

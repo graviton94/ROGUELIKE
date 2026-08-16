@@ -18,7 +18,7 @@ import {
   TASKS, TASK_PATIENCE, TASK_ODDS,
   ALTAR_OFFERS, rarityOf, isCursed, RARITY, TEMPLE_SHARE, JACKPOT,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
-  RELICS, RELIC_SLOTS, relicSlots, relicById, crackOf, crackNeed, CRACK_LEFT, BRANCHES,
+  RELICS, RELIC_SLOTS, relicSlots, relicById, crackOf, crackSaid, crackNeed, CRACK_LEFT, BRANCHES,
   ARCANA, arcanaById, ARCANA_AT,
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH, REGIONS, regionOf,
   MEMORIES, memoryEarned, SHACKLES, shacklesAt, SHACKLE_STAT, tellsNeeded,
@@ -155,7 +155,13 @@ function crackWatch() {
     G.cracks[id] = true;
     const r = relicById(id);
     say(`${r.n}에 금이 갔다 — ${c.n}.`, 'level');
-    say(c.t.replace(/\*\*/g, ''), 'good');
+    /* 여기서 `c.t` 를 별표만 벗겨 로그에 밀어 넣고 있었다. 그러면
+       두루마리가 「재는 선이 절반(50%)까지 올라오고, 피해는 +120%」
+       라고 낭독한다 — `t` 는 **카드에 적히는 계약서**이고, 로그는
+       세계의 목소리다. 계약서는 화면이 이미 보여 준다(crackRow).
+       여기서는 그 유물이 하는 말만 남긴다. */
+    const said = crackSaid(c);
+    if (said) say(said, 'good');
     fx({ t:'crack', id, n: c.n });
     recalc(p);
   }
@@ -235,7 +241,10 @@ export function takeRelic(id) {
   crackWatch();
   const r = relicById(id);
   const first = Meta.see('relics', id);
-  say(`${r.n} — ${r.t}`, 'level');
+  /* 같은 이유로 유물도 `t`(계약서)가 아니라 `lore`(그 물건이 하는
+     말)를 로그에 남긴다. 무엇을 하는지는 바로 뒤에 뜨는 카드가
+     적혀 있는 그대로 보여 준다. */
+  say(`${r.n}. ${r.lore || r.t}`, 'level');
   /* 유물은 규칙을 바꾸는 물건인데, 처음 보는 것일 때만 카드가 떴다.
      두 번째로 든 「굶주린 칼날」도 그 판에서는 처음이고, 무엇을
      들었는지 읽지 않고 지나가면 판이 어떻게 달라졌는지 모른 채로
@@ -1509,7 +1518,10 @@ export function salvage(slotIdx) {
 
   p.mats = p.mats || { scrap: 0, dust: 0, essence: 0 };
   const parts = [];
-  const mult = (G.branch?.mats || 1) * (hasBoon('hoard') ? 1.6 : 1);
+  /* 탐욕의 판이 약속한 「많이 벌고」의 둘째 절 — 카드에는 적혀 있고
+     코드에는 없었다. */
+  const mult = (G.branch?.mats || 1) * (hasBoon('hoard') ? 1.6 : 1)
+             * (hasArcana('greed') ? 2 : 1);
   for (const k of ['scrap', 'dust', 'essence']) {
     if (!got[k]) continue;
     got[k] = Math.round(got[k] * mult);
@@ -1818,6 +1830,12 @@ const awakeWatchers = () => visibleMonsters().filter(m => m.awake && !m.boss);
    found in a flask — so the warrior's rhythm is spend-and-wait
    rather than hoard-and-dump, which is the whole difference in
    feel from a caster. */
+/* 한국어에서 「3에게」는 문장이 아니라 표의 한 칸이다. 이 게임은
+   다른 데서는 이미 알고 있다 — 『심연이 하나를 더 게워냈다』는
+   「1을」이라고 안 쓴다. 작은 수는 세는 말로 적는다. */
+const COUNT_KO = ['', '하나', '둘', '셋', '넷', '다섯', '여섯', '일곱', '여덟', '아홉', '열'];
+const count = n => COUNT_KO[n] || `${n}`;
+
 export function useArt(id) {
   const p = G.player;
   const a = artById(p, id);
@@ -1945,7 +1963,7 @@ export function useArt(id) {
       /* 궁수의 화살비(volley)를 빌려 쓰던 자리. 저건 방 전체이고
          이건 앞쪽 반원이라, 화면에서도 부채꼴이어야 한다. */
       fx({ t:'fanOut', x:p.x, y:p.y, ax, ay, n:hit.length, rng:FAN_RANGE });
-      say(hit.length > 1 ? `칼이 부채처럼 펼쳐졌다 — ${hit.length}에게.`
+      say(hit.length > 1 ? `칼이 부채처럼 펼쳐졌다 — ${count(hit.length)}을 지나갔다.`
                          : '칼 한 자루가 날아갔다.', 'level');
       for (const o of [...hit]) if (G.monsters.includes(o)) swing(o, FAN_SHARE);
       break;
@@ -1979,8 +1997,8 @@ export function useArt(id) {
       G.hushUntil = G.turn + VANISH_HUSH;
       fx({ t:'vanishOut', x:p.x, y:p.y, n: hugged.length });
       say(hugged.length
-        ? `칼이 먼저 나가고 연기가 뒤따랐다. ${hugged.length}을(를) 떼어 냈다.`
-        : (lost.length ? `${lost.length}이(가) 너를 놓쳤다.` : '자취를 지웠다.'), 'level');
+        ? `칼이 먼저 나가고 연기가 뒤따랐다. 붙어 있던 ${count(hugged.length)}을 떼어 냈다.`
+        : (lost.length ? `${count(lost.length)}이 너를 놓쳤다.` : '자취를 지웠다.'), 'level');
       break;
     }
     case 'vitals': {
@@ -2147,7 +2165,7 @@ export function useArt(id) {
          instead of running dry on one. */
       if (!near.length) { say('휘두를 것이 없다.', 'warn'); break; }
       fx({ t:'storm', x:p.x, y:p.y, n:near.length });
-      say(`${near.length}을(를) 한 바퀴에 쓸어버린다.`, 'level');
+      say(`둘러선 ${count(near.length)}을 한 바퀴에 쓸어버린다.`, 'level');
       let felled = 0;
       for (const m of [...near]) {
         if (!G.monsters.includes(m)) continue;
@@ -2168,7 +2186,7 @@ export function useArt(id) {
          one; stop the moment something does not fall. A paladin
          who set the room up right clears it in one action, and one
          who did not gets a single swing for eight oath. */
-      let cuts = 0;
+      let cuts = 0, steps = 0;
       fx({ t:'crusade', x:p.x, y:p.y });
       say('한 번 시작한 것은 끝날 때까지 멈추지 않는다.', 'level');
       while (cuts < CRUSADE_MAX) {
@@ -2182,10 +2200,18 @@ export function useArt(id) {
           const sx = p.x + Math.sign(m.x - p.x), sy = p.y + Math.sign(m.y - p.y);
           if (!walkable(G.level, sx, sy) || G.monsters.some(o => o.x === sx && o.y === sy)) break;
           p.x = sx; p.y = sy;
-          if (Math.hypot(m.x - p.x, m.y - p.y) > 1.5) { cuts++; continue; }
+          /* 여기 `cuts++` 가 있었다. 한 칸 걸어갔는데 아직 안 닿으면
+             **베지도 않고 횟수를 한 번 태웠다** — 맹세 여덟을 쓰고
+             허공에 걸어가는 턴이 섞여 있었다는 뜻이다. */
+          /* 걸음은 따로 센다 — 베는 횟수에 태우지 않되, 표적이
+             바뀌며 영원히 걷는 일은 없어야 한다. */
+          if (Math.hypot(m.x - p.x, m.y - p.y) > 1.5) {
+            if (++steps > CRUSADE_MAX * 2) break;
+            continue;
+          }
         }
         fx({ t:'crusadeCut', x:p.x, y:p.y, tx:m.x, ty:m.y, n:cuts });
-        swing(m, 1.15);
+        swing(m, 1.5);
         cuts++;
         if (G.monsters.includes(m)) break;    // it did not fall; the march is over
       }
@@ -2220,7 +2246,7 @@ export function useArt(id) {
                                        && G.level.vis[idx(o.x, o.y)]);
       if (!dead.length) { say('심판할 것이 없다.', 'warn'); break; }
       fx({ t:'judge', x:p.x, y:p.y, n:dead.length });
-      say(`${dead.length}에게 이름을 되돌려주었다.`, 'level');
+      say(`${count(dead.length)}에게 이름을 되돌려주었다.`, 'level');
       for (const o of [...dead]) {
         if (!G.monsters.includes(o)) continue;
         hurtMonster(o, Math.max(3, Math.round((o.maxhp || 10) * JUDGE_HURT)), '심판', { pierce:true });
@@ -2326,7 +2352,7 @@ export function useArt(id) {
         && lineClear(G.level, p.x, p.y, o.x, o.y));
       if (!seen.length) { say('겨눌 것이 없다.', 'warn'); break; }
       fx({ t:'volley', x:p.x, y:p.y, n:seen.length });
-      say(`화살이 빗발친다 — ${seen.length}에게.`, 'level');
+      say(`화살이 빗발친다 — ${count(seen.length)}에게.`, 'level');
       for (const o of [...seen]) if (G.monsters.includes(o)) loose(o, VOLLEY_SHARE, { quietFx: true });
       break;
     }
@@ -2826,6 +2852,16 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     say('시간 도둑이 상처를 되감았다.', 'good');
     fx({ t:'heal', x:p.x, y:p.y, amt:0 });
   }
+  /* ── 아르카나 화면은 규칙이 요구한다 ────────────────────
+     여기 없었다. `arcanaDue` 를 보는 곳이 ui.js 의 setScreen('play')
+     한 곳뿐이었는데, enterDepth 를 부르는 경로 셋 중 **둘은 화면을
+     안 바꾼다** — 구덩이 낙하와 도주 두루마리. 그 둘로 4층에 도착하면
+     아르카나가 안 뜨고 그대로 지나가고, `arcanaDue` 는 보유 개수로
+     세므로 그 판은 셋이 아니라 둘로 끝났다.
+
+     그래서 pendingRelic·pendingBranch 와 같은 문법을 쓴다: 규칙이
+     화면을 세우고, ui 는 그것을 띄우기만 한다. */
+  if (depth > 0 && arcanaDue(depth)) G.screen = 'arcana';
 }
 
 function findTile(L, t) {
@@ -3497,10 +3533,12 @@ export function fallenTake(id) {
     else { G.items.push({ ...it, x:p.x, y:p.y }); say('배낭이 차서 발밑에 두었다.', 'warn'); }
     fx({ t:'found', x:p.x, y:p.y, rar: rarityOf(it) });
   } else if (id === 'purse') {
-    p.gold += rec.gold;
-    G.goldEarned = (G.goldEarned || 0) + rec.gold;
-    ledger('gold', rec.gold);
-    say(`${rec.gold}닢을 거뒀다.`, 'good');
+    /* 깔때기(goldGain)를 우회해 원금을 그대로 넣고 있었다 — 족쇄
+       배수도, 뱃사공 ×2도, 깃펜 ×0.75도, 탐욕 ×2도 안 걸렸다.
+       같은 파일의 다른 여섯 자리는 전부 깔때기를 지난다. */
+    const got = goldGain(rec.gold);
+    p.gold += got;
+    say(`${got}닢을 거뒀다.`, 'good');
     fx({ t:'found', x:p.x, y:p.y, rar:1 });
   } else if (id === 'relic' && rec.relic) {
     if (!takeRelic(rec.relic) && G.screen !== 'relic') { say('가져갈 자리가 없다.', 'warn'); }
@@ -3920,6 +3958,9 @@ export function shout() {
   const woke = rouse(p.x, p.y, 9, 1);
   G.shouts = (G.shouts || 0) + 1; G.drawn = (G.drawn || 0) + woke;
   G.uproar = Math.min(UPROAR_MAX, (G.uproar || 0) + 3);
+  /* 외침은 「일부러 시끄럽게 하는 것」이다 — 주목을 사는 가장 곧은
+     행동이라, 판돈 쪽 절반이 여기서 시작한다. */
+  provoke(6);
   say(woke ? `소리쳤다. ${woke}이(가) 이쪽으로 온다.`
            : '소리쳤다. 아무 대답도 없다. 그편이 나은지는 모르겠다.', woke ? 'hit' : '');
   fx({ t:'noise', x:p.x, y:p.y, r:13 });
@@ -4872,10 +4913,17 @@ function swing(m, scale, opt = {}) {
 export const goldGain = n => {
   /* 족쇄까지가 「구덩이가 내놓은 양」이고, 그 뒤의 유물 배수는
      「내가 붙인 것」이다. 크랙 장부는 앞쪽만 센다. */
-  const raw = Math.max(0, Math.round(n * (SHACKLES[G.abyss || 0] || SHACKLES[0]).gold
-                       * (hasArcana('greed') ? 2 : 1)));
+  /* 탐욕의 판(×2)이 **raw 쪽에** 붙어 있었다. raw 는 크랙 장부용이고
+     got 이 실제로 지갑에 들어가는 값이므로, 금화는 한 닢도 안 늘고
+     **장부만 두 배**로 올라갔다 — 뱃사공의 동전·회계사의 깃펜·웃는
+     가면 셋이 두 배로 빨리 열렸다. 그리고 카드가 약속한 나머지 둘
+     (재료 ×2, 모루 값 ×2)도 없어서, 이 아르카나는 「상인 값 ×2」만
+     남은 **순감**이었다. 벤치의 「아홉이 전부 양날」은 카드 문장만
+     읽고 통과했다. 배수를 got 으로 옮긴다. */
+  const raw = Math.max(0, Math.round(n * (SHACKLES[G.abyss || 0] || SHACKLES[0]).gold));
   const got = Math.max(0, Math.round(
     n * (SHACKLES[G.abyss || 0] || SHACKLES[0]).gold
+      * (hasArcana('greed') ? 2 : 1)
       * (hasRelic('toll') || hasRelic('ledger') ? 2 : 1) * (hasRelic('quill') ? 0.75 : 1)
       * (hasBoon('hoard') ? 1.6 : 1)));
   G.goldEarned = (G.goldEarned || 0) + got;
@@ -5077,7 +5125,12 @@ export function hurtMonster(m, dmg, source, opt = {}) {
      an ogre that starts hunting you because two monsters splashed
      each other would make the leash a lie in exactly the case the
      player could not see coming. */
-  if (m.named && !opt.crossfire) m.provoked = true;
+  if (m.named && !opt.crossfire && !m.provoked) {
+    m.provoked = true;
+    /* 이름 있는 것에 손을 대는 것은 지나갈 수 있었던 것을 고르는
+       일이다 — 판돈을 스스로 올리는 두 번째 자리. */
+    provoke(8, `${m.n}을(를) 건드렸다.`);
+  }
   // Any damage at all blows a disguise — a frost blast should not
   // leave a "chest" quietly smouldering.
   if (m.disguise) {
@@ -5188,10 +5241,15 @@ export function hurtMonster(m, dmg, source, opt = {}) {
     if (m.thief) {
       const who = G.player;
       const purse = thiefPurse(G.depth);
-      who.gold += goldGain(purse.gold);
+      /* goldGain 은 순수 함수가 아니다 — 안에서 장부에 적고
+         goldEarned 를 올린다. 더할 때 한 번, 문장에 찍을 때 또 한 번
+         불러서 **부작용이 두 번 실행되고 있었다**(장부·번 돈이 두 배).
+         한 번 부르고 그 값을 쓴다. */
+      const got = goldGain(purse.gold);
+      who.gold += got;
       who.mats = who.mats || { scrap: 0, dust: 0, essence: 0 };
       for (const k of ['scrap', 'dust', 'essence']) who.mats[k] += purse[k] || 0;
-      say(`자루가 터졌다 — 금화 ${goldGain(purse.gold)}닢과 재료가 쏟아진다.`, 'level');
+      say(`자루가 터졌다 — 금화 ${got}닢과 재료가 쏟아진다.`, 'level');
       fx({ t:'altar', x:m.x, y:m.y, result:'대성공' });
     }
     /* 일으켜 세운 앞사람. 쓰러뜨리면 그가 남긴 것을 **전부** 준다 —
@@ -5733,7 +5791,12 @@ export function floorBudget() {
    그 문법을 깬다. 열기는 HUD에 뜨고, 무엇이 올렸는지 말하고,
    **일부러 올릴 수도 있다** — 그래야 벌금이 아니라 판돈이 된다.  */
 const POWER_BASE = 78;      // 1층 전투력 중앙값 (실측)
-const POWER_STEP = 1.34;    // 층당 배율 — 15층 4307 (실측 55배)
+/* 1.34 였다. 그런데 실제 판 60판을 재 보니 층당 성장은 **1.45**다
+   (전투력비 1층 1.11 → 12층 2.68). 8%씩 낮게 잡힌 곡선은 「이 빌드가
+   앞서 있는가」가 아니라 **깊이**를 재게 만들어서, 7층부터 주목
+   중앙값이 78~84로 계기의 상위 3분의 1에 눌러앉았다 — 무엇을 해도
+   뜨거우면 그건 계기가 아니라 상수다. */
+const POWER_STEP = 1.45;    // 층당 배율 — 실측 성장률에 맞춘 값
 export const expectedPower = d => POWER_BASE * POWER_STEP ** Math.max(0, d - 1);
 /* 지금 이 손의 전투력. 한 방 기댓값 × 버틸 수 있는 양 — 둘 중 하나만
    보면 종이 한 장짜리 딜러와 못 때리는 벽이 같은 값을 받는다. */
@@ -5753,6 +5816,19 @@ export function heatFor(p = G.player, d = G.depth) {
 }
 /* 층에 들어설 때 한 번 굳는다. 그리고 판이 스스로 올린 몫(도발)이
    더해진다 — 그쪽이 이 시스템의 risk & take 쪽 절반이다. */
+/* ── 스스로 올리는 몫 ─────────────────────────────────────
+   이 함수가 없었다. `G.provoked` 를 **올리는 코드가 src/ 어디에도
+   없어서**, 위 주석이 약속한 risk & take 쪽 절반이 통째로 비어
+   있었다 — 주목은 순수 러버밴드 벌금이었다. 더 나쁜 것은 sim/heat.mjs
+   가 `G.provoked` 를 직접 넣어 재고 있었다는 점이다: 계기가 자기
+   입력을 만들고 있었으니 벤치는 영원히 초록이었다.
+
+   깔때기 하나. 판을 시끄럽게 만드는 행동이 여기로 모인다. */
+export function provoke(n, why) {
+  G.provoked = clamp((G.provoked || 0) + n, 0, HEAT_MAX);
+  if (why) say(`${why} 아래가 고개를 든다.`, 'warn');
+}
+
 export function settleHeat() {
   const was = G.heat || 0;
   G.heat = clamp(heatFor() + (G.provoked || 0), 0, HEAT_MAX);
@@ -5804,7 +5880,11 @@ export function takeArcana(id) {
   (G.arcana ||= []).push(id);
   G.arcanaPick = null;
   const a = arcanaById(id);
-  say(`${a.n} — ${a.t.replace(/\*\*/g, '')}`, 'level');
+  /* 아르카나도 마찬가지. 「무른 판 — 네가 주는 피해 +40%. 대신 받는
+     피해도 +40%다」가 아니라 「무른 판. 유리로 만든 칼이 가장 잘
+     든다」 — 아홉 자로 같은 것을 말하면서 고르는 사람의 마음까지
+     말하는 줄이, 지금까지 화면에 한 번도 안 나왔다. */
+  say(`${a.n}. ${a.lore || a.t.replace(/\*\*/g, '')}`, 'level');
   fx({ t:'arcana', id, n: a.n });
   recalc(G.player);
   G.screen = 'play';
@@ -6949,11 +7029,12 @@ export function bankPurse2() {
 export function campCash() {
   const p = G.player, purse = bankPurse2();
   if (!purse) { say('걸린 판돈이 없다.'); return; }
-  p.gold += goldGain(purse.gold);
+  const got = goldGain(purse.gold);      // 한 번만 — 위 5191과 같은 병이었다
+  p.gold += got;
   p.mats = p.mats || { scrap: 0, dust: 0, essence: 0 };
   for (const k of ['scrap', 'dust', 'essence']) p.mats[k] += purse[k] || 0;
   G.bank = 0;
-  say(`${purse.floors}층치 판돈을 챙겼다 — 금화 ${goldGain(purse.gold)}닢.`, 'level');
+  say(`${purse.floors}층치 판돈을 챙겼다 — 금화 ${got}닢.`, 'level');
   fx({ t:'altar', x:p.x, y:p.y, result:'대성공' });
   spendCamp();
 }
@@ -7046,7 +7127,10 @@ export const upgradeCostFor = (key, careful = false) => {
      한다 — 안 그러면 「고유를 주웠으니 이제 모루는 이것만」이 되고,
      그러면 나머지 장비가 전부 죽은 가지가 된다. */
   const named = (t.item?.unique) ? 2 : 1;
-  const dear = (hasShackle('coldanvil') ? 1.4 : 1) * named;
+  /* 그리고 「많이 쓰는」 절. 벌이만 두 배로 해 놓고 값을 안 올리면
+     탐욕은 양날이 아니라 순증이 된다 — 지금까지는 반대로 순감이었다. */
+  const dear = (hasShackle('coldanvil') ? 1.4 : 1) * named
+             * (hasArcana('greed') ? 2 : 1);
   const raw = upgradeCost(plusOf(t));
   const base = {};
   for (const k of Object.keys(raw)) base[k] = Math.ceil(raw[k] * dear);
@@ -8653,6 +8737,38 @@ export function identify(id, quiet) {
   return true;
 }
 
+/* ── 판 상태의 정본 목록 ──────────────────────────────────
+   판이 시작할 때 비워야 하고, 저장에 적어야 하고, 불러올 때 되살려야
+   하는 값들. 세 곳에 손으로 적던 것을 한 표로 모은다.
+
+   왜 모으는가: 리뷰가 재현한 치명 다섯 건이 **전부 셋 중 하나를
+   빠뜨린 것**이었다.
+     · G.gulped 를 `walkOffTolerance()` 로 비웠다 — 그 함수는 1만
+       깎는다. 여덟 병 마신 판 뒤의 새 판이 첫 물약부터 34%였다.
+     · G.relicBase 가 저장에 없었다 — 크랙이 주운 자리에서 즉시
+       열리거나(불러오기), 앞 판의 셈을 물려받아 영영 안 열렸다.
+       save.js 주석은 「크랙 계통 다섯」이라 적어 놓고 넷만 적었다.
+     · G.famineSwell — 저장 당시 24였던 천장이 64로 불러와졌다.
+     · G.task/taskDone — 잠긴 계단이 불러오기 한 번에 공짜로 열렸다.
+     · G.uproar·goldEarned·relicsTaken… — 앞 판의 숫자가 끝 화면에.
+
+   한 곳에 있으면 필드가 늘 때 한 줄만 더하면 되고, sim/save.mjs 가
+   「이 표의 모든 키가 저장·복원 양쪽에 있는가」를 기계로 확인한다.
+   값은 깊은 사본으로 넣는다 — 얕게 넣으면 판들이 같은 객체를 쓴다. */
+export const RUN_FIELDS = {
+  gulped: 0, relicBase: {}, famineSwell: 0,
+  uproar: 0, uproarTier: 0, lastBlows: [], goldEarned: 0,
+  haggled: {}, haggleCut: null, haggleSour: null,
+  forced: {}, credited: {}, fallenSeen: {}, did: {}, lit: {},
+  relicFloorAt: -1, relicsTaken: 0, relicSrc: {}, gearTaken: 0,
+  rareTaken: 0, rareFound: 0, resoFound: 0,
+  floorTurns: {}, blowRatio: 0, funnelled: 0, clung: 0, clungSaid: 0,
+  promiseFloor: 0, stillStep: false, taskDone: false, spoils: null,
+};
+export const resetRun = () => {
+  for (const k of Object.keys(RUN_FIELDS)) G[k] = structuredClone(RUN_FIELDS[k]);
+};
+
 export function startGame(raceKey, classKey, base) {
   /* The ladder is read *before* the hero is built. 재의 무게 takes
      a slice of maximum health inside recalc, and recalc runs the
@@ -8665,28 +8781,28 @@ export function startGame(raceKey, classKey, base) {
   G.fx = []; G.combo = 0; G.comboT = 0; G.bestCombo = 0;
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0; G.kills = 0; G.eventsSeen = 0;
   G.ledger = {}; G.cracks = {}; G.relicFloors = {}; G.chainGuard = 0; G.murmured = {};
-  G.relicBase = {}; G.heat = 0; G.provoked = 0; G.lastBlows = [];
+  G.heat = 0; G.provoked = 0;
   G.arcana = []; G.arcanaPick = null;
   G.martyred = 0;
   G.regionAt = null;
   G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0; G.fused = 0; G.catUsed = 0;
-  G.did = {}; G.act = null; G.lit = {}; G.uproar = 0; G.uproarTier = 0;
-  G.hpBand = new Array(10).fill(0); G.floorTurns = {};
+  resetRun();                            // 표가 비우는 것들 — RUN_FIELDS
+  G.act = null;
+  G.hpBand = new Array(10).fill(0);
   G.runSeed = Math.floor(Math.random() * 997);   // 판마다 행상의 기분표가 달라진다
   G.haggled = {}; G.haggleCut = null; G.haggleSour = null;
   G.engraved = 0; G.memories = []; G.relicShelf = null;
   G.branch = null; G.pendingBranch = null; G.pendingRelic = null;
-  G.nextMods = null; G.campPromise = 0; G.deepest = 0; G.famineSwell = 0;
-  G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.clungSaid = 0; G.credited = {}; walkOffTolerance(); G.hazards = []; G.snares = []; G.sanctum = null; G.bank = 0;
-  G.goldEarned = 0;
-  /* 한 판에 한 번씩만 만난다는 표시. 판이 바뀌면 비워야 한다 —
-     안 비웠더니 두 번째 판에서 앞사람이 안 나왔고, 벤치가 그걸
-     잡았다. 「한 번만」의 범위가 판인지 세션인지가 갈리는 자리다. */
-  G.fallenSeen = {};
-  G.tally = 0; G.hushUntil = -1; G.resoFound = 0; G.forced = {}; G.uniques = {};
-  G.relicsTaken = 0; G.fused = 0; G.gearTaken = 0; G.rareTaken = 0; G.relicSrc = {};
-  G.blowRatio = 0; G.funnelled = 0;
-  G.relicFloorAt = -1;
+  G.nextMods = null; G.campPromise = 0; G.deepest = 0;
+  /* 여기 `walkOffTolerance()` 가 있었다. 새 판의 물약 내성을 비우려던
+     자리인데 저 함수는 `if (G.gulped > 0) G.gulped--` — **1만 깎는다.**
+     여덟 병 마신 판 뒤의 새 판이 첫 물약부터 34% 효율로 시작했고,
+     아무 문장도 안 떴다. 이제 RUN_FIELDS 가 0으로 비운다. */
+  G.floorTurn = 0; G.waves = 0; G.campUses = 1; G.hazards = []; G.snares = []; G.sanctum = null; G.bank = 0;
+  /* 「한 판에 한 번씩만」 표시(fallenSeen·forced·credited)도 RUN_FIELDS
+     에 있다. 안 비웠더니 두 번째 판에서 앞사람이 안 나왔고, 벤치가
+     그걸 잡았다 — 「한 번만」의 범위가 판인지 세션인지가 갈리는 자리다. */
+  G.tally = 0; G.hushUntil = -1; G.uniques = {}; G.fused = 0;
   /* 몇 번째로 내려가는 사람인가. 끝 화면이 이 숫자를 다시 읽는다 —
      앞의 것들이 전부 여기 어딘가에 있다는 뜻이고, 그래서 이 판의
      실패도 다음 사람에게는 자료가 된다. */

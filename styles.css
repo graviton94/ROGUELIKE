@@ -251,6 +251,12 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   color: var(--G); white-space: nowrap;
 }
 .chip b { color: var(--w); }
+/* 주목·유물 칩은 이제 눌러서 카드를 여는 **문**이다. 그런데 크기는
+   예전 라벨 그대로 21px 였고, 화면 최상단이라 한 손 조작에서 엄지가
+   가장 못 닿는 자리다. 보이는 크기는 그대로 두고 손만 넓힌다. */
+.chip.heat, .chip.relics { position: relative; height: 32px; padding: 0 10px; }
+.chip.heat::after, .chip.relics::after {
+  content: ''; position: absolute; inset: -8px -6px; }
 .chip.gold { color: var(--y); border-color: #605018; } .chip.gold b { color: var(--y); }
 .chip.mana { color: var(--B); border-color: #204068; } .chip.mana b { color: var(--B); }
 .chip.depth { color: var(--o); border-color: #603010; }
@@ -835,6 +841,11 @@ table.keys td:first-child { width: 40%; color: var(--G); }
    choice is meant to be read at a glance and then forgotten,
    because it sticks across fires. */
 .styleswitch { display: flex; gap: 6px; margin-bottom: 8px; }
+/* 모루의 여섯 모드는 한 줄에 밀어 넣어 55×34(390) / 50×34(360)이
+   됐다 — 44px 기준의 77%이고, 그중 둘은 되돌릴 수 없다. 세 칸씩
+   두 줄로 접으면 한 칸이 118×44 가 된다. */
+#anvil-mode { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+#anvil-mode button { min-height: 44px; }
 .styleswitch button {
   flex: 1 1 0; padding: 8px 6px; font-size: 12px;
   border: 1px solid var(--g); background: var(--d); color: var(--G);
@@ -906,7 +917,15 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .lessonbox p { font-size: 12.5px; line-height: 1.85; margin-bottom: 16px; }
 /* The look-at card. Reached by holding a finger on the map, so
    it has to be dismissable by tapping anywhere. */
-.lookbox { max-width: 320px; }
+/* 유물 일곱을 들면 카드가 뷰포트를 위아래로 53px씩 넘어가고, 안쪽
+   목록에 overflow 가 없어서 **제목도 「닫기」도 화면 밖**이었다.
+   `.askbox #look-rows { touch-action: pan-y }` 가 스크롤을 예상한
+   흔적으로 남아 있는데, 정작 overflow-y 를 안 준 것이다. */
+.lookbox { max-width: 320px; max-height: calc(100vh - 48px);
+           display: flex; flex-direction: column; }
+.lookbox #look-rows { flex: 1 1 auto; min-height: 0; overflow-y: auto;
+                      overscroll-behavior: contain; }
+.lookbox .askbtns { flex: 0 0 auto; }   /* 나가는 문은 언제나 바닥에 */
 .lookbox .camphead { margin-bottom: 10px; }
 .lookbox .endrow { padding: 3px 0; }
 .lookbox .endlabel { flex: 0 0 74px; }
@@ -1191,9 +1210,23 @@ table.keys td:first-child { width: 40%; color: var(--G); }
   /* 그리고 높이를 깎는다. 접기만 했더니 줄이 하나 늘어 320px에서
      지도가 43%→35%로 내려갔고(칸 벤치 문턱 36%), 손가락을 얻자고
      무대를 판 셈이 됐다. 두 줄이 한 줄 반쯤 되게 눌러서 둘 다 가진다. */
-  #acts .quick button { flex: 1 1 44%; padding: 1px 2px; font-size: 8.5px; }
-  #acts .quick canvas { width: 13px; height: 13px; }
+  /* ── 그리고 그 「눌러서」가 17px 이 됐다 ────────────────
+     주석은 「2×2면 한 칸이 다시 70px대」라고 적었는데, 70px대가 된
+     것은 **폭**(92.5)뿐이고 높이는 padding 1px + font 8.5px 때문에
+     17px 로 주저앉았다. 바로 옆 방향 버튼이 45.3px 인데, 그 옆에서
+     체력 1일 때 눌러야 하는 회복 물약이 17px 였다. 폭만 재고 높이를
+     안 잰 것이다. 44px 은 협상 대상이 아니다. */
+  #acts .quick button { flex: 1 1 44%; min-height: 44px; padding: 6px 4px; font-size: 10px; }
+  #acts .quick canvas { width: 16px; height: 16px; }
+  /* 기예 줄은 #acts 밖(격자 위)에 있다 — `#acts .spells` 로 잡으면
+     아무것도 안 걸린다. 실제로 그렇게 써 놓고 19px 을 그대로 뒀다. */
+  .spells button { min-height: 38px; }
 }
+
+/* 390px 에서도 빠른 슬롯이 36px, 기예 칸이 25px 였다 — 좁은 화면
+   전용 규칙만 고쳐 놓고 기본을 안 고쳤다. 44px 은 화면 폭과 무관하다. */
+.pair.quick button { min-height: 44px; }
+.spells button { min-height: 38px; }
 
 /* 불이 사그라들 때 그 칸이 부른다. 깜빡임이 아니라 테두리 색과
    느린 맥박 — 급한 것은 하나여야 하고, 화면에서 이미 붉은 것이
@@ -1287,7 +1320,10 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 
 /* 주목 — 깊은 곳이 너를 보는 정도. 평소엔 조용한 회색, 45를 넘으면
    잉걸, 80을 넘으면 상처의 붉은색으로 맥이 뛴다. */
-.chip.heat { color: var(--G); border-color: var(--g); }
+/* 0~44 구간에서 이 칩은 기본 칩과 **픽셀 단위로 같았다**(같은 --G,
+   같은 --g). 금화는 금색 테, 층은 주황 테인데 주목 30은 회색 테라
+   가구로 읽혔다 — 이 판의 risk & take 계기가 그렇다. 강철로 가른다. */
+.chip.heat { color: var(--s); border-color: #4a5060; }
 .chip.heat b { color: var(--G); }
 .chip.heat.hot { color: var(--o); border-color: #7a3f12; }
 .chip.heat.hot b { color: var(--o); }
@@ -1301,14 +1337,41 @@ table.keys td:first-child { width: 40%; color: var(--G); }
    손가락을 스크롤로 채 가고, 그때부터 pointermove 가 한 번도 안 온다 —
    양피지 카드를 밀어도 안 닫히던 이유가 이것이다. */
 .askbox, .askbox .sheet { touch-action: none; }
+/* 그리고 이 규칙이 **양피지 카드에는 안 걸려 있었다.** #lorecard 는
+   .askbox 가 아니라서 touch-action:auto 로 남았고, 진짜 손가락으로
+   밀면 pointermove 두 번 만에 브라우저가 제스처를 채 가 pointercancel
+   이 떴다 — 위·왼쪽·오른쪽 전부 안 닫혔다. 마우스는 touch-action 의
+   영향을 안 받으므로 sim/swipe.mjs 는 4/4 초록이었다. 자가 손가락을
+   안 쓰고 있었다는 뜻이다. */
+#lorecard, #lorecard .sheet, #scroll, #scroll .sheet { touch-action: none; }
 /* 다만 카드 안의 목록은 여전히 스크롤돼야 한다. 긴 유물 목록이
    안 넘어가면 아래쪽 유물을 영영 못 본다. */
 .askbox #look-rows, .askbox .scrollable { touch-action: pan-y; }
+
+/* ── 종이 위의 잉크 ────────────────────────────────────────
+   양피지를 깔면(dressSheet) 유물 **이름과 설명이 종이색과 거의 같아
+   진다** — 종이 평균 rgb(149,134,103) 기준으로 이름 2.26:1, 설명
+   **1.05:1**. 유물 목록에서 이름 줄이 통째로 빈칸으로 보였다.
+   .sheet 오버라이드가 크랙 줄만 어두운 잉크로 바꾸고 나머지는 어두운
+   배경용 크림색 그대로 뒀기 때문이다.
+
+   대비 자(sim/contrast.mjs)가 이 카드를 「그림 배경이라 못 잰다」며
+   명시적으로 제외해 둔 자리에 정확히 이 버그가 있었다. */
+.sheet .iname, .sheet .codexrow .iname { color: #3a2a1c; }   /* 종이 대비 6.4:1 */
+.sheet .idesc, .sheet .codexrow .idesc { color: #4a3a28; }   /* 4.9:1 */
+.sheet .crackname { color: #3f3122; }
 
 /* 아르카나 — 판 자체를 비트는 것. 유물의 자수정을 쓰되 면이 아니라
    왼쪽 선으로만 — 세 장이 나란히 서면 면은 무지개가 된다. */
 .arcanarow { border-left: 3px solid var(--P); padding-left: 9px; margin-bottom: 10px; }
 .idesc.arcanacat { color: var(--P); opacity: .8; font-size: 9px; }
 .idesc.arcanagood { color: var(--o); }
-.idesc.arcanacost { color: var(--r); }
+/* --r(#5e0f1c)은 어두운 배경 위에서 대비 1.45:1 — 「그 아래는 흐린
+   것이 아니라 없는 것이다」라고 우리 대비 자가 정한 3:1 아래다.
+   판을 되돌릴 수 없게 바꾸는 선택인데 **대가 쪽 절반이 화면에 없었다.**
+   ui.js 는 「좋은 쪽과 값을 같은 크기로 적는다」고 주석까지 달아 놨는데,
+   크기는 같고 대비가 네 배 차이라 눈에는 광고지였다. --R 은 5.2:1. */
+.idesc.arcanacost { color: var(--R); font-weight: 600; }
+.idesc.arcanagood, .idesc.arcanacost { font-size: 12px; }
+.idesc.arcanacat { font-size: 11px; }
 .idesc.arcanalore { color: var(--G); opacity: .7; font-style: italic; margin-top: 3px; }

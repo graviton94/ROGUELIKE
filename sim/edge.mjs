@@ -104,19 +104,36 @@ console.log('  층   직업      평타    주문한방  주문비용  층당가
 const ratios = [];
 for (const [cls, spellId] of [['mage', 'bolt'], ['paladin', 'smite']]) {
   for (const d of [3, 6, 9, 12, 15]) {
-    const p = hero(cls, d);
+   /* ── 영웅 한 명으로 재면 안 된다 ─────────────────────────
+      비율이 같은 코드로 6.78 ~ 14.23 사이를 오갔다. 원인은 둘 다
+      **한 번 굴린 영웅**이다: 마법사의 최대 마나가 「층당 몇 번
+      쏘나」를 통째로 정하고, 분모인 평타는 마법사 기준 2.1~4.5로
+      두 배씩 흔들린다. 문턱을 잡음 밖으로 밀어 올리는 것은 자를
+      고치는 게 아니라 눈을 감는 것이다(1:1 죽는 턴에서 한 번 그렇게
+      했고, 그때는 아예 판정을 뺐다). 여기서는 뺄 수 없다 — 이 단언이
+      막는 고장(×33.5)이 진짜였으니까.
+
+      그래서 영웅을 여덟 명 굴려 평균한다 — 셋으로는 부족했다(7.9~12.25).
+      흔들리는 것은 평타가 아니라 **최대 마나**이고, 그것이 「층당 몇
+      번 쏘나」를 통째로 정하기 때문이다. 굴림이 여덟이면 폭이
+      3분의 1로 줄고, 재는 대상은 여전히 「이 직업 이 층」이다. */
+   const HEROES = 8;
+   let melee = 0, spell = 0, cost = 0, casts = 0, p = null;
+   for (let h = 0; h < HEROES; h++) {
+    p = hero(cls, d);
+    /* 판마다 0에서 다시 센다. 처음에 바깥 누산기에 그대로 더하고
+       매 판 끝에 /n 을 했더니, 두 번째 판의 값이 (첫 판 평균 + 둘째
+       판 합)/n 이 됐다 — 복제를 늘릴수록 오히려 흔들렸다. */
+    let mSum = 0, sSum = 0, n = 200;
     /* 평타: 실제 swing 을 돌리고 몬스터가 잃은 체력을 센다. */
-    let melee = 0, n = 200;
     for (let i = 0; i < n; i++) {
       G.monsters.length = 0;
       const m = foe(d); m.hp = m.maxhp = 999999;
       p.hp = p.maxhp; Game.step(1, 0);
-      melee += 999999 - m.hp;
+      mSum += 999999 - m.hp;
     }
-    melee /= n;
     /* 주문: 같은 방식. 마나는 매번 채운다 — 여기서 재는 것은 한 방이다. */
     const sp = Game.spellList(p).find(s => s.id === spellId);
-    let spell = 0, cost = 0;
     if (sp) {
       cost = Game.spellCost(p, sp);
       for (let i = 0; i < n; i++) {
@@ -124,14 +141,16 @@ for (const [cls, spellId] of [['mage', 'bolt'], ['paladin', 'smite']]) {
         const m = foe(d); m.hp = m.maxhp = 999999;
         p.mana = p.maxmana; p.hp = p.maxhp;
         Game.cast(sp.id);
-        spell += 999999 - m.hp;
+        sSum += 999999 - m.hp;
       }
-      spell /= n;
     }
     /* 층 하나에서 주문을 몇 번 쓸 수 있는가. 마나는 층 이동과
        모닥불에서만 크게 돌아오므로, 「한 층 = 최대 마나 한 통」으로
        읽는다. 그게 이 게임에서 주문이 실제로 갖는 예산이다. */
-    const casts = cost ? Math.floor(p.maxmana / cost) : 0;
+    casts += cost ? Math.floor(p.maxmana / cost) : 0;
+    melee += mSum / n; spell += sSum / n;
+   }
+   melee /= HEROES; spell /= HEROES; casts = Math.round(casts / HEROES);
     /* 그 예산을 다 쓰고 나면 나머지 턴은 평타다. 층의 전투 턴 수를
        40으로 잡고(실측 교전 길이대) 총량을 비교한다. */
     const TURNS = 40;
@@ -173,7 +192,7 @@ console.log('  가만히 서 있으면 몇 턴에 죽는가 (곡선대로 선 �
 console.log('  층   체력   방어   한 대    맞을확률   1:1 죽는턴   3마리 죽는턴');
 const solo = {}, pack = {};
 for (const d of [3, 6, 9, 12, 15]) {
-  const p = hero('warrior', d);
+  let p = hero('warrior', d);
   const ac = Game.armourClass(p);
   /* ── 이 자를 한 번 틀렸다 ──────────────────────────────
      처음에 endTurn 을 **한 번**만 돌리고 「맞았나」를 셌다. 12·15층에서
@@ -185,7 +204,7 @@ for (const d of [3, 6, 9, 12, 15]) {
      사라진다. 매 턴 체력을 되돌려 놓고, 40턴을 돌린 뒤 **턴당 평균
      피해**를 읽는다 — 「몇 턴에 죽는가」는 그 값으로만 나온다. */
   const TURNS_D = 40;
-  let dmg = 0, hitTurns = 0, n = 150;
+  let dmg = 0, hitTurns = 0, n = 150, revives = 0;
   for (let i = 0; i < n; i++) {
     G.monsters.length = 0;
     const m = foe(d);
@@ -197,7 +216,22 @@ for (const d of [3, 6, 9, 12, 15]) {
       Game.endTurn();
       const took = Math.max(0, p.maxhp - p.hp);
       if (took > 0) { hitTurns++; dmg += took; }
-      if (!G.running) { Game.startGame('human', 'warrior', Game.rollStats('warrior')); break; }
+      /* ── 이 자를 네 번째로 틀렸다 ──────────────────────
+         영웅이 죽으면 `startGame` 으로 판을 갈아 끼웠는데, 지역변수
+         p 는 **죽은 영웅을 계속 가리켰다.** 그 뒤로 `p.hp = p.maxhp`
+         는 G.player 에 안 닿고 `p.maxhp - p.hp` 는 영원히 0이라,
+         죽은 시점 이후의 표본이 전부 「한 대도 안 맞았다」로 들어갔다.
+         그래서 인쇄되던 최대 체력이 실제의 55%였다.
+
+         그리고 다섯 번째로 틀렸다: 고친다고 `hero()` 를 다시 불렀더니
+         이번엔 **능력치를 다시 굴려서** 재는 대상이 판마다 달라졌다
+         (이 파일 자신의 stage() 주석이 그러지 말라고 적어 둔 것이다).
+         체력이 층을 따라 안 오르는 표가 나왔다 — 9층 76, 6층 64.
+
+         재려는 것은 「들어오는 양」이지 「사는가」가 아니다. 그러니
+         판을 갈지 말고 **같은 영웅을 그 자리에서 일으킨다.** 피해는
+         일으키기 전에 이미 셌다. */
+      if (!G.running) { G.running = true; revives++; }
     }
   }
   const turns = n * TURNS_D;
@@ -214,7 +248,11 @@ console.log('');
 /* 이 게임은 「한 방에 죽지 않는다」를 BLOW_CAP 으로 보장한다. 그건
    옳다. 문제는 반대쪽이다 — 셋에 둘러싸여도 스무 턴이 남으면 그건
    위기가 아니라 산책이다. */
-ok(pack[13] === undefined || pack[12] <= 8,
+/* 여기 `pack[13] === undefined ||` 가 앞에 붙어 있었다. pack 은
+   [3,6,9,12,15] 로만 채워지므로 pack[13] 은 **구조상 언제나 undefined**
+   였고, 단언은 항상 참이었다. 실제 값 17.0턴이 통과로 찍히고 있었다 —
+   「13층까지 쉽다」를 잡으라고 쓴 자가 그 말을 못 하게 막혀 있었다. */
+ok(pack[12] <= 8,
    '12층에서 셋에 둘러싸이면 여덟 턴 안에 죽는다 — 그보다 길면 둘러싸이는 것이 사건이 아니다',
    pack[12] === Infinity ? '∞' : `${pack[12].toFixed(1)}턴`);
 /* ── 이 줄은 판정하지 않고 인쇄만 한다 ────────────────────

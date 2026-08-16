@@ -141,7 +141,11 @@ function runBot(race, cls, clear, opt = {}) {
   Meta.forget();
   pressed.clear();
   dead.clear();
-  Game.startGame(race, cls, Game.rollStats());
+  /* `rollStats()` 를 인자 없이 불렀다. CLASS_BAND[undefined] 가 null 이라
+     전 스탯이 fair[10,13] 로 굴려졌고, 실제 게임(ui.js 의 rollStats(pick.cls))
+     은 prime[14,17]/weak[7,11] 을 굴린다. 즉 이 저장소의 직업 수치는
+     전부 **직업이 아닌 것**을 재고 있었다 — 마법사 최대마나 23.7 → 9.9. */
+  Game.startGame(race, cls, Game.rollStats(cls));
   outfit();
   /* A bow is a different build, not a better sword, and the
      scorer below ranks weapons by dice — so a bot left to itself
@@ -245,6 +249,20 @@ function runBot(race, cls, clear, opt = {}) {
        곳이라는 뜻이다. 판으로 돌려보내고 그 칸을 이번 층에서 죽은
        목표로 적는다 — 그 하나를 못 세는 것이, 판 하나를 통째로
        잃고 그 도달 층을 죽은 판들 사이에 섞는 것보다 싸다. */
+    /* ── 아르카나는 「닫아 버리는 화면」이 아니다 ────────────
+       봇 60판을 굴려 끝에 G.arcana 를 읽었더니 **한 판도 아무것도
+       안 들고 있었다.** 위의 화면 탈출기가 아르카나 선택 화면을
+       스무 번 만에 그냥 닫아 버렸기 때문이다. 그래서 「아르카나가
+       난이도 곡선을 바꾸는가」에는 지금까지 **답이 없었다** — 이
+       하네스로는 잰 적이 없다.
+
+       무엇을 고르는지가 아니라 「고른다」가 중요하므로 셋 중 하나를
+       무작위로 집는다. 편향된 정책은 나중에 A/B 로 따로 잰다. */
+    if (G.screen === 'arcana' && Game.arcanaDue(G.depth)) {
+      const off = Game.arcanaOffer();
+      if (off.length) { Game.takeArcana(off[Math.floor(Math.random() * off.length)].id); }
+      G.screen = 'play'; screenAt = 'play'; screenFor = 0;
+    }
     if (G.screen !== 'play') {
       if (G.screen === screenAt) {
         if (++screenFor > 20) {
@@ -320,6 +338,20 @@ function runBot(race, cls, clear, opt = {}) {
         && (m.ai === 'ranged' || m.casts?.length)
         && Math.hypot(m.x - p.x, m.y - p.y) <= 7);
 
+      /* ── 한계돌파 셋 ────────────────────────────────────
+         이 하네스에 brace·kite·bulwark 라는 문자열이 **하나도 없었다**
+         (vanish·martyr·crusade·volley 는 있는데). 그래서 「직업마다
+         하나씩, 위험한 순간에 판을 바꾸는 것」이 판에 얹혀 무슨 값을
+         하는지 아무도 잰 적이 없다.
+
+         셋 다 「위험한 순간」이 조건이므로 정책도 그렇게 쓴다: 도망칠
+         수 없을 만큼 붙었고(brace), 붙었는데 활이고(kite), 다음 한
+         대에 죽을 때(bulwark). 마무리·밀치기보다 **먼저** 본다 —
+         나중에 두면 그 둘이 먼저 걸려서 영영 안 눌린다. */
+      const brace = art('brace');
+      if (can(brace) && !(p.brace > 0) && adjA.length >= 2 && p.hp < p.maxhp * 0.55)
+        { useArtCounted('brace'); continue; }
+
       /* 버티기 is gone — it was the standing-still verb, and the
          measurement that killed it came from this harness: 12판에
          버티기 296 · 휩쓸기 83 · 마무리 72 · 밀치기 3. 연타 is the
@@ -351,6 +383,11 @@ function runBot(race, cls, clear, opt = {}) {
         && !p.ail?.paralyze && !(p.stuck > 0);
       const seenP = G.monsters.filter(m =>
         !m.disguise && m.awake && G.level.vis[idx(m.x, m.y)]);
+
+      const bulwark = art('bulwark');
+      if (canSwear(bulwark) && !(p.bulwark > 0)
+          && p.hp < p.maxhp * 0.3 && adjA.length >= 1)
+        { useArtCounted('bulwark'); continue; }
 
       const crusade = art('crusade');
       if (canSwear(crusade)
@@ -402,6 +439,12 @@ function runBot(race, cls, clear, opt = {}) {
         };
         if (seen.filter(online).length >= 2) { useArtCounted('pierce'); continue; }
       }
+
+      /* 궁수의 한계돌파. 활은 붙으면 막대기라, 「붙었다」가 조건이다 —
+         조준·관통보다 먼저 본다(저 둘은 거리가 있을 때 걸린다). */
+      const kite = art('kite');
+      if (can(kite) && adjA.length >= 1 && p.hp < p.maxhp * 0.6)
+        { useArtCounted('kite'); continue; }
 
       const aimed = art('aimed');
       if (canShot(aimed) && far && dist > 2.2) { useArtCounted('aimed'); continue; }

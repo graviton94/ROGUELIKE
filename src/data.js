@@ -1850,22 +1850,22 @@ export const SHOPS = [
    그러면 「적재적소」가 규칙이 된다 — 1층에서 정수를 팔아 봐야
    살 사람도 쓸 자리도 없다. */
 export const SHOP_LOADS = [
-  { id:'wick',  n:'심지 수레',   d:1, w:10, cut:0.85, mats:[],
+  { id:'wick',  n:'심지 수레', spr:'torch',   d:1, w:10, cut:0.85, mats:[],
     stock:['torch','torch','potHeal','smoke'],
     line:'「불부터 사시오. 아래는 어둡고, 어두운 데서 죽은 사람은 값을 못 치르오.」' },
-  { id:'flask', n:'약 수레',     d:1, w:9, mats:[],
+  { id:'flask', n:'약 수레', spr:'potion',     d:1, w:9, mats:[],
     stock:['potHeal','potCure','potMana'],
     line:'「병은 무겁지 않소. 무거운 건 안 산 뒤에 오는 후회지.」' },
-  { id:'paper', n:'종이 수레',   d:3, w:8, mats:['scrap'],
+  { id:'paper', n:'종이 수레', spr:'scroll',   d:3, w:8, mats:['scrap'],
     stock:['scrMap','scrTele','scrFlee'],
     line:'「읽을 줄 아시오? 아니어도 상관없소. 태우면 다 같은 값이오.」' },
-  { id:'iron',  n:'쇠 수레',     d:4, w:8, mats:['scrap','dust'],
+  { id:'iron',  n:'쇠 수레', spr:'armor',     d:4, w:8, mats:['scrap','dust'],
     stock:['picks','torch'], cats:true,
     line:'「두들길 것이 있으면 사 가시오. 아래로 갈수록 모루는 많고 재료는 없소.」' },
-  { id:'ash',   n:'재 수레',     d:7, w:7, cut:1.25, mats:['essence','dust'],
+  { id:'ash',   n:'재 수레', spr:'bones',     d:7, w:7, cut:1.25, mats:['essence','dust'],
     stock:['potHeal'], cats:true,
     line:'「이건 위에서 안 팔더군. 팔 수가 없지 — 여기서만 나오니까.」' },
-  { id:'odd',   n:'이상한 수레', d:5, w:5, cut:1.4, mats:['essence'],
+  { id:'odd',   n:'이상한 수레', spr:'wand', d:5, w:5, cut:1.4, mats:['essence'],
     stock:['scrTele','smoke'], cats:true,
     line:'「값은 좀 하오. 대신 이 물건들은 다른 데서 못 보오.」' },
 ];
@@ -2076,8 +2076,18 @@ export function salvageYield(item) {
   const w = worthOf(item);
   const affixes = (item.pre ? 1 : 0) + (item.suf ? 1 : 0)
                 + (item.engrave || []).length;
+  /* 상한이 48로 굳어 있었다. w/26이 48을 넘는 것은 8층쯤부터라,
+     그 아래로는 **12층의 전설이 8층의 검과 같은 쇳조각**을 냈다 —
+     깊이 내려갈수록 부수는 것이 무의미해진다는 뜻이고, 그게 후반에
+     드롭이 쓰레기로 읽히는 이유 중 하나였다(sim/purse.mjs).
+
+     상한을 그 물건이 **얼마나 벼려졌는가**에 묶는다. 잘 두들긴 것은
+     부수면 그만큼 나오고, 깊은 층에서 주운 맨 물건은 여전히 안 나온다.
+     「깊이」가 아니라 「손이 간 정도」가 기준인 이유는 하나다 — 깊이로
+     묶으면 15층 바닥에 굴러다니는 것을 줍기만 해도 재료가 된다. */
+  const roof = 30 + (item.plus || 0) * 6 + (item.engrave || []).length * 10;
   return {
-    scrap:   Math.max(1, Math.min(48, Math.round(w / 26))),
+    scrap:   Math.max(1, Math.min(roof, Math.round(w / 26))),
     dust:    affixes ? affixes + Math.floor(w / 320) : 0,
     essence: w >= 600 ? 1 + Math.floor(w / 2200) : 0,
   };
@@ -2215,6 +2225,20 @@ export const JACKPOT = {
 
 export const ENCHANT_COST = { dust: 4, gold: 130 };
 export const REROLL_COST  = { essence: 1, dust: 2, gold: 220 };
+/* ── 정수가 갈 곳 ─────────────────────────────────────────
+   정수는 나가는 구멍이 재굴림 하나뿐이었고, 그 하나도 1개씩만 먹었다.
+   그래서 판이 끝날 때까지 주머니에 쌓이기만 한다 — 나가는 구멍이 없는
+   재료는 재료가 아니라 점수다(sim/purse.mjs).
+
+   두 구멍을 판다. 둘 다 이미 있는 것을 **고쳐 쓰는** 일이고, 둘 다
+   후반에만 의미가 있다 — 각인은 +3부터 돋고, 유물은 후반에 손이 찬다.
+     · 각인 정련 — 마음에 안 드는 각인 하나를 다시 굴린다
+     · 유물 조율 — 유물 하나의 수치를 한 단계 올린다            */
+export const REFINE_COST = { essence: 2, dust: 2, gold: 300 };
+export const ATTUNE_COST = { essence: 3, gold: 260 };
+/* 조율은 무한이 아니다. 유물 하나에 세 번까지 — 그 위는 유물이 아니라
+   숫자 키우기가 된다. */
+export const ATTUNE_MAX = 3;
 
 /* ── catalysts ────────────────────────────────────────────
    Materials are a currency; catalysts are a decision. Each one

@@ -9,6 +9,7 @@ import * as Pix from './pixels.js';
 import {
   RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS, statRange,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName, MATS, ENCHANT_COST, REROLL_COST,
+  REFINE_COST, ATTUNE_COST, ATTUNE_MAX,
   ENCHANT_CURSE, ENCHANT_CURSE_STEP,
   RARITY, CURSED_TONE, rarityOf, isCursed,
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
@@ -267,13 +268,18 @@ export function draw() {
       const signId = L.signAt?.get(i);
       if (signId && L.seen[i]) {
         const shop = SHOPS.find(s => s.id === signId);
+        /* 층에서 만나는 상인의 간판은 **오늘 끌고 온 짐**을 건다.
+           표에 굳은 부적 하나가 걸려 있던 동안, 여섯 수레는 전부
+           같은 간판이었다 — 짐을 나눈 것이 화면에 안 나온 것이다. */
+        const load = shop?.wander ? Game.wanderLoad() : null;
         ctx.globalAlpha = 1;
         /* 간판은 좌판 위에 걸린다 — 같은 칸을 꽉 채워 그리면 아래의
            좌판을 완전히 덮어서, 여섯 수레가 「공중에 뜬 판자」로
            보인다. 위쪽 3/4만 쓰고 아랫단은 좌판의 다리에 내준다. */
         const sh = t * 0.74;
         ctx.drawImage(sprite('sign'), px, py, t, sh);
-        if (shop) ctx.drawImage(sprite(shop.spr), px, py, t, sh);
+        const icon = load?.spr || shop?.spr;
+        if (icon) ctx.drawImage(sprite(icon), px, py, t, sh);
       }
 
       const keeperId = L.keeperAt?.get(i);
@@ -281,7 +287,12 @@ export function draw() {
         ctx.globalAlpha = 1;
         // A slow shift of weight, so the town does not look embalmed.
         const sway = Math.sin(performance.now() / 700 + keeperId) * t * 0.035;
-        ctx.drawImage(sprite(`keeper:${keeperId}`), px + sway, py, t, t);
+        /* 마을의 좌판 주인은 계산대 뒤에 서 있고, 층의 상인은 수레를
+           끌고 다닌다. 여태 둘이 같은 그림이었다 — 층 한복판에 놓인
+           계산대는 계산대로 안 읽히고, 그래서 돌멩이로 보였다. */
+        const cart = keeperId === 7 ? Game.wanderLoad() : null;
+        const who = keeperId === 7 ? `pedlar:${cart?.id || 'wick'}` : `keeper:${keeperId}`;
+        ctx.drawImage(sprite(who), px + sway, py, t, t);
       }
 
       const shopId = L.shopAt.get(i);
@@ -2771,6 +2782,10 @@ function renderInventory() {
       mid.appendChild(el('span', 'idesc cmp' + (up ? ' up' : same ? '' : ' down'),
         Game.compareLine(it)));
     }
+    /* 그리고 「이걸 어떻게 할까」. 장착이 아닌 쪽의 결정 — 팔 것인가
+       부술 것인가 — 는 여태 화면 어디에도 숫자가 없었다. */
+    const tl = Game.tradeLine(it);
+    if (tl) mid.appendChild(el('span', 'idesc trade', tl));
     row.appendChild(mid);
     row.appendChild(el('span', 'iact',
       it.kind === 'cat' ? '모루에서' : it.kind === 'use' ? '사용' : '장착'));
@@ -3294,6 +3309,10 @@ export function renderAnvil() {
         `${Math.round((ENCHANT_CURSE + ENCHANT_CURSE_STEP * 2) * 100)}%. ${Game.costText(ENCHANT_COST)}`
       : anvilMode === 'reroll'
       ? `이미 붙은 속성을 다시 굴린다. 저주는 절대 붙지 않는다. ${Game.costText(REROLL_COST)}`
+      : anvilMode === 'refine'
+      ? `마지막에 돋은 각인을 갈아 내고 다시 새긴다. 무엇이 나올지는 모른다. ${Game.costText(REFINE_COST)}`
+      : anvilMode === 'attune'
+      ? `유물 하나의 수치를 한 단계 올린다. 유물마다 ${ATTUNE_MAX}번까지. ${Game.costText(ATTUNE_COST)}`
       : campCareful
       ? `값은 ${CAREFUL_MULT}배. 성공률 +${Math.round(CAREFUL_BONUS * 100)}%p, 실패해도 깎이거나 부서지지 않는다.`
       : `값은 그대로. ${Math.round(UPGRADE_CRIT * 100)}% 확률로 두 단계가 오른다 — 대신 실패하면 깎이고, 깊은 +에서는 부서진다.`;
@@ -3314,9 +3333,48 @@ export function renderAnvil() {
     renderFuse();
     return;
   }
+  /* 조율은 장비가 아니라 유물을 다룬다 — 촉매도 강화 방식도 안 쓴다. */
+  if (anvilMode === 'attune') {
+    $('anvil-list-head').textContent = '무엇을 맞출까';
+    $('anvil-cat-head').hidden = true; $('anvil-cats').hidden = true;
+    renderAttune();
+    return;
+  }
   renderCatalysts();
   renderAnvilTargets();
 }
+
+/* 정수가 갈 두 번째 곳. 유물의 수치는 판이 시작할 때 정해져서 끝까지
+   그대로였다 — 크랙이 「무엇을 하는가」를 바꾼다면 조율은 「얼마나」를
+   바꾼다. 둘 다 그 유물을 밀고 가기로 한 판에서만 의미가 있다. */
+function renderAttune() {
+  const list = $('anvil-list');
+  list.innerHTML = '';
+  const held = Game.relicList();
+  if (!held.length) { list.appendChild(el('p', 'empty', '조율할 유물이 없다.')); return; }
+  const poor = !Game.canAfford(ATTUNE_COST);
+  for (const r of held) {
+    const left = Game.attuneLeft(r.id);
+    const row = el('button', 'itemrow');
+    const ic = el('canvas', 'icon'); paintIcon(ic, r.spr); row.appendChild(ic);
+    const mid = el('div', 'imid');
+    mid.appendChild(el('span', 'iname magic', r.n));
+    mid.appendChild(el('span', 'idesc', r.t));
+    const now = r.v + (G.player.tuned?.[r.id] || 0);
+    mid.appendChild(el('span', 'idesc plus',
+      left > 0 ? `${trim(now)} → ${trim(now + Game.attuneStep(r))} · ${left}번 남았다`
+               : '더 맞출 수 없다'));
+    row.appendChild(mid);
+    const blocked = poor || left <= 0;
+    row.appendChild(el('span', 'iact', left <= 0 ? '—' : poor ? '재료 부족' : '조율'));
+    if (blocked) { row.classList.add('poor'); row.disabled = true; }
+    else row.onclick = () => { Game.attuneRelic(r.id); renderAnvil(); refresh(); };
+    list.appendChild(row);
+  }
+}
+/* 유물의 수치는 비율이기도 하고 개수이기도 하다. 0.35는 0.35로,
+   6은 6으로 읽혀야 한다. */
+const trim = v => (Math.abs(v) < 1.5 ? v.toFixed(2).replace(/\.?0+$/, '') : String(Math.round(v)));
 
 function renderCatalysts() {
   const on = anvilMode === 'upgrade' ? 'upgrade' : 'enchant';
@@ -3340,6 +3398,34 @@ function renderCatalysts() {
     row.onclick = () => { anvilCat = anvilCat === c.id ? null : c.id; renderAnvil(); };
     box.appendChild(row);
   }
+}
+
+/* 강화 줄 하나. renderAnvilTargets 밖에 두는 이유는 매듭 린트가
+   이 커밋에서 그 함수를 복잡도 30 위로 밀어 올렸다고 잡았기 때문이고,
+   실제로 여기 있는 것은 「강화의 판돈을 어떻게 적는가」 하나뿐이라
+   나머지 모드와 섞여 있을 이유가 없었다. */
+function upgradeRow(t, mid) {
+  const cost = Game.upgradeCostFor(t.key, campCareful);
+  const bet = Game.upgradeOddsFor(t.key, campCareful, anvilCat);
+  /* 판돈은 전부 적는다. 저주가 판돈에 들어왔는데 화면이 그걸 안
+     말하면, 그건 도박이 아니라 함정이다. */
+  const risk = bet.breakPct ? `실패 시 −1 또는 ${Math.round(bet.breakPct * 100)}% 파괴`
+             : bet.down     ? '실패 시 −1'
+             : '실패해도 손해는 값뿐';
+  const line = el('span', 'idesc bet',
+    `+${t.plus} → +${t.plus + (bet.crit >= 1 ? 2 : 1)} · ${risk}`
+    + (bet.hexPct ? ` · ${Math.round(bet.hexPct * 100)}% 저주` : '')
+    + ` · ${Game.costText(cost)}`);
+  if (bet.breakPct || bet.hexPct) line.classList.add('danger');
+  mid.appendChild(line);
+  /* The milestone gets its own line and its own colour. It is the
+     only strike where success changes what the item *is*, and the
+     odds are visibly worse for exactly that. */
+  if (bet.milestone)
+    mid.appendChild(el('span', 'idesc mark',
+      `이 한 방에 각인이 새겨진다 — 그래서 성공률이 `
+      + `${Math.round(ENGRAVE_PENALTY * 100)}%p 낮다.`));
+  return { blocked: !Game.canAfford(cost), label: `${Math.round(bet.odds * 100)}%` };
 }
 
 function renderAnvilTargets() {
@@ -3376,39 +3462,16 @@ function renderAnvilTargets() {
       continue;
     }
     if (anvilMode === 'upgrade') {
-      const cost = Game.upgradeCostFor(t.key, campCareful);
-      const bet = Game.upgradeOddsFor(t.key, campCareful, anvilCat);
-      blocked = !Game.canAfford(cost);
-      {
-        /* The bet, printed. Odds on the right where the price used
-           to be, and what a failure costs written into the row —
-           the altar taught this game that a gamble is only fun
-           when you can see its shape before you take it. */
-        label = `${Math.round(bet.odds * 100)}%`;
-        /* 판돈은 전부 적는다. 저주가 판돈에 들어왔는데 화면이 그걸
-           안 말하면, 그건 도박이 아니라 함정이다. */
-        const risk = bet.breakPct ? `실패 시 −1 또는 ${Math.round(bet.breakPct * 100)}% 파괴`
-                   : bet.down     ? '실패 시 −1'
-                   : '실패해도 손해는 값뿐';
-        const line = el('span', 'idesc bet',
-          `+${t.plus} → +${t.plus + (bet.crit >= 1 ? 2 : 1)} · ${risk}`
-          + (bet.hexPct ? ` · ${Math.round(bet.hexPct * 100)}% 저주` : '')
-          + ` · ${Game.costText(cost)}`);
-        if (bet.breakPct || bet.hexPct) line.classList.add('danger');
-        mid.appendChild(line);
-        /* The milestone gets its own line and its own colour. It
-           is the only strike where success changes what the item
-           *is*, and the odds are visibly worse for exactly that. */
-        if (bet.milestone) {
-          const mk = el('span', 'idesc mark',
-            `이 한 방에 각인이 새겨진다 — 그래서 성공률이 ` +
-            `${Math.round(ENGRAVE_PENALTY * 100)}%p 낮다.`);
-          mid.appendChild(mk);
-        }
-      }
+      ({ blocked, label } = upgradeRow(t, mid));
     } else if (anvilMode === 'reroll') {
       blocked = !Game.canAfford(REROLL_COST);
       label = blocked ? '재료 부족' : '재련';
+    } else if (anvilMode === 'refine') {
+      blocked = !Game.canAfford(REFINE_COST);
+      label = blocked ? '재료 부족' : '정련';
+      const last = t.item?.engrave?.[t.item.engrave.length - 1];
+      if (last) mid.appendChild(el('span', 'idesc mark',
+        `${engraveById(last)?.n} 자리를 갈아 낸다 — 무엇이 돋을지는 모른다.`));
     } else {
       blocked = !Game.canAfford(ENCHANT_COST);
       label = blocked ? '재료 부족' : '인챈트';
@@ -3417,6 +3480,9 @@ function renderAnvilTargets() {
     row.appendChild(el('span', 'iact', label));
 
     if (!blocked) row.onclick = () => {
+      if (anvilMode === 'refine') {
+        Game.anvilRefine(t.key); renderAnvil(); refresh(); return;
+      }
       if (anvilMode !== 'upgrade') {
         Game.anvilEnchant(t.key, anvilMode === 'reroll', anvilCat);
         anvilCat = null; renderAnvil(); refresh(); return;

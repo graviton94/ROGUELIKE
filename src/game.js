@@ -7,6 +7,7 @@ import {
   WEAPONS, ARMOURS, CONSUMABLES, SHOPS, SHOP_LOADS, loadsFor, AILMENTS, IMMUNE, TRAPS,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, ELITES, affixName,
   MATS, salvageYield, worthOf, upgradeCost, ENCHANT_COST, REROLL_COST,
+  REFINE_COST, ATTUNE_COST, ATTUNE_MAX,
   ENGRAVINGS, engraveById, engraveSlots, isMilestone, ENGRAVE_PENALTY,
   CATALYSTS, catalystById, makeCatalyst,
   upgradeOdds, upgradeRisk, UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS,
@@ -2469,7 +2470,15 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
       say(G.task.intro, 'warn');
     }
   }
-  if (depth > 0 && L.event) L.eventId = rollEvent();
+  /* 칸마다 다른 사건. 여태 층에 하나만 굴려서, ? 가 둘 놓인 층은
+     둘째가 죽은 칸이었다. 굴린 것을 서로 겹치지 않게 뽑는다 —
+     같은 사건을 두 번 만나면 「여러 개」가 아니라 「한 번 더」다. */
+  L.eventAt = new Map();
+  if (depth > 0)
+    for (const i of L.eventTiles || []) {
+      const id = rollEvent([...L.eventAt.values()]);
+      if (id) L.eventAt.set(i, id);
+    }
   if (mods?.mapped && depth > 0) L.seen.fill(1);
   /* 길잡이의 기억: the shape of the floor, from floor 11 down.
      Not what is on it — the walls only. Dying because you walked
@@ -2516,8 +2525,11 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
      only cares about the fire and the stone, better. */
   if (depth > 0 && hasRelic('moth')) {
     let n = 0;
-    for (const spot of [L.camp, L.altar, L.merchant, L.event])
+    for (const spot of [L.camp, L.altar, L.merchant])
       if (spot) { L.seen[idx(spot.x, spot.y)] = 1; n++; }
+    /* ? 는 층에 둘일 수 있다. 하나만 찍어 주던 동안 「사건 위치가
+       보인다」는 반쯤만 참이었다. */
+    for (const i of L.eventTiles || []) { L.seen[i] = 1; n++; }
     if (n) say(`나방이 ${n}곳으로 날아갔다.`, 'good');
   }
   // 뱃사공의 동전 takes its cut on the way down.
@@ -3495,7 +3507,7 @@ export function hereOffer() {
   const body = G.items.find(o => o.kind === 'fallen' && o.x === p.x && o.y === p.y);
   if (body) return { screen:'event', n:`${body.rec.sent}번째`, fallen: body.rec };
   const t = L.tiles[here];
-  if (t === EVENT && !L.eventId) return null;      // already taken
+  if (t === EVENT && !L.eventAt?.has(here)) return null;         // already taken
   const screen = OFFER_SCREEN[t];
   return screen ? { screen, n: OFFER_NAME[t] } : null;
 }
@@ -3898,6 +3910,24 @@ export function compareLine(it) {
   if (!c) return null;
   if (c.pct === 0) return `지금 든 것과 ${c.what}이(가) 같다`;
   return `지금 든 것보다 ${c.what} ${c.pct > 0 ? '+' : ''}${c.pct}%`;
+}
+
+/* ── 팔까, 부술까 ────────────────────────────────────────
+   두 값이 화면 어디에도 나란히 없었다. 배낭에서 「분해」를 누르면
+   재료가 얼마 들어오는지 모른 채 눌렀고, 상인 앞에서 파는 값은
+   보이지만 그것을 부수면 뭐가 나오는지는 안 보였다. 그러면 이 게임의
+   재화 결정 하나가 통째로 감으로 내려간다.
+
+   실측하면 답이 물건마다 다르다(sim/purse.mjs): 8층 이중부여는
+   부수는 쪽이 2.1배 이득이고, 12층 각인 둘짜리는 파는 쪽이 낫다.
+   답이 갈리는 결정이므로 **양쪽 숫자를 같이** 적는다.            */
+export function tradeLine(it) {
+  if (!it || it.kind === 'use' || it.kind === 'cat') return null;
+  const y = salvageYield(it);
+  const bits = [`${MATS.scrap.n} ${y.scrap}`];
+  if (y.dust) bits.push(`${MATS.dust.n} ${y.dust}`);
+  if (y.essence) bits.push(`${MATS.essence.n} ${y.essence}`);
+  return `팔면 ◍${priceOf(it, false)} · 부수면 ${bits.join(' · ')}`;
 }
 
 /* 주운 것이 무엇인지 한 문단으로. 카드에 「사용 가능」만 뜨면 카드를
@@ -6363,6 +6393,7 @@ export function forgeBlock(t, mode) {
      대신 값이 다르다: 이름 붙은 것을 두들기는 데는 두 배가 든다
      (upgradeCostFor의 `dear`). */
   if (mode === 'reroll' && !it.pre && !it.suf) return '다시 굴릴 속성이 없다';
+  if (mode === 'refine' && !(it.engrave || []).length) return '다시 새길 각인이 없다';
   if (mode === 'upgrade' && (it.plus || 0) >= MAX_PLUS) return `더 벼릴 수 없다 (최대 +${MAX_PLUS})`;
   return null;
 }
@@ -6384,6 +6415,7 @@ export function campTargets() {
           upgrade: forgeBlock(t, 'upgrade'),
           enchant: forgeBlock(t, 'enchant'),
           reroll:  forgeBlock(t, 'reroll'),
+          refine:  forgeBlock(t, 'refine'),
         },
         capped: !!forgeBlock(t, 'upgrade'),
       });
@@ -6845,6 +6877,62 @@ function breakItem(it) {
    fire is for the body and the relics now; the anvil is for the
    metal, and all three metal actions cost materials rather than
    the one use a floor grants. */
+/* ── 정수가 갈 두 곳 ──────────────────────────────────────
+   정수는 재굴림 하나에만 1개씩 들어가서, 판이 끝날 때까지 주머니에
+   쌓이기만 했다(sim/purse.mjs). 나가는 구멍이 없는 재료는 재료가
+   아니라 점수다.
+
+   둘 다 **이미 가진 것을 고쳐 쓰는** 일로 팠다. 새 물건을 주는 구멍을
+   더 파면 그건 재료가 아니라 상점이 하나 더 생기는 것이고, 이 게임이
+   모자란 것은 물건이 아니라 「고른 것을 밀고 갈 방법」이다.        */
+export function anvilRefine(key) {
+  const p = G.player, t = targetOf(key);
+  if (!t) return;
+  const why = forgeBlock(t, 'refine');
+  if (why) { say(`${why}.`, 'warn'); return; }
+  if (!canAfford(REFINE_COST)) { say(`재료가 모자란다 — ${costText(REFINE_COST)}.`, 'warn'); return; }
+  const it = t.item;
+  /* 가장 마지막에 돋은 것을 다시 굴린다. 고를 수 있게 하면 화면이
+     한 겹 늘고, 실제로 마음에 안 드는 것은 대개 방금 나온 것이다. */
+  const old = it.engrave[it.engrave.length - 1];
+  const held = new Set(it.engrave);
+  const pool = ENGRAVINGS.filter(e => e.tags.includes(it.kind) && !held.has(e.id));
+  if (!pool.length) { say('이 물건에 더 새길 것이 없다.', 'warn'); return; }
+  spend(REFINE_COST);
+  const e = pool[rnd(pool.length)];
+  it.engrave[it.engrave.length - 1] = e.id;
+  say(`${engraveById(old)?.n} 자리를 갈아 냈다 — ${e.n}. ${e.t}`, 'level');
+  fx({ t:'engrave', x:p.x, y:p.y });
+  recalc(p);
+}
+
+export function attuneRelic(id) {
+  const p = G.player;
+  if (!hasRelic(id)) { say('그 유물이 없다.', 'warn'); return; }
+  p.tuned = p.tuned || {};
+  const r = relicById(id);
+  const step = attuneStep(r);
+  if ((p.tuned[id] || 0) >= step * ATTUNE_MAX) {
+    say(`${r.n}은(는) 더 조율되지 않는다.`, 'warn'); return;
+  }
+  if (!canAfford(ATTUNE_COST)) { say(`재료가 모자란다 — ${costText(ATTUNE_COST)}.`, 'warn'); return; }
+  spend(ATTUNE_COST);
+  p.tuned[id] = (p.tuned[id] || 0) + step;
+  say(`${r.n}이(가) 한 단계 맞춰졌다. (${r.v} → ${(r.v + p.tuned[id]).toFixed(2).replace(/\.?0+$/, '')})`, 'level');
+  fx({ t:'enchant', x:p.x, y:p.y, cursed:false });
+  recalc(p);
+}
+/* 유물의 v는 어떤 것은 비율(0.35)이고 어떤 것은 개수(6)다. 한 걸음의
+   크기를 그 값의 크기에서 읽는다 — 0.35에 1을 더하면 조율이 아니라
+   다른 유물이 된다. */
+export const attuneStep = r => (Math.abs(r.v) < 1.5 ? 0.05 : Math.max(1, Math.round(r.v * 0.2)));
+export const attuneLeft = id => {
+  const r = relicById(id);
+  if (!r) return 0;
+  const step = attuneStep(r);
+  return ATTUNE_MAX - Math.round((G.player?.tuned?.[id] || 0) / step);
+};
+
 export function anvilEnchant(key, reroll, cat = null) {
   const p = G.player, t = targetOf(key);
   if (!t) return;
@@ -7231,9 +7319,19 @@ function spawnNear(spr, n, elite) {
    contact so the gate reads your state as it was when you walked
    in — otherwise you could farm an event by re-equipping at the
    doorstep. */
-export function rollEvent() {
+/* 발밑의 사건. 층에 하나였을 때는 L.eventId 한 줄이면 됐는데, 칸마다
+   다르게 굴리기 시작한 뒤로는 「어느 칸에 서 있는가」가 답의 일부다.
+   묻는 곳이 셋(화면·선택·발밑)이라 깔때기를 하나 둔다. */
+export function eventHere() {
+  const L = G.level, p = G.player;
+  if (!L || !p) return null;
+  return L.eventAt?.get(idx(p.x, p.y)) ?? null;
+}
+
+export function rollEvent(taken = []) {
   const api = eventApi();
-  const pool = EVENTS.filter(e => !e.when || e.when(api));
+  const pool = EVENTS.filter(e => !e.when || e.when(api))
+    .filter(e => !taken.includes(e.id));
   if (!pool.length) return null;
   const total = pool.reduce((s, e) => s + e.w, 0);
   let r = Math.random() * total;
@@ -7260,7 +7358,7 @@ export function eventOffer() {
       })),
     };
   }
-  const e = EVENTS.find(x => x.id === G.level?.eventId);
+  const e = EVENTS.find(x => x.id === eventHere());
   if (!e) return null;
   const api = eventApi();
   return {
@@ -7316,7 +7414,8 @@ export function eventChoose(i) {
   const L = G.level;
   if (G.fallen) return fallenTake(G.fallen.opts[i]?.id);
   if (G.spoils) return spoilsTake(i);
-  const e = EVENTS.find(x => x.id === L?.eventId);
+  const here = eventHere();
+  const e = EVENTS.find(x => x.id === here);
   if (!e) { G.screen = 'play'; return; }
   const opt = e.opts[i];
   const api = eventApi();
@@ -7327,8 +7426,9 @@ export function eventChoose(i) {
      behind for a second helping. */
   Meta.see('events', e.id);
   G.eventsSeen = (G.eventsSeen || 0) + 1;
-  if (L.tiles[idx(G.player.x, G.player.y)] === EVENT) L.tiles[idx(G.player.x, G.player.y)] = FLOOR;
-  L.eventId = null;
+  const at = idx(G.player.x, G.player.y);
+  if (L.tiles[at] === EVENT) L.tiles[at] = FLOOR;
+  L.eventAt?.delete(at);
   G.screen = 'play';
 
   /* A wager, if the option declared one. The roll lives here

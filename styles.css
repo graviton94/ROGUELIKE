@@ -1242,3 +1242,7 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .cracktext.dim { color: var(--d); }
 .crackbar { height: 2px; background: var(--d); opacity: 0.5; }
 .crackfill { height: 100%; background: var(--P); }
+
+/* 팔까 부술까 — 배낭 줄의 마지막 한 줄. 값 이야기는 낡은 금으로
+   묶어 두면, 성능 이야기(cmp)와 눈에서 안 섞인다. */
+.idesc.trade { color: var(--y); opacity: 0.75; font-size: 9px; }

@@ -728,6 +728,27 @@ export const SPRITES = {
     'nnnnnnnn',
     'nNNNNNNn',
   ],
+  /* ── 떠돌이 상인 ────────────────────────────────────
+     지금까지 던전의 상인은 마을 좌판의 `keeper`(계산대 뒤의 상반신)를
+     그대로 빌려 쓰고 있었다. 계산대는 마을에 있는 것이고, 층 한복판에
+     놓인 계산대는 계산대로 안 읽힌다 — 플레이어가 「돌멩이」라고 부른
+     것이 이것이다.
+
+     이 사람은 서 있는 사람이 아니라 **끌고 다니는 사람**이다. 그러니
+     후드 쓴 형체 왼쪽, 수레 오른쪽, 바퀴 하나. 실루엣이 몬스터 서른네
+     종 어느 것과도 안 닮는 것이 이 그림의 일이다.
+
+     C는 짐마다 물든다 — 어느 수레가 왔는지 방 건너에서 읽힌다.  */
+  pedlar: [
+    '..kkk...',
+    '.kCCCk..',
+    '.kCkCk..',
+    '.nCCCn..',
+    'nNNCNNn.',
+    'nNNCNNn.',
+    '.n.C.n..',
+    '..n.n...',
+  ],
   /* A blank plank. The shop's goods sprite is drawn on top, and
      the goods sprites all have transparent margins, so the plank
      reads as a frame around the icon. */
@@ -1423,6 +1444,9 @@ function wrongen(grid, name) {
 
 /* One keeper per shop, so the six of them are not identical. */
 export const SHOP_TINT = ['e', 's', 'r', 'W', 'P', 'b'];
+/* 여섯 수레의 물. SHOP_LOADS의 차례와 같다 — 심지(잉걸) · 약(초록) ·
+   종이(뼈) · 쇠(쇠회색) · 재(마른 피) · 이상한(자수정). */
+export const LOAD_TINT = { wick:'o', flask:'E', paper:'w', iron:'g', ash:'r', odd:'P' };
 
 /* Race under, class over. Any cell the kit leaves as '.' shows
    the body beneath, which is why the face survives the helmet. */
@@ -1508,6 +1532,10 @@ export function bakeAll(living) {
         baked.set(`hero:${cls}`, bakeGrid(grid, tint));
     } else if (name === 'keeper') {
       SHOP_TINT.forEach((tint, i) => baked.set(`keeper:${i + 1}`, bakeGrid(grid, tint)));
+    } else if (name === 'pedlar') {
+      baked.set('pedlar', bakeGrid(grid, 'N'));
+      for (const [id, tint] of Object.entries(LOAD_TINT))
+        baked.set(`pedlar:${id}`, bakeGrid(grid, tint));
     } else if (flesh.has(name)) {
       const bent = deform(grid, name);
       baked.set(name, bakeGrid(bent));

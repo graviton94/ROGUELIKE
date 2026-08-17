@@ -2176,34 +2176,22 @@ function renderLegend() {
    security warning, which is the wrong tone for "이 검을 살까". */
 let askResolve = null;
 
-/* ── 계율을 어기는 버튼은 손가락을 피한다 ──────────────────
-   DESIGN.md §4. 광신(신앙심 70)부터 열린다.
+/* ── 계율을 어기는 것은 **손이 닿기 어려운 곳으로 간다** ─────
+   DESIGN.md §4. 광신(신앙심 70)부터.
 
-   「신이 강요한다」를 문장으로 말하는 대신 **버튼이 실제로 말을 안
-   듣게** 만든다. 물약 버튼이 손가락을 피하기 시작하면, 그 판의 손은
-   물약을 덜 마시게 되고 — 신앙심은 더 오른다.
+   처음에 「손가락이 다가오면 비켜선다」로 만들었는데 그건 **모바일에서
+   아예 안 도는 코드**였다. 터치에는 hover 가 없다 — pointerenter 는
+   마우스의 것이고, 손가락은 다가오는 단계 없이 그냥 닿는다. 그런데
+   벤치가 `dispatchEvent(new PointerEvent('pointerenter'))` 로 합성
+   이벤트를 쏴서 통과로 찍혔다. 자가 거짓말한 것이다(이 세션 네 번째).
 
-   피하되 **못 누르게는 안 한다.** 못 누르면 그건 고장이고(§0), 이
-   게임은 어려워도 되지만 고장 나 보이면 안 된다. 비켜서기만 한다.
-
-   흔들림은 시간이 아니라 **자리**로 정한다. 매 프레임 떨면 그건
-   기괴한 게 아니라 성가신 것이다 — 손가락이 다가올 때만 비킨다. */
-function vowShy(row, kind) {
-  if (!Game.vowRisk(kind)) return;
-  /* 문턱은 **신앙심**으로 읽는다. 처음에 juice 의 warpLens 를 읽었는데
-     그건 렌더 루프가 채우는 값이라 화면을 막 켠 순간에는 비어 있다 —
-     광신 85 에서도 안 피했다. 「광신부터」는 렌더 상태가 아니라 규칙의
-     문턱이므로 규칙에서 읽는 것이 맞다. */
-  const zeal = Game.warpOf() * 100;
-  if (zeal < Data.PIETY_ZEAL) return;
-  const dodge = () => {
-    const d = 2 + Math.round((zeal - Data.PIETY_ZEAL) / 10);
-    row.style.transition = 'transform 90ms ease-out';
-    row.style.transform = `translateX(${(Math.random() < 0.5 ? -d : d)}px)`;
-    setTimeout(() => { row.style.transform = ''; }, 220);
-  };
-  row.addEventListener('pointerenter', dodge);
-  row.addEventListener('touchstart', dodge, { passive: true });
+   터치에서 되는 방식으로 바꾼다: **자리를 옮긴다.** 광신부터 계율에
+   걸리는 줄이 배낭 맨 아래로 내려간다. 손가락이 기억하는 자리에 그것이
+   없고, 찾아야 한다. 누르는 것은 여전히 되므로 고장이 아니고(§0),
+   근육 기억이 배신당하는 쪽이 비켜서는 것보다 오래 남는다. */
+function vowSinks(it) {
+  if (!Game.vowRisk(vowKindOf(it))) return false;
+  return Game.warpOf() * 100 >= Data.PIETY_ZEAL;
 }
 
 /* 이 물건을 쓰면 어떤 계율에 걸리는가. 규칙 쪽 표(VOW_BREAK)와 같은
@@ -3154,7 +3142,12 @@ function renderInventory() {
 
   const list = $('pack-list'); list.innerHTML = '';
   if (!p.pack.length) list.appendChild(el('p', 'empty', '배낭이 비었다.'));
-  p.pack.forEach((slot, i) => {
+  /* 광신부터 계율에 걸리는 줄이 **맨 아래로 내려간다**(vowSinks).
+     손가락이 기억하는 자리에 그것이 없다. 원래 칸 번호(i)는 그대로
+     들고 간다 — 화면의 순서가 바뀌었다고 규칙의 칸이 바뀌면 안 된다. */
+  const order = p.pack.map((slot, i) => [slot, i]);
+  order.sort((a, b) => (vowSinks(a[0].item) ? 1 : 0) - (vowSinks(b[0].item) ? 1 : 0));
+  order.forEach(([slot, i]) => {
     const it = slot.item;
     const row = el('button', 'itemrow');
     const ic = el('canvas', 'icon'); paintIcon(ic, it.spr);
@@ -3229,12 +3222,6 @@ function renderInventory() {
     }
     row.onclick = () => {
       if (it.kind === 'cat') return;
-      if (it.kind === 'use' && !Game.isKnown(it.id)) {
-        ask(`${Game.lookOf(it.id)}을(를) 쓴다.`,
-            '무엇인지 알 수 없습니다. 좋을 수도, 아닐 수도.',
-            () => { Game.useItem(i); renderInventory(); refresh(); });
-        return;
-      }
       /* ── 계율 앞에서 한 번 막는다 ──────────────────────────
          플레이어가 「어기면 안 되는 것」으로 배우게 하려면 **어기기
          전에** 물어야 한다. 어기고 나서 로그로 알려 주면 그건 벌이지
@@ -3244,18 +3231,27 @@ function renderInventory() {
          어기는 것은 신앙심을 깎고, 신앙심이 낮은 것이 진 엔딩으로
          가는 유일한 길이다. 그런데 이 창은 그것을 재앙처럼 말한다.
          지켜야 한다고 믿을수록 그 자리에 앉게 된다. */
+      /* 계율 검사가 **감정 창보다 먼저**다. 처음엔 뒤에 뒀는데, 정체를
+         모르는 물약은 감정 창에서 `return` 해 버려서 계율 경고를 통째로
+         건너뛰었다 — 진짜 탭으로 재고서야 보였다. */
       const risk = it.kind === 'use' ? Game.vowRisk(vowKindOf(it)) : null;
+      const unknown = it.kind === 'use' && !Game.isKnown(it.id);
+      const go = () => { Game.useItem(i); renderInventory(); refresh(); };
       if (risk) {
         ask(`${risk.n}이(가) 보고 있다.`,
-            `${risk.vow}. 어기면 이 층에서 ${risk.boon.replace(/\.$/, '')} — 그것이 멎는다.`,
-            () => { Game.useItem(i); renderInventory(); refresh(); });
+            `${risk.vow}. 어기면 이 층에서 ${risk.boon.replace(/\.$/, '')} — 그것이 멎는다.`
+            + (unknown ? ' 무엇인지도 알 수 없다.' : ''), go);
+        return;
+      }
+      if (unknown) {
+        ask(`${Game.lookOf(it.id)}을(를) 쓴다.`,
+            '무엇인지 알 수 없습니다. 좋을 수도, 아닐 수도.', go);
         return;
       }
       it.kind === 'use' ? Game.useItem(i) : Game.equip(i);
       renderInventory(); refresh();
     };
     row.oncontextmenu = e => e.preventDefault();
-    vowShy(row, vowKindOf(it));
 
     /* Breaking gear is how junk becomes progress, so the option
        sits on the row itself rather than behind a mode. */

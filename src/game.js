@@ -35,18 +35,19 @@ import {
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   ARTS, SHOVE_DIST, SHOVE_WALL, CLEAVE_SHARE,
   STAND_TURNS, STAND_CUT, KITE_DIST, KITE_MULT, BULWARK_TURNS,
-  SHADOW_MAX, SHADOW_TICK, FAN_RANGE, FAN_ARC, FAN_SHARE, VANISH_HUSH, VITALS_MULT,
+  FAN_RANGE, FAN_ARC, FAN_SHARE, VANISH_HUSH, VITALS_MULT,
+  POOL, poolName, HARD_HIT, POOL_UNDEAD,
   VANISH_MULT, VANISH_PUSH,
   ECHOES, ECHO_TURNS, ECHO_POWER, ECHO_SPLASH,
   FLURRY_MAX, FLURRY_STEP, FLURRY_STAM, MARK_STEP, MARK_MAX,
   AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE, SMOKE_RADIUS, SMOKE_TURNS,
   QUIVERS, quiverById, BOW_MELEE, BOW_FALLOFF, GEAR_SLOTS,
   FORCE_STAM, FORCE_HURT, FORCE_NOISE, PICK_USES, CHEST_RUIN, RANGER_FOOTING,
-  FAITH_MAX, FAITH_PER_HURT, FAITH_PER_UNDEAD, SANCTUM_TURNS, SANCTUM_CUT,
-  ANATHEMA_MORE, JUDGE_HURT, MARTYR_TURNS, FAITH_HARD_HIT, FAITH_PER_HARD,
+  SANCTUM_TURNS, SANCTUM_CUT,
+  ANATHEMA_MORE, JUDGE_HURT, MARTYR_TURNS,
   QUARRY_RANGE, QUARRY_STAM, QUARRY_HEAL,
   FINISH_MAX,
-  OATH_MAX, OATH_PER_HIT, OATH_PER_KILL, CHARGE_DIST, CHARGE_SLAM,
+  CHARGE_DIST, CHARGE_SLAM,
   JUDGE_STRIKE, STORM_SHARE, CRUSADE_MAX,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
@@ -440,7 +441,6 @@ export function createHero(raceKey, classKey, base) {
     spellPlus: {}, spellAffix: {},
     relics: [], boneHp: 0, seedAc: 0, grudge: 0,
     stam: 0, maxStam: 0, iframe: 0,
-    shadow: 0,        // 도적의 탄약. Everyone carries the field; only a rogue fills it.
     perm: {}, tuned: {}, markup: 0, permHp: 0,
     equip: { weapon: null, body: null, shield: null },
     pack: [],
@@ -795,7 +795,20 @@ export const armourClass = p => {
   return Math.round(g.ac * (1 + g.acPct))
     + statB(p, 'dex') + Math.floor(p.lv / 4)
     + (p.blessed > 0 ? 4 : 0) + (p.iron > 0 ? 10 : 0)
-    + (p.cls === 'paladin' ? Math.floor((p.oath || 0) / 2) : 0);   // 맹세
+    /* ── 맹세는 지갑이 아니라 서약이다 ──────────────────────
+       이 줄이 예전에는 `p.oath / 2`였다. 맹세는 기예에만 쓰였으므로
+       늘 높게 차 있었고, 그래서 팔라딘의 갑옷은 두꺼웠다.
+
+       통을 합치자 같은 칸을 구르기와 기예가 매 전투마다 0으로 비웠다.
+       **싸우는 동안 갑옷이 벗겨진 것이다** — 실측으로 도달 층이
+       10.0 → 6.9로 내려앉았고, 시계를 아무리 빨리 돌려도 안 돌아왔다.
+       시계 문제가 아니라 「남은 것」을 읽는다는 것 자체가 문제였다.
+
+       한 숫자가 지갑이면서 동시에 능력치일 수는 없다. 그래서 **남은
+       것이 아니라 통의 크기**를 읽는다 — 맹세는 얼마나 남았느냐가
+       아니라 얼마나 크게 했느냐다. 레벨을 따라 자라고, 전투 중에
+       흔들리지 않는다. */
+    + (p.cls === 'paladin' ? Math.floor((p.maxStam || 0) / 2) : 0);
 };
 
 /* 힘의 아래쪽. Heavy gear asks for a number, and a hero who does
@@ -922,17 +935,42 @@ function bumpCombo(x, y) {
 /* 앙심 counts the hits you have taken on this floor. Every path
    that costs you health goes through here, so a relic that pays
    for being hit can never disagree with what "being hit" means. */
-/* 신앙. It fills where a mage's pool empties — one point per blow
-   landed on you, and two for every undead put back down. There is
-   no way to build it standing safely in a corridor, which is the
-   whole design: the priest's buttons light up during the fight it
-   is losing, not before it starts. */
-/* One funnel for 맹세, so being hit, killing and the storm's
-   refund can never disagree about the ceiling. */
-export function oathGain(n) {
+/* ── 통 하나, 문 하나 ─────────────────────────────────────
+   신앙·맹세·그림자가 각자 제 통(12·10·5)과 제 깔때기를 갖고 있었다.
+   셋 다 같은 질문에 답한다 — 「기예를 낼 것이 있는가」. 도적은 심지어
+   기력과 그림자를 **동시에** 냈으므로 지갑을 두 개 확인해야 했다.
+
+   이제 통은 기력 하나이고, 이 함수가 그 하나뿐인 **들어오는 문**이다.
+   직업의 정체성은 통이 아니라 **무엇이 이 문을 두드리는가**로 남는다:
+   사제는 맞을 때, 팔라딘은 맞고 죽일 때, 도적은 아무도 안 볼 때.
+   그 규칙은 POOL 표가 갖고 있다(data.js).
+
+   이름도 거기서 온다. 같은 숫자가 전사에게는 기력이고 사제에게는
+   신앙이다 — 통을 합치는 것과 이름을 뺏는 것은 다른 일이다. */
+export function poolGain(n = 1, why = '') {
   const p = G.player;
-  if (p?.cls !== 'paladin') return;
-  p.oath = Math.min(OATH_MAX, (p.oath || 0) + n);
+  if (!p || !(n > 0)) return 0;
+  const was = p.stam || 0;
+  p.stam = Math.min(p.maxStam, was + n);
+  const got = p.stam - was;
+  if (got) {
+    if (G.floorTally) G.floorTally.pool[why || '?'] = (G.floorTally.pool[why || '?'] || 0) + got;
+    fx({ t:'poolGain', x:p.x, y:p.y, at:p.stam, why, cls:p.cls });
+    if (p.stam === p.maxStam && was < p.maxStam)
+      say(`${poolName(p.cls)}이(가) 가득 찼다.`, 'good');
+  }
+  return got;
+}
+/* 직업이 맞을 때 통이 차는가. 사제와 팔라딘만 참이고, 그 둘이
+   「나빠질수록 강해지는」 쪽인 이유가 이 한 줄이다. */
+function poolOnHurt(dmg, mult = 1) {
+  const p = G.player, rule = POOL[p?.cls];
+  if (!rule?.onHurt) return;
+  /* 곱은 **몫**에 붙는다. 처음에 피해에 곱했더니 맹세의 방패가
+     「두 배로 맹세한다」가 아니라 「한 대를 두 배로 세게 읽는다」가
+     됐다 — 큰 한 방 판정만 넘기고 몫은 그대로였다. */
+  poolGain(mult * (dmg >= (p.maxhp || 1) * HARD_HIT
+    ? (rule.onHard || rule.onHurt) : rule.onHurt), 'hurt');
 }
 
 /* ── 잔향 ─────────────────────────────────────────────────
@@ -957,20 +995,10 @@ function takeEcho(p) {
 }
 
 /* ── 그림자 ───────────────────────────────────────────────
-   The rogue's ammunition, in the same shape 신앙 and 맹세 use: one
-   funnel in, and only useArt out. */
-export function gainShadow(n = 1, why = '') {
-  const p = G.player;
-  if (!p || p.cls !== 'rogue' || !(n > 0)) return 0;
-  const was = p.shadow || 0;
-  p.shadow = Math.min(SHADOW_MAX, was + n);
-  const got = p.shadow - was;
-  if (got) {
-    fx({ t:'shadowGain', x:p.x, y:p.y, at:p.shadow, why });
-    if (p.shadow === SHADOW_MAX && was < SHADOW_MAX) say('그림자가 가득 찼다.', 'good');
-  }
-  return got;
-}
+   도적의 탄약. 이제 제 통이 아니라 기력 통이고, 이 함수는 「도적일
+   때만」을 지키는 얇은 문일 뿐이다 — 채우는 일은 poolGain이 한다. */
+export const gainShadow = (n = 1, why = '') =>
+  G.player?.cls === 'rogue' ? poolGain(n, why) : 0;
 /* Is anything awake looking at you right now? The quiet tick is
    paid for standing outside every awake thing's line — the same
    test the monsters themselves run. */
@@ -1002,24 +1030,9 @@ const markMult = () => {
   return (p?.cls === 'ranger' && p.markN) ? 1 + p.markN * MARK_STEP : 1;
 };
 
-export function faithGain(n) {
-  const p = G.player;
-  if (p?.cls !== 'priest') return;
-  const was = p.faith || 0;
-  p.faith = Math.min(FAITH_MAX, was + n);
-  if (was < FAITH_MAX && p.faith === FAITH_MAX) say('신앙이 가득 찼다.', 'level');
-}
-
-/* One funnel for every blow that lands on the player, so the two
-   paths that hit a hero — a body in reach and something loosed
-   across the room — cannot drift apart the way 버티기 did. A hard
-   blow is worth two: at a flat one per hit the bar filled about
-   as fast as 성역 and 파문 emptied it, and 순교 at nine never came
-   up once in twelve measured runs. */
-function faithForBlow(dmg) {
-  const p = G.player;
-  faithGain(dmg >= (p.maxhp || 1) * FAITH_HARD_HIT ? FAITH_PER_HARD : FAITH_PER_HURT);
-}
+/* 신앙도 같다 — 사제일 때만 열리는 얇은 문. */
+export const faithGain = (n, why = '') =>
+  G.player?.cls === 'priest' ? poolGain(n, why) : 0;
 
 /* 사냥꾼의 몫 (레인저). The class lost its spell list this patch,
    which was the right call — it was casting the mage's book two
@@ -1189,7 +1202,10 @@ function tookHit(dmg = 0, over = 0) {
      an arrow the same as an axe. */
   // 맹세의 방패: a paladin behind a shield swears twice as fast,
   // which is the whole reason to give up the second weapon.
-  if (p.cls === 'paladin') oathGain(OATH_PER_HIT * (fitRule(p, 'twiceSworn') ? 2 : 1));
+  /* 맹세 (팔라딘) · 신앙 (사제). 둘 다 「맞으면 찬다」이므로 한
+     자리에서 센다 — 화살이든 도끼든 같은 한 대다. 맹세의 방패를
+     낀 팔라딘은 두 배로 맹세한다. */
+  poolOnHurt(dmg, p.cls === 'paladin' && fitRule(p, 'twiceSworn') ? 2 : 1);
 }
 
 /* How long after a blow before the body starts closing again,
@@ -1214,6 +1230,31 @@ export const BREATH = 10;
    bar; deep and half-ruined does not breathe back at all. */
 /* 0.9로 재니 봇의 평균 도달 층이 6.7 → 4.1로 내려앉았다. 원했던
    방향이지만 한 번에 두 층 반은 조정이 아니라 사고다. */
+/* ── 세 자원, 세 능력치 ───────────────────────────────────
+   체력은 이미 체질이 정하고 있었다 — 얼마나 자주 닫히는지(beat)도,
+   어디까지 닫히는지(breathRoof)도. 나머지 둘은 아무 능력치도 안
+   읽었다: 기력은 모두에게 2턴 고정, 마나는 모두에게 10턴 고정.
+   그래서 지혜는 사실상 **아무 일도 안 하는 능력치**였다.
+
+   이제 셋이 갈린다:
+     체력 ← 체질   8턴@10 · 5턴@18 · 12턴@5   (있던 것)
+     기력 ← 민첩 + 직업의 차는 규칙 (POOL)
+     마나 ← 지혜   12턴@10 · 8턴@18 · 15턴@5
+
+   기력 쪽은 직업이 먼저다. 전사·궁수는 2턴, 도적은 6턴이지만 안
+   보이면 매 턴, 사제는 9턴이지만 맞으면 즉시, 팔라딘은 7턴이지만
+   맞고 죽이면 즉시 — 통을 합치면서 잃을 뻔한 직업의 얼굴이 전부
+   이 표 하나에 들어와 있다. 민첩은 그 위에서 최대 40%까지 당긴다. */
+export function stamEvery(p) {
+  const base = POOL[p?.cls]?.every ?? STAM_REGEN_EVERY;
+  const quick = Math.max(0, statB(p, 'dex'));
+  return Math.max(1, Math.round(base * Math.max(0.6, 1 - 0.1 * quick)));
+}
+export function manaEvery(p) {
+  const wise = statB(p, 'wis');
+  return clamp(12 - wise * 2, 6, 18);
+}
+
 export const BREATH_WEAR = 0.7;    // 상처가 천장을 끌어내리는 비율
 export const BREATH_DEEP = 0.012;  // 4층 아래로 한 층마다
 export const breathRoof = p => {
@@ -1283,15 +1324,15 @@ export function traitState() {
     }
     case 'ranger':  return { ...spec, at: p.markN || 0, ready: (p.markN || 0) >= 5,
                              note: p.markN ? `+${Math.round((p.markN) * 9)}%` : '' };
-    case 'paladin': return { ...spec, at: p.oath || 0, max: OATH_MAX,
-                             ready: (p.oath || 0) >= 2,
-                             note: p.oath ? `맹세 ${p.oath}` : '' };
-    case 'rogue':   return { ...spec, at: p.shadow || 0, max: SHADOW_MAX,
-                             ready: (p.shadow || 0) >= 1,
-                             note: p.shadow ? `그림자 ${p.shadow}` : '' };
-    case 'priest':  return { ...spec, at: p.faith || 0, max: FAITH_MAX,
-                             ready: (p.faith || 0) >= 3,
-                             note: p.faith ? `신앙 ${p.faith}` : '' };
+    /* 셋 다 같은 통을 읽는다. 다른 것은 이름과 「쓸 만한가」의 문턱뿐. */
+    case 'paladin':
+    case 'rogue':
+    case 'priest': {
+      const need = p.cls === 'rogue' ? 2 : 3;
+      return { ...spec, at: p.stam || 0, max: p.maxStam || 0,
+               ready: (p.stam || 0) >= need,
+               note: p.stam ? `${poolName(p.cls)} ${p.stam}` : '' };
+    }
   }
   return spec;
 }
@@ -1395,8 +1436,7 @@ export function spellSlots() {
          undefined 로 떨어져 칸에 「불굴undefined」가 찍혔다. 값이
          없는 것과 값을 모르는 것은 다르다 — 0으로 내려놓고, 무엇이
          값인지는 floorOnce 가 따로 말한다. */
-      lv: a.lv, cost: a.faith || a.oath || a.shade || a.stam || 0, art: true,
-      faith: !!a.faith, oath: !!a.oath, shade: !!a.shade, stam: a.stam || 0,
+      lv: a.lv, cost: a.stam || 0, art: true, stam: a.stam || 0,
       floorOnce: !!a.floorOnce, spent: !!a.floorOnce && !!(G.floorArts || {})[a.id],
       locked, silent: false, noTarget,
       plus: 0, affix: null,
@@ -1405,10 +1445,6 @@ export function spellSlots() {
          속은 것이다. */
       ready: !locked && !noTarget
              && !(a.floorOnce && (G.floorArts || {})[a.id])
-             && (a.faith ? (p.faith || 0) >= a.faith
-               : a.oath ? (p.oath || 0) >= a.oath
-               : a.shade ? (p.shadow || 0) >= a.shade
-               : true)
              && p.stam >= (a.stam || 0),
     };
   });
@@ -1939,8 +1975,7 @@ export function useArt(id) {
   // These two are mis-taps rather than lost turns, so they cost
   // nothing — the same way a spell with no mana costs nothing.
   if (a.stam && p.stam < a.stam) { say('숨이 차다.', 'warn'); return; }
-  if (a.oath && (p.oath || 0) < a.oath) { say('맹세가 모자라다.', 'warn'); return; }
-  if (a.shade && (p.shadow || 0) < a.shade) { say('그림자가 모자란다.', 'warn'); return; }
+
 
   const near = adjacentMonsters(p);
   if (ART_NEEDS_BODY.includes(id) && !near.length) {
@@ -1963,7 +1998,7 @@ export function useArt(id) {
   if (ART_NEEDS_WATCHER.includes(id) && !awakeWatchers().length) {
     say('너를 보고 있는 것이 없다.', 'warn'); return;
   }
-  if (a.faith && (p.faith || 0) < a.faith) { say('신앙이 모자란다.', 'warn'); return; }
+
   /* 「이 판이 기예를 얼마나 썼나」. 비어 있는 성소를 부르는 값이라
      여기서 센다 — 기예가 나가는 유일한 자리다. */
   G.artsUsed = (G.artsUsed || 0) + 1;
@@ -1973,9 +2008,7 @@ export function useArt(id) {
      무엇을 할지가 그 판의 가장 사치스러운 결정이 된다. */
   if (!strangeIs('sanctum')) {
     p.stam -= a.stam || 0;
-    if (a.faith) p.faith -= a.faith;
-    if (a.oath) p.oath -= a.oath;
-    if (a.shade) p.shadow = Math.max(0, (p.shadow || 0) - a.shade);
+
   }
 
   switch (id) {
@@ -2275,7 +2308,7 @@ export function useArt(id) {
         if (!G.monsters.includes(m)) felled++;
       }
       if (felled) {
-        oathGain(felled);
+        poolGain(felled, 'storm');
         fx({ t:'oathback', x:p.x, y:p.y, n:felled });
         say(`쓰러진 만큼 맹세가 돌아온다. (+${felled})`, 'good');
       }
@@ -3095,7 +3128,7 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   // G.ashCount는 이제 판 단위다 — 층에서 안 지운다.
   G.hushUntil = -1;
   if (depth > 0 && !cracked('grudge')) p.grudge = 0;   // 앙심 forgets between floors — 크랙 전까지만
-  if (depth > 0) { p.oath = 0; p.chain3 = 0; p.markN = 0; p.chainOn = null; p.markOn = null; }
+  if (depth > 0) { p.chain3 = 0; p.markN = 0; p.chainOn = null; p.markOn = null; }
 
   /* The wager climbs with every floor you take without sitting
      down. Nothing is banked in the town, and nothing survives
@@ -5258,9 +5291,9 @@ function onKill(m) {
      the better the fight went the less he had — a class that
      decelerates when it is winning. It fills on a kill now, so a
      good swing pays for the next one. */
-  if (p.cls === 'paladin') oathGain(OATH_PER_KILL);
+  if (POOL[p.cls]?.onKill) poolGain(POOL[p.cls].onKill, 'kill');
   if (hasUnique('ashcount')) G.ashCount = (G.ashCount || 0) + 1;
-  if (UNDEAD.includes(m.spr)) faithGain(FAITH_PER_UNDEAD);
+  if (UNDEAD.includes(m.spr)) faithGain(POOL_UNDEAD, 'undead');
   feedOnKill(p);
   if (hasRelic('bone') && (cracked('bone') || (p.boneHp || 0) < 30)) {
     p.boneHp = (p.boneHp || 0) + relicVal('bone');
@@ -5866,13 +5899,17 @@ function traceCloseFloor() {
   trace('floor.out', { turns: G.floorTurn || 0, budget: floorBudget(),
                        lowHp: f.lowHp, took: f.took, dealt: f.dealt,
                        gulps: f.gulps, waves: G.waves || 0,
-                       arts: Object.entries(f.arts).map(([k, v]) => `${k}×${v}`) });
+                       arts: Object.entries(f.arts).map(([k, v]) => `${k}×${v}`),
+                       pool: Object.entries(f.pool || {}).map(([k, v]) => `${k}×${v}`) });
   G.floorTally = null;
 }
 function traceOpenFloor(depth) {
   if (!G.trace) return;
   const p = G.player;
-  G.floorTally = { lowHp: p ? p.hp : 0, took: 0, dealt: 0, gulps: 0, arts: {} };
+  /* pool: 이 층에서 통에 무엇이 얼마나 들어왔는지 출처별로. 「기예를
+     너무 많이 쓴다」를 봤을 때 원인이 시계인지 맞은 것인지 재운 것인지
+     구분할 자리가 없어서 한 번 헛짚었다 — 세는 자리를 만들어 둔다. */
+  G.floorTally = { lowHp: p ? p.hp : 0, took: 0, dealt: 0, gulps: 0, arts: {}, pool: {} };
   const awake = G.monsters.filter(m => m.awake).length;
   trace('floor.in', {
     heat: G.heat || 0,
@@ -6042,8 +6079,8 @@ export function endTurn(skipMonsters = false) {
      아니라 습관이고, 파밍은 「보이면 줍는다」가 된다. 이제 짐이
      무거우면 숨이 늦게 돌아오고, 더 무거우면 손이 굼떠 기름이
      빨리 탄다 — 무엇을 버릴지가 수가 된다. */
-  const loadRate = STAM_REGEN_EVERY * (packLoad(p) >= HEAVY_AT ? 2 : 1);
-  if (G.turn % loadRate === 0 && p.stam < p.maxStam) p.stam++;
+  const loadRate = stamEvery(p) * (packLoad(p) >= HEAVY_AT ? 2 : 1);
+  if (G.turn % loadRate === 0) poolGain(1, 'clock');
 
   if (G.depth > 0) {
     /* One upkeep resource, not two. Food and torches were the
@@ -6125,13 +6162,17 @@ export function endTurn(skipMonsters = false) {
   // and past the line everyone else stops at. That is the class.
   if (p.cls === 'priest' && rested && G.turn % 6 === 0 && p.hp < p.maxhp)
     p.hp = Math.min(p.maxhp, p.hp + Math.max(1, Math.round(regen * healScale())));
-  if (G.turn % 10 === 0 && p.mana < p.maxmana) p.mana = Math.min(p.maxmana, p.mana + 1);
+  if (p.maxmana && G.turn % manaEvery(p) === 0 && p.mana < p.maxmana)
+    p.mana = Math.min(p.maxmana, p.mana + 1);
 
   /* 그림자, the slow way: time spent with nothing awake looking at
      you. The two fast ways (an ambush, a roll) are things you do;
      this is what pays the approach the stealth stat exists for. */
-  if (p.cls === 'rogue' && G.turn % SHADOW_TICK === 0 && unseenByAll())
-    gainShadow(1, 'quiet');
+  /* 그림자, 느린 쪽: 깨어 있는 것 누구의 시선에도 안 걸린 채 보낸
+     시간. 빠른 둘(기습·구르기)은 **하는 것**이고 이쪽은 은신 능력치가
+     존재하는 이유다. 이제 통이 하나라 이 한 줄이 곧 재장전이다. */
+  const hush = POOL[p.cls]?.unseenEvery;
+  if (hush && G.turn % hush === 0 && unseenByAll()) poolGain(1, 'quiet');
 
   refreshFov();
   if (G.depth > 0) scanForTraps();
@@ -6814,7 +6855,7 @@ function monsterMelee(m) {
     (roll(2, Math.max(3, Math.floor(m.atk * 0.72))) - Math.floor(ac / 5))
     * (heavy ? 2.5 : 1) * (1 + (p.perm?.takeMore || 0))) - gearBonus(p).flatDR);
   dmg = sanctumSoak(dmg);
-  dmg = hurtPlayer(dmg, { by: m }); faithForBlow(dmg);
+  dmg = hurtPlayer(dmg, { by: m });
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        who:m.n, spr:m.spr, severe: dmg >= p.maxhp * 0.18 });
   say(`${heavy ? '당겼던 것이 떨어졌다. ' : ''}${takenLine(m.n, dmg, p.maxhp, nextLine())} (${dmg})`, 'hit');
@@ -6889,7 +6930,7 @@ function monsterShoot(m) {
   }
   const dmg = hurtPlayer(sanctumSoak(Math.max(1, roll(2, Math.max(3, Math.floor(m.atk * 0.6)))
     - Math.floor(ac / 6) - gearBonus(p).flatDR)), { by: m });
-  faithForBlow(dmg);
+
   fx({ t:'hit', on:'player', x:p.x, y:p.y, dmg, from:{ x:m.x, y:m.y },
        who:m.n, spr:m.spr, arrow:true, severe: dmg >= p.maxhp * 0.18 });
   say(`멀리서 날아왔다. ${takenLine(m.n, dmg, p.maxhp, nextLine())} (${dmg})`, 'hit');
@@ -9128,8 +9169,7 @@ const unspentPotions = p => (p.pack || [])
   .filter(s => s.item?.use && s.item.spr === 'potion')
   .reduce((n, s) => n + (s.qty || 1), 0);
 const unspentArts = p => artList(p).filter(a =>
-  (!a.stam || p.stam >= a.stam) && (!a.oath || (p.oath || 0) >= a.oath)
-  && (!a.shade || (p.shadow || 0) >= a.shade));
+  (!a.stam || p.stam >= a.stam));
 const crowdedBy = p => G.monsters.filter(m => m.awake
   && Math.hypot(m.x - p.x, m.y - p.y) <= 6).length;
 /* 표로 둔다. if 를 여섯 개 늘어놓으면 이 함수가 곧 복잡도 15를 넘고

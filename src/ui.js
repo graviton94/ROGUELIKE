@@ -18,7 +18,7 @@ import {
   BOSS, tellsOf, tellsNeeded, rulebook, hearsayFor, CONSUMABLES, RESONANCE,
   REGIONS, regionOf, MEMORIES, memoryEarned, SHACKLES, MAX_SHACKLE, josa,
   UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS, FUSE_ODDS, FUSE_COST,
-  xpToLevel, statBonus, FAITH_MAX, OATH_MAX,
+  xpToLevel, statBonus, poolName,
 } from './data.js';
 import { EVENTS } from './events.js';
 
@@ -1730,7 +1730,7 @@ function paintSlotRow(row, slots) {
               : s.noTarget ? (s.art ? `${s.name} — 손이 닿는 곳에 아무것도 없다`
                                     : `${s.name} — 시야에 적이 없다`)
               : s.floorOnce ? `${s.name} · ${s.spent ? '이 층에서는 이미 썼다' : '층에 한 번'}`
-              : `${s.name} · ${s.cost}${s.art ? (s.faith ? '신앙' : s.oath ? '맹세' : '기력') : 'mp'}`;
+              : `${s.name} · ${s.cost}${s.art ? poolName(G.player?.cls) : 'mp'}`;
     }
     /* An art spends breath, not mana, and the row has to say so
        without a word — the cost pip carries the stamina colour. */
@@ -3284,17 +3284,18 @@ function renderSpells() {
   /* A class with arts reads its breath here, not its mana — the
      header has to name the resource the buttons below spend, and
      a warrior's page is not called 주문. */
+  /* 제목도 그 직업이 쓰는 말로 부른다 — 자원은 하나여도 사제의 쪽은
+     기도이고 팔라딘의 쪽은 맹세다. 통을 합치는 것과 말을 뺏는 것은
+     다른 일이다. */
+  const PAGE = { priest:'기도', paladin:'맹세', rogue:'은신술', ranger:'궁술' };
+  const own = PAGE[p.cls] || '무술';
   $('spell-title').textContent = !arts.length ? '주문'
-    : arts.some(a => a.faith) ? (spells.length ? '기도와 주문' : '기도')
-    : arts.some(a => a.oath) ? (spells.length ? '맹세와 주문' : '맹세')
-    : (spells.length ? '무술과 주문' : '무술');
+    : (spells.length ? josa(`${own}과(와) 주문`) : own);
   $('spell-chip').firstChild.textContent = arts.length ? '' : '✦ ';
-  const usesFaith = arts.some(a => a.faith);
-  const usesOath = arts.some(a => a.oath);
+
   $('spell-mana').textContent = !arts.length ? `${p.mana}/${p.maxmana}`
-    : (usesFaith ? `신앙 ${p.faith || 0}/${FAITH_MAX}`
-     : usesOath ? `맹세 ${p.oath || 0}/${OATH_MAX}`
-     : `기력 ${p.stam}/${p.maxStam}`)
+    /* 통이 하나이므로 읽는 줄도 하나다. 이름만 직업에서 온다. */
+    : (`${poolName(p.cls)} ${p.stam}/${p.maxStam}`)
       + (p.maxmana ? ` · ✦ ${p.mana}/${p.maxmana}` : '');
   for (const a of arts) {
     const row = el('button', 'itemrow artrow' + (p.stam < a.stam ? ' poor' : ''));
@@ -3306,7 +3307,7 @@ function renderSpells() {
     row.appendChild(mid);
     row.appendChild(el('span', 'iact',
       a.floorOnce ? '층에 한 번'
-      : a.faith ? `${a.faith}신앙` : a.oath ? `${a.oath}맹세` : `${a.stam}기력`));
+      : `${a.stam}${poolName(p.cls)}`));
     row.onclick = () => { Game.cast(a.id); setScreen('play'); refresh(); };
     list.appendChild(row);
   }

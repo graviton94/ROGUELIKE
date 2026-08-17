@@ -290,7 +290,6 @@ export function apply(data) {
   p.iframe = p.iframe || 0;
   p.brace = p.brace || 0;          // 버티기, mid-stance across a save
   p.stillFor = p.stillFor || 0;
-  p.faith = p.faith || 0;
   p.martyr = p.martyr || 0;
   p.martyrDebt = p.martyrDebt || 0;
   if (p.stam == null) p.stam = 0;

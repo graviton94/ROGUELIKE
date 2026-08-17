@@ -1072,7 +1072,7 @@ export function pump(queue, player) {
         break;
 
       case 'oathback':
-        number(e.x, e.y - 1.1, `맹세 +${e.n}`, PALETTE.y, 1.15);
+        number(e.x, e.y - 1.1, `+${e.n}`, PALETTE.y, 1.15);
         ring(e.x, e.y, 0.9, PALETTE.y, 260);
         break;
 

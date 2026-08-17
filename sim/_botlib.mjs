@@ -10,7 +10,25 @@ const pressed = new Set();
 /* 시전 기회 대비 「눈앞에 있는데 살 수 있는 주문이 없던」 턴. 자원이
    자원인지 묻는 유일한 지표 — 걷는 턴의 잔량은 아무것도 말하지 않는다. */
 export const DRY = { dry: 0, cast: 0 };
-function useArtCounted(id) { ARTUSE[id] = (ARTUSE[id]||0)+1; Game.cast(id); }
+/* ── 누른 것이 아니라 나간 것을 센다 ────────────────────────
+   여기서 누르기 전에 세고 있었다. 그런데 cast는 거절할 수 있다 —
+   자원이 모자라거나, 손에 닿는 것이 없거나, 이 층에서 이미 썼거나.
+   그래서 이 표는 「기예를 몇 번 썼나」가 아니라 「버튼을 몇 번
+   눌렀나」였고, 팔라딘의 심판의 일격이 층당 20.9회로 찍혔다. 실제로
+   나간 것은 층당 4.2회다 — 다섯 배를 부풀려 읽고 있었다.
+
+   게임에 이미 「나갔다」를 세는 자리가 있다(G.artsUsed는 useArt가
+   모든 검사를 통과한 뒤에만 오른다). 그걸 읽는다.
+
+   눌렀는데 안 나간 것도 값이다 — 봇이 헛손질하는 횟수는 곧 봇 정책과
+   게임의 거절 조건이 어긋난 정도다. 따로 센다. */
+export const ARTMISS = {};
+function useArtCounted(id) {
+  const was = Game.G.artsUsed || 0;
+  Game.cast(id);
+  if ((Game.G.artsUsed || 0) > was) ARTUSE[id] = (ARTUSE[id] || 0) + 1;
+  else ARTMISS[id] = (ARTMISS[id] || 0) + 1;
+}
 /* The mage's lines want to record *which sentence* was cast, not
    only which spell, so they pass a label and the spell id apart. */
 function castCounted(label, id) { ARTUSE[label] = (ARTUSE[label]||0)+1; Game.cast(id); }

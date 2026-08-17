@@ -1004,7 +1004,63 @@ export const thiefPurse = depth => ({
    already had and something to spend it on. */
 export const ROLL_COST = 2;
 export const ROLL_DIST = 2;
-export const staminaMax = p => 3 + Math.floor(p.lv / 6) + Math.max(0, statBonus(p.stats.dex));
+/* ── 통은 하나, 이름은 여섯 ──────────────────────────────────
+   신앙·맹세·그림자가 각자 제 통을 갖고 있었다. 최대치도(12·10·5),
+   차는 규칙도, 모자랄 때 나오는 말도 전부 달랐다 — 도적은 심지어
+   기력과 그림자를 **동시에** 냈다. 배우는 쪽에서 보면 직업을 바꿀
+   때마다 자원 체계를 새로 배우는 것이고, 만드는 쪽에서 보면 같은
+   질문(「낼 수 있나」)에 답하는 자리가 넷이었다.
+
+   통을 하나로 합친다. 값은 전부 기력이고, 직업마다 **이름만** 다르다.
+   직업의 정체성은 통이 아니라 **차는 규칙**으로 옮긴다 — 그래서
+   사제는 여전히 맞아야 차고, 팔라딘은 여전히 죽여야 차고, 도적은
+   여전히 안 보여야 찬다. 잃은 것은 넷째 숫자뿐이다.
+
+   값의 자는 전사다(원래 그렇게 쓰여 있었다): lv1 2 · lv4 3 · lv8 4 ·
+   lv12 5. 사제의 순교만 6 — 이 직업은 통이 느리게 차는 대신 크다. */
+export const POOL = {
+  warrior: { n:'기력',   every: 2 },
+  ranger:  { n:'호흡',   every: 2 },
+  /* 숨어 있으면 세 배로 찬다 — 「숨어서 고르고 나와서 쓴다」가 이
+     직업이고, 그 문장이 이제 회복률에 그대로 적혀 있다. */
+  rogue:   { n:'그림자', every: 6, unseenEvery: 2 },
+  /* ── 여기 둘은 시계가 거의 안 돈다 ────────────────────────
+     신앙과 맹세는 **수동 회복이 아예 없던** 자원이었다. 「복도에
+     안전하게 서서 쌓을 방법이 없다」가 사제 설계의 전부였다.
+
+     통을 합치면서 무심코 시계를 붙였더니 실측 72판에서 성흔이
+     18회 → 563회, 심판의 일격이 322회 → 2108회가 됐다. 통을
+     합치는 것과 **차는 규칙을 바꾸는 것**은 다른 일이다.
+
+     0으로 둘 수는 없다. 통이 하나라서 이제 구르기(2)와 문 부수기도
+     같은 통에서 나가고, 시계가 멈추면 그 둘이 영영 막힌다. 그래서
+     느린 시계를 남긴다 — 잡일은 굴러가되 기예는 여전히 맞아야
+     나온다.
+
+     그리고 이 값은 **두 번 잘못 잡았다.** 처음에 9/7로 뒀다가 봇 표가
+     「기예를 다섯 배 쓴다」고 해서 18/16으로 늦췄는데, 그 표는 나간
+     기예가 아니라 **누른 버튼**을 세고 있었다(sim/_botlib.mjs). 자를
+     고치고 다시 재니 늦춘 쪽이 팔라딘의 도달 층을 10.0 → 7.0으로
+     떨어뜨렸다. 망가진 자를 보고 게임을 고친 것이다.
+
+     이 통은 이제 구르기와 문 부수기도 먹으므로, 예전 맹세 통(10,
+     시계 없음, 기예 전용)보다 **가난하다.** 시계로 그만큼 돌려준다. */
+  priest:  { n:'신앙',   every: 8, onHurt: 1, onHard: 2, more: 3 },
+  paladin: { n:'맹세',   every: 6, onHurt: 1, onKill: 1, more: 3 },
+  mage:    { n:'기력',   every: 2 },
+};
+export const poolName = cls => POOL[cls]?.n || '기력';
+
+/* 통이 커졌다(3+lv/6 → 5+lv/4). 예전 통은 기예 하나가 겨우 들어가는
+   크기였는데, 이제 이 통이 신앙 12와 맹세 10이 하던 일까지 한다.
+   lv1 6~7 · lv12 8~11 · lv20 10~13. */
+/* `more`: 통의 크기도 직업이 정한다. 사제와 팔라딘은 예전에 12와
+   10짜리 통을 **따로** 갖고 있었고 그 통은 구르기에 안 쓰였다. 합친
+   통을 모두에게 같은 크기로 주면 이 둘만 지갑이 얇아진다 — 실측으로
+   팔라딘의 도달 층이 10.0 → 6.9였다. 크기로 돌려준다. */
+export const staminaMax = p =>
+  5 + Math.floor(p.lv / 4) + Math.max(0, statBonus(p.stats.dex))
+    + (POOL[p.cls]?.more || 0);
 export const STAM_REGEN_EVERY = 2;
 
 /* ── the arts ─────────────────────────────────────────────
@@ -1068,14 +1124,14 @@ export const ARTS = {
      makes the things around you lose you, which turns the next
      blow into an ambush, which pays a shade back. */
   rogue: [
-    { id:'shadowstep', name:'그림자 도약', short:'도약', lv:1,  stam:1, shade:1,
-      desc:'보이는 적의 등 뒤로 건너뛰어 친다. 그 한 대는 기습이다. (그림자 1)' },
-    { id:'fan',        name:'칼부채',      short:'부채', lv:4,  stam:2, shade:2,
-      desc:'부채꼴로 칼을 던진다. 그 안의 모든 것이 맞는다. (그림자 2)' },
-    { id:'vanish',     name:'어둠 되감기',  short:'되감기', lv:8,  stam:2, shade:1,
-      desc:'붙어 있는 것을 전부 찌르고 두 칸씩 밀어낸 뒤 자취를 지운다. 그 한 대는 전부 기습이다. (그림자 1)' },
-    { id:'vitals',     name:'급소',        short:'급소', lv:12, stam:3, shade:3,
-      desc:'모은 것을 한 번에 태운다. 갑옷을 지나가는 한 방. (그림자 3)' },
+    { id:'shadowstep', name:'그림자 도약', short:'도약', lv:1,  stam:2,
+      desc:'보이는 적의 등 뒤로 건너뛰어 친다. 그 한 대는 기습이다.' },
+    { id:'fan',        name:'칼부채',      short:'부채', lv:4,  stam:4,
+      desc:'부채꼴로 칼을 던진다. 그 안의 모든 것이 맞는다.' },
+    { id:'vanish',     name:'어둠 되감기',  short:'되감기', lv:8,  stam:3,
+      desc:'붙어 있는 것을 전부 찌르고 두 칸씩 밀어낸 뒤 자취를 지운다. 그 한 대는 전부 기습이다.' },
+    { id:'vitals',     name:'급소',        short:'급소', lv:12, stam:5,
+      desc:'모은 것을 한 번에 태운다. 갑옷을 지나가는 한 방.' },
   ],
 
   /* The ranger cast the mage's five spells with worse intelligence
@@ -1093,15 +1149,15 @@ export const ARTS = {
   priest: [
     /* 넷 다 「맞은 것」을 값으로 바꾼다 — 그게 이 직업의 자원이 오는
        곳이고, 지금까지 그 자원이 사는 물건이 없었다. */
-    { id:'repay',    name:'되갚기', short:'되갚기', lv:1,  faith:3,
+    { id:'repay',    name:'되갚기', short:'되갚기', lv:1,  stam:3,
       desc:'이 층에서 받은 것을 눈앞의 하나에게 한 번에 돌려준다. 많이 맞았을수록 무겁다.' },
-    { id:'word',     name:'말씀',   short:'말씀', lv:4,  faith:4,
+    { id:'word',     name:'말씀',   short:'말씀', lv:4,  stam:4,
       desc:'네 칸 안의 모든 것이 두 턴 동안 얼어붙는다. 피해는 없다 — 시간을 산다.' },
-    { id:'stigma',   name:'성흔',   short:'성흔', lv:8,  faith:6,
+    { id:'stigma',   name:'성흔',   short:'성흔', lv:8,  stam:5,
       desc:'하나에 성흔을 새긴다. 그것이 맞을 때마다 곁의 것들도 같이 맞는다.' },
     /* 순교의 값은 피해가 아니라 「다섯 턴 뒤에 오는 빚」이다. 신앙 9는
        판당 한 번도 안 닿는 값이었다. */
-    { id:'martyr',   name:'순교',   short:'순교', lv:12, faith:7,
+    { id:'martyr',   name:'순교',   short:'순교', lv:12, stam:6,
       desc:'다섯 턴 동안 쓰러지지 않는다. 끝나면 피한 것이 한꺼번에 온다.' },
   ],
 
@@ -1112,16 +1168,16 @@ export const ARTS = {
      in the room is the worst one — and then how to get to it,
      through it, and on to the next. */
   paladin: [
-    { id:'charge',  name:'돌진',        short:'돌진', lv:1,  oath:2,
+    { id:'charge',  name:'돌진',        short:'돌진', lv:1,  stam:2,
       desc:'네 칸까지 직선으로 달려가 첫 번째 것을 들이받는다. 벽에 처박히면 두 턴을 잃는다.' },
-    { id:'judgest', name:'심판의 일격',  short:'일격', lv:4,  oath:3,
+    { id:'judgest', name:'심판의 일격',  short:'일격', lv:4,  stam:3,
       desc:'방어를 완전히 무시한다. 그리고 상대의 최대 체력이 클수록 더 아프다.' },
-    { id:'storm',   name:'성스러운 폭풍', short:'폭풍', lv:8,  oath:4,
+    { id:'storm',   name:'성스러운 폭풍', short:'폭풍', lv:8,  stam:4,
       desc:'주위 여덟 칸 전부. 여기서 죽은 것마다 맹세가 하나씩 돌아온다.' },
     /* 성전은 맹세 8을 쓰고 평타의 ×0.75였다 — 「방이 이미 무너져
        있어야 값을 한다」는 조건이 체력 40%로 깎아 놓아도 성립하지
        않았다(×0.76). 값을 5로 내리고 한 대를 무겁게 한다. */
-    { id:'crusade', name:'성전',        short:'성전', lv:12, oath:5,
+    { id:'crusade', name:'성전',        short:'성전', lv:12, stam:5,
       desc:'가장 가까운 것을 벤다. 죽으면 다음으로 걸어가 또 벤다. 죽지 않는 순간 끝난다.' },
     /* 팔라딘의 넷은 전부 「누구를 칠 것인가」다 — 물러설 방법이 하나도
        없었다. 그런데 이 직업은 앞으로 나가는 직업이라 위험한 순간이
@@ -1177,17 +1233,15 @@ export const ARTS = {
    fight; a priest is strongest at the end of a bad one. That
    inversion is the class, and none of the four arts below is a
    heal. */
-export const FAITH_MAX     = 12;
-export const FAITH_PER_HURT = 1;    // per blow taken, not per point
-export const FAITH_PER_UNDEAD = 2;
-/* A hard blow is worth two. At one per hit the bar filled about
-   as fast as 성역 and 파문 emptied it, so 순교 — nine of twelve —
-   was a button nobody could reach: it fired zero times in twelve
-   measured runs. Weighting the heavy hits means the bar fills
-   fastest exactly when the floor is trying to kill you, which is
-   the only moment the art is for. */
-export const FAITH_HARD_HIT = 0.15; // share of maximum health that counts as hard
-export const FAITH_PER_HARD = 2;
+/* 통은 이제 하나이고(POOL 참조), 신앙은 그 통의 **사제 이름**이다.
+   남은 둘은 「무엇이 통을 채우는가」에 대한 값이라 여기 남는다.
+
+   크게 맞은 한 대는 두 몫이다. 한 대에 하나씩만 주면 통이 비는
+   속도를 못 따라가서, 순교는 열두 판에 0회 눌린 버튼이었다. 무겁게
+   맞을수록 빨리 찬다는 것은 곧 **바닥이 나를 죽이려 들 때 가장 빨리
+   찬다**는 뜻이고, 그 순간이 이 기예들이 있는 유일한 이유다. */
+export const HARD_HIT     = 0.15;  // 최대 체력의 이 몫 이상이면 「크게 맞았다」
+export const POOL_UNDEAD  = 2;     // 사제가 언데드를 재웠을 때 돌아오는 몫
 export const SANCTUM_TURNS = 6;
 export const SANCTUM_CUT   = 0.55;  // damage taken inside, reduced by this share
 export const ANATHEMA_MORE = 0.35;  // what a marked thing takes on top
@@ -1220,11 +1274,11 @@ export const STIGMA_SPLASH = 0.55;  // 성흔 붙은 것이 맞으면 주변이 
 export const STIGMA_RANGE  = 2;
 
 /* ── 그림자 ───────────────────────────────────────────────
-   Five is the cap because the most expensive art costs three: a
-   full pouch is one 급소 and a 도약, or two 칼부채 — enough that a
-   full pouch is a plan, few enough that it is never a rotation. */
-export const SHADOW_MAX  = 5;
-export const SHADOW_TICK = 5;     // turns unseen that earn one
+   제 통을 갖고 있었다(최대 5). 그런데 도적만 **기력과 그림자를 동시에**
+   내고 있었으므로, 둘 중 하나가 비면 못 쓰는 기예가 되어 지갑을 두 개
+   확인해야 했다. 이제 통은 기력 하나이고 「그림자」는 그 통의 도적
+   이름이다. 대신 차는 규칙이 도적의 것으로 남는다 — 아무도 못 보면
+   매 턴 찬다(POOL.rogue.unseen). 숨는 것이 곧 재장전이다. */
 export const FAN_RANGE   = 4;
 export const FAN_ARC     = 0.35;  // dot-product floor: a touch wider than 90°
 export const FAN_SHARE   = 0.7;
@@ -1304,9 +1358,7 @@ export const FINISH_MAX   = 3.4;   // the blow at the target's last sliver
    spent on four ways of killing. Which means the paladin
    accelerates — a good swing pays for the next one, and the room
    gets worse for it rather than better. */
-export const OATH_MAX     = 10;
-export const OATH_PER_HIT = 1;
-export const OATH_PER_KILL = 1;
+/* 맹세도 통을 잃고 이름만 남는다 — 맞으면 하나, 재우면 하나(POOL.paladin). */
 export const CHARGE_DIST  = 4;     // tiles crossed to reach the first body
 export const CHARGE_SLAM  = 2;     // turns lost by something driven into a wall
 export const JUDGE_STRIKE = 0.12;  // share of the target's maximum, on top of the swing

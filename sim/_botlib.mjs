@@ -384,9 +384,13 @@ function runBot(race, cls, clear, opt = {}) {
       const seenP = G.monsters.filter(m =>
         !m.disguise && m.awake && G.level.vis[idx(m.x, m.y)]);
 
+      /* 불굴은 이제 맹세를 안 먹고 **층에 한 번**이다 — 지갑이 아니라
+         횟수가 값이라, canSwear 로 막으면 안 된다(그러면 이 자는
+         고치기 전 규칙을 계속 잰다). */
       const bulwark = art('bulwark');
-      if (canSwear(bulwark) && !(p.bulwark > 0)
-          && p.hp < p.maxhp * 0.3 && adjA.length >= 1)
+      if (bulwark && !(p.bulwark > 0) && !(G.floorArts || {}).bulwark
+          && !p.ail?.paralyze && !(p.stuck > 0)
+          && p.hp < p.maxhp * 0.45 && adjA.length >= 1)
         { useArtCounted('bulwark'); continue; }
 
       const crusade = art('crusade');

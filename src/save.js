@@ -13,11 +13,12 @@
 
 import { G, say, refreshFov, RUN_FIELDS } from './game.js';
 import { Level, THEMES, MW, MH, idx } from './world.js';
-import { BRANCHES, TASKS, shacklesAt } from './data.js';
+import { BRANCHES, TASKS, SAVE_FORMAT, shacklesAt } from './data.js';
 
 const PREFIX = 'deepdelve.slot.';
 export const SLOTS = 3;
-const FORMAT = 8;
+/* 판번호와 같은 표를 읽는다 — 두 곳에 적으면 언젠가 갈린다. */
+const FORMAT = SAVE_FORMAT;
 
 /* ── 판 상태를 손으로 세지 않는다 ─────────────────────────
    여기 적을 값을 손으로 세다가 다섯 개를 빠뜨렸고, 다섯 개 전부

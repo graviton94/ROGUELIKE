@@ -198,5 +198,40 @@ console.log(`    남은 재료 — 쇳조각 ${mid('scrap')} · 가루 ${mid('du
    「봇 정책으로도 이만큼 남는다」로만 읽는다 — 판정은 안 건다. */
 console.log('  (봇은 사람처럼 쓰지 않는다. 위 셋은 판정하지 않고 인쇄만 한다.)');
 
+
+/* ── 나갈 구멍이 층을 따라가는가 ──────────────────────────
+   리뷰가 잰 것: 13층에 도달한 영웅의 금화 중앙값이 12,597 인데
+   인챈트 한 번이 130 — **96회분**을 들고 있었다. 그 층 실제 장비의
+   평균 강화치는 +0.28이다. 돈이 남아도는 것이 아니라 나갈 구멍이
+   1층 값에 묶여 있었다.
+
+   여기서 재는 것은 「부자인가」가 아니라 **몇 회분을 들고 있는가**다.
+   그 값이 층을 따라 평평해야 후반의 금화가 결정이 된다 — 백 회분은
+   결정이 아니라 배경이다. */
+console.log('');
+{
+  const rows = {};
+  Meta.forget();
+  for (const cls of ['warrior', 'ranger', 'rogue', 'paladin'])
+    for (let i = 0; i < 10; i++)
+      runBot('human', cls, true, { onTurn: () => {
+        if (G.depth < 1 || G.floorTurn !== 1) return;
+        (rows[G.depth] ||= []).push(G.player.gold);
+      }});
+  const mid2 = a => { const v = a.slice().sort((x, y) => x - y); return v[v.length >> 1]; };
+  console.log('  층   금화중앙   인챈트 값   몇 회분');
+  const deep = [];
+  for (const d of [1, 5, 9, 11, 13]) {
+    if (!rows[d]?.length) continue;
+    const g = mid2(rows[d]), c = Game.anvilCost(D.ENCHANT_COST, d).gold;
+    const n = Math.floor(g / Math.max(1, c));
+    console.log(`  ${String(d).padStart(2)}${String(g).padStart(10)}${String(c).padStart(12)}${String(n).padStart(10)}`);
+    if (d >= 9) deep.push(n);
+  }
+  ok(!deep.length || Math.max(...deep) <= 12,
+     '후반에도 금화가 「몇 회분」으로 읽힌다 — 백 회분이면 그건 결정이 아니라 배경이다',
+     deep.length ? `9층 아래 최대 ${Math.max(...deep)}회분` : '표본 없음');
+}
+
 console.log(bad ? `\n지갑 벤치: ${bad}건 실패\n` : '\n지갑 벤치: 돈이 결정을 시킨다\n');
 process.exit(bad ? 1 : 0);

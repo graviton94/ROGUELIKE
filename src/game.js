@@ -1904,6 +1904,12 @@ export function useArt(id) {
   if (ART_NEEDS_SIGHT.includes(id) && !visibleMonsters().length) {
     say('보이는 것이 없다.', 'warn'); return;
   }
+  /* 층에 한 번 쓰는 기예. 자원이 아니라 **횟수**가 값이라, 주력기와
+     지갑을 놓고 다투지 않는다 — 팔라딘의 비상 버튼이 판당 0.05회
+     눌리던 이유가 그 다툼이었다. */
+  if (a.floorOnce && (G.floorArts || {})[id]) {
+    say('이 층에서는 이미 한 번 썼다.', 'warn'); return;
+  }
   if (ART_NEEDS_WATCHER.includes(id) && !awakeWatchers().length) {
     say('너를 보고 있는 것이 없다.', 'warn'); return;
   }
@@ -1911,6 +1917,7 @@ export function useArt(id) {
   /* 「이 판이 기예를 얼마나 썼나」. 비어 있는 성소를 부르는 값이라
      여기서 센다 — 기예가 나가는 유일한 자리다. */
   G.artsUsed = (G.artsUsed || 0) + 1;
+  if (a.floorOnce) (G.floorArts ||= {})[id] = true;
   /* 비어 있는 성소에서는 값이 없다. 이 층 하나뿐이고, 그래서 여기서
      무엇을 할지가 그 판의 가장 사치스러운 결정이 된다. */
   if (!strangeIs('sanctum')) {
@@ -2809,6 +2816,7 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   G.floorTurn = 0;
   G.waves = 0;
   G.chainGuard = 0;                 // ③ 사슬 갑주 — 층마다 한 대
+  G.floorArts = {};                 // 층에 한 번 쓰는 기예들
   /* 열기는 층에 들어설 때 한 번 굳는다. 아래의 스폰과 시계가 전부
      이 값을 읽으므로 **무엇보다 먼저** 정해져야 한다. */
   if (depth > 0) settleHeat();
@@ -7342,6 +7350,22 @@ export function campRest() {
 const plusOf = t =>
   t.type === 'item' ? (t.item?.plus || 0) : (G.player.spellPlus?.[t.id] || 0);
 
+/* ── 모루의 값은 층을 따라간다 ─────────────────────────────
+   실측: 13층에 도달한 영웅의 금화 중앙값이 12,597 인데 인챈트 한 번이
+   130이다 — **96회분**을 들고 있고, 그 층 실제 장비의 평균 강화치는
+   +0.28이다. 돈이 남아도는 것이 아니라 **나갈 구멍이 층을 못 따라간다**.
+   1층 값을 그대로 두고 깊이에 따라 올린다: 13층이면 ×14.6.
+
+   재료(가루·정수)는 안 올린다 — 그쪽은 분해·판매의 갈림이 이미
+   살아 있고(sim/purse.mjs), 둘 다 올리면 후반에 모루가 통째로 닫힌다.
+   막힌 것은 금화 쪽 하나다. */
+export const ANVIL_STEP = 1.28;
+export const anvilCost = (base, depth = G.depth) => {
+  if (!base?.gold) return base;
+  const mult = ANVIL_STEP ** Math.max(0, (depth || 1) - 1);
+  return { ...base, gold: Math.round(base.gold * mult) };
+};
+
 export const upgradeCostFor = (key, careful = false) => {
   const t = targetOf(key);
   if (!t) return null;
@@ -7688,7 +7712,7 @@ export function anvilRefine(key) {
   if (!t) return;
   const why = forgeBlock(t, 'refine');
   if (why) { say(`${why}.`, 'warn'); return; }
-  if (!canAfford(REFINE_COST)) { say(`재료가 모자란다 — ${costText(REFINE_COST)}.`, 'warn'); return; }
+  if (!canAfford(anvilCost(REFINE_COST))) { say(`재료가 모자란다 — ${costText(anvilCost(REFINE_COST))}.`, 'warn'); return; }
   const it = t.item;
   /* 가장 마지막에 돋은 것을 다시 굴린다. 고를 수 있게 하면 화면이
      한 겹 늘고, 실제로 마음에 안 드는 것은 대개 방금 나온 것이다. */
@@ -7696,7 +7720,7 @@ export function anvilRefine(key) {
   const held = new Set(it.engrave);
   const pool = ENGRAVINGS.filter(e => e.tags.includes(it.kind) && !held.has(e.id));
   if (!pool.length) { say('이 물건에 더 새길 것이 없다.', 'warn'); return; }
-  spend(REFINE_COST);
+  spend(anvilCost(REFINE_COST));
   const e = pool[rnd(pool.length)];
   it.engrave[it.engrave.length - 1] = e.id;
   /* 동사가 세계와 어긋나 있었다. 이 게임에서 각인은 대장장이가
@@ -7728,8 +7752,8 @@ export function attuneRelic(id) {
   if ((p.tuned[id] || 0) >= step * ATTUNE_MAX) {
     say(`${r.n}은(는) 더 안 먹는다.`, 'warn'); return;
   }
-  if (!canAfford(ATTUNE_COST)) { say(`먹일 것이 모자란다 — ${costText(ATTUNE_COST)}.`, 'warn'); return; }
-  spend(ATTUNE_COST);
+  if (!canAfford(anvilCost(ATTUNE_COST))) { say(`먹일 것이 모자란다 — ${costText(anvilCost(ATTUNE_COST))}.`, 'warn'); return; }
+  spend(anvilCost(ATTUNE_COST));
   p.tuned[id] = (p.tuned[id] || 0) + step;
   say(`${r.n}에 이름을 먹였다. 조금 더 당신 쪽으로 왔다. (${r.v} → ${(r.v + p.tuned[id]).toFixed(2).replace(/\.?0+$/, '')})`, 'level');
   fx({ t:'enchant', x:p.x, y:p.y, cursed:false });
@@ -7760,7 +7784,7 @@ export function anvilEnchant(key, reroll, cat = null) {
     : (spellList(p).find(s => s.id === t.id)?.name || '주문');
   const why = forgeBlock(t, reroll ? 'reroll' : 'enchant');
   if (why) { say(`${label} — ${why}.`, 'warn'); return; }
-  const cost = reroll ? REROLL_COST : ENCHANT_COST;
+  const cost = anvilCost(reroll ? REROLL_COST : ENCHANT_COST);
   if (!canAfford(cost)) { say(`재료가 모자란다 — ${costText(cost)}.`, 'warn'); return; }
   const c = useCatalyst(cat, 'enchant');
   spend(cost);
@@ -8986,7 +9010,7 @@ export const RUN_FIELDS = {
   forced: {}, credited: {}, fallenSeen: {}, did: {}, lit: {},
   relicFloorAt: -1, relicsTaken: 0, relicSrc: {}, gearTaken: 0,
   /* 이물 — 이 판에서 무엇을 봤나, 그리고 그것을 불러들인 값들. */
-  strange: null, strangeSeen: [], artsUsed: 0, sneaked: 0,
+  strange: null, strangeSeen: [], artsUsed: 0, sneaked: 0, floorArts: {},
   rareTaken: 0, rareFound: 0, resoFound: 0,
   floorTurns: {}, blowRatio: 0, funnelled: 0, clung: 0, clungSaid: 0,
   promiseFloor: 0, stillStep: false, taskDone: false, spoils: null,

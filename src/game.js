@@ -3311,7 +3311,7 @@ function populate(depth) {
 
   if (depth === MAX_DEPTH) {
     const spot = L.openSpot(L.downRoom || L.rooms[L.rooms.length - 1], busy);
-    if (spot) G.monsters.push({ ...BOSS, maxhp: BOSS.hp, x: spot.x, y: spot.y, awake: false });
+    if (spot) G.monsters.push({ ...lastHero(), x: spot.x, y: spot.y, awake: false });
   }
 
   /* A named thing waits on two floors on the way down. Announced
@@ -8435,7 +8435,7 @@ function eventApi() {
     hasRelic, cracked, crackHint, crackProgress, crackOf, crackLeft, nearestCrack, feedable,
     hasArcana, arcanaDue, arcanaOffer, takeArcana,
     godOffer, pledge, refuse, canRefuse, pledgeDue,
-    piety, breakVow, blessed, warpOf, vowRisk,
+    piety, breakVow, blessed, warpOf, vowRisk, endKind, lastHero,
     powerOf, expectedPower, heatFor, HEAT_WORD, HEAT_MAX,
     hasAffix: key => (gearBonus(p)[key] || 0) > 0,
     canCast: () => spellList(p).length > 0,
@@ -9303,6 +9303,10 @@ export function summarise(win, by) {
     god: G.god || null,
     gifts: [...(G.gifts || [])],
     refused: G.refused || 0,
+    piety: G.piety || 0,
+    /* 어떤 끝이었나. meta 가 이걸 보고 **진 엔딩 판은 안 남긴다** —
+       거절한 사람이 다음 사람의 악마가 되면 안 된다(DESIGN.md §1). */
+    kind: win ? endKind() : null,
     weapon: p.equip.weapon ? affixName(p.equip.weapon) : null,
     /* 이름이 아니라 물건 자체. 다음 판의 시체가 이걸 쥐고 있어야
        하는데, 이름만 남기면 그 물건을 다시 만들 수가 없다. */
@@ -9461,11 +9465,79 @@ const UNSPENT = [
 const unspentLines = p => UNSPENT.map(f => f(p)).filter(Boolean).map(r => ({ ...r, hot: true }));
 const postMortem = () => [...lastBlowLines(G.player), ...unspentLines(G.player)];
 
+/* ── 최심부에 서 있는 것 ───────────────────────────────────
+   DESIGN.md §1. **전대 용사**다. 규칙 쪽은 그것이 무엇인지 모른다 —
+   여기서는 그냥 조금 다른 보스이고, 그것이 당신이었다는 것은 끝
+   화면과 문서만 안다(§5 「규칙은 세계관을 모른다」).
+
+   재료는 이미 다 있었다. meta.last 가 종족·직업·레벨·무기·유물을
+   갖고 있고, 지난 커밋에서 신·선물·거절까지 얹었다. 새 배관은 없다.
+
+   **받은 선물이 그대로 얹힌다.** 강해져서 내려간 판일수록 다음 판의
+   보스가 강하다 — 그것이 이 게임에서 신이 실제로 속이는 자리이고,
+   이 함수가 그 거짓말의 유일한 구현이다.
+
+   처음 내려가는 사람에게는 원래의 대군주가 선다. 앞선 자가 없으면
+   앞선 자를 세울 수 없다. */
+export function lastHero() {
+  const m = typeof Meta?.read === 'function' ? Meta.read() : null;
+  const L = m?.last;
+  if (!L || !L.win) return { ...BOSS, maxhp: BOSS.hp };
+
+  /* 얼마나 강했나. 레벨과 받은 선물로 잰다 — 선물 하나가 한 층 반의
+     무게쯤 된다고 보고, 15층을 1.0 으로 놓는다. */
+  const grew = Math.max(0, (L.lv || 1) - 12) * 0.06
+             + (L.gifts?.length || 0) * 0.14;
+  const k = 1 + Math.min(0.9, grew);
+  const relics = (L.relics || []).length;
+
+  return {
+    ...BOSS,
+    n: `${RACES[L.race]?.name || ''} ${CLASSES[L.cls]?.name || ''}`.trim() || '앞서 간 자',
+    hp: Math.round(BOSS.hp * k), maxhp: Math.round(BOSS.hp * k),
+    atk: Math.round(BOSS.atk * k),
+    ac: BOSS.ac + relics,
+    /* 그가 들고 있던 것. 이름에만 쓴다 — 무기의 규칙까지 옮기면
+       보스가 아니라 영웅 시뮬레이터가 된다. */
+    worn: L.weapon || null,
+    wasHero: { race: L.race, cls: L.cls, lv: L.lv, god: L.god || null,
+               gifts: [...(L.gifts || [])], refused: L.refused || 0, sent: L.sent || 0 },
+    lore: '얼굴을 본 적이 있다. 어디서인지는 기억나지 않는다.',
+  };
+}
+
+/* ── 끝이 둘이다 ───────────────────────────────────────────
+   DESIGN.md §1·§4. 이기는 것이 실패다.
+
+   전대 용사를 눕히고 나서 무슨 일이 일어나는지가 **신앙심으로**
+   갈린다:
+
+     광신(70 위)  그 자리에 앉는다. 다음 판의 보스가 된다
+     그 아래       앉지 않는다. 신이 무엇인지 보인다 — 진 엔딩
+
+   진 엔딩은 심연 8단에서 선물을 하나도 안 받은 판에서만 나온다.
+   신앙심만 낮으면 되는 것이 아니다 — 계율을 일부러 어겨 신앙심을
+   깎는 길이 있으므로, 조건을 **거절한 횟수**로도 잠근다.
+
+   규칙 쪽은 여기서도 세계관을 모른다(§5). `kind` 는 그냥 문자열이고,
+   그것이 무엇을 뜻하는지는 끝 화면이 안다. */
+export const TRUE_END_AT = 3;      // 세 번 다 거절해야 한다
+
+export function endKind() {
+  const zealot = (G.piety || 0) >= PIETY_ZEAL;
+  const clean = (G.refused || 0) >= TRUE_END_AT && !(G.gifts || []).length;
+  const worthy = (G.abyss || 0) >= REFUSE.at;
+  if (clean && worthy && !zealot) return 'true';
+  return zealot ? 'throne' : 'hollow';
+}
+
 function victory() {
   G.running = false;
   traceCloseFloor();
-  trace('win', {});
-  G.ending = { win:true, summary: summarise(true, null) };
+  const kind = endKind();
+  trace('win', { kind, piety: G.piety || 0, refused: G.refused || 0,
+                 gifts: [...(G.gifts || [])] });
+  G.ending = { win:true, kind, summary: summarise(true, null) };
   G.screen = 'end';
 }
 

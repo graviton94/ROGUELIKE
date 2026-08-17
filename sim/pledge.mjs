@@ -144,6 +144,58 @@ ok(due.again === false, '   답하면 그 층은 끝난다 — 두 번 안 묻�
 ok(due.between === false, `   사이 층(${ARCANA_AT[0] + 1}층)에서는 안 묻는다`);
 ok(due.next === true, `   그리고 ${ARCANA_AT[1]}층에서 다시 묻는다`);
 
+/* ── ⑤ 진짜 손가락으로 눌리는가 ──────────────────────────
+   합성 click 은 레이아웃과 무관하게 요소에 직접 꽂힌다. 그래서 화면이
+   0×0 이어도 통과한다 — 실제로 「탭이 안 먹는다」를 다섯 번 오진했다.
+   원인은 전부 탐침이었다: 안내 모달이 열려 있었고, 배낭이 **탭**이라
+   setScreen('inv') 만으로는 그 칸이 안 열린다(invTab='worn' 이 기본).
+
+   그러니 마지막 한 줄은 **진짜 좌표에 진짜 손가락**이어야 한다. */
+console.log('');
+for (let i = 0; i < 14; i++) {
+  const hit = await pg.evaluate(() => {
+    for (const id of ['lesson-ok', 'ask-ok', 'look-ok', 'look-close']) {
+      const e = document.getElementById(id);
+      if (e && e.getBoundingClientRect().width > 2) { e.click(); return true; } }
+    const c = document.getElementById('lorecard');
+    if (c && !c.hidden) { c.hidden = true; return true; }
+    return false; });
+  if (!hit) break;
+  await pg.waitForTimeout(100);
+}
+await pg.evaluate(async () => {
+  const G = (await import('/src/game.js')).G;
+  G.god = 'blood'; G.depth = 5; G.vowBroke = -1; G.piety = 90;
+  window.UI.setScreen('play');
+});
+await pg.waitForTimeout(200);
+const tap = await pg.evaluate(() => {
+  const e = document.getElementById('btn-inv'); const r = e.getBoundingClientRect();
+  return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+});
+await pg.touchscreen.tap(tap.x, tap.y);
+await pg.waitForTimeout(420);
+const row = await pg.evaluate(() => {
+  const r = [...document.querySelectorAll('#pack-list .itemrow')]
+    .find(x => /치유의 물약/.test(x.textContent));
+  if (!r) return null;
+  const b = r.getBoundingClientRect();
+  const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+  const h = document.elementFromPoint(cx, cy);
+  return { w: Math.round(b.width), x: cx, y: cy, inRow: !!h && (h === r || r.contains(h)) };
+});
+ok(!!row && row.w > 40 && row.inRow,
+   '⑤ 배낭 버튼을 손가락으로 누르면 줄이 실제로 거기 있다',
+   row ? `너비 ${row.w} · 좌표가 줄 안: ${row.inRow}` : '줄 없음');
+if (row?.inRow) {
+  await pg.touchscreen.tap(row.x, row.y);
+  await pg.waitForTimeout(380);
+  const a = await pg.evaluate(() => ({ open: !document.getElementById('ask').hidden,
+    t: document.getElementById('ask-text').textContent }));
+  ok(a.open, '   그리고 진짜 손가락 탭이 계율 경고를 띄운다 — 합성 click 이 아니라',
+     a.open ? a.t : '안 떴다');
+}
+
 console.log('');
 ok(errs.length === 0, '콘솔 오류 없음', errs[0] || '');
 await b.close();

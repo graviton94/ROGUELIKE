@@ -4883,7 +4883,32 @@ function renderEnd() {
   }
   const m = Meta.read();
 
-  $('end-title').textContent = e.win ? '불이 꺼졌다' : '당신은 죽었다';
+  /* ── 끝이 셋이다 ────────────────────────────────────────
+     DESIGN.md §1. 이기는 것이 실패다. 무엇을 이겼는지가 신앙심으로
+     갈리고, 그 갈래를 규칙이 문자열 하나로 건네준다(endKind). */
+  const ENDS = {
+    throne: ['그 자리에 앉았다',
+             '가장 깊은 곳의 것을 눕혔다. 그것은 앞서 간 자였다.',
+             '앉을 자리가 비어 있었고, 다리가 저절로 굽었다. 다음 사람이 내려올 것이다.'],
+    hollow: ['불이 꺼졌다',
+             '가장 깊은 곳의 것을 눕혔다. 그것은 앞서 간 자였다.',
+             '앉지 않았다. 그렇다고 걸어 나가지도 못했다.'],
+    true:   ['아무것도 받지 않았다',
+             '가장 깊은 곳의 것을 눕혔다. 그것은 앞서 간 자였고, 당신이 될 뻔한 것이었다.',
+             '처음으로 위를 올려다본다. 거기 있는 것은 신이 아니다.'],
+  };
+  const end = e.win ? (ENDS[e.kind] || ENDS.hollow) : null;
+  $('end-title').textContent = end ? end[0] : '당신은 죽었다';
+  if (end) {
+    const sub = $('end-sub') || $('end-title').parentElement;
+    /* 두 줄을 제목 아래에 붙인다. 진 엔딩만 위를 올려다본다. */
+    for (const old of [...(sub.querySelectorAll?.('.endline') || [])]) old.remove();
+    for (const line of end.slice(1)) {
+      const p2 = el('p', 'tag endline', line);
+      if (e.kind === 'true') p2.style.color = 'var(--W)';
+      $('end-title').after(p2);
+    }
+  }
   /* 죽음이 끝이 아니라 「다음 사람」이라는 것을, 사망 화면이 말한다.
      메타 진행(기억)이 왜 남는지가 이 한 줄로 설명된다 — 남는 것은
      네 실력이 아니라 네 시체를 본 다음 놈의 학습이다. */

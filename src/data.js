@@ -20,7 +20,7 @@
    단계가 없는 게임이다), **두 곳에 다른 숫자가 있는 상태**는 막을 수
    있다. 저장 형식을 같이 적는 이유는 그쪽이 호환을 끊는 유일한
    값이라, 판번호보다 그것이 먼저 궁금해지기 때문이다. */
-export const BUILD = 'v44';
+export const BUILD = 'v45';
 export const SAVE_FORMAT = 8;
 
 export const MAX_DEPTH = 15;

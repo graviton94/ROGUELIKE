@@ -52,7 +52,9 @@ for (const [cls, ids] of Object.entries(CAST)) {
 {
   const { runBot } = await import('./_botlib.mjs');
   const seen = new Set();
-  for (let i = 0; i < 8 && !seen.has('bolt'); i++) {
+  /* 8판으로 잡았더니 간헐적으로 실패했다 — 봇이 그 안에 쏠 대상을
+     못 만나는 판이 있다. 간헐적으로 우는 벤치는 안 우는 것만 못하다. */
+  for (let i = 0; i < 24 && !seen.has('bolt'); i++) {
     runBot('human', 'mage', false);
     for (const e of Game.G.fx) if (e.t === 'spellCast') seen.add(e.id);
   }

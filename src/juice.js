@@ -41,6 +41,77 @@ export const deathLens = () =>
 /* 처음엔 빠르게 조이고 끝에서 멎는다 — 슬로우모션의 형태가 이것이다. */
 const ease = t => 1 - Math.pow(1 - Math.min(1, t), 3);
 
+/* ── 시간 ──────────────────────────────────────────────────
+   플레이어: 「스킬이 너무 전부 즉시시전 아님? 강한 스킬이나 치명타는
+   슬로우 모션 이후 빨리감기 + 이펙트 몰아서 표현이나, 컷신 같은
+   효과나 줌인이나…」
+
+   히트스톱(freeze)은 있었는데 **배속이 없었다.** 멈췄다가 원속으로
+   돌아오면 그건 「끊긴 것」이지 슬로우모션이 아니다. 늘어졌다가
+   당겨져야 한 방이 무거워 보인다. 네 마디로 돈다:
+
+     정지(freeze) → 늘어짐(slow) → 빨리감기(snap) → 원속
+
+   빨리감기가 마지막에 있는 이유는 **밀린 이펙트를 몰아 주기** 위해서다.
+   늘어지는 동안 파편과 고리는 제자리에 가까이 머물고, 당겨질 때 한꺼번에
+   흩어진다 — 그것이 「이펙트 몰아서」의 실제 모양이다. */
+let slowLeft = 0, slowRate = 1, snapLeft = 0;
+const SNAP_MS = 160, SNAP_RATE = 1.4;
+
+/* ── 렌즈 하나, 두 가지 이유 ──────────────────────────────
+   죽을 때만 열리던 카메라다. 궁극기도 같은 카메라를 쓴다 — 다만
+   **짧고, 어둡게 하지 않는다.** 죽음은 판이 끝나는 순간이라 색이
+   빠져야 하고, 궁극기는 판이 계속되는 순간이라 안 빠져야 한다.
+   그리고 죽음의 렌즈는 조이고 멎지만 이건 들어갔다 **나온다** —
+   나오지 않으면 그건 연출이 아니라 고장이다. */
+let punchT = 0, punchAt = null, punchK = 0;
+const PUNCH_MS = 440;
+
+/* 카메라가 읽는 자리. 죽음이 있으면 죽음이 이긴다 — 판이 끝나는
+   순간에 궁극기 줌이 섞이면 둘 다 안 읽힌다. */
+export function lens() {
+  const d = deathLens();
+  if (d) return d;
+  if (punchT <= 0 || !punchAt) return null;
+  const t = 1 - punchT / PUNCH_MS;
+  return { k: 1 + punchK * Math.sin(Math.min(1, t) * Math.PI), at: punchAt, dim: 0 };
+}
+
+/* ── 연출 등급 ────────────────────────────────────────────
+   스킬마다 연출을 따로 짜면 스물넷이 각자 다른 말을 한다. 등급을
+   정해 두면 스킬을 설계할 때 「이건 몇 등급」 한 줄이면 끝나고,
+   화면은 한 가지 문법만 말한다.
+
+   죽음 줄은 여기 없다 — 그건 판이 끝나는 순간이라 규칙이 다르고,
+   이미 제 자리(openLens)를 갖고 있다. */
+const BEAT = {
+  /* 치명타 · 기본 기예. 자주 터지므로 슬로우가 없다 — 매번 늘어지면
+     세 번째 판부터는 연출이 아니라 지연이다. */
+  hit: { freeze: 70,  shake: 0.30, flash: 0.12 },
+  /* 직업특화 기예. 늘어지되 카메라는 안 움직인다. */
+  sig: { freeze: 110, shake: 0.45, flash: 0.20, slow: [0.45, 260] },
+  /* 궁극기. 늘어졌다 당겨지고, 그동안 카메라가 그 자리로 들어갔다 나온다. */
+  ult: { freeze: 180, shake: 0.70, flash: 0.34, slow: [0.30, 320], zoom: 0.25 },
+};
+/* 시간이 지금 어느 마디에 있는가. 밖에서 읽을 자리가 없으면 배속을
+   **간접**으로 잴 수밖에 없는데, 흔들림은 난수 지터라 순간 크기가
+   널뛴다 — 그걸로 쟀다가 궁극기가 「2프레임」으로 찍혔다. 상태를
+   그냥 내준다. deathHolding()·shakeVec()·lens() 와 같은 종류의 창이다. */
+export const timeState = () =>
+  ({ freeze, slowLeft, slowRate, snapLeft, punchT });
+
+export function beat(grade, at, hue = 'W') {
+  const b = BEAT[grade];
+  if (!b) return;
+  freeze = Math.max(freeze, b.freeze);
+  shake = Math.max(shake, b.shake);
+  if (b.flash) { flashScreen = Math.max(flashScreen, b.flash); flashHue = hue; }
+  /* 겹치면 **더 느린 쪽**이 이긴다. 궁극기 중에 평타가 들어와서
+     슬로우를 풀어 버리면 그 한 방이 통째로 날아간다. */
+  if (b.slow) { slowRate = Math.min(slowRate, b.slow[0]); slowLeft = Math.max(slowLeft, b.slow[1]); }
+  if (b.zoom && at && Number.isFinite(at.x)) { punchAt = at; punchK = b.zoom; punchT = PUNCH_MS; }
+}
+
 const MAX_SHARDS = 260;
 
 /* Actors are plain objects that survive between turns, so a
@@ -586,7 +657,10 @@ export function pump(queue, player) {
           const s = at(findByPos(e)); if (s) { s.flash = 1; s.squash = 1; }
           burstShards(e.x, e.y, spriteColors(e.spr || 'rat'), big ? 14 : 6, big ? 1.5 : 0.9);
           shake = Math.max(shake, big ? 0.42 : 0.13);
-          if (big) { freeze = 70; ring(e.x, e.y, 1.6, PALETTE.y); flashScreen = 0.22; flashHue = 'y'; }
+          /* 치명타는 「한 대」 등급이다. 여태 여기서 손으로 freeze 와
+             flash 를 적고 있었는데, 같은 무게의 다른 사건들과 숫자가
+             제각각이었다 — 등급을 지나게 하면 한 곳에서 바뀐다. */
+          if (big) { beat('hit', { x: e.x, y: e.y }, 'y'); ring(e.x, e.y, 1.6, PALETTE.y); }
           buzz(big ? 32 : 10);
           if (e.sneak) sfx.sneak(); else if (e.crit) sfx.crit(); else sfx.hit(e.weapon, 1);
         } else {
@@ -1354,7 +1428,16 @@ const findByPos = e => monsterLookup(e.x, e.y);
 
 /* ── simulation ─────────────────────────────────────────── */
 export function update(dt, actors) {
+  /* ── 정지 → 늘어짐 → 빨리감기 → 원속 ──────────────────────
+     세 마디 다 **실제 시간**으로 줄고, 애니메이션에 건네는 dt만
+     늘렸다 줄인다. 남은 시간까지 배속으로 깎으면 늘어질수록 슬로우가
+     짧아져서 배율을 올린 만큼 효과가 사라진다. */
+  if (punchT > 0) punchT -= dt;
   if (freeze > 0) { freeze -= dt; dt = Math.min(dt, 3); }   // hit-stop: near-still, never frozen solid
+  else if (slowLeft > 0) {
+    slowLeft -= dt; dt *= slowRate;
+    if (slowLeft <= 0) { snapLeft = SNAP_MS; slowRate = 1; }
+  } else if (snapLeft > 0) { snapLeft -= dt; dt *= SNAP_RATE; }
 
   const k = Math.min(1, dt / 16.7);
 
@@ -1548,4 +1631,7 @@ export function reset() {
   shards.length = 0; numbers.length = 0; rings.length = 0; beams.length = 0;
   slashes.length = 0; vignette = 0;
   shake = 0; freeze = 0; flashScreen = 0;
+  /* 시간과 렌즈도 같이 푼다 — 층을 넘어가는데 슬로우가 남아 있으면
+     다음 층이 느리게 시작한다. */
+  slowLeft = 0; slowRate = 1; snapLeft = 0; punchT = 0; punchAt = null;
 }

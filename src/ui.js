@@ -133,7 +133,10 @@ export function draw() {
      「왜 죽었는지」를 읽으려면 먼저 **무엇이 거기 서 있었는지**가
      보여야 한다. juice 가 얼마나 조였는지만 알려 주고, 어디를 어떻게
      그릴지는 여기서 정한다. */
-  const lens = Juice.deathLens();
+  /* 카메라는 죽음의 렌즈와 궁극기의 렌즈를 같은 자리에서 읽는다 —
+     둘 다 「얼마나 조였고 어디를 보나」일 뿐이다. 아래 어둡게 하는
+     쪽만 죽음 전용으로 남는다. */
+  const lens = Juice.lens();
   const t = Math.round(CELL_SIZE * scale * (lens ? lens.k : 1));
   if (!camReady) snapCamera();
   if (lens?.at) {

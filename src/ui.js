@@ -188,7 +188,7 @@ export function draw() {
       ctx.globalAlpha = alpha;
 
       if (tile === ROCK || tile === SHOP) {
-        ctx.drawImage(wallTile(x, y), px, py, t, t);
+        warped(ctx, wallTile(x, y), px, py, t, x, y);
         /* 벽에도 외곽선. 스프라이트는 구울 때 테두리를 얻었는데 지형은
            못 얻었고(지형은 구울 때 이웃을 모른다), 그래서 벽 덩어리가
            덩어리가 아니라 무늬 밭으로 읽혔다 — 어디까지가 벽이고
@@ -208,7 +208,7 @@ export function draw() {
         if (!wallAt(x - 1, y)) ctx.fillRect(px, py, u, t);
         if (!wallAt(x + 1, y)) ctx.fillRect(px + t - u, py, u, t);
       } else {
-        ctx.drawImage(floorTile(x, y), px, py, t, t);
+        warped(ctx, floorTile(x, y), px, py, t, x, y);
         if (tile === DOWN) {
           /* 내려가는 자리는 이 게임에서 유일하게 「반드시 찾아야 하는」
              칸이다. 8×8 계단 그림 하나로는 어두운 바닥에서 안 읽힌다 —
@@ -686,7 +686,44 @@ const MINI_TILE = {
   [WATER]: 'b', [WEB]: 's', [RUBBLE]: 'g',
 };
 
-export function drawMini() {
+export /* ── 뒤틀린 채로 그린다 ────────────────────────────────────
+   DESIGN.md §3. juice 가 「얼마나 잘못됐나」만 알려 주고, 무엇을 어떻게
+   그릴지는 여기서 정한다 — deathLens 와 같은 계약이다.
+
+   지형에만 붙인다. 몬스터와 영웅까지 뒤틀면 **무엇이 나를 죽이는지**가
+   안 보이고, 그건 기괴한 게 아니라 불공평한 것이다. 벽이 거짓말하는
+   것과 적이 안 보이는 것은 다른 물건이다. */
+function warped(ctx, img, px, py, t, x, y) {
+  const w = Juice.warpLens();
+  if (!w) { ctx.drawImage(img, px, py, t, t); return; }
+  const a0 = ctx.globalAlpha;
+  /* 찢김 — 가로 줄 하나가 밀린다. 줄 번호로 정하므로 매 프레임
+     같은 줄이 밀린다: 무작위로 흔들면 그건 글리치가 아니라 지진이다. */
+  const dx = w.tear && ((y * 7 + 3) % 5 === 0) ? w.tear : 0;
+  /* 색 분리 — 같은 그림을 붉은 쪽과 푸른 쪽으로 어긋나게 두 번 더.
+     팔레트 밖으로 안 나간다: 원본을 그대로 겹치고 합성만 바꾼다. */
+  if (w.split) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = a0 * 0.34;
+    ctx.drawImage(img, px + dx - w.split, py, t, t);
+    ctx.drawImage(img, px + dx + w.split, py, t, t);
+    ctx.restore();
+  }
+  ctx.globalAlpha = a0;
+  ctx.drawImage(img, px + dx, py, t, t);
+  /* 잔상 — 한 겹이 어둠으로 남는다. 이전 프레임을 들고 있지 않으므로
+     제자리에 옅게 겹쳐 「한 프레임 늦게 따라오는」 인상만 만든다. */
+  if (w.ghost) {
+    ctx.save();
+    ctx.globalAlpha = a0 * w.ghost;
+    ctx.drawImage(img, px + dx, py + 1, t, t);
+    ctx.restore();
+  }
+  ctx.globalAlpha = a0;
+}
+
+function drawMini() {
   const px = MINI_SIZES[miniStep];
   mini.classList.toggle('off', !px);
   if (!px || !G.level || !G.player) return;

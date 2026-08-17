@@ -18,6 +18,9 @@ import {
   TASKS, TASK_PATIENCE, TASK_ODDS,
   ALTAR_OFFERS, rarityOf, isCursed, RARITY, TEMPLE_SHARE, JACKPOT,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
+  BUILD, SAVE_FORMAT,
+  REPAY_SHARE, REPAY_CAP, AWE_RANGE, AWE_TURNS,
+  STIGMA_TURNS, STIGMA_SPLASH, STIGMA_RANGE,
   RELICS, RELIC_SLOTS, relicSlots, relicById, crackOf, crackSaid, crackNeed, CRACK_LEFT, BRANCHES,
   STRANGE, strangeById, STRANGE_FROM, STRANGE_BASE, STRANGE_CAP,
   ARCANA, arcanaById, ARCANA_AT,
@@ -174,6 +177,7 @@ function crackWatch() {
     if (pr.have < pr.need) continue;
     G.cracks[id] = true;
     const r = relicById(id);
+    trace('crack', { id, n: crackOf(id)?.n });
     say(`${r.n}에 금이 갔다 — ${c.n}.`, 'level');
     /* 여기서 `c.t` 를 별표만 벗겨 로그에 밀어 넣고 있었다. 그러면
        두루마리가 「재는 선이 절반(50%)까지 올라오고, 피해는 +120%」
@@ -264,6 +268,7 @@ export function takeRelic(id) {
   /* 같은 이유로 유물도 `t`(계약서)가 아니라 `lore`(그 물건이 하는
      말)를 로그에 남긴다. 무엇을 하는지는 바로 뒤에 뜨는 카드가
      적혀 있는 그대로 보여 준다. */
+  trace('relic', { id, n: r.n });
   say(`${r.n}. ${r.lore || r.t}`, 'level');
   /* 유물은 규칙을 바꾸는 물건인데, 처음 보는 것일 때만 카드가 떴다.
      두 번째로 든 「굶주린 칼날」도 그 판에서는 처음이고, 무엇을
@@ -755,12 +760,22 @@ export function gearBonus(p) {
       /* Fused. Each one is its two halves with the downside
          deepened and the upside paid out — a fused relic is not
          a better relic, it is a more extreme one. */
-      /* 융합물의 **좋은 쪽**이 relicVal 을 지난다 — 나쁜 쪽(최대
-         체력·명중)은 리터럴로 둔다. 배율을 대가에까지 걸면 「강해질수록
-         대가도 커진다」가 되어 융합이 다시 제자리다. */
-      case 'martyr':   b.maxhpPct -= 0.40; b.crit += relicVal('martyr');
-                       b.critMult += relicVal('martyr') * 3; b.hitPct *= 0.90; break;
-      case 'paradox':  b.dmgPct += relicVal('paradox'); break;
+      /* ── 여기서 두 유물의 값을 조용히 두 배로 만들었다 ──────────
+         「리터럴로 적힌 것도 깔때기를 지나게 한다」면서 relicVal 로
+         바꿔 놨는데, 표의 `v` 는 이 자리의 숫자가 **아니었다.**
+         순교자의 맹세는 `v:0.40`(설명문의 「최대 체력 −40%」)인데
+         이 자리의 리터럴은 치명 0.25 · 배율 1.2 였다. 그래서
+         치명이 0.25 → 0.70(+45%p), 배율이 1.2 → 2.1 이 됐다 —
+         이 유물 하나로 치명률이 9% → **79%**, 한 방이 4.7 → 15.5,
+         전투력이 662 → 1302 가 된다. 모순의 룬도 같은 식으로
+         피해 +20% → +39% 가 됐다.
+
+         융합물을 1.75배로 만든다는 뜻은 살린다. 다만 배율은 **이
+         자리의 올바른 밑값**에 건다 — 표의 v 는 설명문이 쓰는 다른
+         숫자다. 한 유물이 두 개의 값을 가지면 v 하나로는 못 담는다. */
+      case 'martyr':   b.maxhpPct -= 0.40; b.crit += 0.25 * FUSED_SCALE;
+                       b.critMult += 1.2 * FUSED_SCALE; b.hitPct *= 0.90; break;
+      case 'paradox':  b.dmgPct += 0.20 * FUSED_SCALE; break;
       case 'oracle':   b.manaFlat -= 3; b.lightR -= 2; break;
     }
   }
@@ -1067,6 +1082,7 @@ function quarry(m) {
 export function hurtPlayer(dmg, opt = {}) {
   const p = G.player;
   if (!p) return 0;
+  const traceBefore = p.hp;
   let taken = Math.max(1, Math.round(dmg));
   let over = 0;
   const cap = Math.max(1, Math.round(p.maxhp * BLOW_CAP));
@@ -1119,6 +1135,21 @@ export function hurtPlayer(dmg, opt = {}) {
     fx({ t:'death', x:p.x, y:p.y });
     death(typeof opt.by === 'string' ? { n: opt.by }
         : opt.by || { n: opt.who || '알 수 없는 것' });
+  }
+  /* 기록. 층 요약이 읽는 값이라 여기 한 곳에서만 센다 — 피해가
+     들어오는 자리는 이 함수 하나다. */
+  /* 되갚기가 먹는 것. 「이 층에서 받은 양」이라 층이 바뀌면 비운다 —
+     판 전체를 모으면 15층에서 한 방에 방이 지워진다. */
+  p.tookPool = (p.tookPool || 0) + taken;
+  const ft = G.floorTally;
+  if (ft) {
+    ft.took += taken;
+    ft.lowHp = Math.min(ft.lowHp, Math.max(0, p.hp));
+    /* 죽을 뻔한 순간은 요약이 아니라 사건이다 — 언제 어디서 누구에게
+       몰렸는지가 「왜 쉬웠나 / 왜 어려웠나」의 대부분이다. */
+    if (traceBefore > p.maxhp * 0.25 && p.hp <= p.maxhp * 0.25 && p.hp > 0)
+      trace('close', { by: (typeof opt.by === 'string' ? opt.by : opt.by?.n) || opt.who || '?',
+                       hp: `${Math.max(0, p.hp)}/${p.maxhp}`, near: crowdedBy(p) });
   }
   return taken;
 }
@@ -1307,6 +1338,7 @@ export const healScale = () => {
    세면 언젠가 「마셨는데 안 세는」 물약이 생긴다. */
 export function tookDraught() {
   G.gulped = (G.gulped || 0) + 1;
+  if (G.floorTally) G.floorTally.gulps++;
   ledger('gulp');
   if (G.gulped === 3) say('세 번째다. 몸이 아까만큼 답하지 않는다.', 'warn');
 }
@@ -1807,7 +1839,10 @@ function teleport() {
 /* ── spells ─────────────────────────────────────────────── */
 /* Arts that are pointless with nothing in reach, so the row can
    grey them out the way it greys out a bolt with no target. */
-const ART_NEEDS_BODY = ['shove', 'cleave', 'finisher', 'vitals', 'judgest', 'storm'];
+/* 붙어 있는 것이 있어야 나가는 기예들. 여기 안 적으면 그 기예는
+   `near[0]` 이 undefined 인 채로 실행되고 그 자리에서 터진다 —
+   되갚기를 빠뜨렸다가 봇 판이 정확히 그렇게 죽었다. */
+const ART_NEEDS_BODY = ['shove', 'cleave', 'finisher', 'vitals', 'judgest', 'storm', 'repay'];
 
 /* 궁수의 물러서기. 뒤로 갈 수 있는 만큼 가고, 지나온 칸에 붙어 있던
    것을 돌려준다 — 「물러나는 일이 곧 공격」이라는 이 기예의 전부다. */
@@ -1873,6 +1908,11 @@ const awakeWatchers = () => visibleMonsters().filter(m => m.awake && !m.boss);
 const COUNT_KO = ['', '하나', '둘', '셋', '넷', '다섯', '여섯', '일곱', '여덟', '아홉', '열'];
 const count = n => COUNT_KO[n] || `${n}`;
 
+/* 그 몬스터 곁에 몇이 있나. 성흔이 「어디에 새겨야 하는가」를
+   물으므로, 기본 선택은 가장 붐비는 곳이다. */
+const crowdAround = m => G.monsters.filter(o => o !== m && !o.disguise
+  && Math.hypot(o.x - m.x, o.y - m.y) <= STIGMA_RANGE).length;
+
 export function useArt(id) {
   const p = G.player;
   const a = artById(p, id);
@@ -1917,6 +1957,7 @@ export function useArt(id) {
   /* 「이 판이 기예를 얼마나 썼나」. 비어 있는 성소를 부르는 값이라
      여기서 센다 — 기예가 나가는 유일한 자리다. */
   G.artsUsed = (G.artsUsed || 0) + 1;
+  if (G.floorTally) G.floorTally.arts[id] = (G.floorTally.arts[id] || 0) + 1;
   if (a.floorOnce) (G.floorArts ||= {})[id] = true;
   /* 비어 있는 성소에서는 값이 없다. 이 층 하나뿐이고, 그래서 여기서
      무엇을 할지가 그 판의 가장 사치스러운 결정이 된다. */
@@ -2274,35 +2315,59 @@ export function useArt(id) {
        already had no answer to — a room you cannot leave, a thing
        that keeps aning, a floor full of the undead — and the
        fourth is a bet rather than a cure. */
-    case 'sanctum': {
-      G.sanctum = { x:p.x, y:p.y, left: SANCTUM_TURNS };
-      fx({ t:'sanctum', x:p.x, y:p.y, turns:SANCTUM_TURNS });
-      say('발밑의 돌이 밝아진다. 여기서는 물러서지 않는다.', 'good');
+    /* ── 사제의 넷 ─────────────────────────────────────
+       전부 「맞은 것」을 값으로 바꾼다. 이 직업의 신앙은 맞아야
+       차는데, 지금까지 그 신앙이 사는 물건 중 어느 것도 맞은 것을
+       쓰지 않았다 — 원 안에 서고, 하나를 지목하고, 언데드만 때리고,
+       다섯 턴 뒤에 빚을 졌다. 봇 20판에 심판 0회 · 순교 0회.
+
+       이제 넷의 질문이 하나다: **받은 것을 무엇으로 바꿀 것인가.** */
+    case 'repay': {
+      /* 이 층에서 받은 피해를 눈앞의 하나에게 한 번에 돌려준다.
+         맞아야 차는 자원이 맞은 만큼의 위력이 되는 자리 — 사제가
+         왜 앞에 서는지가 여기서 처음으로 설명된다. */
+      const m = near.sort((x, y) => y.hp - x.hp)[0];
+      const pool = Math.round((p.tookPool || 0) * REPAY_SHARE);
+      const cap = Math.round(baseSwing(p) * REPAY_CAP);
+      const blow = Math.max(2, Math.min(pool, cap));
+      p.tookPool = 0;
+      fx({ t:'repay', x:p.x, y:p.y, tx:m.x, ty:m.y, n:blow, capped: pool > cap });
+      say(pool > cap ? `받은 것을 다 돌려주지는 못했다. ${blow}만큼.`
+                     : `받은 것을 그대로 돌려준다 — ${blow}.`, 'level');
+      m.awake = true;
+      hurtMonster(m, blow, '되갚기', { pierce: true });
       break;
     }
-    case 'anathema': {
-      /* The answer to everything that keeps closing its own
-         wounds — the troll, the vampire, 잿물 먹는 것. There was
-         no way to switch that off before. */
-      const near2 = G.monsters.filter(o => !o.disguise && G.level.vis[idx(o.x, o.y)]);
-      if (!near2.length) { say('지목할 것이 없다.', 'warn'); break; }
-      const m2 = near2.sort((x, y) => (y.maxhp || 0) - (x.maxhp || 0))[0];
-      m2.cursed = true; m2.awake = true;
-      fx({ t:'anathema', x:m2.x, y:m2.y });
-      say(`${m2.n}을(를) 파문했다. 더는 아물지 않는다.`, 'level');
-      break;
-    }
-    case 'judge': {
-      const dead = G.monsters.filter(o => !o.disguise && UNDEAD.includes(o.spr)
-                                       && G.level.vis[idx(o.x, o.y)]);
-      if (!dead.length) { say('심판할 것이 없다.', 'warn'); break; }
-      fx({ t:'judge', x:p.x, y:p.y, n:dead.length });
-      say(`${count(dead.length)}에게 이름을 되돌려주었다.`, 'level');
-      for (const o of [...dead]) {
-        if (!G.monsters.includes(o)) continue;
-        hurtMonster(o, Math.max(3, Math.round((o.maxhp || 10) * JUDGE_HURT)), '심판', { pierce:true });
-        if (G.monsters.includes(o)) { o.fleeing = true; o.awake = true; }
+    case 'word': {
+      /* 피해가 없는 유일한 공격 기예. 사제가 몰렸을 때 필요한 것은
+         한 대 더가 아니라 **한 턴**이다 — 물약을 마시거나, 되갚기를
+         모으거나, 문을 닫을 한 턴. */
+      const heard = G.monsters.filter(o => !o.disguise
+        && Math.hypot(o.x - p.x, o.y - p.y) <= AWE_RANGE
+        && G.level.vis[idx(o.x, o.y)]);
+      if (!heard.length) { say('들을 것이 없다.', 'warn'); break; }
+      for (const o of heard) {
+        /* 보스는 안 멈춘다 — 멈추면 그 싸움이 없어진다. */
+        if (o.boss) continue;
+        o.energy = -AWE_TURNS;
+        o.awake = true;
+        o.awed = AWE_TURNS;
       }
+      fx({ t:'word', x:p.x, y:p.y, r:AWE_RANGE, n:heard.length });
+      say(`말이 떨어지자 ${count(heard.length)}이 멈춰 섰다.`, 'level');
+      break;
+    }
+    case 'stigma': {
+      /* 파문(아무 일도 안 일어남)과 심판(언데드 전용, 20판에 0회)을
+         하나로 합친 자리. 지목한 것이 맞을 때마다 곁의 것들이 같이
+         맞으므로, **어디에 새기느냐**가 그 방의 모양을 정한다. */
+      const seen = visibleMonsters();
+      if (!seen.length) { say('새길 것이 없다.', 'warn'); break; }
+      const m = seen.sort((x, y) => crowdAround(y) - crowdAround(x))[0];
+      m.stigma = STIGMA_TURNS;
+      m.awake = true;
+      fx({ t:'stigma', x:m.x, y:m.y, turns:STIGMA_TURNS });
+      say(`${m.n}에 성흔을 새겼다. 이제 저것이 맞으면 곁도 맞는다.`, 'level');
       break;
     }
     case 'martyr': {
@@ -2796,6 +2861,10 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     recalc(G.player);
     G.player.hp = Math.min(G.player.hp, G.player.maxhp);
   }
+  /* 앞 층을 닫고 새 층을 연다. 닫는 것이 먼저다 — floorBudget 이
+     G.depth 를 읽으므로, 깊이를 바꾼 뒤에 닫으면 앞 층의 여유를
+     새 층의 값으로 적게 된다. */
+  traceCloseFloor();
   G.depth = depth;
   if (depth > 0) crackFloorTick();
   G.deepest = Math.max(G.deepest || 0, depth);
@@ -2817,6 +2886,7 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   G.waves = 0;
   G.chainGuard = 0;                 // ③ 사슬 갑주 — 층마다 한 대
   G.floorArts = {};                 // 층에 한 번 쓰는 기예들
+  if (G.player) G.player.tookPool = 0;   // 되갚기는 층 단위다
   /* 열기는 층에 들어설 때 한 번 굳는다. 아래의 스폰과 시계가 전부
      이 값을 읽으므로 **무엇보다 먼저** 정해져야 한다. */
   if (depth > 0) settleHeat();
@@ -3054,11 +3124,13 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     /* 밟는 순간 이것이 사고라는 것을 말한다. 층 이름을 조용히 바꾸는
        것으로는 부족하다 — 열 판에 한 번 보는 것이라, 본 사람이
        「내가 뭘 본 거지」라고 물을 만큼은 크게 말해야 한다. */
+    trace('strange', { id: G.strange, n: o.n });
     say(`${o.n}. ${o.lore}`, 'level');
     say(o.t, 'warn');
     lore('strange', o.n, `${o.lore}\n\n${o.t}`, o.spr);
     fx({ t:'arcana', n: o.n });
   }
+  if (depth > 0) traceOpenFloor(depth);
   if (depth > 0 && arcanaDue(depth)) G.screen = 'arcana';
 }
 
@@ -5528,6 +5600,19 @@ export function hurtMonster(m, dmg, source, opt = {}) {
     }
     if (m.boss) victory();
   } else {
+    if (G.floorTally) G.floorTally.dealt += dmg;
+    /* 성흔. 맞은 것 곁으로 같은 매가 번진다 — 사제가 「어디에
+       새길까」를 고민하게 만드는 유일한 줄이라, 번지는 몫이 여기
+       한 곳에서만 정해진다. */
+    if (m.stigma > 0 && !opt.stigma) {
+      const share = Math.max(1, Math.round(dmg * STIGMA_SPLASH));
+      for (const o of G.monsters.slice()) {
+        if (o === m || o.disguise) continue;
+        if (Math.hypot(o.x - m.x, o.y - m.y) > STIGMA_RANGE) continue;
+        hurtMonster(o, share, '성흔', { stigma: true, pierce: true });
+      }
+      fx({ t:'stigmaBurst', x:m.x, y:m.y, r:STIGMA_RANGE });
+    }
     fx({ t:'hit', on:'monster', x:m.x, y:m.y, dmg, crit:!!opt.crit, sneak:!!opt.sneak,
          weapon: opt.weapon, spr:m.spr });
     if (!opt.quiet) {
@@ -5732,6 +5817,82 @@ function gainXp(n) {
 
    The town and the boss floor get no fork: one has nothing to
    trade and the other is not a place you pick your way into. */
+
+/* ── 판을 파일로 꺼낸다 ────────────────────────────────────
+   플레이어: 「플레이 로그 파일로 추출할 수 있는 기능 만들어라.
+   그걸 토대로 니가 리뷰하는 게 낫겠다. 봇으로 재현하지 말고.」
+
+   맞는 말이다. 이 저장소가 이번 세션에 저지른 측정 실수의 절반은
+   **봇으로 사람을 흉내 내다** 난 것이다 — 봇은 5층에서 죽는데 사람은
+   15층을 클리어하고, 그 간극을 손으로 세운 영웅으로 메우려다 곡선을
+   틀리게 잡았다(POWER_STEP 1.45). 사람의 판이 파일로 나오면 그 자리가
+   통째로 없어진다.
+
+   무엇을 적는가: **판정에 쓸 수 있는 것만.** 매 턴을 적으면 3554턴
+   짜리 판이 메가바이트가 되고, 읽는 쪽도 못 읽는다. 그래서 층을
+   단위로 접고, 층 안에서는 「사건」만 남긴다.
+
+     · 층에 들어설 때  — 깊이·주목·전투력/기대치·몬스터·깨어 있는 수·
+                        층의 여유·갈래·이물·아르카나
+     · 층을 나갈 때    — 쓴 턴·최저 체력·받은 피해·준 피해·물약·
+                        쓴 기예 목록·파도 수
+     · 그 사이의 사건  — 유물/아르카나/이물/모루/상인/죽을 뻔한 순간
+
+   game.js 안에 두는 이유: 이건 규칙이 아는 사실이고, 화면은 그것을
+   파일로 떨어뜨리기만 한다(ui.js). 헤드리스에서도 그대로 쌓인다. */
+export const LOG_VERSION = 1;
+const logNow = () => ({ turn: G.turn || 0, depth: G.depth || 0 });
+export function trace(kind, data) {
+  if (!G.trace) return;
+  G.trace.push({ ...logNow(), k: kind, ...data });
+  /* 한 판이 아무리 길어도 이만큼이면 층마다 수백 개다. 넘치면 앞을
+     버린다 — 끝이 더 궁금하다. */
+  if (G.trace.length > 4000) G.trace.splice(0, 500);
+}
+/* 층 하나를 요약해 닫는다. 다음 층에 들어서기 직전에 불린다. */
+function traceCloseFloor() {
+  const f = G.floorTally;
+  if (!f || !G.trace) return;
+  trace('floor.out', { turns: G.floorTurn || 0, budget: floorBudget(),
+                       lowHp: f.lowHp, took: f.took, dealt: f.dealt,
+                       gulps: f.gulps, waves: G.waves || 0,
+                       arts: Object.entries(f.arts).map(([k, v]) => `${k}×${v}`) });
+  G.floorTally = null;
+}
+function traceOpenFloor(depth) {
+  if (!G.trace) return;
+  const p = G.player;
+  G.floorTally = { lowHp: p ? p.hp : 0, took: 0, dealt: 0, gulps: 0, arts: {} };
+  const awake = G.monsters.filter(m => m.awake).length;
+  trace('floor.in', {
+    heat: G.heat || 0,
+    power: Math.round(powerOf()), want: Math.round(expectedPower(depth)),
+    ratio: +(powerOf() / Math.max(1, expectedPower(depth))).toFixed(2),
+    hp: p ? `${p.hp}/${p.maxhp}` : '', lv: p?.lv || 0, gold: p?.gold || 0,
+    mons: G.monsters.length, awake, elite: G.monsters.filter(m => m.elite?.length).length,
+    budget: floorBudget(), branch: G.branch?.id || 'plain',
+    strange: G.strange || null, arcana: [...(G.arcana || [])],
+    relics: [...(p?.relics || [])],
+    gear: ['weapon', 'body', 'shield'].map(k => p?.equip?.[k])
+      .filter(Boolean).map(it => `${affixName(it)}${it.plus ? `+${it.plus}` : ''}`),
+  });
+}
+/* 판 전체를 사람이 읽고 내가 재는 한 덩어리로. */
+export function traceDump() {
+  const p = G.player;
+  return {
+    v: LOG_VERSION, build: BUILD, saveFormat: SAVE_FORMAT,
+    race: p?.race, cls: p?.cls, lv: p?.lv || 0,
+    deepest: G.deepest || 0, turns: G.turn || 0,
+    ending: G.ending ? { win: !!G.ending.win, by: G.ending.by || null } : null,
+    kills: G.kills || 0, bestCombo: G.bestCombo || 0,
+    relics: [...(p?.relics || [])], arcana: [...(G.arcana || [])],
+    strangeSeen: [...(G.strangeSeen || [])],
+    plus: ['weapon', 'body', 'shield'].reduce((n, k) => n + (p?.equip?.[k]?.plus || 0), 0),
+    events: G.trace || [],
+  };
+}
+
 export function descend() {
   const L = G.level, p = G.player;
   if (L.tiles[idx(p.x, p.y)] !== DOWN) { say('여기엔 내려가는 계단이 없다.'); return; }
@@ -5841,6 +6002,12 @@ export function endTurn(skipMonsters = false) {
   if (p.brace > 0 && --p.brace === 0) say('발을 뗀다. 다시 움직일 수 있다.');
   if (p.bulwark > 0 && --p.bulwark === 0) say('맹세가 물러난다.');
   for (const m of G.monsters) if (m.pinned > 0) m.pinned--;
+  /* 성흔과 경외는 턴을 먹는다 — 둘 다 「몇 턴짜리」가 값의 전부라,
+     같은 자리에서 같이 준다. */
+  for (const m of G.monsters) {
+    if (m.stigma > 0) m.stigma--;
+    if (m.awed > 0) m.awed--;
+  }
   if (G.sanctum && --G.sanctum.left <= 0) { G.sanctum = null; say('빛이 스러졌다.'); }
   if (G.smoke && --G.smoke.left <= 0) { G.smoke = null; say('연기가 걷힌다.'); }
   if (p.martyr > 0 && --p.martyr === 0) {
@@ -6022,13 +6189,33 @@ export function floorBudget() {
    이 게임의 문법은 「거래 조건은 미리 다 적혀 있다」다. 숨은 러버밴드는
    그 문법을 깬다. 열기는 HUD에 뜨고, 무엇이 올렸는지 말하고,
    **일부러 올릴 수도 있다** — 그래야 벌금이 아니라 판돈이 된다.  */
-const POWER_BASE = 78;      // 1층 전투력 중앙값 (실측)
-/* 1.34 였다. 그런데 실제 판 60판을 재 보니 층당 성장은 **1.45**다
-   (전투력비 1층 1.11 → 12층 2.68). 8%씩 낮게 잡힌 곡선은 「이 빌드가
-   앞서 있는가」가 아니라 **깊이**를 재게 만들어서, 7층부터 주목
-   중앙값이 78~84로 계기의 상위 3분의 1에 눌러앉았다 — 무엇을 해도
-   뜨거우면 그건 계기가 아니라 상수다. */
-const POWER_STEP = 1.45;    // 층당 배율 — 실측 성장률에 맞춘 값
+const POWER_BASE = 120;     // 1층 전투력 중앙값 (실측 121)
+/* ── 이 두 줄이 후반 난이도를 통째로 껐었다 ────────────────
+   1.34 였던 것을 리뷰의 「실제 성장은 층당 1.45」를 그대로 믿고 1.45로
+   올렸다. 그 계산이 틀렸다 — 리뷰는 **봇 판**의 전투력비가 1층 1.11
+   → 12층 2.68 로 오르는 것을 보고 성장률을 역산했는데, 12층까지 가는
+   봇 판은 잘 풀린 판만 남은 것이라(생존 편향) 비율이 오르는 이유가
+   성장이 아니라 **표본**이었다.
+
+   같은 손을 층마다 세워 직접 재면 층당 배율은 이렇다:
+       곡선대로 자란 사람  ×1.226   (1층 121 → 15층 2115)
+       아주 잘 굴린 판     ×1.281   (1층 115 → 15층 3704)
+
+   1.45 를 쓰면 15층 기대치가 **14,166** 이 되는데, 이 게임에서 도달
+   가능한 최대치가 3,704 다. 비율이 0.26 이면 heatFor 는 0을 돌려주고,
+   그래서 **8층부터 15층까지 주목이 늘 0이었다** — 깨어서 시작 0%,
+   정예 기본값, 시계 그대로, 몬스터 체력 그대로. 후반에 밀어붙이라고
+   만든 장치가 후반에만 꺼져 있었다. 플레이어가 15층을 3554턴에
+   클리어하고 「개쉽다」고 한 판이 그 상태의 판이다.
+
+   그래서 이제 곡선을 **곡선대로 자란 사람**에 맞춘다(×1.226).
+   그러면 그 사람은 전 층에서 비율 ≈1 → 주목 0 이고(「곡선 안이면
+   아래는 너를 대충 본다」), 잘 굴린 판만 비율 1.7 → 주목 39 로
+   뜨거워진다. 그게 이 계기가 원래 재려던 것이다.
+
+   POWER_BASE 도 78 → 120: 1층의 실측 전투력이 121 이라, 78 을 쓰면
+   시작하자마자 비율 1.55(주목 31)로 출발한다. */
+const POWER_STEP = 1.23;    // 층당 배율 — 곡선대로 자란 손의 실측 성장률
 export const expectedPower = d => POWER_BASE * POWER_STEP ** Math.max(0, d - 1);
 /* 지금 이 손의 전투력. 한 방 기댓값 × 버틸 수 있는 양 — 둘 중 하나만
    보면 종이 한 장짜리 딜러와 못 때리는 벽이 같은 값을 받는다. */
@@ -6116,6 +6303,7 @@ export function takeArcana(id) {
      피해도 +40%다」가 아니라 「무른 판. 유리로 만든 칼이 가장 잘
      든다」 — 아홉 자로 같은 것을 말하면서 고르는 사람의 마음까지
      말하는 줄이, 지금까지 화면에 한 번도 안 나왔다. */
+  trace('arcana', { id, n: a.n });
   say(`${a.n}. ${a.lore || a.t.replace(/\*\*/g, '')}`, 'level');
   fx({ t:'arcana', id, n: a.n });
   recalc(G.player);
@@ -7443,6 +7631,7 @@ export function upgradeOddsFor(key, careful = false, cat = null) {
 export function anvilStrike(key, careful = false, cat = null) {
   const p = G.player, t = targetOf(key);
   if (!t) return;
+  trace('anvil', { at: plusOf(t), gold: p.gold, careful: !!careful, cat: cat || null });
   const cap = capFor(t);
   const name = t.type === 'item'
     ? (t.item ? affixName(t.item) : null)
@@ -8736,6 +8925,7 @@ export const priceOf = (item, buying) => {
 export function buy(item) {
   const p = G.player, cost = priceOf(item, true);
   if (p.gold < cost) { say('금화가 모자란다.', 'warn'); return; }
+  trace('buy', { n: item.n || item.id, cost, left: p.gold - cost });
   p.gold -= cost;
   if (item.kind === 'mat') {
     p.mats = p.mats || { scrap: 0, dust: 0, essence: 0 };
@@ -8900,6 +9090,8 @@ function death(killer) {
      주머니에 물약이 셋 있었는데 안 마셨다든가, 한계돌파가 열려
      있었는데 안 눌렀다든가, 여유 시계를 백 턴 넘겨서 파도가 셋째로
      오고 있었다든가. 그것들을 여기서 한 번에 뜬다. */
+  traceCloseFloor();
+  trace('death', { by: killer.n, post: postMortem().map(r => `${r.k}: ${r.v}`) });
   G.ending = { win:false, by: killer.n, summary: summarise(false, killer.n),
                post: postMortem(killer) };
   fx({ t:'deathZoom', x:p.x, y:p.y });
@@ -8947,6 +9139,8 @@ const postMortem = () => [...lastBlowLines(G.player), ...unspentLines(G.player)]
 
 function victory() {
   G.running = false;
+  traceCloseFloor();
+  trace('win', {});
   G.ending = { win:true, summary: summarise(true, null) };
   G.screen = 'end';
 }
@@ -9011,6 +9205,7 @@ export const RUN_FIELDS = {
   relicFloorAt: -1, relicsTaken: 0, relicSrc: {}, gearTaken: 0,
   /* 이물 — 이 판에서 무엇을 봤나, 그리고 그것을 불러들인 값들. */
   strange: null, strangeSeen: [], artsUsed: 0, sneaked: 0, floorArts: {},
+  trace: [], floorTally: null,
   rareTaken: 0, rareFound: 0, resoFound: 0,
   floorTurns: {}, blowRatio: 0, funnelled: 0, clung: 0, clungSaid: 0,
   promiseFloor: 0, stillStep: false, taskDone: false, spoils: null,
@@ -9028,6 +9223,7 @@ export function startGame(raceKey, classKey, base) {
   G.shackles = shacklesAt(G.abyss);
   G.player = createHero(raceKey, classKey, base);
   G.log = []; G.turn = 0; G.running = true; G.ending = null;
+  G.trace = []; G.floorTally = null;
   G.fx = []; G.combo = 0; G.comboT = 0; G.bestCombo = 0;
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0; G.kills = 0; G.eventsSeen = 0;
   G.ledger = {}; G.cracks = {}; G.relicFloors = {}; G.chainGuard = 0; G.murmured = {};

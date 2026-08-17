@@ -462,6 +462,14 @@
 <section id="sc-help" class="screen" hidden>
   <header class="bar"><h2>조작법</h2><button class="mini" data-back>닫기</button></header>
   <div class="scroll">
+    <!-- 판이 끝나기 전에도 꺼낼 수 있어야 한다. 「이 층이 이상했다」는
+         말은 대개 그 층에서 나오고, 죽을 때까지 기다리면 그 판이
+         무엇이었는지는 이미 다른 이야기가 되어 있다. -->
+    <h3 class="sect">이 판을 파일로</h3>
+    <p class="note">지금까지의 판을 파일 하나로 내려받습니다. 층마다 무엇을 만났고
+      무엇을 썼는지, 어디서 죽을 뻔했는지가 들어 있습니다 — 밸런스가 이상하다고
+      느껴질 때 이 파일을 보내면 그 판을 그대로 읽을 수 있습니다.</p>
+    <button class="mini" id="btn-trace2">판 기록 내려받기</button>
     <h3 class="sect">지도 · 구르기</h3>
     <table class="keys">
       <tr><td>미니맵</td><td>지도 <b>오른쪽 위 모서리</b>에 있습니다. <b>탭하면 크게 → 숨김 → 작게</b>로 바뀝니다(키보드는 Tab).<br>
@@ -1146,6 +1154,9 @@
       <div class="titlerow">
         <button class="mini" id="btn-totitle">첫 화면으로</button>
         <button class="mini" id="btn-endcodex">기록 보기</button>
+        <!-- 판을 파일로. 봇으로 사람을 흉내 내는 대신 사람의 판을
+             그대로 읽으려고 만든 문이다. -->
+        <button class="mini" id="btn-trace">판 기록 내려받기</button>
       </div>
     </div>
     <button class="big" id="btn-again">다시 내려가기</button>

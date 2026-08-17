@@ -3099,6 +3099,19 @@ function renderInventory() {
     // A catalyst is not a thing you use here — it is a thing you
     // throw into a strike at the anvil, so the row only reads.
     if (it.kind === 'cat') row.disabled = true;
+    /* ── 못 드는 물건은 **누르기 전에** 말한다 ─────────────────
+       규칙 쪽은 거절하면서 이유를 로그에 적는다. 그런데 로그는 누른
+       뒤에 읽는 것이고, 이 게임에서 「눌렀는데 아무 일도 안 일어났다」는
+       거의 언제나 고장으로 읽힌다. 줄 자체가 미리 말하게 한다.
+       판정은 게임의 문(cantHold)을 쓴다 — 여기서 따로 세면 언젠가
+       규칙과 화면이 다른 말을 한다. */
+    const nope = Game.cantHold(G.player, it);
+    if (nope) {
+      row.disabled = true;
+      row.classList.add('poor');
+      row.querySelector('.iact').textContent = '못 듦';
+      mid.appendChild(el('span', 'idesc', nope));
+    }
     row.onclick = () => {
       if (it.kind === 'cat') return;
       if (it.kind === 'use' && !Game.isKnown(it.id)) {

@@ -842,6 +842,10 @@ function runBot(race, cls, clear, opt = {}) {
       // Holding a bow is a commitment; swapping to
       // a marginally larger die throws the whole build away.
       if (it.kind === 'weapon' && worn?.t === 'bow' && it.t !== 'bow') return false;
+      /* 이 손에 안 들리는 물건은 영영 「더 좋은 것」으로 보인다 —
+         equip 이 거절하면서 턴도 안 쓰므로 위 while 이 여기서 돈다.
+         방패 줄과 똑같은 사고이고, 그래서 판정은 게임의 문을 쓴다. */
+      if (Game.cantHold(p, it)) return false;
       return !worn || score(it) > score(worn);
     });
     if (better >= 0) { Game.equip(better); continue; }

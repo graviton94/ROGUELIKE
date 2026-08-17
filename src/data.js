@@ -1844,6 +1844,20 @@ export const pickLine = (list, name, tick = 0) =>
   list[tick % list.length].replace(/\{n\}/g, name);
 
 /* Weapons carry dice (count × sides) and a type. Armour carries ac. */
+/* ── 직업이 못 드는 무기 ──────────────────────────────────
+   전사의 기예 넷은 전부 **무기가 정한 모양**으로 나간다. 활을 든
+   전사는 그 넷이 전부 이상해지고, 지팡이를 든 전사는 주문도 못 쓰면서
+   막대기로 때린다. 「쓸 수는 있는데 나쁘다」는 선택이 아니라 함정이다.
+
+   거절하는 문장은 계열마다 다르다. 「착용할 수 없습니다」는 규칙을
+   말하지만 **이유**를 안 말하고, 이유를 모르면 그것은 버그로 읽힌다. */
+export const CANT_HOLD = {
+  warrior: {
+    bow:  '활은 이 손에 없다. 전사는 거리를 두는 법을 안 배웠다.',
+    wand: '막대기다. 이 손에 쥐면 그냥 나쁜 몽둥이다.',
+  },
+};
+
 export const WEAPONS = [
   { spr:'dagger', n:'단검',         t:'dagger', dice:[1,5],  d:0,  cost:20,   hands:1 },
   { spr:'mace',  n:'곤봉',         t:'mace',   dice:[1,7],  d:0,  cost:24,   hands:1 },

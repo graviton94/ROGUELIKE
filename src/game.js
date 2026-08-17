@@ -47,7 +47,7 @@ import {
   ANATHEMA_MORE, JUDGE_HURT, MARTYR_TURNS,
   QUARRY_RANGE, QUARRY_STAM, QUARRY_HEAL,
   FINISH_MAX,
-  CHARGE_DIST, CHARGE_SLAM,
+  CHARGE_DIST, CHARGE_SLAM, CANT_HOLD,
   JUDGE_STRIKE, STORM_SHARE, CRUSADE_MAX,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
@@ -1590,11 +1590,31 @@ function wieldFx(it, line) {
   if (g >= 1) fx({ t:'wield', x:p.x, y:p.y, rar:g, spr:it.spr });
 }
 
+/* 이 손에 안 들리는 물건인가. 거절하는 **이유**를 돌려준다 — 없으면
+   null. 문이 하나여야 하는 이유가 바로 아래 줄에 있다: equip 은 거절할
+   때 턴을 안 쓰므로, 화면이나 봇이 이 판정을 따로 갖고 있다가 어긋나면
+   「눌러도 아무 일이 없는 버튼」이 되고 봇은 거기서 영영 돈다.
+   이 저장소는 이미 그 사고를 두 번 겪었다(양손 무기 + 방패, 조준 사격). */
+export const cantHold = (p, it) =>
+  (it?.kind === 'weapon' && CANT_HOLD[p?.cls]?.[it.t]) || null;
+
 export function equip(slotIdx) {
   const p = G.player, slot = p.pack[slotIdx];
   if (!slot) return;
   const it = slot.item;
   if (it.kind === 'weapon') {
+    /* ── 손에 안 맞는 물건 ──────────────────────────────────
+       플레이어: 「전사는 활이랑 지팡이 아예 착용하지 못하게.」
+
+       전사의 기예 넷은 전부 **무기가 정한 모양**으로 나간다 — 연격은
+       계열 규칙을 그대로 빌려 쓰고, 소용돌이는 인접한 것을 벤다.
+       활을 든 전사는 그 넷이 전부 이상해지고, 지팡이를 든 전사는
+       주문도 못 쓰면서 막대기로 때린다. 「쓸 수는 있는데 나쁘다」는
+       선택이 아니라 함정이다 — 판을 열 층쯤 걸어 본 뒤에야 알게 되는.
+
+       그래서 아예 안 들린다. 거절은 값이 아니라 문장으로 한다. */
+    const no = cantHold(p, it);
+    if (no) { say(no, 'warn'); return; }
     const old = p.equip.weapon;
     p.equip.weapon = it;
     removeItem(p, slotIdx);

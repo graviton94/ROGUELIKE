@@ -1390,11 +1390,21 @@ export function spellSlots() {
                   || (ART_NEEDS_WATCHER.includes(a.id) && !(G.level && awakeWatchers().length));
     return {
       id: a.id, name: a.name, short: a.short || a.name.slice(0, 3),   // 두 글자로 자르면 「마무」가 된다
-      lv: a.lv, cost: a.faith || a.oath || a.shade || a.stam, art: true,
+      /* 「층에 한 번」은 값이 자원이 아니라 **횟수**다. 그래서 셋 다
+         0인 기예가 생겼고, `a.faith || a.oath || a.shade || a.stam` 이
+         undefined 로 떨어져 칸에 「불굴undefined」가 찍혔다. 값이
+         없는 것과 값을 모르는 것은 다르다 — 0으로 내려놓고, 무엇이
+         값인지는 floorOnce 가 따로 말한다. */
+      lv: a.lv, cost: a.faith || a.oath || a.shade || a.stam || 0, art: true,
       faith: !!a.faith, oath: !!a.oath, shade: !!a.shade, stam: a.stam || 0,
+      floorOnce: !!a.floorOnce, spent: !!a.floorOnce && !!(G.floorArts || {})[a.id],
       locked, silent: false, noTarget,
       plus: 0, affix: null,
+      /* 이 층에서 이미 쓴 기예는 칸도 식어 있어야 한다. useArt 는
+         거절하는데 칸은 밝게 켜져 있었다 — 눌러 보고 아는 것은 한 번
+         속은 것이다. */
       ready: !locked && !noTarget
+             && !(a.floorOnce && (G.floorArts || {})[a.id])
              && (a.faith ? (p.faith || 0) >= a.faith
                : a.oath ? (p.oath || 0) >= a.oath
                : a.shade ? (p.shadow || 0) >= a.shade

@@ -1721,11 +1721,15 @@ function paintSlotRow(row, slots) {
       b.title = `${s.lv}레벨에 익힙니다`;
     } else {
       label.appendChild(document.createTextNode(s.short));
-      label.appendChild(el('b', '', String(s.cost)));
+      /* 값이 횟수인 기예에는 숫자가 없다. 「1」을 찍으면 기력 1로
+         읽히므로 점을 찍는다 — 다 쓰면 빈 점이 되어 그 자체가
+         「이 층에서는 끝」이다. */
+      label.appendChild(el('b', '', s.floorOnce ? (s.spent ? '○' : '●')
+                                                : String(s.cost)));
       b.title = s.silent ? `${s.name} — 침묵의 서약으로 봉인됨`
               : s.noTarget ? (s.art ? `${s.name} — 손이 닿는 곳에 아무것도 없다`
                                     : `${s.name} — 시야에 적이 없다`)
-              : s.floorOnce ? `${s.name} · 층에 한 번`
+              : s.floorOnce ? `${s.name} · ${s.spent ? '이 층에서는 이미 썼다' : '층에 한 번'}`
               : `${s.name} · ${s.cost}${s.art ? (s.faith ? '신앙' : s.oath ? '맹세' : '기력') : 'mp'}`;
     }
     /* An art spends breath, not mana, and the row has to say so

@@ -6478,9 +6478,14 @@ export function pledge(id) {
   const g = godById(id);
   if (!g) return;
   G.god = id;
+  /* 받은 선물은 판이 끝날 때 meta 로 간다. 그리고 **다음 판의 보스가
+     그것을 지고 나온다** — 이 게임에서 신이 실제로 속이는 자리다.
+     강해져서 내려가는 것 자체가 다음 용사가 만날 악마를 빚는 일이고,
+     그 사실은 이 판에서 어디에도 안 적혀 있다. */
   (G.gifts ||= []).push(id);
   G.godPick = null;
   say(`「${g.call}」`, 'level');
+  say(g.vow + '.', 'warn');
   trace('pledge', { id, n: g.n, depth: G.depth });
   fx({ t:'pledge', id, n: g.n, x: G.player?.x, y: G.player?.y });
 }
@@ -9199,6 +9204,14 @@ export function summarise(win, by) {
     earned: G.goldEarned || 0,
     hp: p.hp, maxhp: p.maxhp,
     relics: [...(p.relics || [])],
+    /* 받은 선물과 신. **다음 판의 보스가 이것을 지고 나온다** —
+       강해져서 내려가는 것이 다음 용사가 만날 악마를 빚는 일이라는
+       것이 여기 한 줄로 규칙이 된다(DESIGN.md §1).
+       거절한 횟수도 같이 남긴다: 아무것도 안 받고 끝낸 판은 보스에게
+       얹을 것이 없다. */
+    god: G.god || null,
+    gifts: [...(G.gifts || [])],
+    refused: G.refused || 0,
     weapon: p.equip.weapon ? affixName(p.equip.weapon) : null,
     /* 이름이 아니라 물건 자체. 다음 판의 시체가 이걸 쥐고 있어야
        하는데, 이름만 남기면 그 물건을 다시 만들 수가 없다. */

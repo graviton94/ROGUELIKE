@@ -1896,8 +1896,11 @@ function renderArcana() {
     mid.appendChild(el('span', 'idesc arcanacat', g.face));
     /* 부름은 명령형이다(§2) — 짧고, 이유를 안 댄다. */
     mid.appendChild(el('span', 'idesc arcanagood', `「${g.call}」`));
-    /* 신이 말한 것. 이게 전부다 */
-    mid.appendChild(el('span', 'idesc arcanacost', g.say));
+    /* 선물. **정직하다** — 성능을 속이면 결정을 못 하고, 결정을 못 하는
+       것은 이 게임에서 「고장」으로 읽힌다(§0). 신이 속이는 것은 값이
+       아니라 「무찌르면 평화가 온다」쪽이다. */
+    mid.appendChild(el('span', 'idesc arcanacost', g.boon));
+    mid.appendChild(el('span', 'idesc arcanacat', `계율 — ${g.vow}`));
     mid.appendChild(el('span', 'idesc arcanalore', g.lore));
     row.appendChild(mid);
     if (w) row.style.transform = `translateX(${(w.split || 0) * (Math.random() < 0.5 ? -1 : 1)}px)`;

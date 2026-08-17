@@ -1,13 +1,14 @@
 /* ═══════════════════════════════════════════════════════════
-   pledge.mjs — 신은 거짓말하고, 거절은 잠겨 있다
+   pledge.mjs — 신은 정직하게 말하고, 거절은 잠겨 있다
 
    DESIGN.md §1·§4.
 
    이 파일이 지키는 것 넷:
 
-   ① **화면은 신이 말한 것만 안다.** 실제로 일어나는 것(real)이 화면에
-      새 나가면 속는 게임이 아니다. 규칙 쪽(godOffer)이 real 을 안
-      내보내고, 화면도 그것을 안 읽는다 — 둘 다 확인한다.
+   ① **수치는 정직하다.** 선물도 계율도 서약 **전에** 다 말한다.
+      한때 say(말한 것)/real(실제)을 갈라 감춰진 대가를 심었다가
+      되돌렸다 — 성능을 속이면 값을 못 재고, 값을 못 재는 선택지는
+      선택지가 아니다. 신이 속이는 것은 서사이지 숫자가 아니다.
    ② **넷째 칸은 언제나 있다.** 심연 8단 아래에서는 잠겨 있되 보인다.
       숨기면 아무도 못 찾고, 못 찾는 진 엔딩은 없는 진 엔딩이다.
    ③ **거절은 아무것도 안 준다.** 신앙심도 안 오른다. 그것이 이 게임의
@@ -22,20 +23,28 @@ import { GODS, REFUSE, MAX_SHACKLE, ARCANA_AT } from '../src/data.js';
 let bad = 0;
 const ok = (c, m, g) => { console.log(`  ${c ? '·' : '✗'} ${m}${g !== undefined ? ` — ${g}` : ''}`); if (!c) bad++; };
 
-console.log('\n서약 벤치 — 신은 거짓말하고, 거절은 잠겨 있다\n');
+console.log('\n서약 벤치 — 신은 정직하게 말하고, 거절은 잠겨 있다\n');
 
-/* ── ① 다섯 신이 말한 것과 실제가 다른가 ─────────────────── */
+/* ── ① 신은 수치를 안 속인다 ─────────────────────────────
+   처음에 say(말한 것)와 real(실제)을 갈라 감춰진 대가를 심었다가
+   되돌렸다. 성능을 속이면 플레이어가 값을 못 재고, 값을 못 재는
+   선택지는 선택지가 아니다 — §0 의 「고장 나 보이면 안 된다」와도
+   정면으로 부딪힌다.
+
+   신이 속이는 것은 **서사**다: 강해져서 내려가는 것 자체가 다음
+   용사가 만날 악마를 빚는 과정이라는 것. 그건 값이 아니라 **결과**에
+   있고, 다음 판에서 드러난다. */
 ok(GODS.length === 5, '신이 다섯이다', `${GODS.length}명`);
-ok(GODS.every(g => g.say && g.real && g.say !== g.real),
-   '다섯 다 말한 것과 실제가 다르다 — 같으면 속이는 게 아니다');
-ok(GODS.every(g => g.real.includes('**')),
-   '실제 쪽에 감춰진 대가가 굵게 적혀 있다 — 겪고 나서 읽을 줄');
+ok(GODS.every(g => !g.say && !g.real),
+   '① 말한 것/실제가 갈려 있지 않다 — 수치는 정직하다');
+ok(GODS.every(g => g.boon && !g.boon.includes('**')),
+   '   선물 설명에 감춰진 구절이 없다');
 ok(GODS.every(g => g.call && g.call.length <= 24),
    '부름이 짧다 — 신은 명령형으로 말하고 이유를 안 댄다 (§2)',
    `가장 긴 것 ${Math.max(...GODS.map(g => g.call.length))}자`);
 ok(GODS.every(g => g.vow), '다섯 다 계율을 갖고 있다 — 신은 버튼이 아니라 금지다');
 
-/* ── 규칙 쪽이 real 을 안 내보내는가 ─────────────────────── */
+/* ── 한 번에 셋을 보여 주는가 ────────────────────────────── */
 const Game = await import('../src/game.js');
 Game.startGame('human', 'warrior', Game.rollStats('warrior'));
 const offer = Game.godOffer();
@@ -71,17 +80,12 @@ const read = () => pg.evaluate(async () => {
 const rows = await read();
 ok(rows.length === 4, '칸이 넷이다 — 셋과 거절', `${rows.length}칸`);
 
-/* 화면에 real 의 문장이 한 조각도 없어야 한다. 굵게 감춘 부분을
-   그대로 찾는다 — 있으면 첫 판에 이미 다 아는 것이다. */
+/* 화면이 선물과 **계율을 둘 다** 미리 말하는가. 계율은 감출 것이
+   아니다 — 그걸 감추면 그때부터 수치를 속이는 것이 된다. */
 const shown = rows.map(r => r.text).join(' ');
-const leaked = GODS.filter(g => {
-  const secret = (g.real.match(/\*\*(.+?)\*\*/) || [])[1];
-  return secret && shown.includes(secret.replace(/\*\*/g, ''));
-});
-ok(leaked.length === 0,
-   '① 화면에 감춰진 대가가 한 조각도 안 새 나간다',
-   leaked.length ? leaked.map(g => g.n).join(' · ') : '전부 감춰짐');
-ok(GODS.some(g => shown.includes(g.say)), '   그리고 말한 것은 그대로 뜬다');
+ok(GODS.some(g => shown.includes(g.boon)), '선물이 그대로 뜬다');
+ok(GODS.some(g => shown.includes(g.vow)),
+   '계율도 **미리** 뜬다 — 서약 뒤에 알게 되면 그건 속인 것이다');
 
 /* ── ② 넷째 칸 ────────────────────────────────────────── */
 console.log('');
@@ -144,5 +148,5 @@ console.log('');
 ok(errs.length === 0, '콘솔 오류 없음', errs[0] || '');
 await b.close();
 
-console.log(bad ? `\n서약 벤치: ${bad}건 실패\n` : '\n서약 벤치: 말한 것만 보이고, 거절은 잠겨 있다\n');
+console.log(bad ? `\n서약 벤치: ${bad}건 실패\n` : '\n서약 벤치: 값은 정직하고, 속는 것은 결과다\n');
 process.exit(bad ? 1 : 0);

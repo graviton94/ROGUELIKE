@@ -2,7 +2,7 @@
    it. A monster carrying on:'burn' compiled, ran, spawned, fought —
    and only crashed the moment somebody tapped it, because that was
    the one line that read AILMENTS[m.on].n. Check the keys. */
-import { MONSTERS, NAMED, BOSS, AILMENTS, PATTERNS, RELICS, MATS,
+import { BUILD, MONSTERS, NAMED, BOSS, AILMENTS, PATTERNS, RELICS, MATS,
          MEMORIES, SHACKLES, MAX_SHACKLE, shacklesAt, tellsOf, CONSUMABLES } from '../src/data.js';
 import { EVENTS } from '../src/events.js';
 import * as PIX from '../src/pixels.js';
@@ -70,6 +70,22 @@ for (const m of [...MONSTERS, ...NAMED, BOSS])
 
 const rid = new Set();
 for (const r of RELICS) { if (rid.has(r.id)) fail(`유물 id 중복: ${r.id}`); rid.add(r.id); }
+
+/* ── 판번호가 두 곳에 있으면 안 된다 ───────────────────────
+   첫 화면 구석에 `v36` 이라고 **글자로 박혀** 있었고, 그 뒤로 117개
+   커밋이 올라가는 동안 화면은 계속 v36 이었다. 숫자 자체를 자동으로
+   만들 수는 없지만(빌드 단계가 없는 게임이다), **화면과 코드에 다른
+   숫자가 있는 상태**는 기계로 막을 수 있다. */
+{
+  const fs = await import('node:fs');
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const span = html.match(/<span id="build">([^<]*)<\/span>/);
+  if (!span) fail('index.html 에 판번호 칸(#build)이 없다');
+  else if (span[1].trim()) fail(`index.html 에 판번호가 글자로 박혀 있다 — "${span[1]}" (data.js 의 BUILD 를 쓸 것)`);
+  const ui = fs.readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
+  if (!/\$\('build'\)\.textContent/.test(ui)) fail('ui.js 가 판번호를 화면에 안 쓴다');
+  if (!/^v\d+$/.test(BUILD)) fail(`BUILD 형식이 이상하다: ${BUILD}`);
+}
 
 console.log(bad ? `\n   ✗ ${bad}건` : '   내용 검사 통과 ✓  ' +
   `몬스터 ${MONSTERS.length + NAMED.length + 1} · 사건 ${EVENTS.length} · 유물 ${RELICS.length}` +

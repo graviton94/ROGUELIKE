@@ -57,7 +57,7 @@
       <button class="mini" id="btn-help">조작법</button>
       <button class="mini" id="btn-sound">소리 켜짐</button>
     </div>
-    <p class="fine"><span id="title-stat"></span><br>도트도 소리도 전부 코드로. 파일은 픽셀 글꼴 하나 · <span id="build">v36</span></p>
+    <p class="fine"><span id="title-stat"></span><br>도트도 소리도 전부 코드로. 파일은 픽셀 글꼴 하나 · <span id="build"></span></p>
   </div>
 </section>
 
@@ -1129,19 +1129,26 @@
   <div class="col">
     <h1 id="end-title" class="endtitle"></h1>
     <p class="tag" id="end-sub"></p>
-    <div class="blurb" id="end-body"></div>
-    <button class="big" id="btn-again">다시 내려가기</button>
-    <!-- The run is over but the ledger is not. Without this the
-         only way back to the codex, the memories and the shackle
-         ladder was to close the tab. -->
-    <!-- 죽음이 남기는 유일한 물건. 로그라이크가 퍼지는 방식은 광고가
-         아니라 「내 판 이야기」이고, 그것을 옮길 수단이 이 게임에는
-         하나도 없었다 — 스크린샷을 찍어 보내는 것 말고는. -->
-    <button class="mini share" id="btn-share">자랑하기</button>
-    <div class="titlerow">
-      <button class="mini" id="btn-totitle">첫 화면으로</button>
-      <button class="mini" id="btn-endcodex">기록 보기</button>
+    <!-- 360×640 에서 이 칸이 370px 밖에 못 받아 결산의 **40%만**
+         보였고, 아래에 더 있다는 신호가 한 픽셀도 없었다. 제목·부제와
+         버튼 세 단이 전부 고정이었기 때문이다. 작은 버튼 셋을 스크롤
+         **안**으로 내리면 이 칸이 500px대가 되고, 고정으로 남는 것은
+         「다시 내려가기」 하나다. -->
+    <div class="blurb" id="end-body">
+      <div id="end-ledger"></div>
+      <!-- The run is over but the ledger is not. Without this the
+           only way back to the codex, the memories and the shackle
+           ladder was to close the tab. -->
+      <!-- 죽음이 남기는 유일한 물건. 로그라이크가 퍼지는 방식은 광고가
+           아니라 「내 판 이야기」이고, 그것을 옮길 수단이 이 게임에는
+           하나도 없었다 — 스크린샷을 찍어 보내는 것 말고는. -->
+      <button class="mini share" id="btn-share">자랑하기</button>
+      <div class="titlerow">
+        <button class="mini" id="btn-totitle">첫 화면으로</button>
+        <button class="mini" id="btn-endcodex">기록 보기</button>
+      </div>
     </div>
+    <button class="big" id="btn-again">다시 내려가기</button>
   </div>
 </section>
 

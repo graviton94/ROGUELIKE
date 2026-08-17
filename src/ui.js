@@ -13,6 +13,7 @@ import {
   ENCHANT_CURSE, ENCHANT_CURSE_STEP,
   RARITY, CURSED_TONE, rarityOf, isCursed,
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
+  BUILD, SAVE_FORMAT,
   MONSTERS, BRANCHES, SPELLS, boonById, FUSIONS, engraveById, ENGRAVE_AT, ENGRAVE_PENALTY, NAMED,
   BOSS, tellsOf, tellsNeeded, rulebook, hearsayFor, CONSUMABLES, RESONANCE,
   REGIONS, regionOf, MEMORIES, memoryEarned, SHACKLES, MAX_SHACKLE, josa,
@@ -1721,6 +1722,7 @@ function paintSlotRow(row, slots) {
       b.title = s.silent ? `${s.name} — 침묵의 서약으로 봉인됨`
               : s.noTarget ? (s.art ? `${s.name} — 손이 닿는 곳에 아무것도 없다`
                                     : `${s.name} — 시야에 적이 없다`)
+              : s.floorOnce ? `${s.name} · 층에 한 번`
               : `${s.name} · ${s.cost}${s.art ? (s.faith ? '신앙' : s.oath ? '맹세' : '기력') : 'mp'}`;
     }
     /* An art spends breath, not mana, and the row has to say so
@@ -1827,7 +1829,9 @@ function renderArcana() {
     const row = el('button', 'itemrow arcanarow');
     const mid = el('div', 'imid');
     const nm = el('span', 'iname', a.n);
-    nm.style.color = 'var(--P)';
+    /* 자수정은 유물의 색이다. 아르카나는 몸이 아니라 **세계**에
+       붙는 것이라 다른 축을 쓴다 — 창백한 물빛. */
+    nm.style.color = 'var(--B)';
     nm.classList.add('transcend');
     mid.appendChild(nm);
     mid.appendChild(el('span', 'idesc arcanacat', a.c));
@@ -2285,6 +2289,11 @@ export function refreshTitle() {
   if (Meta.abyss()) bits.push(`심연 ${Meta.abyss()}`);
   if (meta.wins) bits.push(`승리 ${meta.wins}`);
   $('title-stat').textContent = bits.length ? bits.join(' · ') : '아직 아무도 내려가지 않았다.';
+  /* 판번호는 data.js 한 곳에서 온다. 예전에는 index.html 안에 `v36`
+     이라고 글자로 박혀 있었고, 그 뒤 117개 커밋 동안 아무도 안
+     고쳤다 — 화면에 있는 숫자가 코드와 무관해지는 자리는 하나여야
+     하고, 그 하나가 없어야 한다. */
+  $('build').textContent = `${BUILD} · 저장 ${SAVE_FORMAT}`;
   paintLedger();
 }
 
@@ -2986,8 +2995,22 @@ function renderInventory() {
       : it.kind === 'quiver' ? `${grade ? `[${RARITY[grade].n}] ` : ''}화살통 · ${quiverLine(it)}${affixBlurb(it)}`
       : it.kind === 'cat' ? `촉매 · ${it.t}`
       : Game.isKnown(it.id) ? (it.desc || '사용 가능') : '마셔 보기 전에는 알 수 없다'));
+    /* 설명 줄은 접히는 쪽으로 보낸다 — 접힌 상태에서 남는 것은
+       이름과 「이게 나은가」 둘이다. */
+    mid.lastChild.classList.add('foldable');
+    /* ── 한 줄이 138px 이었다 ──────────────────────────────────
+       이름 · 설명 · 강화 · 비교 · 거래 다섯 문장이 한 줄에 쌓여서,
+       390×844 한 화면에 무기 **세 개가 안 들어갔다.** 다섯 줄 다
+       필요한 정보이긴 한데, **동시에** 필요하지는 않다 — 배낭을
+       열었을 때 필요한 것은 「무엇이 있나」이고, 「이게 나은가」는
+       하나를 고른 뒤의 질문이다.
+
+       그래서 두 줄로 접는다: 이름과 비교 한 줄. 나머지는 줄을 눌러서
+       편다(장착은 오른쪽 버튼이 이미 갖고 있다). 접힌 줄은 50~62px 라
+       한 화면에 예닐곱이 들어온다. */
+    const more = el('div', 'imore');
     const pt = plusText(it);
-    if (pt) mid.appendChild(el('span', 'idesc plus', pt));
+    if (pt) more.appendChild(el('span', 'idesc plus', pt));
     /* 「지금 든 것보다」. 배낭은 결정을 내리는 화면인데, 지금까지
        주사위와 속성 이름만 있고 **그래서 이게 나은가**는 없었다.
        2d6과 1d10 중 무엇이 나은지를 사람이 암산하게 두면 그 줄은
@@ -3003,7 +3026,15 @@ function renderInventory() {
     /* 그리고 「이걸 어떻게 할까」. 장착이 아닌 쪽의 결정 — 팔 것인가
        부술 것인가 — 는 여태 화면 어디에도 숫자가 없었다. */
     const tl = Game.tradeLine(it);
-    if (tl) mid.appendChild(el('span', 'idesc trade', tl));
+    if (tl) more.appendChild(el('span', 'idesc trade', tl));
+    if (more.childElementCount) {
+      mid.appendChild(more);
+      const open = el('span', 'idesc unfold', '＋ 더');
+      open.onclick = e => { e.stopPropagation();
+        const on = mid.classList.toggle('open');
+        open.textContent = on ? '－ 접기' : '＋ 더'; };
+      mid.appendChild(open);
+    }
     row.appendChild(mid);
     row.appendChild(el('span', 'iact',
       it.kind === 'cat' ? '모루에서' : it.kind === 'use' ? '사용' : '장착'));
@@ -3219,7 +3250,8 @@ function renderSpells() {
     mid.appendChild(el('span', 'idesc', a.desc));
     row.appendChild(mid);
     row.appendChild(el('span', 'iact',
-      a.faith ? `${a.faith}신앙` : a.oath ? `${a.oath}맹세` : `${a.stam}기력`));
+      a.floorOnce ? '층에 한 번'
+      : a.faith ? `${a.faith}신앙` : a.oath ? `${a.oath}맹세` : `${a.stam}기력`));
     row.onclick = () => { Game.cast(a.id); setScreen('play'); refresh(); };
     list.appendChild(row);
   }
@@ -3251,9 +3283,17 @@ function shownName(it) {
   return Game.isKnown(it.id) ? affixName(it) : Game.lookOf(it.id);
 }
 
+/* ── 자수정 하나가 다섯 뜻이었다 ───────────────────────────
+   --P(#9a6ab0)가 등급(유물) · **미감정** · 크랙 · 아르카나 · 저주를
+   동시에 뜻하고 있었다. 배낭 한 화면에 「+5 맹독의 별철퇴」(이 판
+   최고의 물건)와 「푸른 물약」(마셔 보기 전에는 모른다)이 완전히
+   같은 색으로 나란히 섰다.
+
+   축을 나눈다. 자수정은 **등급 하나**에만 남기고, 미감정은 색이
+   아니라 **모름**으로 말한다 — 도감이 이미 쓰고 있는 회색이다. */
 function nameEl(it, extra) {
   const n = el('span', 'iname', shownName(it) + (extra || ''));
-  if (!Game.isKnown(it.id)) { n.style.color = 'var(--P)'; return n; }
+  if (!Game.isKnown(it.id)) { n.classList.add('unknown'); return n; }
   const r = rarityOf(it);
   n.style.color = `var(--${isCursed(it) ? CURSED_TONE : RARITY[r].tone})`;
   if (r >= 2 && !isCursed(it)) n.classList.add('shine');
@@ -3527,13 +3567,13 @@ export function renderAnvil() {
     anvilMode === 'enchant'
       ? `무작위 속성을 건다. 이미 붙은 것이 많을수록 저주가 잦다 — ` +
         `${Math.round(ENCHANT_CURSE * 100)}% / ${Math.round((ENCHANT_CURSE + ENCHANT_CURSE_STEP) * 100)}% / ` +
-        `${Math.round((ENCHANT_CURSE + ENCHANT_CURSE_STEP * 2) * 100)}%. ${Game.costText(ENCHANT_COST)}`
+        `${Math.round((ENCHANT_CURSE + ENCHANT_CURSE_STEP * 2) * 100)}%. ${Game.costText(Game.anvilCost(ENCHANT_COST))}`
       : anvilMode === 'reroll'
-      ? `이미 붙은 속성을 다시 굴린다. 저주는 절대 붙지 않는다. ${Game.costText(REROLL_COST)}`
+      ? `이미 붙은 속성을 다시 굴린다. 저주는 절대 붙지 않는다. ${Game.costText(Game.anvilCost(REROLL_COST))}`
       : anvilMode === 'refine'
-      ? `마지막에 돋은 각인을 지져 없앤다. 자리는 남고, 그 자리에서 다시 돋는다 — 무엇이 돋을지는 쇠가 정한다. ${Game.costText(REFINE_COST)}`
+      ? `마지막에 돋은 각인을 지져 없앤다. 자리는 남고, 그 자리에서 다시 돋는다 — 무엇이 돋을지는 쇠가 정한다. ${Game.costText(Game.anvilCost(REFINE_COST))}`
       : anvilMode === 'attune'
-      ? `유물에게 정수를 먹인다. 한 번에 한 단계, 유물마다 ${ATTUNE_MAX}번까지. ${Game.costText(ATTUNE_COST)}`
+      ? `유물에게 정수를 먹인다. 한 번에 한 단계, 유물마다 ${ATTUNE_MAX}번까지. ${Game.costText(Game.anvilCost(ATTUNE_COST))}`
       : campCareful
       ? `값은 ${CAREFUL_MULT}배. 성공률 +${Math.round(CAREFUL_BONUS * 100)}%p, 실패해도 깎이거나 부서지지 않는다.`
       : `값은 그대로. ${Math.round(UPGRADE_CRIT * 100)}% 확률로 두 단계가 오른다 — 대신 실패하면 깎이고, 깊은 +에서는 부서진다.`;
@@ -3584,7 +3624,7 @@ function renderAttune() {
       : '먹일 유물이 없다.'));
     return;
   }
-  const poor = !Game.canAfford(ATTUNE_COST);
+  const poor = !Game.canAfford(Game.anvilCost(ATTUNE_COST));
   for (const r of held) {
     const left = Game.attuneLeft(r.id);
     const row = el('button', 'itemrow');
@@ -3696,16 +3736,16 @@ function renderAnvilTargets() {
     if (anvilMode === 'upgrade') {
       ({ blocked, label } = upgradeRow(t, mid));
     } else if (anvilMode === 'reroll') {
-      blocked = !Game.canAfford(REROLL_COST);
+      blocked = !Game.canAfford(Game.anvilCost(REROLL_COST));
       label = blocked ? '재료 부족' : '속성 다시';
     } else if (anvilMode === 'refine') {
-      blocked = !Game.canAfford(REFINE_COST);
+      blocked = !Game.canAfford(Game.anvilCost(REFINE_COST));
       label = blocked ? '재료 부족' : '각인 지우기';
       const last = t.item?.engrave?.[t.item.engrave.length - 1];
       if (last) mid.appendChild(el('span', 'idesc mark',
         `${engraveById(last)?.n}이(가) 돋은 자리를 지진다 — 그 자리에서 다시 돋는다.`));
     } else {
-      blocked = !Game.canAfford(ENCHANT_COST);
+      blocked = !Game.canAfford(Game.anvilCost(ENCHANT_COST));
       label = blocked ? '재료 부족' : '인챈트';
     }
     if (blocked) { row.classList.add('poor'); row.disabled = true; }
@@ -4583,7 +4623,10 @@ function renderEnd() {
     ? `${MAX_DEPTH}층에서. 처음으로, 누군가 그만큼 내려갔다.`
     : `${s.depth === 0 ? '갱구' : s.depth + '층'}에서 ${e.by}에게.`;
 
-  const box = $('end-body');
+  /* 결산은 이제 #end-body 안의 **첫 칸**에 들어간다 — 그 아래에
+     작은 버튼 셋이 같이 스크롤되므로, 여기서 innerHTML 을 비우면
+     버튼까지 지운다. 제 칸만 비운다. */
+  const box = $('end-ledger');
   box.innerHTML = '';
 
   const line = (label, value, tone) => {

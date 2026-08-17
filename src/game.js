@@ -2657,6 +2657,22 @@ export function cast(spellId) {
     if (n) say(`눈이 열려 있다 — ${n}에게도 닿았다.`, 'level');
   };
 
+  /* ── 주문마다 제 프레임 ────────────────────────────────────
+     플레이어: 「아이템이나 주문 임펙트, 특히 주문의 효과가 너무 구림.」
+
+     숫자 쪽은 약하지 않다 — 실측으로 주문 한 방이 평타의 4~7배다.
+     약한 것은 **화면**이었다. 피해 주문 셋이 전부 같은 선(beam) 하나에
+     색만 달랐고, 나머지 다섯(점멸·탐지·치유·축복·지도)은 아무 프레임도
+     없었다. 기예는 이미 하나씩 제 그림을 갖고 있는데 주문만 없었다.
+
+     기예와 같은 문을 쓴다: 여기서 한 번 띄우고, 그리는 쪽이 id로
+     갈래를 탄다. 손에 든 것도 같이 실어 보낸다(auraOf) — 강화와 각인이
+     기예에서 보이는데 주문에서 안 보이면, 지팡이를 벼려도 화면은
+     아무 말도 안 하게 된다. */
+  fx({ t:'spellCast', id: sp.id, x: p.x, y: p.y,
+       tx: nearest?.x, ty: nearest?.y, realm: CLASSES[p.cls].realm, pow, aura: auraOf(p),
+       echo: echo?.id || null, affix: aff?.id || null });
+
   switch (sp.id) {
     case 'bolt':
     case 'smite': {

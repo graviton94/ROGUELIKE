@@ -326,6 +326,94 @@ function auraWash(e) {
 
    artFx·bigFx 와 같은 이유로 한 문 뒤에 둔다 — pump 는 이 저장소에서
    가장 굵은 함수이고, 매듭 린트가 이 커밋에서 바로 잡았다. */
+/* ── 주문마다 제 그림 ──────────────────────────────────────
+   플레이어: 「아이템이나 주문 임펙트, 특히 주문의 효과가 너무 구림.」
+
+   숫자는 약하지 않았다 — 주문 한 방이 평타의 4~7배다. 약한 것은
+   화면이었다. 피해 주문 셋이 전부 같은 선 하나에 색만 달랐고,
+   나머지 다섯은 아무 프레임도 없었다 — 점멸은 그냥 순간이동했고,
+   축복은 로그 한 줄이 전부였다.
+
+   이건 **시전 프레임**이다: 주문이 나가는 순간의 그림. 맞은 자리의
+   그림(beam·burst)은 그대로 두고 그 앞에 선다. 그래서 「내가 무엇을
+   했나」와 「그것이 무엇에 닿았나」가 화면에서 갈린다.
+
+   기예와 같은 문 뒤에 둔다 — pump 는 이미 이 저장소에서 가장 굵은
+   함수이고, 주문 여덟에 case 를 여덟 개 얹으면 아무도 못 연다. */
+function spellFx(e) {
+  const holy = e.realm === 'divine';
+  const C = holy ? PALETTE.y : PALETTE.P;      // 신성은 금빛, 비전은 보랏빛
+  const C2 = holy ? PALETTE.W : PALETTE.p;
+  switch (e.id) {
+    /* 손에서 모였다가 튀어 나간다. 모이는 쪽을 그리는 것이 핵심이다 —
+       선만 있으면 「어디선가 선이 나왔다」이고, 모임이 있으면
+       「내가 쐈다」가 된다. */
+    case 'bolt': case 'smite': {
+      ring(e.x, e.y, 1.4, C, 240, true);       // 손으로 오므라드는 고리
+      burstShards(e.x, e.y, [C, C2], 8, 0.7);
+      if (e.tx !== undefined) {
+        /* 굵은 줄 하나에 얇은 줄 둘 — 한 줄이면 가늘고, 셋이면 굵다. */
+        for (let i = 0; i < 3; i++)
+          beams.push({ fx: e.x + 0.5, fy: e.y + 0.5, tx: e.tx + 0.5, ty: e.ty + 0.5,
+                       color: i ? C2 : C, age: -i * 24, life: 240, thin: i > 0 });
+      }
+      shake = Math.max(shake, holy ? 0.34 : 0.26);
+      buzz(holy ? [30, 14, 40] : [22, 10, 26]);
+      sfx.crit();
+      break;
+    }
+    /* 얼음은 안쪽에서 바깥으로 밀려 나간다. 고리 셋이 시차를 두고
+       퍼지고, 그 뒤에 붙는 burst 가 실제 사거리를 그린다. */
+    case 'frost': {
+      for (let i = 0; i < 3; i++)
+        ring(e.x, e.y, 1.6 + i * 1.5, PALETTE.B, 300 + i * 120);
+      burstShards(e.x, e.y, [PALETTE.B, PALETTE.W, PALETTE.b], 22, 1.5);
+      flashScreen = Math.max(flashScreen, 0.22); flashHue = 'b';
+      freeze = Math.max(freeze, 70);
+      shake = Math.max(shake, 0.4);
+      buzz([44, 24, 44]); sfx.crit();
+      break;
+    }
+    /* 점멸은 **두 곳**에서 일어난다 — 그림자 도약이 그랬듯이. 여기서는
+       떠나는 자리만 그린다(도착 자리는 규칙이 옮긴 뒤라 좌표가 없다). */
+    case 'blink': {
+      ring(e.x, e.y, 1.5, PALETTE.P, 320, true);
+      burstShards(e.x, e.y, [PALETTE.P, PALETTE.p, PALETTE.k], 12, 1.1);
+      buzz([12, 8, 20]); sfx.roll();
+      break;
+    }
+    /* 층을 훑는다. 넓고 얇은 고리 셋 — 피해가 없으니 파편도 없다. */
+    case 'detect': case 'map': {
+      for (let i = 0; i < 3; i++)
+        ring(e.x, e.y, 3 + i * 3.2, C2, 420 + i * 160);
+      number(e.x, e.y - 0.9, e.id === 'map' ? '지형' : '감지', C2, 1.0, true);
+      sfx.levelup();
+      break;
+    }
+    /* 몸으로 스며든다 — 바깥에서 안으로 오므라드는 고리. 치유와
+       축복이 같은 방향인 것은 둘 다 「받는」 주문이기 때문이다. */
+    case 'cure': case 'heal': {
+      ring(e.x, e.y, e.id === 'heal' ? 2.6 : 1.8, PALETTE.g, 380, true);
+      burstShards(e.x, e.y, [PALETTE.g, PALETTE.W], e.id === 'heal' ? 16 : 9, 0.9);
+      flashScreen = Math.max(flashScreen, e.id === 'heal' ? 0.18 : 0.10); flashHue = 'g';
+      sfx.heal();
+      break;
+    }
+    case 'bless': {
+      ring(e.x, e.y, 2.0, PALETTE.y, 420, true);
+      number(e.x, e.y - 0.9, '축복', PALETTE.y, 1.1, true);
+      sfx.levelup();
+      break;
+    }
+    default:
+      ring(e.x, e.y, 1.4, C, 260, true);
+      sfx.crit();
+  }
+  /* 잔향이 실려 있으면 한 겹 더. 마법사의 축이 화면에 안 보이면
+     그건 로그에만 있는 축이다. */
+  if (e.echo) ring(e.x, e.y, 2.2, PALETTE.W, 300);
+}
+
 function priestFx(e) {
   if (e.t === 'repay') {
     /* 모아 둔 것이 한 번에 나간다. 굵은 줄 하나 + 무게. */
@@ -584,6 +672,10 @@ export function pump(queue, player) {
         buzz(e.big ? [40, 40, 40, 40, 140] : [30, 40, 30, 40, 90]);
         sfx.levelup();
         break;
+
+      /* 시전 프레임. 맞은 자리의 그림(beam·burst)보다 **먼저** 온다 —
+         규칙 쪽에서 그 순서로 띄운다. */
+      case 'spellCast': spellFx(e); break;
 
       case 'beam':
         beams.push({ fx: e.fx, fy: e.fy, tx: e.tx, ty: e.ty, color: PALETTE[e.color] || PALETTE.P, life: 260, age: 0 });

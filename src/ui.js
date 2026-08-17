@@ -1902,6 +1902,9 @@ export const armed = () => Date.now() >= armUntil;
 
    판을 가리지 않고 그 위에 얹히는 여섯(SHEETS)은 예외다 — 층에
    무엇이 남았고 내가 어디 섰는지가 바로 그 창이 묻는 정보라서. */
+/* 판 밖에서도 열리는 화면들. 이 셋만 「어디서 열었는지」를 기억하면
+   된다 — 나머지는 판 안에서만 열리므로 돌아갈 곳이 판 하나다. */
+const OVERLAYS = ['help', 'codex'];
 const SCREEN_IDS = ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help',
                     'camp', 'slots', 'altar', 'stairs', 'relic', 'event', 'anvil',
                     'codex', 'arcana'];
@@ -1914,7 +1917,31 @@ function showOnly(name) {
   }
 }
 
+/* ── 닫기가 어디로 가야 하는가 ─────────────────────────────
+   `[data-back]` 이 전부 `setScreen('play')` 였다. 그런데 조작법은
+   **첫 화면에서도** 열린다(btn-help). 그래서 첫 화면 → 조작법 →
+   닫기 를 하면 시작한 적도 없는 판으로 떨어졌다 — 지도도 영웅도
+   없는 화면이다.
+
+   화면마다 예외를 붙이는 대신(도감이 이미 그렇게 한 줄을 갖고
+   있었다) **어디서 열었는지를 기억한다.** 그러면 같은 창이 어디서
+   열리든 제자리로 돌아간다. */
+let cameFrom = 'title';
+export const backTarget = () =>
+  (cameFrom === 'play' && !G.running) ? 'title' : cameFrom;
+
+/* 덮개형 화면(조작법·도감)에 들어설 때만 기억한다 — 판 안에서
+   배낭·상점을 오가는 것까지 기억하면 「돌아갈 곳」이 매번 바뀌어
+   오히려 못 돌아간다. setScreen 밖에 두는 이유는 저 함수가 이미
+   매듭 린트의 목록에 있기 때문이다. */
+function rememberFrom(name) {
+  if (!OVERLAYS.includes(name)) return;
+  if (OVERLAYS.includes(G.screen)) return;
+  cameFrom = G.screen || 'title';
+}
+
 export function setScreen(name) {
+  rememberFrom(name);
   /* ── 죽는 순간은 화면을 늦춘다 ─────────────────────────
      죽자마자 명세서를 띄우면 **무엇이 나를 죽였는지 볼 틈이 없다.**
      규칙 쪽은 이미 끝났다고 말했지만(G.running=false), 화면은 렌즈가
@@ -5088,10 +5115,14 @@ export function bindInput() {
      only way to read what happened. */
   $('log').onclick = () => { stopAuto(); renderScroll(); };
   $('scroll-close').onclick = () => { $('scroll').hidden = true; };
-  for (const b of document.querySelectorAll('[data-back]')) b.onclick = () => setScreen('play');
-  /* The codex is opened from the title, so 닫기 has to go back
-     there rather than into a game that is not running. */
-  document.querySelector('#sc-codex [data-back]').onclick = () => setScreen('title');
+  /* 닫기는 「열기 전에 있던 곳」으로 돌아간다. 덮개형이 아닌 화면
+     (배낭·상점·모루…)은 판 안에서만 열리므로 여전히 판으로 간다. */
+  for (const b of document.querySelectorAll('[data-back]'))
+    b.onclick = () => setScreen(G.running ? 'play' : 'title');
+  for (const id of OVERLAYS) {
+    const b = document.querySelector(`#sc-${id} [data-back]`);
+    if (b) b.onclick = () => setScreen(backTarget());
+  }
 
   window.addEventListener('keydown', e => {
     // The modal owns the keyboard while it is up.

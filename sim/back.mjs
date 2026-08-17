@@ -76,6 +76,16 @@ for (let i = 0; i < 14; i++) {
 }
 console.log('');
 ok(await at() === 'play', '판이 실제로 시작됐다 — 아래 줄들이 잴 것이 있다');
+/* 살아 있는 판을 슬롯에 한 번 박아 둔다. 아래에서 브라우저를 비운 뒤
+   이걸 되돌려 놓고 「슬롯을 실제로 읽어 내는가」를 묻는다 — 진짜 저장
+   데이터로 물어야 한다. slotDigest 가 죽는다면 거기서 죽는다. */
+await pg.evaluate(async () => {
+  const Save = await import('/src/save.js');
+  Save.save(0);
+  window.__slot = localStorage.getItem('deepdelve.slot.0');
+});
+ok(await pg.evaluate(() => !!window.__slot), '살아 있는 판이 슬롯에 실제로 저장된다');
+
 await round('판 → 조작법', () => tap('btn-help'), 'help', 'play');
 await round('판 → 배낭',   () => pg.evaluate(() => window.UI.setScreen('inv')), 'inv', 'play');
 
@@ -119,9 +129,16 @@ await pg.waitForTimeout(250);
   const st = await pg.evaluate(() => { const e = document.getElementById('btn-trace2');
     return { off: e.disabled, txt: e.textContent }; });
   /* 이 벤치는 판을 한 번 굴린 뒤이므로 기록이 있다 — 「없을 때
-     막히는가」는 기록을 비워서 묻는다. */
+     막히는가」는 기록을 비워서 묻는다. 그런데 비울 것이 셋이다:
+     이번 판의 층별 기록, 저장 슬롯, 누적 장부. 층별 기록만 지우면
+     버튼은 여전히 열려 있어야 옳다 — 줄 것이 남아 있으니까. 「아무
+     것도 없다」는 브라우저가 정말로 빈 상태에서만 참이다. */
   await pg.evaluate(async () => { const Game = await import('/src/game.js');
-    Game.G.trace = []; window.UI.setScreen('play'); window.UI.setScreen('help'); });
+    const Meta = await import('/src/meta.js');
+    Game.G.trace = [];
+    Meta.forget();                                   // 장부를 게임의 문으로 비운다
+    for (const k of Object.keys(localStorage)) if (/^deepdelve\.slot/.test(k)) localStorage.removeItem(k);
+    window.UI.setScreen('play'); window.UI.setScreen('help'); });
   await pg.waitForTimeout(250);
   const empty = await pg.evaluate(() => { const e = document.getElementById('btn-trace2');
     return { off: e.disabled, txt: e.textContent }; });
@@ -133,6 +150,56 @@ await pg.waitForTimeout(250);
   ]);
   ok(!dl, '그리고 눌러도 빈 파일이 안 떨어진다', dl ? dl.suggestedFilename() : '안 떨어짐');
   void st;
+}
+
+/* ── 층별 기록이 없어도 브라우저에 남은 것은 준다 ────────────
+   플레이어: 「이때까지 한 건 안 남는 거구나, 저 기능 있어야 이후에
+   연결되는 거임? 내 로컬 캐시에 있는 걸 활용할 수 없나?」
+
+   층별 기록은 v43 부터만 쌓인다 — 그건 사실이다. 그런데 누적 장부와
+   저장 슬롯은 그 전부터 있었고, 그것만으로도 답할 수 있는 질문이
+   있다. 그러니 「이번 판의 기록이 없다」와 「줄 것이 아무것도 없다」는
+   다른 말이어야 한다. 이 줄들이 그 둘을 갈라 둔다. */
+console.log('');
+{
+  await pg.evaluate(async () => {
+    const Meta = await import('/src/meta.js');
+    const Game = await import('/src/game.js');
+    Meta.finish({ win: false, depth: 7, lv: 5, combo: 3, gold: 210, turn: 900,
+                  cls: 'warrior', race: 'human', by: '벤치', kills: 40 });
+    localStorage.setItem('deepdelve.slot.0', window.__slot);   // 아까 박아 둔 진짜 저장
+    Game.G.trace = [];
+    window.UI.setScreen('play'); window.UI.setScreen('help');
+  });
+  await pg.waitForTimeout(250);
+  const st = await pg.evaluate(() => { const e = document.getElementById('btn-trace2');
+    return { off: e.disabled, txt: e.textContent }; });
+  ok(!st.off, '층별 기록이 없어도 장부가 있으면 버튼이 열린다', `"${st.txt}"`);
+  ok(/남은 기록/.test(st.txt),
+     '그리고 무엇을 주는지 버튼이 미리 말한다 — 「판 기록」이라 써 놓고 장부만 주면 고장으로 읽힌다',
+     `"${st.txt}"`);
+  const [dl] = await Promise.all([
+    pg.waitForEvent('download', { timeout: 6000 }).catch(() => null),
+    pg.evaluate(() => document.getElementById('btn-trace2').click()),
+  ]);
+  ok(!!dl, '그 상태에서도 파일이 떨어진다', dl ? dl.suggestedFilename() : '안 떨어짐');
+  if (dl) {
+    const { readFileSync } = await import('node:fs');
+    const txt = readFileSync(await dl.path(), 'utf8');
+    const d = JSON.parse(txt.slice(txt.indexOf('{')));
+    ok(d.meta?.runs > 0, '파일이 누적 장부를 싣고 있다', `판 ${d.meta?.runs}회`);
+    const s = (d.slots || [])[0];
+    /* 깊이 0은 갱구다 — 이 벤치는 아직 안 내려갔다. 「0이면 못 읽은
+       것」으로 재면 게임이 아니라 자가 틀린 것이다(이번 세션에 이미
+       다섯 번 그랬다). 읽혔는지는 이름과 장비로 묻는다. */
+    ok(!!s && !!s.cls && !!s.race && s.gear?.length > 0 && Number.isFinite(s.turn),
+       '파일이 저장 슬롯을 실제로 읽어 낸다 — 그 순간의 층·장비·유물까지',
+       s ? `${s.race}/${s.cls} ${s.depth || '갱구'} · 장비 ${s.gear.length} · 유물 ${s.relics.length}` : '없음');
+    ok(!!s && !/[A-Za-z0-9+/]{200,}/.test(JSON.stringify(s)),
+       '지도 격자는 안 싣는다 — 밸런스를 보는 데 안 쓰이고 파일만 부풀린다');
+    ok(/이 브라우저에 남은 것/.test(txt) && /이번 판부터 쌓인다/.test(txt),
+       '머리말이 「층별 기록은 이번 판부터」라고 먼저 말한다 — 안 그러면 빈 파일로 읽힌다');
+  }
 }
 
 console.log('');

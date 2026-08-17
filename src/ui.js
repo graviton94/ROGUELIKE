@@ -1940,9 +1940,18 @@ export const backTarget = () =>
 function armTrace() {
   const t = $('btn-trace2');
   if (!t) return;
-  const has = !!G.player && !!(G.trace || []).length;
-  t.disabled = !has;
-  t.textContent = has ? '판 기록 내려받기' : '판을 시작하면 받을 수 있다';
+  /* 「줄 것이 있는가」는 이번 판만의 질문이 아니다. 층별 기록이 없어도
+     이 브라우저에는 저장 슬롯과 누적 장부가 남아 있고, 그것만으로도
+     답할 수 있는 질문이 있다. 그래서 셋 중 하나라도 있으면 열린다 —
+     그리고 무엇을 주는지 버튼이 미리 말한다. 「판 기록」이라 써 놓고
+     장부만 주면 받은 쪽은 고장으로 읽는다. */
+  const live = !!G.player && !!(G.trace || []).length;
+  const meta = Meta.read();
+  const kept = Save.allSlots().length > 0 || (meta.runs || 0) > 0;
+  t.disabled = !live && !kept;
+  t.textContent = live ? '판 기록 내려받기'
+    : kept ? '이 브라우저에 남은 기록 내려받기'
+    : '판을 시작하면 받을 수 있다';
 }
 
 function rememberFrom(name) {
@@ -4428,22 +4437,40 @@ export function dumpRun(btn) {
      `undefined/undefined Lv0 · 0층 · 0턴 · events []` 짜리 빈 파일이
      나간다 — 실제로 플레이어가 그 파일을 보냈다. 아무 말 없이 빈
      것을 주는 것은 「내려받기가 고장났다」와 구분되지 않는다. */
-  if (!G.player || !(G.trace || []).length) {
+  /* ── 그리고 이 브라우저에 이미 있는 것도 같이 싣는다 ────────
+     플레이어: 「이때까지 한 건 안 남는 거구나… 내 로컬 캐시에 있는
+     걸 활용할 수 없나?」
+
+     층별 기록은 이번 판부터만 쌓인다 — 그건 사실이다. 그런데
+     localStorage 에 이미 있는 둘로도 답할 수 있는 질문이 꽤 있다:
+     **저장 슬롯**(진행 중인 판의 전체 상태 — 그 순간의 장비·유물·
+     주목·전투력)과 **누적 장부**(판 수·승 수·최고 깊이·총 처치·
+     마지막 판 요약·최근 시체 셋). 그래서 판이 없어도 파일은 나간다.
+     빈 파일이 되는 것은 셋 다 없을 때뿐이다. */
+  const meta = Meta.read();
+  const slots = Save.allSlots();
+  const live = !!G.player && !!(G.trace || []).length;
+  if (!live && !slots.length && !(meta.runs > 0)) {
     if (btn) {
       const was = btn.textContent;
-      btn.textContent = '아직 기록할 판이 없다';
+      btn.textContent = '아직 아무 기록도 없다';
       setTimeout(() => { btn.textContent = was; }, 2200);
     }
-    Game.say('아직 기록할 판이 없다 — 한 층이라도 내려간 뒤에 받으시오.', 'warn');
+    Game.say('아직 아무 기록도 없다 — 한 층이라도 내려간 뒤에 받으시오.', 'warn');
     return false;
   }
   const d = Game.traceDump();
+  d.meta = meta;
+  d.slots = slots;
   const head = [
     `깊은 곳 판 기록 · ${d.build} · 형식 v${d.v}`,
     `${d.race}/${d.cls} Lv${d.lv} · ${d.deepest}층 · ${d.turns}턴`
       + ` · ${d.ending ? (d.ending.win ? '클리어' : `${d.ending.by}에게`) : '진행 중'}`,
     `유물 ${d.relics.length} · 아르카나 ${d.arcana.length} · 총 강화 +${d.plus}`
       + ` · 처치 ${d.kills} · 최고 연격 ${d.bestCombo}`,
+    `이 브라우저에 남은 것 — 판 ${d.meta?.runs || 0}회 · 완주 ${d.meta?.wins || 0}회`
+      + ` · 최고 ${d.meta?.best?.depth || 0}층 · 저장 슬롯 ${d.slots.length}개`
+      + (d.events.length ? '' : ' (층별 기록은 이번 판부터 쌓인다)'),
     '', '── 아래는 원본. sim/replay.mjs 가 읽는다 ──', '',
   ].join('\n');
   const body = head + JSON.stringify(d, null, 1);

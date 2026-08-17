@@ -107,7 +107,37 @@ ok(await at() !== 'play', '끝난 뒤의 닫기는 판으로 안 간다 — 돌�
    그리고 파일 **이름**까지 봐야 한다: 처음에 `…-15층-….json` 으로
    지었더니 브라우저가 download 속성을 통째로 무시하고 확장자도 없는
    `download` 를 떨궜다 — 받은 쪽은 그게 무슨 파일인지 모른다. */
+/* 판이 시작되기 전에는 빈 파일을 주면 안 된다. 실제로 플레이어가
+   `0층 · 0턴 · events []` 짜리 파일을 보냈다 — 아무 말 없이 빈 것을
+   주는 것은 「내려받기가 고장났다」와 구분되지 않는다. */
 console.log('');
+await pg.evaluate(() => window.UI.setScreen('title'));
+await pg.waitForTimeout(200);
+await pg.evaluate(() => window.UI.setScreen('help'));
+await pg.waitForTimeout(250);
+{
+  const st = await pg.evaluate(() => { const e = document.getElementById('btn-trace2');
+    return { off: e.disabled, txt: e.textContent }; });
+  /* 이 벤치는 판을 한 번 굴린 뒤이므로 기록이 있다 — 「없을 때
+     막히는가」는 기록을 비워서 묻는다. */
+  await pg.evaluate(async () => { const Game = await import('/src/game.js');
+    Game.G.trace = []; window.UI.setScreen('play'); window.UI.setScreen('help'); });
+  await pg.waitForTimeout(250);
+  const empty = await pg.evaluate(() => { const e = document.getElementById('btn-trace2');
+    return { off: e.disabled, txt: e.textContent }; });
+  ok(empty.off, '기록이 없으면 버튼이 미리 잠긴다 — 눌러 보고 아는 것은 한 번 속은 것이다',
+     `"${empty.txt}"`);
+  const [dl] = await Promise.all([
+    pg.waitForEvent('download', { timeout: 2500 }).catch(() => null),
+    pg.evaluate(() => document.getElementById('btn-trace2').click()),
+  ]);
+  ok(!dl, '그리고 눌러도 빈 파일이 안 떨어진다', dl ? dl.suggestedFilename() : '안 떨어짐');
+  void st;
+}
+
+console.log('');
+await pg.evaluate(async () => { const Game = await import('/src/game.js');
+  Game.trace('floor.in', { heat: 0 }); });   // 기록을 다시 채운다
 for (const [what, screen, id] of [['조작법', 'help', 'btn-trace2'],
                                   ['끝 화면', 'end', 'btn-trace']]) {
   await pg.evaluate(s2 => window.UI.setScreen(s2), screen);

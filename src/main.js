@@ -30,8 +30,9 @@ $('btn-totitle').onclick  = () => { G.running = false; UI.setScreen('title'); };
 $('btn-endcodex').onclick = () => { G.running = false; UI.setScreen('codex'); };
 /* 판을 파일로. 봇으로 사람을 흉내 내는 대신 사람의 판을 그대로 읽으려고
    만든 문이라, 죽은 뒤에도 이긴 뒤에도 같은 자리에 있다. */
-$('btn-trace').onclick = () => UI.dumpRun();
-$('btn-trace2').onclick = () => UI.dumpRun();
+/* 버튼 자신을 넘긴다 — 기록할 판이 없으면 그 버튼이 직접 말한다. */
+$('btn-trace').onclick  = e => UI.dumpRun(e.currentTarget);
+$('btn-trace2').onclick = e => UI.dumpRun(e.currentTarget);
 $('btn-share').onclick    = () => UI.shareRun();
 
 UI.setScreen('title');

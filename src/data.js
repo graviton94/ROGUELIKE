@@ -1238,15 +1238,30 @@ export const ARTS = {
      They are also why the resource refills mid-fight: 어둠 되감기
      makes the things around you lose you, which turns the next
      blow into an ambush, which pays a shade back. */
+  /* ── 도적을 다시 짠다 (순서 3-③) ─────────────────────────
+     넷 다 공격이거나 도망이었고, **그림자를 읽는 것이 하나도 없었다.**
+     이 직업의 축은 「보이지 않는 동안 모으고, 한 번에 태운다」인데,
+     모은 양이 어느 기예의 값도 바꾸지 않으면 모으는 일은 그냥 재장전
+     대기이고 축이 아니다. 두 자리를 고친다.
+
+     · 칼부채 → 숨 끊기. 부채꼴 광역은 이 직업의 축과 아무 관계가
+       없고, 광역 회전은 이 게임에 이미 셋이다(빗발 · 소용돌이 ·
+       서리 폭발). 그 자리를 **순환**으로 바꾼다: 죽이면 사라지고,
+       사라졌으니 다음 한 대가 기습이고, 기습이 그림자를 채운다.
+       암살자의 환상이 규칙 하나로 도는 자리다
+     · 급소는 설명이 이미 「모은 것을 한 번에 태운다」였는데 코드는
+       **고정 ×2.6** 이었다. 이 저장소에서 글과 규칙이 다투면 틀린
+       것은 글이지만, 여기서는 글이 옳았다 — 규칙을 글에 맞춘다.
+       남은 그림자가 배수를 올린다                                */
   rogue: [
     { id:'shadowstep', role:'basic', name:'그림자 도약', short:'도약', lv:1,  stam:2,
       desc:'보이는 적의 등 뒤로 건너뛰어 친다. 그 한 대는 기습이다.' },
-    { id:'fan', role:'signature',        name:'칼부채',      short:'부채', lv:4,  stam:4,
-      desc:'부채꼴로 칼을 던진다. 그 안의 모든 것이 맞는다.' },
+    { id:'hush', role:'signature',   name:'숨 끊기',     short:'숨끊', lv:4,  stam:3,
+      desc:'붙어 있는 하나를 찌른다. **그 한 대로 죽으면** 자취가 지워지고 그림자가 둘 돌아온다 — 못 죽이면 아무것도 없다.' },
     { id:'vanish', role:'cover',     name:'어둠 되감기',  short:'되감기', lv:8,  stam:3,
       desc:'붙어 있는 것을 전부 찌르고 두 칸씩 밀어낸 뒤 자취를 지운다. 그 한 대는 전부 기습이다.' },
     { id:'vitals', role:'ultimate',     name:'급소',        short:'급소', lv:12, stam:5,
-      desc:'모은 것을 한 번에 태운다. 갑옷을 지나가는 한 방.' },
+      desc:'갑옷을 지나가는 한 방. **남은 그림자 하나하나가 이 한 대를 무겁게 한다.**' },
   ],
 
   /* The ranger cast the mage's five spells with worse intelligence
@@ -1266,10 +1281,20 @@ export const ARTS = {
        곳이고, 지금까지 그 자원이 사는 물건이 없었다. */
     { id:'repay', role:'basic',    name:'되갚기', short:'되갚기', lv:1,  stam:3,
       desc:'이 층에서 받은 것을 눈앞의 하나에게 한 번에 돌려준다. 많이 맞았을수록 무겁다.' },
-    { id:'word', role:'signature',     name:'말씀',   short:'말씀', lv:4,  stam:4,
-      desc:'네 칸 안의 모든 것이 두 턴 동안 얼어붙는다. 피해는 없다 — 시간을 산다.' },
-    { id:'stigma', role:'cover',   name:'성흔',   short:'성흔', lv:8,  stam:5,
+    /* ── 둘이 자리를 바꿨다 (순서 3-③) ───────────────────────
+       §4의 역할 표는 2번이 **직업특화 공격**이고 3번이 **단점 상쇄**다.
+       그런데 말씀은 「피해는 없다 — 시간을 산다」이고 성흔은 「맞을
+       때마다 곁도 맞는다」다. 즉 공격 칸에 공격이 아닌 것이, 상쇄 칸에
+       공격 증폭이 앉아 있었다. 사다리도 같이 바뀐다(4 ↔ 8).
+
+       규칙은 한 줄도 안 바꾼다 — 바꿀 것이 없다. 이 둘은 **제자리가
+       아니었을 뿐**이고, 자리가 틀리면 「이 직업의 4레벨이 무엇인가」가
+       직업마다 다른 말을 한다. 사제가 몰렸을 때 쓰는 것은 말씀이므로
+       그것이 단점 상쇄이고, 그 자리는 여덟이다. */
+    { id:'stigma', role:'signature', name:'성흔',   short:'성흔', lv:4,  stam:4,
       desc:'하나에 성흔을 새긴다. 그것이 맞을 때마다 곁의 것들도 같이 맞는다.' },
+    { id:'word', role:'cover',     name:'말씀',   short:'말씀', lv:8,  stam:5,
+      desc:'네 칸 안의 모든 것이 두 턴 동안 얼어붙는다. 피해는 없다 — 시간을 산다.' },
     /* 순교의 값은 피해가 아니라 「다섯 턴 뒤에 오는 빚」이다. 신앙 9는
        판당 한 번도 안 닿는 값이었다. */
     { id:'martyr', role:'ultimate',   name:'순교',   short:'순교', lv:12, stam:6,
@@ -1291,7 +1316,7 @@ export const ARTS = {
        있어야 값을 한다」는 조건이 체력 40%로 깎아 놓아도 성립하지
        않았다(×0.76). 값을 5로 내리고 한 대를 무겁게 한다. */
     { id:'crusade', role:'ultimate', name:'성전',        short:'성전', lv:12, stam:5,
-      desc:'가장 가까운 것을 벤다. 죽으면 다음으로 걸어가 또 벤다. 죽지 않는 순간 끝난다.' },
+      desc:'다섯 턴 동안, 맹세가 하나 찰 때마다 그것이 한 번의 심판이 된다 — 맞아도 차고 죽여도 찬다. 다섯 번까지.' },
     /* 팔라딘의 넷은 전부 「누구를 칠 것인가」다 — 물러설 방법이 하나도
        없었다. 그런데 이 직업은 앞으로 나가는 직업이라 위험한 순간이
        **자기가 만든 것**이다: 돌진해 들어갔고 나올 수가 없다. */
@@ -1390,9 +1415,11 @@ export const STIGMA_RANGE  = 2;
    확인해야 했다. 이제 통은 기력 하나이고 「그림자」는 그 통의 도적
    이름이다. 대신 차는 규칙이 도적의 것으로 남는다 — 아무도 못 보면
    매 턴 찬다(POOL.rogue.unseen). 숨는 것이 곧 재장전이다. */
-export const FAN_RANGE   = 4;
-export const FAN_ARC     = 0.35;  // dot-product floor: a touch wider than 90°
-export const FAN_SHARE   = 0.7;
+/* 「칼부채」의 값 셋(FAN_RANGE·FAN_ARC·FAN_SHARE)이 여기 있었다.
+   기예가 없어졌으므로 값도 같이 지운다 — 안 읽히는 상수가 표에 남아
+   있으면 다음 사람이 그것을 설계로 읽는다. */
+export const HUSH_KILL_SHADE = 2;   // 그 한 대로 죽였을 때 돌아오는 그림자
+export const HUSH_MULT       = 1.15;
 export const VANISH_HUSH = 3;     // the turn it is used on is itself spent
 /* 되감기가 나가면서 붙어 있던 것을 찌르고 민다. 「임팩트가 없다」는
    말을 들은 뒤에 붙인 두 값이다 — 도적이 실제로 위험한 순간은 들켰고
@@ -1407,7 +1434,15 @@ export const KITE_MULT     = 0.8;  // 지나온 자리마다 한 발
 export const BULWARK_TURNS = 3;    // 팔라딘 — 그동안 1 아래로 안 내려간다
 export const VANISH_MULT = 0.85;  // 밀려나는 것마다 기습 판정 한 대
 export const VANISH_PUSH = 2;     // 그리고 두 칸 밀린다 — 포위가 풀린다
-export const VITALS_MULT = 2.6;
+/* ── 급소 — 모은 것이 값이다 ───────────────────────────────
+   고정 ×2.6 이었다. 설명은 「모은 것을 한 번에 태운다」였으므로 규칙이
+   글을 안 지키고 있었다. 남은 그림자가 배수를 올린다:
+     ×1.6 + 0.18/그림자  →  남은 셋에서 ×2.14 · 여덟에서 ×3.04
+   총량은 옛 2.6 근처에 두고 **폭만 만든다** — 이 직업을 세게 만드는
+   패치가 아니라 모으는 일에 값을 붙이는 패치다. 값을 낸 뒤 남은 것을
+   읽으므로, 도약·숨끊기·되감기와 같은 지갑을 놓고 다툰다. */
+export const VITALS_BASE = 1.6;
+export const VITALS_STEP = 0.18;
 
 /* ── 잔향 ─────────────────────────────────────────────────
    What each spell leaves behind for the next one. Five spells,
@@ -1463,7 +1498,22 @@ export const MARK_MAX  = 5;
 export const AIMED_GAIN  = 0.09;   // damage per tile, instead of the usual loss
 export const PIERCE_KEEP = 0.85;   // what the arrow carries to the next body
 export const SNARE_TURNS = 2;
-export const VOLLEY_SHARE = 0.5;
+/* ── 빗발이 표적을 읽는다 (순서 3-③) ──────────────────────
+   궁수의 축은 「표적」이다 — 같은 것을 계속 겨누면 그것에 대해서만 손이
+   밝아진다(TRAITS.ranger). 그런데 넷 중 **조준 사격만** 그 셈을 올리고
+   나머지 셋은 셈을 읽지도 쓰지도 않았다. 축이 기본기 하나에만 붙어
+   있으면 그것은 축이 아니라 기본기의 옵션이다.
+
+   그래서 빗발이 표적을 **태운다**: 겨누고 있던 것에게는 온전히 한 발,
+   나머지에게는 반. 그리고 셈이 지워진다 — 방을 지운 뒤에 다시 한
+   대상을 골라 쌓기 시작하는 것이 이 직업의 리듬이다.
+
+   총량은 안 올린다. 나머지 몫을 0.5 → 0.45 로 내려서, 표적 하나가
+   온전히 맞는 대신 방 전체의 합은 제자리에 둔다 — 이 직업은 이미
+   여섯 중 가장 깊이 간다(11~12층). 축을 선명하게 하는 패치이지
+   세게 하는 패치가 아니다. */
+export const VOLLEY_SHARE  = 0.45;
+export const VOLLEY_MARKED = 1.0;
 
 export const SHOVE_DIST   = 2;     // tiles pushed
 export const SHOVE_WALL   = 0.5;   // extra damage, as a share of a normal blow, on impact
@@ -1491,7 +1541,31 @@ export const CHARGE_DIST  = 4;     // tiles crossed to reach the first body
 export const CHARGE_SLAM  = 2;     // turns lost by something driven into a wall
 export const JUDGE_STRIKE = 0.12;  // share of the target's maximum, on top of the swing
 export const STORM_SHARE  = 0.9;   // what each surrounding body takes, vs one clean swing
-export const CRUSADE_MAX  = 6;     // how many times the chain may continue
+/* ── 성전을 다시 짠다 (순서 3-③) ──────────────────────────
+   「가장 가까운 것을 벤다. 죽으면 다음으로 걸어가 또 벤다. 죽지 않는
+   순간 끝난다.」였다. 조건이 **「방이 이미 무너져 있어야」**이고, 그
+   순간은 오지 않는다 — 실측으로 봇이 여덟 판에 **0회**, 열 판에 3회
+   눌렀다. 값을 5로 내려도 안 눌렸다. 값의 문제가 아니라 **쓸 순간이
+   없는** 기예였고, 이 저장소는 같은 이유로 성역·파문·심판을 이미
+   잘라냈다.
+
+   팔라딘의 축은 「맞아서 시작하고, 죽여서 굴러간다」이고 맹세는 맞을
+   때와 죽일 때 찬다(POOL.paladin). 그러면 궁극기는 **그 순환 자체를
+   태우는 것**이어야 한다: 성전을 부른 뒤 다섯 턴 동안, 맹세가 하나
+   찰 때마다 그것이 곧 한 번의 심판이 된다.
+
+   그러면 값이 「방이 무너졌을 때」가 아니라 **「방이 나쁠 때」**가 된다 —
+   둘러싸여서 매 턴 세 번 맞는 판이 가장 크게 값을 하고, 그 순간이
+   팔라딘이 스스로 만들어 놓고 빠져나올 수 없는 바로 그 순간이다.
+   전사의 소용돌이(끌어당김 한 번)·도적의 급소(한 방)·마법사의 폭주
+   (통을 태워 한 번)와 달리 이것은 **상태**다. 사제의 순교도 상태이지만
+   저것은 「안 쓰러진다」이고 이것은 「계속 나간다」다.
+
+   다섯과 다섯: 다섯 턴은 한 번의 위기 길이(STAND_TURNS·MARTYR_TURNS와
+   같은 눈금)이고, 심판 다섯은 상한이다 — 없으면 맞을수록 나가고
+   나간 것이 죽여서 또 차는 무한 기관이 된다. */
+export const CRUSADE_TURNS = 5;
+export const CRUSADE_HITS  = 5;
 
 /* A chest is a monster you have not identified yet. Its profile
    is derived from the floor rather than fixed, because a chest

@@ -1086,6 +1086,16 @@ function bladering(c, x, y, r) {            // 성스러운 폭풍
     c.lineTo(x + Math.cos(a + 0.5) * r, y + Math.sin(a + 0.5) * r);
   }
 }
+/* 숨 끊기. 급소가 이미 wedge 이고 되감기가 star4 이므로, 이 셋이
+   한 줄에 나란히 서면 모양이 갈려야 한다 — 목을 지나는 가로 한 줄과
+   그 위아래의 짧은 두 점. 8×8에서 「끊겼다」로 읽히는 가장 싼 그림이다. */
+function slit(c, x, y, r) {
+  const w = r * 0.16;
+  c.moveTo(x - r, y - w); c.lineTo(x + r, y - w);
+  c.lineTo(x + r, y + w); c.lineTo(x - r, y + w); c.closePath();
+  c.moveTo(x - r * 0.34, y - r * 0.72); c.arc(x - r * 0.34, y - r * 0.72, w * 1.2, 0, Math.PI * 2);
+  c.moveTo(x + r * 0.34, y + r * 0.72); c.arc(x + r * 0.34, y + r * 0.72, w * 1.2, 0, Math.PI * 2);
+}
 function march(c, x, y, r) {                // 성전
   for (let i = 0; i < 3; i++) {
     const px = x - r + i * r * 0.85;
@@ -1117,7 +1127,7 @@ const SPELL_ICONS = {
      missing line is a blank button and no error. */
   flurry:     [(c, x, y, r) => rain(c, x, y, r),    'R'],
   shadowstep: [zigzag,                              'P'],
-  fan:        [sweep,                               'B'],
+  hush:       [slit,                                'p'],
   vanish:     [(c, x, y, r) => star4(c, x, y, r),   'g'],
   vitals:     [wedge,                               'P'],
   finisher: [wedge,                                   'R'],

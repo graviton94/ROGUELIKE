@@ -38,13 +38,13 @@ import {
   ROLL_COST, ROLL_DIST, staminaMax, STAM_REGEN_EVERY,
   ARTS, SHOVE_DIST, SHOVE_WALL, CLEAVE_SHARE,
   STAND_TURNS, STAND_CUT, KITE_DIST, KITE_MULT, BULWARK_TURNS,
-  FAN_RANGE, FAN_ARC, FAN_SHARE, VANISH_HUSH, VITALS_MULT,
+  HUSH_KILL_SHADE, HUSH_MULT, VANISH_HUSH, VITALS_BASE, VITALS_STEP,
   POOL, poolName, HARD_HIT, POOL_UNDEAD,
   VANISH_MULT, VANISH_PUSH,
   ECHOES, ECHO_TURNS, ECHO_POWER, ECHO_SPLASH,
   SURGE_MULT, SURGE_DRY, SURGE_MIN,
   FLURRY_MAX, FLURRY_STEP, FLURRY_STAM, MARK_STEP, MARK_MAX,
-  AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE, SMOKE_RADIUS, SMOKE_TURNS,
+  AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE, VOLLEY_MARKED, SMOKE_RADIUS, SMOKE_TURNS,
   QUIVERS, quiverById, BOW_MELEE, BOW_FALLOFF, GEAR_SLOTS,
   FORCE_STAM, FORCE_HURT, FORCE_NOISE, PICK_USES, CHEST_RUIN, RANGER_FOOTING,
   SANCTUM_TURNS, SANCTUM_CUT,
@@ -55,7 +55,7 @@ import {
   COMBO_SHARE, FRENZY_TURNS, FRENZY_MAX, FRENZY_TAKE,
   TAUNT_TURNS, TAUNT_CUT, TAUNT_GAIN, TAUNT_CAP,
   MAELSTROM_PULL, MAELSTROM_MAX, MAELSTROM_SHARE,
-  JUDGE_STRIKE, STORM_SHARE, CRUSADE_MAX,
+  JUDGE_STRIKE, STORM_SHARE, CRUSADE_TURNS, CRUSADE_HITS,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
   strikeLine, takenLine, pickLine, MISS_BY, MISS_AT, FELLED,
@@ -378,7 +378,7 @@ function lore(kind, name, text, spr) {
    그릴지는 juice 쪽이 정한다.                                   */
 const ART_FX = new Set([
   'shove', 'cleave', 'flurry', 'finisher', 'brace',
-  'stepIn', 'fanOut', 'vanishOut', 'vitals',
+  'stepIn', 'hushCut', 'vanishOut', 'vitals',
   'charge', 'judgest', 'storm', 'crusade', 'bulwark',
   'sanctum', 'anathema', 'judge', 'martyr',
   'aimed', 'pierceShot', 'snare', 'volley', 'kite',
@@ -992,8 +992,39 @@ export function poolGain(n = 1, why = '') {
     fx({ t:'poolGain', x:p.x, y:p.y, at:p.stam, why, cls:p.cls });
     if (p.stam === p.maxStam && was < p.maxStam)
       say(`${poolName(p.cls)}이(가) 가득 찼다.`, 'good');
+    crusadeAnswer(got);
   }
   return got;
+}
+
+/* ── 성전 ─────────────────────────────────────────────────
+   팔라딘의 궁극기가 켜져 있는 동안, **맹세가 차는 것**이 곧 심판이
+   된다. 그래서 이 함수는 poolGain 안에 있다 — 맹세가 차는 자리는
+   거기 하나이고(맞을 때 · 죽일 때 · 느린 시계), 두 곳에 심으면 한
+   곳이 새서 「맞으면 나가는데 죽이면 안 나간다」가 된다.
+
+   재귀를 먼저 막는다: 나간 심판이 무언가를 죽이면 그것이 또 맹세를
+   채우고 다시 여기로 들어온다. 남은 횟수를 **먼저** 깎고 문을 닫아
+   두면, 그 안쪽 호출은 카운터가 0이거나 문이 잠긴 것을 보고 돌아간다. */
+let inCrusade = false;
+function crusadeAnswer(got) {
+  const p = G.player;
+  if (!p || p.cls !== 'paladin' || inCrusade) return;
+  if (!(p.crusade > 0) || !(p.crusadeLeft > 0)) return;
+  const near = visibleMonsters()
+    .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
+  if (!near) return;
+  p.crusadeLeft--;
+  inCrusade = true;
+  try {
+    /* 심판의 일격과 **같은 셈**을 쓴다. 여기서 따로 굴리면 같은 이름의
+       두 번째 계산 경로가 생기고, 언젠가 한쪽만 고쳐진다(§5-2). */
+    const heft = Math.round(baseSwing(p) + (near.maxhp || 10) * JUDGE_STRIKE);
+    fx({ t:'judgest', x:p.x, y:p.y, tx:near.x, ty:near.y, crusade:true });
+    near.awake = true;
+    hurtMonster(near, Math.max(3, heft), '성전', { pierce: true });
+    say(`맹세가 판결로 돌아온다 — 남은 것 ${p.crusadeLeft}.`, 'level');
+  } finally { inCrusade = false; }
 }
 /* 직업이 맞을 때 통이 차는가. 사제와 팔라딘만 참이고, 그 둘이
    「나빠질수록 강해지는」 쪽인 이유가 이 한 줄이다. */
@@ -2074,7 +2105,10 @@ function teleport() {
 /* 붙어 있는 것이 있어야 나가는 기예들. 여기 안 적으면 그 기예는
    `near[0]` 이 undefined 인 채로 실행되고 그 자리에서 터진다 —
    되갚기를 빠뜨렸다가 봇 판이 정확히 그렇게 죽었다. */
-const ART_NEEDS_BODY = ['shove', 'cleave', 'finisher', 'vitals', 'judgest', 'storm', 'repay'];
+/* 숨 끊기는 붙은 것을 찌른다 — 손이 닿는 곳에 아무것도 없으면 줄이
+   식어 있어야 한다. 새 기예를 여기 안 넣으면 「눌리는데 안 나가는
+   버튼」이 하나 늘고, 봇은 거기서 돈다. */
+const ART_NEEDS_BODY = ['shove', 'cleave', 'finisher', 'vitals', 'judgest', 'storm', 'repay', 'hush'];
 
 /* 궁수의 물러서기. 뒤로 갈 수 있는 만큼 가고, 지나온 칸에 붙어 있던
    것을 돌려준다 — 「물러나는 일이 곧 공격」이라는 이 기예의 전부다. */
@@ -2105,7 +2139,7 @@ function kiteAway(p, dist) {
 const ART_NEEDS_SHOT = ['aimed', 'pierce', 'volley'];
 /* The rogue's two that only need to *see* something — no bow, no
    reach, just a body in the light. */
-const ART_NEEDS_SIGHT = ['shadowstep', 'fan'];
+const ART_NEEDS_SIGHT = ['shadowstep'];
 /* And the one that needs something to lose you: vanishing in an
    empty room is a wasted shade, so the row says so. */
 const ART_NEEDS_WATCHER = ['vanish'];
@@ -2303,24 +2337,35 @@ export function useArt(id) {
       if (wasAwake && G.monsters.includes(t)) t.awake = true;
       break;
     }
-    case 'fan': {
-      /* The pack answer. A cone rather than a ring: it is thrown,
-         so it answers the half of the room you are facing. */
-      const t = visibleMonsters()[0];
-      const len = Math.max(1e-6, Math.hypot(t.x - p.x, t.y - p.y));
-      const ax = (t.x - p.x) / len, ay = (t.y - p.y) / len;
-      const hit = visibleMonsters().filter(o => {
-        const d = Math.hypot(o.x - p.x, o.y - p.y);
-        if (d > FAN_RANGE) return false;
-        if (d < 0.5) return true;
-        return ((o.x - p.x) / d) * ax + ((o.y - p.y) / d) * ay >= FAN_ARC;
-      });
-      /* 궁수의 화살비(volley)를 빌려 쓰던 자리. 저건 방 전체이고
-         이건 앞쪽 반원이라, 화면에서도 부채꼴이어야 한다. */
-      fx({ t:'fanOut', x:p.x, y:p.y, ax, ay, n:hit.length, rng:FAN_RANGE });
-      say(hit.length > 1 ? `칼이 부채처럼 펼쳐졌다 — ${count(hit.length)}을 지나갔다.`
-                         : '칼 한 자루가 날아갔다.', 'level');
-      for (const o of [...hit]) if (G.monsters.includes(o)) swing(o, FAN_SHARE);
+    /* ── 숨 끊기 ────────────────────────────────────────────
+       칼부채가 있던 자리. 도적의 축은 「안 보이는 동안 모으고 한 번에
+       태운다」인데, 넷 중 **안 보이게 만드는 것이 되감기(lv8) 하나뿐**
+       이었다. 그래서 lv4~7 의 도적은 축이 없는 도적이다.
+
+       이것은 조건부다: 찌른 한 대로 **죽으면** 자취가 지워지고 그림자가
+       둘 돌아온다. 못 죽이면 평타 한 대와 다를 게 없다. 그러면
+       「무엇을 찌를까」가 결정이 된다 — 반쯤 죽은 것을 골라야 순환이
+       돌고, 멀쩡한 것을 찌르면 그림자만 잃는다.
+
+       되감기와 겹치지 않는다: 저것은 **전부**를 밀치고 무조건 사라지는
+       비상구이고, 이것은 **하나**를 죽여서 사라지는 엔진이다. */
+    case 'hush': {
+      const m = near.sort((x, y) => x.hp - y.hp)[0];   // 가장 약한 것 — 순환이 도는 쪽
+      const tx = m.x, ty = m.y;
+      swing(m, HUSH_MULT);
+      const killed = !G.monsters.includes(m);
+      fx({ t:'hushCut', x:p.x, y:p.y, tx, ty, killed });
+      if (killed) {
+        /* 죽었다. 자취를 지우고 — 되감기와 같은 문을 쓴다 — 그림자를
+           돌려준다. gainShadow 가 「도적일 때만」을 지키는 문이다. */
+        G.hushUntil = G.turn + VANISH_HUSH;
+        for (const o of awakeWatchers().filter(o => !(o.named && o.provoked))) o.awake = false;
+        gainShadow(HUSH_KILL_SHADE, 'hush');
+        fx({ t:'vanishOut', x:p.x, y:p.y, n:0 });
+        say('숨이 끊기는 소리보다 먼저 사라졌다.', 'level');
+      } else {
+        say('칼이 들어갔지만 아직 서 있다.', 'warn');
+      }
       break;
     }
     case 'vanish': {
@@ -2357,15 +2402,20 @@ export function useArt(id) {
       break;
     }
     case 'vitals': {
-      /* The one shot. Priced off nothing but the three shades it
-         costs, so unlike 마무리 it is worth the same on a full
-         health bar as on a sliver. */
+      /* The one shot. Unlike 마무리 it is worth the same on a full
+         health bar as on a sliver — what it reads instead is how
+         much shadow the rogue is carrying. */
       const m = near.sort((x, y) => y.hp - x.hp)[0];
       /* 전사의 마무리(finisher)를 빌려 쓰던 자리. 저건 위에서 내리치는
          무게이고 이건 갑옷 틈으로 들어가는 한 점이다. */
-      fx({ t:'vitals', x:p.x, y:p.y, tx:m.x, ty:m.y });
-      say('칼끝이 갑옷 사이를 찾았다.', 'level');
-      swing(m, VITALS_MULT, { pierce: true });
+      /* 값을 낸 **뒤**의 통을 읽는다. useArt 가 이미 뺐으므로 p.stam 이
+         곧 「남은 그림자」다 — 이 순서가 뒤집히면 낸 값이 두 번 계산된다. */
+      const shade = Math.max(0, p.stam);
+      const mult = VITALS_BASE + VITALS_STEP * shade;
+      fx({ t:'vitals', x:p.x, y:p.y, tx:m.x, ty:m.y, shade });
+      say(shade ? `칼끝이 갑옷 사이를 찾았다 — 모아 둔 그림자 ${shade}이 실렸다.`
+                : '칼끝이 갑옷 사이를 찾았다.', 'level');
+      swing(m, mult, { pierce: true });
       break;
     }
 
@@ -2512,41 +2562,19 @@ export function useArt(id) {
       break;
     }
     case 'crusade': {
-      /* The whole bar, and it only pays if the room is already
-         nearly down — which is what 성스러운 폭풍 is for. Cut the
-         nearest thing; if it falls, walk to the next and cut that
-         one; stop the moment something does not fall. A paladin
-         who set the room up right clears it in one action, and one
-         who did not gets a single swing for eight oath. */
-      let cuts = 0, steps = 0;
+      /* ── 행진이었다 ──────────────────────────────────────
+         「가장 가까운 것을 베고, 죽으면 걸어가서 또 벤다」 — 조건이
+         「방이 이미 무너져 있어야」였고, 그래서 봇이 여덟 판에 0회
+         눌렀다. 값을 깎는 문제가 아니라 **쓸 순간이 없는** 기예다.
+
+         이제 상태를 켠다. 다섯 턴 동안 맹세가 차는 것이 곧 심판이
+         되고(crusadeAnswer), 맹세는 맞을 때와 죽일 때 차므로 값이
+         「방이 나쁠 때」로 옮겨 간다 — 팔라딘이 스스로 걸어 들어가
+         빠져나올 수 없는 그 순간이다. */
+      p.crusade = CRUSADE_TURNS;
+      p.crusadeLeft = CRUSADE_HITS;
       fx({ t:'crusade', x:p.x, y:p.y });
-      say('한 번 시작한 것은 끝날 때까지 멈추지 않는다.', 'level');
-      while (cuts < CRUSADE_MAX) {
-        const alive = G.monsters.filter(o => !o.disguise && G.level.vis[idx(o.x, o.y)]);
-        if (!alive.length) break;
-        const m = alive.sort((x, y) =>
-          Math.hypot(x.x - p.x, x.y - p.y) - Math.hypot(y.x - p.x, y.y - p.y))[0];
-        const d = Math.hypot(m.x - p.x, m.y - p.y);
-        // step to it if it is not already in reach
-        if (d > 1.5) {
-          const sx = p.x + Math.sign(m.x - p.x), sy = p.y + Math.sign(m.y - p.y);
-          if (!walkable(G.level, sx, sy) || G.monsters.some(o => o.x === sx && o.y === sy)) break;
-          p.x = sx; p.y = sy;
-          /* 여기 `cuts++` 가 있었다. 한 칸 걸어갔는데 아직 안 닿으면
-             **베지도 않고 횟수를 한 번 태웠다** — 맹세 여덟을 쓰고
-             허공에 걸어가는 턴이 섞여 있었다는 뜻이다. */
-          /* 걸음은 따로 센다 — 베는 횟수에 태우지 않되, 표적이
-             바뀌며 영원히 걷는 일은 없어야 한다. */
-          if (Math.hypot(m.x - p.x, m.y - p.y) > 1.5) {
-            if (++steps > CRUSADE_MAX * 2) break;
-            continue;
-          }
-        }
-        fx({ t:'crusadeCut', x:p.x, y:p.y, tx:m.x, ty:m.y, n:cuts });
-        swing(m, 1.5);
-        cuts++;
-        if (G.monsters.includes(m)) break;    // it did not fall; the march is over
-      }
+      say('한 번 시작한 것은 끝날 때까지 멈추지 않는다. 맹세가 판결로 돌아온다.', 'level');
       break;
     }
 
@@ -2665,9 +2693,17 @@ export function useArt(id) {
         && Math.hypot(o.x - p.x, o.y - p.y) <= rng
         && lineClear(G.level, p.x, p.y, o.x, o.y));
       if (!seen.length) { say('겨눌 것이 없다.', 'warn'); break; }
-      fx({ t:'volley', x:p.x, y:p.y, n:seen.length });
-      say(`화살이 빗발친다 — ${count(seen.length)}에게.`, 'level');
-      for (const o of [...seen]) if (G.monsters.includes(o)) loose(o, VOLLEY_SHARE, { quietFx: true });
+      /* 겨누고 있던 것 하나는 온전히 맞는다. 셈은 그 대가로 지워진다 —
+         「표적을 태운다」가 이 궁극기의 값이고, 그래서 방을 지운 뒤의
+         궁수는 아무것도 겨누지 않은 상태에서 다시 시작한다. */
+      const marked = p.markN > 0 ? p.markOn : null;
+      const burned = p.markN || 0;
+      fx({ t:'volley', x:p.x, y:p.y, n:seen.length, mark:burned });
+      say(burned ? `화살이 빗발친다 — ${count(seen.length)}에게. 겨누던 것에는 온전히.`
+                 : `화살이 빗발친다 — ${count(seen.length)}에게.`, 'level');
+      for (const o of [...seen]) if (G.monsters.includes(o))
+        loose(o, o === marked ? VOLLEY_MARKED : VOLLEY_SHARE, { quietFx: true });
+      if (burned) { p.markN = 0; p.markOn = null; }
       break;
     }
   }
@@ -2689,7 +2725,10 @@ function sanctumSoak(dmg) {
 /* What one clean blow is worth right now, before the target's
    armour. Used by the arts that need to price something off the
    swing rather than roll a fresh one. */
-function baseSwing(p) {
+/* 벤치와 봇도 이 값을 묻는다 — 「이 한 대로 죽는가」를 정책이 물어야
+   하는 기예가 생겼고(숨 끊기), 그 답을 봇이 따로 어림하면 규칙과 다른
+   술어가 된다. 내보내는 것이 곧 깔때기를 하나로 두는 일이다. */
+export function baseSwing(p) {
   const w = p.equip.weapon;
   const d = w ? w.dice : [1, 3];
   return (d[0] * (d[1] + 1)) / 2 + statB(p, 'str') * 2
@@ -6294,6 +6333,11 @@ export function endTurn(skipMonsters = false) {
   if (p.iron > 0 && --p.iron === 0) say('굳었던 살갗이 풀린다.');
   if (p.brace > 0 && --p.brace === 0) say('발을 뗀다. 다시 움직일 수 있다.');
   if (p.bulwark > 0 && --p.bulwark === 0) say('맹세가 물러난다.');
+  /* 성전의 다섯 턴. 남은 판결이 있어도 시간이 끝나면 끝난다 — 둘 중
+     먼저 오는 것이 값이고, 그래서 「나쁜 방」에서만 다 쓴다. */
+  if (p.crusade > 0 && --p.crusade === 0)
+    say(p.crusadeLeft > 0 ? `성전이 끝났다 — 부르지 못한 판결 ${p.crusadeLeft}.`
+                          : '성전이 끝났다. 판결을 다 돌려주었다.', 'warn');
   for (const m of G.monsters) if (m.pinned > 0) m.pinned--;
   /* 성흔과 경외는 턴을 먹는다 — 둘 다 「몇 턴짜리」가 값의 전부라,
      같은 자리에서 같이 준다. */

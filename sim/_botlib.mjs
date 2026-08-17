@@ -363,14 +363,21 @@ function runBot(race, cls, clear, opt = {}) {
       const art = id => arts.find(a => a.id === id);
       // Never try an art the hero cannot actually take: a
       // refused art costs no turn, and the loop below would spin.
-      /* ── 값은 표가 아니라 깔때기에 묻는다 ────────────────────
-         `p.stam >= a.stam` 였다. 표의 숫자는 실제 값이 아니다 —
-         하프트롤은 기예마다 하나 더 내고(raceRule 'artUp'), 「층에 한
-         번」짜리는 값이 0이다. 게임이 쓰는 문이 artCost() 하나이므로
-         정책도 그것에 물어야 한다. 아니면 「지갑은 되는데 게임이
-         거절하는」 press 가 종족마다 생긴다. */
-      const canPay = a => a && p.stam >= Game.artCost(p, a);
-      const can = a => canPay(a) && !p.ail?.paralyze && !(p.stuck > 0);
+      /* ── 줄에 묻는다 ────────────────────────────────────────
+         처음에 `p.stam >= a.stam` 였고, 그다음 `p.stam >=
+         Game.artCost(p,a)` 로 고쳤다. 값은 맞았는데 **거절하는 이유가
+         값 말고도 있다.** 이 정책은 인접을 손으로 셌고(체비셰프 ≤1),
+         규칙은 `adjacentMonsters` 로 센다 — 그 둘이 어긋나는 판이
+         있어서 숨 끊기가 여섯 판에 164회 「손이 닿는 곳에 아무것도
+         없다」로 거절당했다. 인접을 두 번 세면 언젠가 다르게 센다.
+
+         화면의 줄이 이미 그 답을 갖고 있다: `spellSlots()` 의 기예
+         칸은 useArt 가 거절하는 조건 전부(잠금 · 값 · 손이 닿는가 ·
+         사선 · 보이는가 · 너를 보는가 · 층에 한 번)를 한 자리에서
+         본다. 주문 쪽을 그렇게 고쳤으니 기예 쪽도 같은 문을 쓴다 —
+         그러면 새 기예를 하나 더해도 이 자가 저절로 맞는다. */
+      const litArts = new Set(Game.spellSlots().filter(s => s.art && s.ready).map(s => s.id));
+      const can = a => !!a && litArts.has(a.id) && !p.ail?.paralyze && !(p.stuck > 0);
       const adjA = Game.adjacent ? Game.adjacent(p) : G.monsters.filter(m =>
         !m.disguise && Math.abs(m.x - p.x) <= 1 && Math.abs(m.y - p.y) <= 1);
       const shooters = G.monsters.filter(m =>
@@ -434,18 +441,25 @@ function runBot(race, cls, clear, opt = {}) {
       const seenP = G.monsters.filter(m =>
         !m.disguise && m.awake && G.level.vis[idx(m.x, m.y)]);
 
-      /* 불굴은 이제 맹세를 안 먹고 **층에 한 번**이다 — 지갑이 아니라
-         횟수가 값이라, canSwear 로 막으면 안 된다(그러면 이 자는
-         고치기 전 규칙을 계속 잰다). */
+      /* 불굴은 맹세를 안 먹고 **층에 한 번**이다. 예전에는 지갑 검사를
+         피하려고 조건을 손으로 다 적었는데(값·마비·붙잡힘·층에 한 번),
+         이제 can() 이 줄에 물으므로 그 넷이 저절로 맞는다 — 「층에서
+         이미 썼는가」까지 줄이 본다. */
       const bulwark = art('bulwark');
-      if (bulwark && !(p.bulwark > 0) && !(G.floorArts || {}).bulwark
-          && !p.ail?.paralyze && !(p.stuck > 0)
+      if (can(bulwark) && !(p.bulwark > 0)
           && p.hp < p.maxhp * 0.45 && adjA.length >= 1)
         { useArtCounted('bulwark'); continue; }
 
+      /* ── 조건이 뒤집혔다 ────────────────────────────────────
+         옛 성전은 「방이 이미 무너져 있어야」 값을 했고, 정책도 그렇게
+         적혀 있었다(체력 40% 아래가 둘 이상) — 그 순간이 오지 않아서
+         여덟 판에 0회였다. 새 성전은 다섯 턴 동안 **맹세가 차는 것**을
+         판결로 바꾸므로, 값을 하는 순간은 「맞을 것이 많고 죽일 것이
+         많은」 방이다. 규칙이 읽는 것(맹세가 차는 빈도)을 정책도 읽는다:
+         붙어 있는 것이 둘 이상 — 그러면 매 턴 맞고, 맞을 때마다 판결이
+         나간다. */
       const crusade = art('crusade');
-      if (canSwear(crusade)
-          && seenP.filter(m => m.hp < m.maxhp * 0.4).length >= 2)
+      if (canSwear(crusade) && !(p.crusade > 0) && adjA.length >= 2)
         { useArtCounted('crusade'); continue; }
 
       /* 성스러운 폭풍은 잘렸다 — 광역 회전이 이미 휩쓸기·칼부채·빗발로
@@ -570,11 +584,25 @@ function runBot(race, cls, clear, opt = {}) {
         if (canHide(vanish) && watchers.length && adjA.length >= 2
             && p.hp < p.maxhp * 0.65)
           { useArtCounted('vanish'); continue; }
+        /* 급소는 이제 **남은 그림자**가 배수를 올린다. 그래서 정책도
+           「지금 낼 수 있다」가 아니라 「모아 뒀다」로 쓴다 — 통이 반
+           넘게 찼을 때만 태운다. 아니면 이 기예의 새 규칙을 안 재고
+           옛 규칙(고정 배수)을 재게 된다. */
         const vitals = art('vitals');
-        if (canHide(vitals) && adjA.length && adjA.some(m => m.hp > m.maxhp * 0.4))
+        if (canHide(vitals) && adjA.length && adjA.some(m => m.hp > m.maxhp * 0.4)
+            && p.stam >= Math.max(Game.artCost(p, vitals) + 2, p.maxStam * 0.55))
           { useArtCounted('vitals'); continue; }
-        const fan = art('fan');
-        if (canHide(fan) && seen.length >= 3) { useArtCounted('fan'); continue; }
+        /* 숨 끊기는 **죽일 수 있을 때만** 값을 한다(죽으면 사라지고
+           그림자 둘, 못 죽이면 아무것도 없다). 규칙의 조건이 「이 한
+           대로 죽는가」이므로 정책도 그것을 묻는다 — 평타 한 대가
+           남은 체력보다 크면 누른다. 조건을 「붙어 있으면」으로 쓰면
+           이 기예를 반쯤만 재게 된다. */
+        const hush = art('hush');
+        if (canHide(hush) && adjA.length) {
+          const swing = Game.baseSwing(p);
+          const finishable = adjA.find(m => m.hp <= swing * BOWDATA.HUSH_MULT);
+          if (finishable) { useArtCounted('hush'); continue; }
+        }
         const step = art('shadowstep');
         if (canHide(step) && !adjA.length && seen.length)
           { useArtCounted('shadowstep'); continue; }

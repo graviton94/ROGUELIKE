@@ -310,7 +310,7 @@ function bulwarkFx(e) {
    함수가 된다. */
 function artFx(e) {
   if (e.t === 'stepIn') return stepInFx(e);
-  if (e.t === 'fanOut') return fanOutFx(e);
+  if (e.t === 'hushCut') return hushCutFx(e);
   if (e.t === 'vitals') return vitalsFx(e);
   return flurryFx(e);
 }
@@ -325,20 +325,21 @@ function stepInFx(e) {
   burstShards(e.x, e.y, [PALETTE.p, PALETTE.P, PALETTE.k], 10, 1.2);
   buzz([14, 10, 24]); sfx.roll();
 }
-function fanOutFx(e) {
-  /* 앞쪽 반원으로만 펼쳐지는 다섯 줄. 화살비는 방 전체이고 이건
-     내가 보고 있는 쪽이다 — 방향이 있는 것이 이 기예의 전부다. */
-  const base = Math.atan2(e.ay || 0, e.ax || 1);
-  for (let i = 0; i < 5; i++) {
-    const a = base + (i - 2) * 0.30;
-    beams.push({ fx: e.x + 0.5, fy: e.y + 0.5,
-                 tx: e.x + 0.5 + Math.cos(a) * (e.rng || 4),
-                 ty: e.y + 0.5 + Math.sin(a) * (e.rng || 4),
-                 color: PALETTE.s, age: -i * 18, life: 200, thin: true });
-    slashes.push({ x: e.x + 0.5, y: e.y + 0.5, a, kind: 'dagger', age: -i * 18, life: 180 });
-  }
-  shake = Math.max(shake, 0.16 + (e.n || 0) * 0.04);
-  buzz(18); sfx.roll();
+/* 칼부채(fanOutFx)가 있던 자리. 기예가 없어졌으므로 프레임도 지운다 —
+   아무도 안 띄우는 case 는 다음 사람이 「어딘가 쓰이는 것」으로 읽는다.
+
+   숨 끊기: 짧은 한 줄과 글자 하나. 급소와 같은 문(vitals)을 쓸 수는
+   없다 — 저쪽은 화면에 「급소」라고 쓰므로, 빌려 쓰면 숨 끊기를 눌러도
+   급소라고 적힌다. 등급은 §4의 특화(정지 110ms)다. */
+function hushCutFx(e) {
+  beams.push({ fx: e.x + 0.5, fy: e.y + 0.5, tx: e.tx + 0.5, ty: e.ty + 0.5,
+               color: PALETTE.p, age: 0, life: 150, thin: true });
+  slashes.push({ x: e.tx + 0.5, y: e.ty + 0.5,
+                 a: Math.atan2(e.ty - e.y, e.tx - e.x), kind: 'dagger', age: 0, life: 170 });
+  number(e.tx, e.ty - 0.6, e.killed ? '끊었다' : '숨', e.killed ? PALETTE.P : PALETTE.g, 1.1);
+  freeze = Math.max(freeze, 110);
+  shake = Math.max(shake, e.killed ? 0.28 : 0.14);
+  buzz(e.killed ? [24, 12, 24] : 12); sfx.roll();
 }
 function vitalsFx(e) {
   /* 한 점. 고리도 파편도 없고 흰 선 하나와 글자 하나 — 이 기예가
@@ -1202,7 +1203,7 @@ export function pump(queue, player) {
       case 'arcana': case 'deathZoom': case 'crack': case 'vanishOut':
       case 'brace': case 'kite': case 'bulwark':
       case 'martyr': case 'martyrHold': bigFx(e); break;
-      case 'stepIn': case 'fanOut': case 'vitals': case 'flurry': artFx(e); break;
+      case 'stepIn': case 'hushCut': case 'vitals': case 'flurry': artFx(e); break;
       /* ── the ranger's four ─────────────────────────────
          The warrior's arts happen at arm's length and are drawn
          at the hero. These happen across the room and are drawn
@@ -1279,10 +1280,14 @@ export function pump(queue, player) {
         ring(e.tx, e.ty, 1.9, PALETTE.y, 380);
         beams.push({ fx:e.x + 0.5, fy:e.y - 1.2, tx:e.tx + 0.5, ty:e.ty + 0.5,
                      color:PALETTE.W, age:0, life:260 });
-        flashScreen = Math.max(flashScreen, 0.3); flashHue = 'y';
-        freeze = 80;
-        shake = Math.max(shake, 0.6);
-        buzz(36); sfx.crit();
+        /* 성전이 돌려보낸 판결은 흰 고리 한 겹이 더 붙는다 — 손이
+           누른 것과 맹세가 부른 것은 화면에서 갈려야 한다. 자주
+           나가므로(다섯 번까지) 무게는 안 올린다. */
+        if (e.crusade) { ring(e.tx, e.ty, 1.2, PALETTE.W, 240); number(e.tx, e.ty - 0.9, '판결', PALETTE.W, 1.0); }
+        flashScreen = Math.max(flashScreen, e.crusade ? 0.18 : 0.3); flashHue = 'y';
+        freeze = e.crusade ? 40 : 80;
+        shake = Math.max(shake, e.crusade ? 0.32 : 0.6);
+        buzz(e.crusade ? 20 : 36); sfx.crit();
         break;
 
       case 'storm':
@@ -1302,13 +1307,11 @@ export function pump(queue, player) {
         flashScreen = Math.max(flashScreen, 0.24); flashHue = 'W';
         break;
 
-      case 'crusadeCut':
-        beams.push({ fx:e.x + 0.5, fy:e.y + 0.5, tx:e.tx + 0.5, ty:e.ty + 0.5,
-                     color:PALETTE.W, age:0, life:220, thin:true });
-        ring(e.tx, e.ty, 1.1, PALETTE.y, 240);
-        shake = Math.max(shake, 0.28 + e.n * 0.06);
-        buzz(14);
-        break;
+      /* crusadeCut 이 있던 자리 — 행진하며 베던 기예가 상태로 바뀌면서
+         그 프레임을 아무도 안 띄운다. 대신 성전이 켜진 동안의 심판은
+         judgest 프레임에 `crusade` 를 실어 보내고(아래), 같은 그림에
+         흰 고리 한 겹이 더 붙는다: 같은 일이 다른 이유로 나가는 것이
+         화면에서 갈려야 한다. */
 
       /* 신전에서 떨어져 나가는 것. Upward and pale — the one
          effect in the game that is a subtraction. */

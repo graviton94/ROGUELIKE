@@ -47,7 +47,7 @@ import {
   ANATHEMA_MORE, JUDGE_HURT, MARTYR_TURNS,
   QUARRY_RANGE, QUARRY_STAM, QUARRY_HEAL,
   FINISH_MAX,
-  CHARGE_DIST, CHARGE_SLAM, CANT_HOLD,
+  CHARGE_DIST, CHARGE_SLAM, CANT_HOLD, raceRule,
   JUDGE_STRIKE, STORM_SHARE, CRUSADE_MAX,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
@@ -535,8 +535,8 @@ export function recalc(p, init) {
      그러면 장부(G.famineSwell)만 남아서 층을 내려갈 때 있지도 않은
      몫을 도로 빼앗아 간다. 벤치가 그것을 잡았다(25 → 55 → 15).
      파생값은 파생되는 자리에서 더해야 한다. */
-  p.maxhp = Math.max(8, Math.round(p.maxhp * (1 + g.maxhpPct)) + (p.boneHp || 0) + (p.permHp || 0)
-    + (G.famineSwell || 0));
+  p.maxhp = Math.max(8, Math.round(p.maxhp * (1 + g.maxhpPct + (raceRule(p, 'hpPct') || 0)))
+    + (p.boneHp || 0) + (p.permHp || 0) + (G.famineSwell || 0));
   /* ── 상처 ────────────────────────────────────────────────
      체력은 차오르지만 차오를 수 있는 높이가 낮아진다. 재 보니 판의
      60%를 체력 90~100%에서 보내고 30% 아래는 0%였다 — 몸이 안 닳으니
@@ -867,8 +867,10 @@ export function afflict(p, kind, turns) {
     fx({ t:'resist', x:p.x, y:p.y });
     return;
   }
+  /* 인간은 저항이 없다 — 붙은 것이 한 턴 더 간다. 「균형 잡힌 표준」의
+     대가가 숫자가 아니라 **규칙**으로 붙는 자리다. */
   const already = p.ail[kind] || 0;
-  p.ail[kind] = Math.max(already, turns);
+  p.ail[kind] = Math.max(already, turns + (p === G.player ? (raceRule(p, 'ailPlus') || 0) : 0));
   if (!already) {
     say(`${AILMENTS[kind].n} — ${AILMENTS[kind].note}.`, 'warn');
     fx({ t:'ail', kind, x:p.x, y:p.y });
@@ -1101,6 +1103,13 @@ export function hurtPlayer(dmg, opt = {}) {
   const p = G.player;
   if (!p) return 0;
   const traceBefore = p.hp;
+  /* 엘프의 대가 — 「몸이 약하다」. 몸의 이야기이므로 주문에는 안 붙는다.
+     모든 피해가 이 문을 지나므로 여기 한 줄이면 화살도 도끼도 함정도
+     같이 무거워진다. */
+  {
+    const up = raceRule(p, 'physUp');
+    if (up && opt.weapon !== 'spell') dmg *= 1 + up;
+  }
   let taken = Math.max(1, Math.round(dmg));
   let over = 0;
   const cap = Math.max(1, Math.round(p.maxhp * BLOW_CAP));
@@ -1222,7 +1231,7 @@ function tookHit(dmg = 0, over = 0) {
      해서 더 쉽게 쌓이지는 않는다 — 비탈이지 낭떠러지가 아니다. */
   const roof = p.maxhp + (p.wound || 0);
   if (over > 0 || dmg >= roof * WOUND_AT) {
-    const w = Math.max(1, Math.round(dmg * WOUND_SHARE) + over);
+    const w = Math.max(1, Math.round(dmg * WOUND_SHARE * (raceRule(p, 'woundCut') ?? 1)) + over);
     p.wound = (p.wound || 0) + w;
     recalc(p);
     say(`상처가 남았다. 견딜 수 있는 몸이 ${w}만큼 줄었다.`, 'hit');
@@ -1284,7 +1293,9 @@ export function stamEvery(p) {
 }
 export function manaEvery(p) {
   const wise = statB(p, 'wis');
-  return clamp(12 - wise * 2, 6, 18);
+  /* 종족이 속도를 곱한다. 간격이므로 **나눈다** — 2배로 빨리 돌아온다는
+     것은 간격이 절반이라는 뜻이다. 처음에 곱했다가 엘프가 가장 느려졌다. */
+  return Math.max(3, Math.round(clamp(12 - wise * 2, 6, 18) / (raceRule(p, 'manaFast') || 1)));
 }
 
 export const BREATH_WEAR = 0.7;    // 상처가 천장을 끌어내리는 비율
@@ -1403,7 +1414,10 @@ export const healScale = () => {
   const priest = (p?.cls === 'priest' && p.hp < p.maxhp * 0.5) ? 1.6 : 1;
   const drunk = G.gulped || 0;
   const dulled = Math.max(TOLERANCE_FLOOR, 1 - TOLERANCE_STEP * drunk);
-  return priest * dulled;
+  /* 「저절로 아무는 몸은 병에 덜 답한다」 — 트롤과 하프오크의 대가가
+     여기 하나에 걸린다. 회복은 전부 이 문을 지나므로 물약도 주문도
+     모닥불도 같이 준다. */
+  return priest * dulled * (raceRule(p, 'potion') ?? 1);
 };
 
 /* 회복을 쓴 것을 센다. 세는 자리가 healScale 옆이어야 둘이 갈리지
@@ -1436,6 +1450,19 @@ const TARGETED = ['bolt', 'smite'];
    frame rather than left out. A row that grows as you level is a
    row you misfire on, and the point of putting spells on the
    play screen is that casting stops costing a screen change. */
+/* 이 기예가 지금 얼마인가. 세 곳이 이 답을 본다 — 칸에 찍는 숫자,
+   낼 수 있는지 보는 검사, 실제로 빼는 자리. 하프트롤은 기예마다 하나씩
+   더 내므로, 셋 중 하나라도 딴 셈을 쓰면 「눌리는데 안 나가는 버튼」이
+   생긴다. 이 저장소가 이미 두 번 겪은 사고다. */
+/* 이것을 익혔는가. 하프엘프는 두 레벨 일찍 연다 — 문턱을 낮추는 것이
+   아니라 **읽는 쪽**을 바꾼다(표에 적힌 12는 12인 채로 남는다).
+   문이 하나여야 하는 이유는 기예와 주문이 같은 답을 봐야 하기
+   때문이다: 「기예만 일찍 열리는 하프엘프」는 아무도 설명 못 한다. */
+export const learned = (p, x) => (x?.lv || 0) <= (p?.lv || 0) + (raceRule(p, 'early') || 0);
+
+export const artCost = (p, a) =>
+  a?.floorOnce ? 0 : Math.max(0, (a?.stam || 0) + (raceRule(p, 'artUp') || 0));
+
 export function spellSlots() {
   const p = G.player;
   if (!p) return [];
@@ -1448,7 +1475,7 @@ export function spellSlots() {
      leads with them. 침묵의 서약 takes spells, not hands — an art
      is not spoken. */
   const arts = (ARTS[p.cls] || []).map(a => {
-    const locked = a.lv > p.lv;
+    const locked = !learned(p, a);
     const near = G.level && adjacentMonsters(p).length > 0;
     /* The row has to grey out on exactly the tests useArt refuses
        on, or the button lies. It only knew about the arts that
@@ -1468,7 +1495,7 @@ export function spellSlots() {
          undefined 로 떨어져 칸에 「불굴undefined」가 찍혔다. 값이
          없는 것과 값을 모르는 것은 다르다 — 0으로 내려놓고, 무엇이
          값인지는 floorOnce 가 따로 말한다. */
-      lv: a.lv, cost: a.stam || 0, art: true, stam: a.stam || 0,
+      lv: a.lv, cost: artCost(p, a), art: true, stam: artCost(p, a),
       floorOnce: !!a.floorOnce, spent: !!a.floorOnce && !!(G.floorArts || {})[a.id],
       locked, silent: false, noTarget,
       plus: 0, affix: null,
@@ -1477,14 +1504,14 @@ export function spellSlots() {
          속은 것이다. */
       ready: !locked && !noTarget
              && !(a.floorOnce && (G.floorArts || {})[a.id])
-             && p.stam >= (a.stam || 0),
+             && p.stam >= artCost(p, a),
     };
   });
   if (!realm) return arts;
 
   const silent = hasRelic('vow');
   return arts.concat(SPELLS[realm].map(s => {
-    const locked = s.lv > p.lv;
+    const locked = !learned(p, s);
     const cost = spellCost(p, s);
     const noTarget = TARGETED.includes(s.id) && !seen;
     return {
@@ -1595,8 +1622,15 @@ function wieldFx(it, line) {
    때 턴을 안 쓰므로, 화면이나 봇이 이 판정을 따로 갖고 있다가 어긋나면
    「눌러도 아무 일이 없는 버튼」이 되고 봇은 거기서 영영 돈다.
    이 저장소는 이미 그 사고를 두 번 겪었다(양손 무기 + 방패, 조준 사격). */
-export const cantHold = (p, it) =>
-  (it?.kind === 'weapon' && CANT_HOLD[p?.cls]?.[it.t]) || null;
+export const cantHold = (p, it) => {
+  if (it?.kind !== 'weapon') return null;
+  /* 직업이 막는 것과 종족이 막는 것. 둘 다 같은 문을 지나야 화면·규칙·
+     봇이 같은 답을 본다 — 봇은 거절당한 무기를 영원히 「더 좋은 것」으로
+     보고 그 자리에서 돈다. */
+  if (raceRule(p, 'noTwoHand') && it.hands === 2)
+    return '두 손으로 들 물건이 아니다 — 이 몸에는 너무 크다.';
+  return CANT_HOLD[p?.cls]?.[it.t] || null;
+};
 
 export function equip(slotIdx) {
   const p = G.player, slot = p.pack[slotIdx];
@@ -2032,7 +2066,7 @@ export function useArt(id) {
   }
   // These two are mis-taps rather than lost turns, so they cost
   // nothing — the same way a spell with no mana costs nothing.
-  if (a.stam && p.stam < a.stam) { say('숨이 차다.', 'warn'); return; }
+  if (p.stam < artCost(p, a)) { say('숨이 차다.', 'warn'); return; }
 
 
   const near = adjacentMonsters(p);
@@ -2065,8 +2099,7 @@ export function useArt(id) {
   /* 비어 있는 성소에서는 값이 없다. 이 층 하나뿐이고, 그래서 여기서
      무엇을 할지가 그 판의 가장 사치스러운 결정이 된다. */
   if (!strangeIs('sanctum')) {
-    p.stam -= a.stam || 0;
-
+    p.stam -= artCost(p, a);
   }
 
   switch (id) {
@@ -2831,7 +2864,7 @@ export const spellCost = (p, sp) => {
   // you are nearly gone — which is exactly when a caster is out
   // of mana anyway.
   if (p.equip?.weapon?.unique === 'lastlamp' && p.hp < p.maxhp * 0.25) return 0;
-  return Math.max(1, sp.cost - (a?.costCut || 0) + (a?.costUp || 0)
+  return Math.max(1, sp.cost - (a?.costCut || 0) - (raceRule(p, 'spellCut') || 0) + (a?.costUp || 0)
                      - (hasRelic('twin') ? relicVal('twin') : 0));
 };
 
@@ -5193,6 +5226,12 @@ function swing(m, scale, opt = {}) {
      p.shadow for a guaranteed crit. That is what made the shade a
      blinking light rather than a resource — it was banked and
      burned by the same button you press anyway. */
+  /* 하프오크 — 「맞아도 잘 죽지 않는다」가 여태 hp+1 하나였다.
+     몰렸을 때 세지는 쪽이 그 문장에 맞는다. */
+  {
+    const c = raceRule(p, 'cornered');
+    if (c && p.hp < p.maxhp * 0.25) scale = (scale ?? 1) * (1 + c);
+  }
   const forced = (p.cls === 'warrior' && (p.chain3 || 0) >= 3) || !!opt.forceCrit;
   if (forced && !opt.forceCrit) { p.chain3 = 0; say('세 번째 손 — 급소가 열렸다.', 'level'); }
   const crit = asleep || forced
@@ -6209,8 +6248,8 @@ export function endTurn(skipMonsters = false) {
      This does bring resting-to-heal back as a tactic — which is
      exactly what the floor clock is there to price. The two
      systems check each other. */
-  const regen = Math.max(0, 1 + Math.floor(p.lv / 4)
-    + (p.race === 'halfTroll' ? 1 : 0) + gearBonus(p).regen);
+  const regen = Math.max(0, Math.round((1 + Math.floor(p.lv / 4) + gearBonus(p).regen)
+    * (raceRule(p, 'regenX') || 1)));
   /* 체질 sets how often the body closes, not only how much it
      holds. 8 turns at 10 con, 5 at 18, 12 at 5 — a dumped
      constitution is felt between fights as well as inside one. */
@@ -6228,7 +6267,11 @@ export function endTurn(skipMonsters = false) {
      and it closes a wound only so far. Past that line the wound
      is real and costs a flask, a fire, or a prayer — which is
      what those are for. */
-  const rested = G.turn - (p.hurtAt ?? -99) >= BREATH;
+  /* 트롤만 이 문턱이 없다. 「상처가 저절로 아문다」가 여태 회복량 +1
+     하나였는데, 그 회복은 **열 턴을 안 맞아야** 돌기 시작하므로 정작
+     싸우는 동안에는 한 번도 안 돌았다 — 설명이 약속한 것을 코드가 안
+     지킨 자리다. */
+  const rested = raceRule(p, 'regenInFight') || G.turn - (p.hurtAt ?? -99) >= BREATH;
   /* 여명의 맹세 takes the ceiling off. It is the whole payout of a
      build that adds nothing at all to what you hit for. */
   const roof = hasResonance('dawnoath') ? p.maxhp
@@ -6249,7 +6292,7 @@ export function endTurn(skipMonsters = false) {
      시간. 빠른 둘(기습·구르기)은 **하는 것**이고 이쪽은 은신 능력치가
      존재하는 이유다. 이제 통이 하나라 이 한 줄이 곧 재장전이다. */
   const hush = POOL[p.cls]?.unseenEvery;
-  if (hush && G.turn % hush === 0 && unseenByAll()) poolGain(1, 'quiet');
+  if (hush && G.turn % hush === 0 && unseenByAll()) poolGain(raceRule(p, 'quiet') || 1, 'quiet');
 
   refreshFov();
   if (G.depth > 0) scanForTraps();
@@ -9244,7 +9287,7 @@ const unspentPotions = p => (p.pack || [])
   .filter(s => s.item?.use && s.item.spr === 'potion')
   .reduce((n, s) => n + (s.qty || 1), 0);
 const unspentArts = p => artList(p).filter(a =>
-  (!a.stam || p.stam >= a.stam));
+  (p.stam >= artCost(p, a)));
 const crowdedBy = p => G.monsters.filter(m => m.awake
   && Math.hypot(m.x - p.x, m.y - p.y) <= 6).length;
 /* 표로 둔다. if 를 여섯 개 늘어놓으면 이 함수가 곧 복잡도 15를 넘고

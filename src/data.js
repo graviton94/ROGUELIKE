@@ -1059,8 +1059,8 @@ export const poolName = cls => POOL[cls]?.n || '기력';
    통을 모두에게 같은 크기로 주면 이 둘만 지갑이 얇아진다 — 실측으로
    팔라딘의 도달 층이 10.0 → 6.9였다. 크기로 돌려준다. */
 export const staminaMax = p =>
-  5 + Math.floor(p.lv / 4) + Math.max(0, statBonus(p.stats.dex))
-    + (POOL[p.cls]?.more || 0);
+  Math.max(3, 5 + Math.floor(p.lv / 4) + Math.max(0, statBonus(p.stats.dex))
+    + (POOL[p.cls]?.more || 0) + (RACE_RULE[p.race]?.pool || 0));
 export const STAM_REGEN_EVERY = 2;
 
 /* ── the arts ─────────────────────────────────────────────
@@ -1851,6 +1851,55 @@ export const pickLine = (list, name, tick = 0) =>
 
    거절하는 문장은 계열마다 다르다. 「착용할 수 없습니다」는 규칙을
    말하지만 **이유**를 안 말하고, 이유를 모르면 그것은 버그로 읽힌다. */
+/* ── 종족은 규칙이지 보정이 아니다 ────────────────────────
+   여태 종족은 **능력치 보정 + 설명 한 줄**이었다. 그리고 설명이
+   약속한 것을 코드가 안 지키는 자리도 있었다 — 하플링의 「그림자를
+   잘 쓴다」는 은신 수치 하나가 전부였고, 드워프의 「돌 밑에서
+   태어났다」는 실명 면역뿐이었다.
+
+   종족마다 **규칙 하나와 대가 하나**를 준다. 대가가 있어야 고르는
+   것이 되고, 없으면 그냥 더 좋은 종족이 하나 생길 뿐이다.
+
+   전부 이미 있는 깔때기를 지난다 — 새 배관은 없다:
+     통 크기        staminaMax        마나 회복   manaEvery
+     물약 효과      healScale         주문 값     spellCost
+     받는 피해      hurtPlayer        흉터        tookHit
+     못 드는 무기   cantHold          조용할 때   poolGain('quiet')
+     상태이상 길이  afflict           기예 값     useArt
+
+   숫자는 DCSS 것을 안 가져온다. 저쪽은 15시간·27분기짜리 저울이고
+   여기는 15층·3000턴이다 — 구조만 빌리고 값은 우리 벤치로 잰다. */
+export const RACE_RULE = {
+  human:     { gain:'신앙심이 1.4배 빨리 오른다',      cost:'상태이상이 한 턴 더 간다',
+               piety:1.4, ailPlus:1 },
+  halfElf:   { gain:'기예와 주문이 두 레벨 일찍 열린다', cost:'통이 둘 작다',
+               early:2, pool:-2 },
+  elf:       { gain:'마나가 두 배로 빨리 돌아온다',     cost:'받는 물리 피해 +15%',
+               manaFast:2, physUp:0.15 },
+  halfling:  { gain:'아무도 못 볼 때 통이 두 배로 찬다', cost:'양손 무기를 못 든다',
+               quiet:2, noTwoHand:true },
+  gnome:     { gain:'주문 값이 하나 싸다',             cost:'최대 체력 −15%',
+               spellCut:1, hpPct:-0.15 },
+  dwarf:     { gain:'흉터가 절반만 남는다',            cost:'마나가 절반만 돌아온다',
+               woundCut:0.5, manaFast:0.5 },
+  halfOrc:   { gain:'체력 4분의 1 아래에서 피해 +30%',  cost:'회복 물약 효과 −25%',
+               cornered:0.30, potion:0.75 },
+  /* 처음에 대가를 둘 붙였다가(물약 절반 + 기예 값 +1) 도달 층이
+     5.57로 내려앉았다 — 드워프와 4.2층 차이. 이 종족은 xp 1.45로
+     **이미 가장 느리게 크는** 종족이라 대가 하나가 이미 붙어 있었다.
+     기예 값을 되돌리고, 대신 얻는 쪽을 진짜로 만든다: 이 몸은
+     **맞는 중에도 아문다.** 다른 종족은 열 턴을 안 맞아야 숨이
+     돌아오는데 이쪽만 그 문턱이 없다 — 그게 트롤이다.
+
+     물약도 처음엔 절반으로 뒀는데 너무 셌다: 기준선에서 이미
+     꼴찌(7.71 vs 드워프 9.47)인 종족에 −0.94를 더 얹어 6.77이 됐다.
+     0.7로 되돌린다 — 「병에 덜 답하는 몸」은 남기되 그것만으로 판이
+     끝나지는 않게. */
+  halfTroll: { gain:'맞는 중에도 아문다 — 두 배로',     cost:'물약 효과 −30%',
+               regenX:2, potion:0.7, regenInFight:true },
+};
+export const raceRule = (p, k) => RACE_RULE[p?.race]?.[k];
+
 export const CANT_HOLD = {
   warrior: {
     bow:  '활은 이 손에 없다. 전사는 거리를 두는 법을 안 배웠다.',

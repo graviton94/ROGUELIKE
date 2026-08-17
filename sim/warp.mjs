@@ -89,13 +89,17 @@ for (let i = 0; i < 4; i++) {
 }
 const shots = [];
 for (const v of [0, 0.5, 0.75, 1.0]) {
-  /* 값만 바꾸고 재면 아무것도 안 잰다 — 화면은 다음 프레임에야 바뀐다.
-     처음에 그냥 쟀더니 네 단계가 전부 「밝4%」로 똑같이 나왔다.
-     **다시 그리게 하고** 잰다. */
+  /* **신앙심**을 민다. setWarp 를 직접 부르면 렌더 루프가 매 프레임
+     `setWarp(warpOf())` 로 덮어써서 네 단계가 전부 같은 값이 된다 —
+     신앙심이 뒤틀림의 유일한 입구가 된 뒤로 그렇다. 진짜 입구를 밀어야
+     진짜 경로를 잰다.
+
+     그리고 값만 바꾸고 재면 안 된다: 화면은 다음 프레임에야 바뀐다. */
   await pg.evaluate(async w => {
-    const J = await import('/src/juice.js');
+    const Game = await import('/src/game.js');
     const UI = await import('/src/ui.js');
-    J.setWarp(w); UI.draw();
+    Game.G.piety = Math.round(w * 100);
+    UI.draw();
   }, v);
   await pg.waitForTimeout(120);
   /* 지도 캔버스의 밝기 분포. 뒤틀려도 어두운 칸과 밝은 칸이 **둘 다**
@@ -133,7 +137,7 @@ ok(moved > 0.002, '   그리고 이 자가 뒤틀림에 실제로 반응한다 �
    shots.map((s, i) => `${[0, 0.5, 0.75, 1][i]}:${s.mean.toFixed(3)}`).join(' ')
    + ` · 폭 ${(moved * 100).toFixed(1)}%`);
 
-await pg.evaluate(async () => { const J = await import('/src/juice.js'); J.setWarp(0); });
+await pg.evaluate(async () => { (await import('/src/game.js')).G.piety = 0; });
 await pg.waitForTimeout(400);
 ok(errs.length === 0, '콘솔 오류 없음', errs[0] || '');
 await b.close();

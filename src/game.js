@@ -24,6 +24,8 @@ import {
   RELICS, RELIC_SLOTS, relicSlots, relicById, crackOf, crackSaid, crackNeed, CRACK_LEFT, BRANCHES,
   STRANGE, strangeById, STRANGE_FROM, STRANGE_BASE, STRANGE_CAP,
   ARCANA, arcanaById, ARCANA_AT, GODS, godById, REFUSE,
+  PIETY_MAX, PIETY_FLOOR, PIETY_GIFT, PIETY_BREAK, PIETY_STIR, PIETY_ZEAL,
+  VOW_BREAK, HOARD_AT,
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH, REGIONS, regionOf,
   MEMORIES, memoryEarned, SHACKLES, shacklesAt, SHACKLE_STAT, tellsNeeded,
   WEAPON_TYPES, PATTERNS, NAMED,
@@ -1197,6 +1199,7 @@ export function mendWound(share, why = '') {
   const p = G.player;
   const had = p.wound || 0;
   if (had <= 0) return 0;
+  breakVow('mend');                 // 계율 — 흉터를 지우지 마라
   const mend = Math.max(1, Math.round(had * share));
   p.wound = Math.max(0, had - mend);
   recalc(p);
@@ -1424,6 +1427,7 @@ export const healScale = () => {
    않는다 — 하나는 값을 매기고 하나는 세는데, 서로 다른 조건으로
    세면 언젠가 「마셨는데 안 세는」 물약이 생긴다. */
 export function tookDraught() {
+  breakVow('gulp');                 // 계율 — 병에 든 것을 마시지 마라
   G.gulped = (G.gulped || 0) + 1;
   if (G.floorTally) G.floorTally.gulps++;
   ledger('gulp');
@@ -3021,6 +3025,14 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   G.depth = depth;
   if (depth > 0) crackFloorTick();
   G.deepest = Math.max(G.deepest || 0, depth);
+  /* 신앙심은 층으로도 오른다 — 막을 수 없는 쪽이다(§4). 「내려갈수록
+     짙어진다」가 서술이 아니라 규칙이 되는 자리.
+
+     **신이 없어도 오른다.** 처음에 `G.god &&` 로 막았더니 전부 거절한
+     판의 신앙심이 15층에서 0이었다. 짙어지는 것은 신이 하는 일이 아니라
+     **이 장소가 하는 일**이다 — 거절은 광신을 막을 뿐 물듦을 막지
+     못한다. 거절만 하면 15층에 45로, 문턱(70) 아래에 머문다. */
+  if (depth > 0) piety(PIETY_FLOOR, 'depth');
   G.branch = branch || BRANCHES[0];
   /* 층을 만들기 전에 규칙이 편향을 건넨다. 항아리가 깨졌으면 불이
      반드시 서고, 나방이 깨졌으면 시설 하나가 더 선다. */
@@ -4413,7 +4425,7 @@ export function shout() {
   G.uproar = Math.min(UPROAR_MAX, (G.uproar || 0) + 3);
   /* 외침은 「일부러 시끄럽게 하는 것」이다 — 주목을 사는 가장 곧은
      행동이라, 판돈 쪽 절반이 여기서 시작한다. */
-  provoke(6);
+  provoke(6, 'shout');
   say(woke ? `소리쳤다. ${woke}이(가) 이쪽으로 온다.`
            : '소리쳤다. 아무 대답도 없다. 그편이 나은지는 모르겠다.', woke ? 'hit' : '');
   fx({ t:'noise', x:p.x, y:p.y, r:13 });
@@ -6189,6 +6201,17 @@ export function endTurn(skipMonsters = false) {
   if (cracked('eye') || cracked('oracle')) G.detectPulse = 2;
   if (G.detectPulse > 0) G.detectPulse--;
 
+  /* ── 계율 둘은 「상태」다 ────────────────────────────────
+     마시는 것과 소리치는 것은 **사건**이라 그 자리에서 잡히는데,
+     어둠 속에 있는 것과 금화를 쌓아 둔 것은 **상태**라 잡을 자리가
+     없다. 시계에서 본다. 한 층에 한 번만 — 매 턴 깎으면 그건 계율이
+     아니라 출혈이다. */
+  if (G.god && G.vowBroke !== G.depth && G.depth > 0) {
+    if (G.god === 'ember' && p.lightTurns <= 0 && G.monsters.some(m => m.awake))
+      breakVow('dark');
+    else if (G.god === 'scale' && p.gold >= HOARD_AT)
+      breakVow('hoard');
+  }
   if (G.comboT > 0 && --G.comboT === 0) breakCombo(true);
   /* ── 무게 ────────────────────────────────────────────────
      스무 칸을 꽉 채워도 아무 일이 없었다. 그러면 줍는 것은 결정이
@@ -6415,6 +6438,7 @@ export function heatFor(p = G.player, d = G.depth) {
 
    깔때기 하나. 판을 시끄럽게 만드는 행동이 여기로 모인다. */
 export function provoke(n, why) {
+  if (why === 'shout') breakVow('shout');   // 계율 — 소리치지 마라
   G.provoked = clamp((G.provoked || 0) + n, 0, HEAT_MAX);
   if (why) say(`${why} 아래가 고개를 든다.`, 'warn');
 }
@@ -6474,6 +6498,50 @@ export function godOffer() {
    0단부터 차례로 이겨야 한다. */
 export const canRefuse = () => (G.abyss || 0) >= REFUSE.at;
 
+/* ── 신앙심의 단 하나뿐인 문 ───────────────────────────────
+   층으로도 오르고 선물로도 오르고 계율을 어기면 깎인다. 셋이 각자
+   G.piety 를 만지면 언젠가 화면이 규칙과 다른 숫자를 말한다.
+
+   그리고 이 문이 화면의 뒤틀림도 같이 민다 — 신앙심과 기괴함이 다른
+   자리에서 계산되면 「깊어질수록 기괴해진다」가 둘로 갈린다. */
+export function piety(n, why = '') {
+  const was = G.piety || 0;
+  G.piety = Math.max(0, Math.min(PIETY_MAX, was + n));
+  const got = G.piety - was;
+  if (!got) return 0;
+  /* 화면은 여기서 한 번만 민다. 0.35 아래는 아무 일도 없고(§3), 그
+     위부터 신앙심이 그대로 뒤틀림이 된다. */
+  fx({ t:'piety', at: G.piety, d: got, why });
+  if (was < PIETY_STIR && G.piety >= PIETY_STIR) say('무언가 어긋나기 시작한다.', 'warn');
+  if (was < PIETY_ZEAL && G.piety >= PIETY_ZEAL) say('그의 목소리가 네 것보다 크다.', 'bad');
+  return got;
+}
+/* 규칙은 세계관을 모른다(§5) — 여기서 신앙심은 그냥 0~100 이고,
+   그것이 저주라는 것은 문서와 화면만 안다. */
+export const warpOf = () => Math.min(1, (G.piety || 0) / PIETY_MAX);
+
+/* 계율을 어겼다. 다섯 신이 각자 다른 것을 금지하지만 어기는 문은
+   하나다 — 금지가 다섯 자리에 흩어지면 「이 신이 무엇을 금지하는가」를
+   읽을 곳이 없어진다. */
+export function breakVow(kind) {
+  if (!G.god || VOW_BREAK[G.god] !== kind) return false;
+  /* 한 층에 한 번만. 안 그러면 물약 세 병에 24가 깎이고, 그건 계율이
+     아니라 출혈이다 — 등불이 꺼진 채 서 있기만 해도 매 턴 깎였다.
+     이미 등을 돌린 신은 그 층에서 더 돌아설 곳이 없다. */
+  if (G.vowBroke === G.depth) return false;
+  /* 그 층에서는 선물이 꺼진다. 신앙심만 깎으면 어기는 것이 곧
+     「난이도를 내리는 손잡이」가 된다 — 잃을 것이 있어야 계율이다. */
+  G.vowBroke = G.depth;
+  piety(-PIETY_BREAK, 'vow');
+  const g = godById(G.god);
+  say(`${g.vow}. — 그가 등을 돌렸다.`, 'bad');
+  fx({ t:'vowBreak', x: G.player?.x, y: G.player?.y, id: G.god });
+  return true;
+}
+/* 지금 신의 선물이 도는가. 계율을 어긴 층에서는 안 돈다. */
+export const blessed = id =>
+  G.god === id && G.vowBroke !== G.depth;
+
 export function pledge(id) {
   const g = godById(id);
   if (!g) return;
@@ -6486,6 +6554,7 @@ export function pledge(id) {
   G.godPick = null;
   say(`「${g.call}」`, 'level');
   say(g.vow + '.', 'warn');
+  piety(PIETY_GIFT, 'gift');
   trace('pledge', { id, n: g.n, depth: G.depth });
   fx({ t:'pledge', id, n: g.n, x: G.player?.x, y: G.player?.y });
 }
@@ -8345,6 +8414,7 @@ function eventApi() {
     hasRelic, cracked, crackHint, crackProgress, crackOf, crackLeft, nearestCrack, feedable,
     hasArcana, arcanaDue, arcanaOffer, takeArcana,
     godOffer, pledge, refuse, canRefuse, pledgeDue,
+    piety, breakVow, blessed, warpOf,
     powerOf, expectedPower, heatFor, HEAT_WORD, HEAT_MAX,
     hasAffix: key => (gearBonus(p)[key] || 0) > 0,
     canCast: () => spellList(p).length > 0,
@@ -9462,7 +9532,7 @@ export function startGame(raceKey, classKey, base) {
   G.ledger = {}; G.cracks = {}; G.relicFloors = {}; G.chainGuard = 0; G.murmured = {};
   G.heat = 0; G.provoked = 0;
   G.arcana = []; G.arcanaPick = null;
-  G.god = null; G.godPick = null; G.gifts = []; G.refused = 0; G.piety = 0;
+  G.god = null; G.godPick = null; G.gifts = []; G.refused = 0; G.piety = 0; G.vowBroke = -1;
   G.martyred = 0;
   G.regionAt = null;
   G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0; G.fused = 0; G.catUsed = 0;

@@ -1362,6 +1362,10 @@ function frame(ts) {
   }
   // The ear stands where the hero stands.
   Audio.listenAt(G.player.x, G.player.y);
+  /* 신앙심이 곧 뒤틀림이다(§4). 규칙 쪽은 0~100 숫자만 알고, 그것이
+     화면에서 무엇이 되는지는 여기서 정한다 — 두 자리에서 계산하면
+     「깊어질수록 기괴해진다」가 둘로 갈린다. */
+  Juice.setWarp(Game.warpOf());
   Juice.pump(G.fx, G.player);
   Juice.update(dt, [G.player, ...G.monsters]);
 

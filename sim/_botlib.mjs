@@ -373,31 +373,33 @@ function runBot(race, cls, clear, opt = {}) {
          수 없을 만큼 붙었고(brace), 붙었는데 활이고(kite), 다음 한
          대에 죽을 때(bulwark). 마무리·밀치기보다 **먼저** 본다 —
          나중에 두면 그 둘이 먼저 걸려서 영영 안 눌린다. */
-      const brace = art('brace');
-      if (can(brace) && !(p.brace > 0) && adjA.length >= 2 && p.hp < p.maxhp * 0.55)
-        { useArtCounted('brace'); continue; }
+      /* ── 전사 — 광전사 ────────────────────────────────────
+         옛 정책은 shove·cleave·flurry·finisher·brace 를 불렀는데 그
+         다섯이 통째로 없어졌다. 그대로 두니 봇이 기예를 **판당 0회**
+         썼고, 평균 층만 멀쩡해서 통과처럼 보였다 — 기예를 하나도 안
+         쓰는 전사를 열두 판 굴려 놓고 「전사를 쟀다」고 할 뻔했다.
 
-      /* 버티기 is gone — it was the standing-still verb, and the
-         measurement that killed it came from this harness: 12판에
-         버티기 296 · 휩쓸기 83 · 마무리 72 · 밀치기 3. 연타 is the
-         same slot spent forwards, so the policy is the burst
-         question: one thing in front, worth the pool, and enough
-         breath to finish the chain. */
-      const flurry = art('flurry');
-      if (can(flurry) && adjA.length === 1 && p.stam >= 4
-          && adjA[0].hp > adjA[0].maxhp * 0.35)
-        { useArtCounted('flurry'); continue; }
+         넷의 조건은 각자 다르다: 소용돌이는 **여럿이 보일 때**,
+         도발은 몰렸을 때, 광폭은 피가 줄었을 때, 연격은 기본. */
+      const maelstrom = art('maelstrom');
+      /* 보이는 것을 센다. 아래 블록들이 각자 `seen` 을 다시 만들므로
+         여기서 그 이름을 쓰면 TDZ 로 죽는다 — 제 이름으로 센다. */
+      const inSight = G.monsters.filter(m =>
+        !m.disguise && G.level.vis[idx(m.x, m.y)]);
+      if (can(maelstrom) && inSight.length >= 3) { useArtCounted('maelstrom'); continue; }
 
-      const cleave = art('cleave');
-      if (can(cleave) && adjA.length >= 2) { useArtCounted('cleave'); continue; }
+      const taunt = art('taunt');
+      if (can(taunt) && !(p.taunt > 0) && adjA.length >= 2)
+        { useArtCounted('taunt'); continue; }
 
-      const fin = art('finisher');
-      if (can(fin) && adjA.some(m => m.hp < m.maxhp * 0.45)) { useArtCounted('finisher'); continue; }
+      /* 광폭은 **피가 줄었을 때** 켠다. 잃은 피에 비례해 세지므로
+         가득 찬 채로 켜면 아무 일도 안 일어나고 받는 피해만 는다. */
+      const frenzy = art('frenzy');
+      if (can(frenzy) && !(p.frenzy > 0) && adjA.length && p.hp < p.maxhp * 0.6)
+        { useArtCounted('frenzy'); continue; }
 
-      // Cornered: buy a tile. Only worth stamina when it is bad.
-      const shove = art('shove');
-      if (can(shove) && adjA.length >= 3 && p.hp < p.maxhp * 0.5)
-        { useArtCounted('shove'); continue; }
+      const combo = art('combo');
+      if (can(combo) && adjA.length) { useArtCounted('combo'); continue; }
 
       /* Paladin. The class accelerates on kills, so the policy is
          written to spend rather than to hoard: sweep a crowd

@@ -50,6 +50,9 @@ import {
   QUARRY_RANGE, QUARRY_STAM, QUARRY_HEAL,
   FINISH_MAX,
   CHARGE_DIST, CHARGE_SLAM, CANT_HOLD, raceRule,
+  COMBO_SHARE, FRENZY_TURNS, FRENZY_MAX, FRENZY_TAKE,
+  TAUNT_TURNS, TAUNT_CUT, TAUNT_GAIN, TAUNT_CAP,
+  MAELSTROM_PULL, MAELSTROM_MAX, MAELSTROM_SHARE,
   JUDGE_STRIKE, STORM_SHARE, CRUSADE_MAX,
   BANK_STEP, BANK_MAX, bankPurse, THIEF, thiefChance, thiefPurse,
   xpToLevel, statBonus, BANDS, CLASS_BAND, statRange, josa,
@@ -791,6 +794,10 @@ export function gearBonus(p) {
      같은 깔때기를 지나므로 강화·유물과 섞이는 방식이 똑같다. */
   if (hasArcana('brittle')) b.dmgPct += 0.40;
   if (hasArcana('dark') && G.depth > 0 && p.lightTurns <= 0) b.dmgPct += 0.60;
+  /* 광폭 — 잃은 피에 비례해 오른다. 가득 차 있으면 아무 일도 없고,
+     다 죽어 갈 때 +80%. 「죽음에 가까울수록 세진다」가 곡선이 되는
+     자리이고, 그래서 켜는 것이 도박이다. */
+  if (p.frenzy > 0) b.dmgPct += FRENZY_MAX * (1 - p.hp / Math.max(1, p.maxhp));
   return b;
 }
 
@@ -1112,6 +1119,10 @@ export function hurtPlayer(dmg, opt = {}) {
     const up = raceRule(p, 'physUp');
     if (up && opt.weapon !== 'spell') dmg *= 1 + up;
   }
+  /* 광폭은 받는 것도 늘린다. 도발은 줄인다. 둘 다 켜져 있으면 서로
+     상쇄되는데, 그것이 이 직업의 조합이다 — 폭주하면서 버틴다. */
+  if (p.frenzy > 0) dmg *= 1 + FRENZY_TAKE;
+  if (p.taunt > 0) dmg *= 1 - TAUNT_CUT;
   let taken = Math.max(1, Math.round(dmg));
   let over = 0;
   const cap = Math.max(1, Math.round(p.maxhp * BLOW_CAP));
@@ -1250,6 +1261,13 @@ function tookHit(dmg = 0, over = 0) {
      자리에서 센다 — 화살이든 도끼든 같은 한 대다. 맹세의 방패를
      낀 팔라딘은 두 배로 맹세한다. */
   poolOnHurt(dmg, p.cls === 'paladin' && fitRule(p, 'twiceSworn') ? 2 : 1);
+  /* 도발 — 맞는 것을 기력으로 바꾼다. **턴당 상한**이 없으면 셋에
+     둘러싸인 채로 무한히 버는 기관이 되고, 그러면 도발이 위험한
+     선택이 아니라 최적 행동이 된다. */
+  if (p.taunt > 0 && (p.tauntGot || 0) < TAUNT_CAP) {
+    p.tauntGot = (p.tauntGot || 0) + TAUNT_GAIN;
+    poolGain(TAUNT_GAIN, 'taunt');
+  }
 }
 
 /* How long after a blow before the body starts closing again,
@@ -1362,7 +1380,12 @@ export function traitState() {
   const spec = CLASSES[p.cls].trait;
   if (!spec) return null;
   switch (p.cls) {
-    case 'warrior': return { ...spec, at: p.chain3 || 0, ready: (p.chain3 || 0) >= 2 };
+    case 'warrior': {
+      /* 셈이 몸마다 있으므로 화면은 **가장 많이 쌓인 몸**을 읽는다 —
+         「누가 급소가 열리기 직전인가」가 이 특성의 유일한 질문이다. */
+      const top = G.monsters.reduce((n, m) => Math.max(n, m.chain || 0), 0);
+      return { ...spec, at: top, ready: top >= 2 };
+    }
     case 'mage': {
       const e = liveEcho(p);
       return { ...spec, at: e ? 1 : 0, max: 1, ready: !!e,
@@ -2107,46 +2130,81 @@ export function useArt(id) {
   }
 
   switch (id) {
-    case 'shove': {
-      /* The answer to being surrounded. It does almost no damage
-         on its own — what it buys is a tile, and a wall turns
-         that tile into a stagger. */
-      const m = near.sort((x, y) => y.hp - x.hp)[0];
-      const dx = Math.sign(m.x - p.x), dy = Math.sign(m.y - p.y);
-      const moved = shoveBack(m, dx, dy, SHOVE_DIST);
-      m.awake = true;
-      fx({ t:'shove', x:p.x, y:p.y, tx:m.x, ty:m.y, dx, dy, hit: moved < SHOVE_DIST });
-      if (moved < SHOVE_DIST) {
-        // It had nowhere to go. That is the good outcome.
-        const bump = Math.max(2, Math.round(baseSwing(p) * SHOVE_WALL));
-        hurtMonster(m, bump, '벽', {});
-        // Negative energy is how this game spends a monster's turn
-        // for it — the same lever the ambush ring uses to make the
-        // first turn a scramble rather than a swing.
-        if (G.monsters.includes(m)) m.energy = -1;
-        say(`${m.n}을(를) 벽으로 몰아붙였다. 무너진다.`, 'level');
-      } else {
-        say(`${m.n}을(를) ${moved}칸 밀어냈다.`);
+    /* ── 전사의 넷 — 광전사 ────────────────────────────── */
+    case 'combo': {
+      /* 무기가 모양을 정한다. 계열 규칙은 이미 평타가 갖고 있으므로
+         **누구를 맞히는가**만 여기서 정하고, 때리는 일은 swing 에
+         맡긴다 — 그래야 강화·각인·고유가 전부 따라온다. */
+      if (!near.length) { say('손이 닿는 곳에 아무것도 없다.', 'warn'); return; }
+      const t = weaponType(p);
+      let hit, times = 1;
+      if (t === 'dagger')      { hit = [near[0]]; times = 2; }        // 앞의 하나를 두 번
+      else if (t === 'spear')  { hit = lineTargets(p, 2); }           // 앞 두 칸을 꿰뚫는다
+      else if (t === 'axe' || t === 'great' || t === 'sword')
+                               { hit = near.slice(0, 3); }            // 부채꼴
+      else                     { hit = [near[0]]; }                   // 둔기·맨손
+      fx({ t:'cleave', x:p.x, y:p.y, n:hit.length, wide:false });
+      say(hit.length > 1 ? '한 호흡에 여럿을 지나갔다.' : '잇달아 쳤다.', 'level');
+      for (let k = 0; k < times; k++)
+        for (const m of [...hit]) if (G.monsters.includes(m)) swing(m, COMBO_SHARE);
+      break;
+    }
+
+    case 'frenzy': {
+      /* 광전사의 얼굴. 무적이 아니라 폭주다 — 죽음에 가까울수록 세지고,
+         그동안 더 아프게 맞는다. 끌 수 없다: 켜는 것이 도박이어야
+         「언제나 옳은 버튼」이 안 된다. */
+      p.frenzy = FRENZY_TURNS;
+      say('숨이 거칠어진다. 이제 멈출 수 없다.', 'level');
+      fx({ t:'frenzy', x:p.x, y:p.y, on:true });
+      break;
+    }
+
+    case 'taunt': {
+      /* 둘러싸이는 것을 값으로 바꾼다. 강제로 나만 치게 하고, 맞을
+         때마다 기력이 돌아온다 — 다만 턴당 상한이 있다. 없으면 셋에
+         둘러싸인 채로 무한히 버는 기관이 된다. */
+      p.taunt = TAUNT_TURNS;
+      const drawn = near.length;
+      for (const m of near) { m.awake = true; m.taunted = TAUNT_TURNS; }
+      say(drawn ? `${drawn}이(가) 이쪽만 본다.` : '아무도 듣지 않았다.', drawn ? 'level' : 'warn');
+      fx({ t:'taunt', x:p.x, y:p.y, n:drawn });
+      break;
+    }
+
+    case 'maelstrom': {
+      /* 이 게임에 **당기는 것이 하나도 없다** — 미는 것은 둘인데.
+         광역 회전은 이미 넷째이므로 무게를 당기기에 싣는다. */
+      const seen = visibleMonsters().filter(m => !m.disguise);
+      let pulled = 0;
+      for (const m of seen) {
+        const d = Math.max(Math.abs(m.x - p.x), Math.abs(m.y - p.y));
+        if (d <= 1) continue;
+        const sx = Math.sign(p.x - m.x), sy = Math.sign(p.y - m.y);
+        for (let step = 0; step < MAELSTROM_PULL; step++) {
+          const nx = m.x + sx, ny = m.y + sy;
+          if (Math.max(Math.abs(nx - p.x), Math.abs(ny - p.y)) < 1) break;
+          if (!walkable(G.level, nx, ny)) break;
+          if (G.monsters.some(o => o !== m && o.x === nx && o.y === ny)) break;
+          m.x = nx; m.y = ny;
+        }
+        m.awake = true;
+        pulled++;
+      }
+      fx({ t:'maelstrom', x:p.x, y:p.y, n:pulled, grade:'ult' });
+      /* 끌려온 것이 많을수록 여러 번 돈다. 둘러싸이는 것이 이 기예의
+         조건이고, 전사의 단점이 여기서 뒤집힌다. */
+      const spins = Math.min(MAELSTROM_MAX, 1 + Math.floor(pulled / 2));
+      say(pulled ? `${pulled}이(가) 끌려왔다. ${spins}번 돈다.` : '끌어올 것이 없다. 그래도 돈다.',
+          'level');
+      for (let k = 0; k < spins; k++) {
+        const round = adjacentMonsters(p);
+        if (!round.length) break;
+        for (const m of [...round]) if (G.monsters.includes(m)) swing(m, MAELSTROM_SHARE);
       }
       break;
     }
-    case 'cleave': {
-      /* The answer to a pack — and the reason 재의 사냥개 arriving
-         three at a time is a fight rather than a funeral.
 
-         전사의 자루 reaches a ring further with a haft in both
-         hands, which turns the art from "the things touching me"
-         into "the things near me". */
-      const wide = fitRule(p, 'wideCleave');
-      const hit = wide
-        ? G.monsters.filter(o => !o.disguise
-            && Math.max(Math.abs(o.x - p.x), Math.abs(o.y - p.y)) <= 2)
-        : near;
-      fx({ t:'cleave', x:p.x, y:p.y, n:hit.length, wide });
-      say(hit.length > 2 ? '한 호를 그리며 전부를 지나갔다.' : '넓게 베었다.', 'level');
-      for (const m of [...hit]) if (G.monsters.includes(m)) swing(m, CLEAVE_SHARE);
-      break;
-    }
     /* ── 도적의 넷 ─────────────────────────────────────
        Two answers to being outnumbered or outranged, and two
        assassin's blows. In that order, because the first two are
@@ -3250,7 +3308,7 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   // G.ashCount는 이제 판 단위다 — 층에서 안 지운다.
   G.hushUntil = -1;
   if (depth > 0 && !cracked('grudge')) p.grudge = 0;   // 앙심 forgets between floors — 크랙 전까지만
-  if (depth > 0) { p.chain3 = 0; p.markN = 0; p.chainOn = null; p.markOn = null; }
+  if (depth > 0) { p.markN = 0; p.markOn = null; }   // 셈은 몬스터에 있고 몬스터는 층과 함께 간다
 
   /* The wager climbs with every floor you take without sitting
      down. Nothing is banked in the town, and nothing survives
@@ -4969,6 +5027,20 @@ function openChest(index, chest) {
 export { fitsOf, fitRule, FITS, oddityOf, UNIQUES, ODDITIES };
 export const weaponType = p => p.equip.weapon?.t || 'sword';
 export const weaponReach = p => (weaponType(p) === 'spear' ? 2 : 1);
+/* 앞으로 n칸. 창의 연격이 쓴다 — 「앞」은 마지막으로 움직인 쪽이고,
+   서 있기만 했으면 가장 가까운 것 쪽이다. */
+function lineTargets(p, n) {
+  const near = adjacentMonsters(p);
+  const aim = near[0] || visibleMonsters()[0];
+  if (!aim) return [];
+  const dx = Math.sign(aim.x - p.x), dy = Math.sign(aim.y - p.y);
+  const out = [];
+  for (let d = 1; d <= n; d++) {
+    const m = G.monsters.find(o => !o.disguise && o.x === p.x + dx * d && o.y === p.y + dy * d);
+    if (m) out.push(m);
+  }
+  return out.length ? out : [aim];
+}
 
 /* Called once per player turn. A dagger swings twice; everything
    else swings once and lets its own rule fire inside. */
@@ -4980,7 +5052,7 @@ function playerAttack(m) {
     // 도적의 날: the streak counter is already at two after the
     // first thrust, so the guaranteed crit lands on the second
     // rather than a turn later.
-    if (fitRule(p, 'thirdAtTwo') && p.chain3 === 2) p.chain3 = 3;
+    if (fitRule(p, 'thirdAtTwo') && m.chain === 2) m.chain = 3;
     // The second thrust only lands if there is still something
     // in front of you — which is why a dagger wants 처형.
     if (G.running && G.monsters.includes(m)) swing(m, 0.62);
@@ -5167,7 +5239,7 @@ function swing(m, scale, opt = {}) {
   if (Math.random() > chance) {
     say(pickLine(MISS_AT, m.n, nextLine()));
     fx({ t:'miss', x:m.x, y:m.y });
-    p.chain3 = 0;              // 세 번째 손: a miss resets the count
+    if (p.cls === 'warrior' && m) m.chain = 0;   // 빗나가면 **그 몸의** 셈이 처음으로
     return false;
   }
 
@@ -5175,10 +5247,16 @@ function swing(m, scale, opt = {}) {
      the third one goes through the armour. Same target only —
      a warrior who dances between three enemies never gets it,
      which is the whole instruction the trait is giving. */
-  if (p.cls === 'warrior') {
-    p.chain3 = (p.chainOn === m ? (p.chain3 || 0) : 0) + 1;
-    p.chainOn = m;
-  }
+  /* ── 셈은 몸마다 따로 ────────────────────────────────────
+     예전에는 셈이 **영웅에게 하나** 있었다(chain3 + chainOn). 그래서
+     둘째를 치는 순간 첫째의 셈이 0이 됐다.
+
+     그런데 연격은 무기 계열대로 나가므로 도끼면 셋을 한 번에 친다 —
+     셈이 하나뿐이면 그 기예가 특성을 **깎는다.** 셋을 치고 아무 셈도
+     안 남는 것이다. 셈을 몸으로 옮긴다: 「같은 몸에 세 번」이라는
+     지시는 그대로이고, 여러 몸을 향해 동시에 쌓을 수 있게 된다.
+     무기 계열이 특성의 속도를 바꾼다. */
+  if (p.cls === 'warrior') m.chain = (m.chain || 0) + 1;
   /* 표적 (레인저). The opposite instruction: stay on one thing
      and it gets worse for it, 9% at a time. */
   markTarget(m);
@@ -5244,8 +5322,8 @@ function swing(m, scale, opt = {}) {
     const c = raceRule(p, 'cornered');
     if (c && p.hp < p.maxhp * 0.25) scale = (scale ?? 1) * (1 + c);
   }
-  const forced = (p.cls === 'warrior' && (p.chain3 || 0) >= 3) || !!opt.forceCrit;
-  if (forced && !opt.forceCrit) { p.chain3 = 0; say('세 번째 손 — 급소가 열렸다.', 'level'); }
+  const forced = (p.cls === 'warrior' && (m.chain || 0) >= 3) || !!opt.forceCrit;
+  if (forced && !opt.forceCrit) { m.chain = 0; say('세 번째 손 — 급소가 열렸다.', 'level'); }
   const crit = asleep || forced
     || Math.random() < critChance(p) + (kind === 'dagger' ? 0.08 : 0);
   if (crit) {
@@ -6185,6 +6263,14 @@ export function endTurn(skipMonsters = false) {
   }
   if (G.sanctum && --G.sanctum.left <= 0) { G.sanctum = null; say('빛이 스러졌다.'); }
   if (G.smoke && --G.smoke.left <= 0) { G.smoke = null; say('연기가 걷힌다.'); }
+  /* 광폭과 도발이 식는다. 광폭은 **끌 수 없으므로** 여기가 유일한
+     출구다 — 켜는 순간 여덟 턴이 정해진다. */
+  if (p.frenzy > 0 && --p.frenzy === 0) {
+    say('숨이 돌아온다. 손이 떨린다.', 'warn');
+    fx({ t:'frenzy', x:p.x, y:p.y, on:false });
+  }
+  if (p.taunt > 0) p.taunt--;
+  p.tauntGot = 0;                       // 턴당 상한을 여기서 연다
   if (p.martyr > 0 && --p.martyr === 0) {
     const owed = Math.round(p.martyrDebt || 0);
     p.martyrDebt = 0;
@@ -6792,6 +6878,10 @@ function monsterTurn(m) {
   if (stillHalf()) { m.slowTick = !m.slowTick; if (m.slowTick) return; }
   if (m.staggered > 0) { m.staggered--; return; }   // 둔기류 took its turn
   if (m.cooling > 0) m.cooling--;
+  /* 도발 — 두 턴 동안 이것은 다른 것을 못 본다. 이 게임에 「강제
+     대상」이 없었으므로 여기 한 줄이 그 전부다: 도발당한 것은 물러설
+     생각도 딴 데 갈 생각도 안 하고 곧장 온다. */
+  if (m.taunted > 0) { m.taunted--; m.awake = true; m.fleeing = false; }
   const dx = p.x - m.x, dy = p.y - m.y;
   const dist2 = dx * dx + dy * dy;
   const dist = Math.sqrt(dist2);

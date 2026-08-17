@@ -1018,6 +1018,20 @@ export const ROLL_DIST = 2;
 
    값의 자는 전사다(원래 그렇게 쓰여 있었다): lv1 2 · lv4 3 · lv8 4 ·
    lv12 5. 사제의 순교만 6 — 이 직업은 통이 느리게 차는 대신 크다. */
+/* ── 전사의 값 ────────────────────────────────────────────
+   광전사. 죽음에 가까울수록 세지고, 그동안 더 아프게 맞는다. */
+export const COMBO_SHARE   = 0.72;  // 연격 한 대가 평타의 몇 할인가
+export const FRENZY_TURNS  = 8;
+export const FRENZY_MAX    = 0.80;  // 다 죽어 갈 때 주는 피해 +80%
+export const FRENZY_TAKE   = 0.25;  // 그동안 받는 피해도 +25%
+export const TAUNT_TURNS   = 2;
+export const TAUNT_CUT     = 0.20;  // 받는 피해 −20%
+export const TAUNT_GAIN    = 1;     // 맞을 때마다 돌아오는 기력
+export const TAUNT_CAP     = 2;     // 다만 턴당 이만큼까지 — 없으면 무한 기관이다
+export const MAELSTROM_PULL  = 3;   // 한 번에 끌어당기는 칸
+export const MAELSTROM_MAX   = 4;   // 최대 회전 수
+export const MAELSTROM_SHARE = 0.62;
+
 export const POOL = {
   warrior: { n:'기력',   every: 2 },
   ranger:  { n:'호흡',   every: 2 },
@@ -1076,40 +1090,31 @@ export const STAM_REGEN_EVERY = 2;
    the scale everything else gets cut to, measured before the rest
    are written — the same order that worked for the resonances. */
 export const ARTS = {
+  /* ── 전사의 넷 — 광전사 ────────────────────────────────
+     축은 「무기가 모양을 정한다」와 「죽음에 가까울수록 세진다」다.
+     활과 지팡이는 아예 못 든다(CANT_HOLD) — 넷이 전부 무기가 정한
+     모양으로 나가므로, 활을 든 전사는 그 넷이 다 이상해진다. */
   warrior: [
-    { id:'shove',    name:'밀쳐내기', short:'밀침', lv:1,  stam:2,
-      desc:'앞의 것을 두 칸 밀어낸다. 벽에 부딪히면 한 턴 무너진다.' },
-    { id:'cleave',   name:'휩쓸기',   short:'휩쓸기', lv:3,  stam:3,
-      desc:'인접한 모든 것을 한 번에 벤다.' },
-    /* 버티기 stood here: four turns of taking less and handing
-       some back. Measured, a bot pressed it 10.2 times a run at
-       level twelve — more than the other three arts put together —
-       because standing still and absorbing is always available and
-       never wrong. That is the opposite of what every other verb
-       in this game asks for, which is a decision about *where to
-       be*. 연타 is the same slot spent forwards. */
-    { id:'flurry',   name:'연타',     short:'연타', lv:7,  stam:2,
-      desc:'한 호흡에 잇달아 친다. 맞을 때마다 다음 한 대가 무거워지고, 빗나가면 거기서 끝난다.' },
-    /* 마무리는 숨 4를 쓰고 평타의 ×0.87(온전)/×1.08(깎인 방)이었다 —
-       자기 하위 기예인 연타(숨2·×1.89)보다 나쁘다. 값을 내리고
-       기울기를 세운다: 「거의 다 죽은 것을 끝낸다」가 더 가팔라야
-       그 자리에서만 옳은 버튼이 된다. */
-    { id:'finisher', name:'마무리',   short:'마무리', lv:11, stam:3,
-      desc:'상대가 잃은 피만큼 무거워지는 한 방.' },
-    /* ── 한계돌파 ─────────────────────────────────────────
-       직업마다 하나씩, 「누가 봐도 이 직업이 위험한 순간」에 쓰는 것.
-       전사가 위험한 순간은 **둘러싸였을 때**다 — 이 게임은 셋에
-       둘러싸이면 12층에서 네 턴에 죽는다(sim/edge.mjs).
-
-       예전에 버티기가 여기 있었는데 빼냈다: 봇이 판당 10.2번 눌렀고,
-       「가만히 서서 버티는 것이 언제나 옳다」가 이 게임의 다른 모든
-       동사(어디에 설 것인가)와 정반대였기 때문이다. 그 문제를 대가로
-       푼다 — 버티는 동안 **한 칸도 못 움직인다.** 언제나 옳은 것이
-       아니라, 도망칠 수 없다고 판단했을 때만 옳은 것이 된다. */
-    /* 한계돌파가 판당 0.05회 눌렸다 — 직업의 기둥이 아니라 장식이다.
-       문턱 9는 봇 기준 판의 끝자락에서야 열린다. 6으로 내린다. */
-    { id:'brace',    name:'버텨선다', short:'버팀', lv:6,  stam:4,
-      desc:'세 턴 동안 받는 피해가 절반 아래로 떨어지고 인접한 것이 물러나지 못한다. 그동안 한 칸도 못 움직인다.' },
+    /* 평타가 이미 계열 규칙을 갖고 있다(WEAPON_TYPES: 단검은 두 번,
+       도끼는 양옆까지, 창은 두 칸). 그래서 「무기별 기본 공격」을 그냥
+       스킬로 만들면 **공짜로 되는 것을 기력 주고 사는 버튼**이 된다.
+       값을 하려면 평타가 **안** 하는 것을 해야 한다: 맞은 것 하나하나가
+       세 번째 손의 셈을 올린다. 도끼면 셋이 동시에 오른다. */
+    { id:'combo', role:'basic', name:'연격', short:'연격', lv:1, stam:2,
+      desc:'무기가 정한 모양대로 친다. 그리고 **맞은 것 하나하나가** 세 번째 손의 셈을 올린다.' },
+    /* 광전사의 얼굴. 무적이 아니라 **폭주**다 — 예전에 이 자리에 있던
+       버티기는 「가만히 서서 버티는 것이 언제나 옳다」라서 잘려 나갔고,
+       무적을 주면 같은 실수를 반복한다. 끌 수 없는 것도 그래서다. */
+    { id:'frenzy', role:'signature', name:'광폭', short:'광폭', lv:4, stam:3,
+      desc:'잃은 피에 비례해 주는 피해가 오른다(최대 +80%). 대신 받는 피해도 +25%. 끌 수 없다.' },
+    /* 단점 상쇄. 전사가 죽는 자리는 둘러싸였을 때인데, 이 직업은
+       둘러싸이는 것을 **원한다** — 그러면 그것을 값으로 바꿔야 한다. */
+    { id:'taunt', role:'cover', name:'도발', short:'도발', lv:8, stam:4,
+      desc:'두 턴 동안 곁의 것들이 나만 친다. 받는 피해 −20%. 맞을 때마다 기력이 돌아온다(턴당 둘까지).' },
+    /* 궁극기. 이 게임에 **당기는 것이 하나도 없다** — 미는 것은 둘인데.
+       광역 회전은 이미 넷째이므로 무게를 회전이 아니라 당기기에 싣는다. */
+    { id:'maelstrom', role:'ultimate', name:'피의 소용돌이', short:'소용돌이', lv:12, stam:5,
+      desc:'보이는 것을 전부 내 곁으로 끌어당긴다. 그리고 곁의 것을 전부 벤다 — 끌려온 것이 많을수록 여러 번.' },
   ],
 
   /* ── 도적의 넷 ────────────────────────────────────────

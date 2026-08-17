@@ -11,13 +11,32 @@
    each instead of ~15 KB of JSON.
    ═══════════════════════════════════════════════════════════ */
 
-import { G, say, refreshFov } from './game.js';
+import { G, say, refreshFov, RUN_FIELDS } from './game.js';
 import { Level, THEMES, MW, MH, idx } from './world.js';
-import { BRANCHES, shacklesAt } from './data.js';
+import { BRANCHES, TASKS, shacklesAt } from './data.js';
 
 const PREFIX = 'deepdelve.slot.';
 export const SLOTS = 3;
-const FORMAT = 5;
+const FORMAT = 8;
+
+/* ── 판 상태를 손으로 세지 않는다 ─────────────────────────
+   여기 적을 값을 손으로 세다가 다섯 개를 빠뜨렸고, 다섯 개 전부
+   재현되는 버그였다(물약 내성이 판을 넘고, 크랙이 주운 자리에서
+   열리고, 최대 체력이 24 → 64로 불러와지고, 잠긴 계단이 공짜로
+   열리고, 앞 판의 숫자가 끝 화면에 찍혔다).
+
+   그래서 목록을 game.js 의 RUN_FIELDS 하나로 옮기고, 이 두 함수는
+   그 표를 **읽기만** 한다. 필드가 늘면 표에 한 줄이고, 세 곳을
+   손으로 고칠 일이 없다. sim/save.mjs 가 이 계약을 기계로 지킨다. */
+const packRun = () => {
+  const o = {};
+  for (const k of Object.keys(RUN_FIELDS)) o[k] = G[k] ?? structuredClone(RUN_FIELDS[k]);
+  return o;
+};
+const unpackRun = (d) => {
+  for (const k of Object.keys(RUN_FIELDS))
+    G[k] = d && k in d ? d[k] : structuredClone(RUN_FIELDS[k]);
+};
 
 /* ── byte packing ───────────────────────────────────────── */
 function toB64(bytes) {
@@ -56,7 +75,12 @@ function packLevel(L) {
     theme: L.theme?.id || 'plain',
     campSpent: !!L.campSpent,
     event: L.event || null,
-    eventId: L.eventId || null,
+    /* 사건은 층당 하나(eventId)에서 칸마다(eventAt)로 옮겼는데 저장이
+       옛 필드를 계속 적고 있었다. 그러면 불러온 층에서는 모든 ? 가
+       「이미 먹은 칸」으로 읽힌다 — 세이브를 한 번 지나면 이 기능이
+       바뀌기 전보다 나빠진다. eventTiles는 나방의 표식이 읽는다. */
+    eventAt: [...(L.eventAt || [])],
+    eventTiles: [...(L.eventTiles || [])],
     downRoom: L.downRoom ? L.rooms.indexOf(L.downRoom) : -1,
     shopAt: [...L.shopAt],
     keeperAt: [...(L.keeperAt || [])],
@@ -87,7 +111,8 @@ function unpackLevel(d) {
   L.merchant = d.merchant || null;
   L.altar = d.altar || null;
   L.event = d.event || null;
-  L.eventId = d.eventId || null;
+  L.eventAt = new Map(d.eventAt || []);
+  L.eventTiles = d.eventTiles || [];
   L.branch = {};                 // generation-time only; nothing reads it after
   L.theme = THEMES[d.theme] || THEMES.plain;
   L.campSpent = !!d.campSpent;
@@ -112,7 +137,21 @@ export function snapshot() {
     opened: G.opened, mimicsBitten: G.mimicsBitten, trapsSprung: G.trapsSprung,
     detectPulse: G.detectPulse || 0,
     looks: G.looks || {}, known: G.known || {},
+    /* 갈래는 id 만 적고 불러올 때 원본을 되찾고 있었다. 그런데
+       enterDepth 가 `{...G.branch, clock: ×0.5}` 처럼 **사본을
+       만들어** 배수를 얹는다(재촉하는 과업·nextMods). id 만 적으면
+       그 배수가 전부 사라져서, 정예의 소굴에서 층 여유가 132 → 264
+       로 정확히 두 배 풀렸다. 층 진입 직후 자동저장이 도니 노려서
+       쓸 수 있는 세이브 스컴이었다. 실효 배수를 같이 적는다. */
     branch: G.branch?.id || 'plain',
+    branchMods: (({ id, n, ...rest }) => rest)(G.branch || {}),
+    /* 과업은 층에 걸리는 것이라, 안 적으면 불러온 판의 계단이
+       `!G.task` 로 그냥 열린다. sim/locked.mjs 가 못 잡은 이유는
+       그 벤치가 저장을 한 번도 안 지나가기 때문이다. */
+    task: G.task?.id || null,
+    runSeed: G.runSeed || 0, sent: G.sent || 1,
+    hpBand: [...(G.hpBand || [])],
+    run: packRun(),
     floorTurn: G.floorTurn || 0, waves: G.waves || 0, campUses: G.campUses ?? 1,
     deepest: G.deepest || 0, campPromise: G.campPromise || 0,
     hazards: G.hazards || [], bank: G.bank || 0,
@@ -124,6 +163,16 @@ export function snapshot() {
     tally: G.tally || 0, hushUntil: G.hushUntil ?? -1,
     snares: [...(G.snares || [])],
     uniques: { ...(G.uniques || {}) }, ashCount: G.ashCount || 0,
+    /* 크랙 계통 다섯. 안 적으면 불러오기 한 번에 판이 유물의 두 번째
+       줄을 통째로 잃고, **더 나쁘게** — apply가 지우지도 않아서 앞
+       판의 크랙이 다음 판으로 샌다. 둘 다 실측으로 확인됐다. */
+    /* 아르카나는 판이 끝날 때까지 가는 것이라, 저장에 없으면 불러온
+       판은 다른 판이 된다. */
+    arcana: [...(G.arcana || [])], arcanaPick: null,
+    heat: G.heat || 0, provoked: G.provoked || 0,
+    ledger: { ...(G.ledger || {}) }, cracks: { ...(G.cracks || {}) },
+    relicFloors: { ...(G.relicFloors || {}) }, murmured: { ...(G.murmured || {}) },
+    chainGuard: G.chainGuard || 0, martyred: G.martyred || 0,
     sanctum: G.sanctum || null,
     smoke: G.smoke || null,
     relicShelf: G.relicShelf ?? null,
@@ -154,7 +203,13 @@ export function apply(data) {
   G.detectPulse  = data.detectPulse || 0;
   G.looks = data.looks || {};
   G.known = data.known || {};
-  G.branch = BRANCHES.find(b => b.id === data.branch) || BRANCHES[0];
+  G.branch = { ...(BRANCHES.find(b => b.id === data.branch) || BRANCHES[0]),
+               ...(data.branchMods || {}) };
+  G.task = TASKS.find(t => t.id === data.task) || null;
+  G.runSeed = data.runSeed || 0;
+  G.sent = data.sent || 1;
+  G.hpBand = data.hpBand?.length === 10 ? [...data.hpBand] : new Array(10).fill(0);
+  unpackRun(data.run);
   G.floorTurn = data.floorTurn || 0;
   G.waves = data.waves || 0;
   G.campUses = data.campUses ?? 1;
@@ -178,6 +233,18 @@ export function apply(data) {
   G.snares = data.snares || [];
   G.uniques = data.uniques || {};
   G.ashCount = data.ashCount || 0;
+  /* `|| {}` 가 여기서는 기본값이 아니라 **지우개**다. 이 다섯 줄이
+     없으면 저장에 없던 값이 남아서 앞 판의 크랙이 다음 판에 걸린다. */
+  G.arcana = data.arcana || [];
+  G.arcanaPick = null;
+  G.heat = data.heat || 0;
+  G.provoked = data.provoked || 0;
+  G.ledger = data.ledger || {};
+  G.cracks = data.cracks || {};
+  G.relicFloors = data.relicFloors || {};
+  G.murmured = data.murmured || {};
+  G.chainGuard = data.chainGuard || 0;
+  G.martyred = data.martyred || 0;
   G.sanctum = data.sanctum || null;
   G.smoke = data.smoke || null;
   G.hushUntil = data.hushUntil ?? -1;

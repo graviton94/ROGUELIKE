@@ -297,17 +297,23 @@ export const TRAITS = {
   mage:    { n:'잔향', max:1,
     t:'주문마다 다른 잔향이 남는다. 다음 주문 하나가 그 잔향에 따라 변한다 — 마나가 아니라 순서가 위력이다.' },
   priest:  { n:'응답', max:0,
-    t:'체력이 절반 아래일 때 모든 회복이 60% 더 든다. 여섯 턴마다 저절로 아문다.' },
+    /* 「60% 더 든다」였다. 코드는 회복량 ×1.6 인데, 한국어에서 「든다」는
+       **비용이 든다**이다(약이 듣는다 ≠ 약이 든다). 이 직업의 정체성
+       한 줄이 「피가 적으면 회복이 비싸진다」로, 정확히 반대로 읽혔다. */
+    t:'깊이 다쳤을 때 아무는 것이 절반쯤 더 크게 아문다. 그리고 여섯 턴마다 저절로 닫힌다 — 편할 때는 아무 일도 없다.' },
   /* It used to be a light that was on or off — p.shadow was 0 or
      1 and a swing spent it. A switch is not a resource: there is
      nothing to save up and nothing to decide. */
   rogue:   { n:'그림자', max:5,
     t:'들키지 않은 채 다섯 턴을 보내거나, 모르는 것을 찌르거나, 구를 때마다 하나씩 쌓인다. 기예 넷이 이걸 태운다.' },
   ranger:  { n:'표적', max:5,
-    t:'같은 적을 때릴 때마다 그 적에게 주는 피해가 9%씩 쌓인다(최대 45%). 대상을 바꾸면 사라진다.\n'
-    + '그리고 두 칸 밖에서 잡으면 숨이 돌아온다 — 기력 2와 최대 체력의 4.5%. 붙어서 잡으면 아무것도 없다.' },
+    /* 앞의 셋은 손이 무엇을 하는지를 적고 이 둘은 표를 읽고 있었다.
+       「(층마다 초기화, 최대 10)」은 괄호 안 각주이고 「기력 2와 최대
+       체력의 4.5%」는 패치 노트다. 갈린 것은 직업이 아니라 작성 시점. */
+    t:'같은 것을 계속 겨누면 그것에 대해서만 손이 밝아진다. 대상을 바꾸면 처음부터.\n'
+    + '그리고 붙기 전에 끝낸 것만 숨을 돌려 준다 — 붙어서 잡으면 아무것도 돌아오지 않는다.' },
   paladin: { n:'맹세', max:10,
-    t:'맞으면 +1, 죽이면 +1(층마다 초기화, 최대 10). 둘마다 방어 +1.\n'
+    t:'맞으면 맹세가 하나 쌓이고, 죽이면 하나 더 쌓인다. 층을 내려가면 지워진다.\n'
     + '쌓아 두는 벽이 아니라 계속 죽이기 위한 연료다 — 네 기예가 전부 이것을 먹는다.' },
 };
 
@@ -340,7 +346,7 @@ for (const [k, c] of Object.entries(CLASSES)) c.trait = TRAITS[k];
    Unlocked by class level; cost mana.                       */
 export const SPELLS = {
   arcane: [
-    { id:'bolt',   name:'마력 화살',   short:'화살', lv:1,  cost:1,  desc:'시야의 적 하나에게 마력을 쏜다.' },
+    { id:'bolt',   name:'마력 화살',   short:'화살', lv:1,  cost:2,  desc:'시야의 적 하나에게 마력을 쏜다. 마법사의 기본기 — 결승타는 서리가 맡는다.' },
     { id:'blink',  name:'점멸',        short:'점멸', lv:3,  cost:2,  desc:'가까운 곳으로 순간 이동한다.' },
     { id:'detect', name:'생명 탐지',   short:'탐지', lv:5,  cost:3,  desc:'층의 모든 몬스터 위치를 읽는다.' },
     { id:'frost',  name:'서리 폭발',   short:'서리', lv:9,  cost:6,  desc:'주변 모든 적을 얼려 찢는다.' },
@@ -350,7 +356,7 @@ export const SPELLS = {
     { id:'cure',   name:'경상 치유',   short:'치유', lv:1,  cost:1,  desc:'상처를 닫는다.' },
     { id:'bless',  name:'축복',        short:'축복', lv:3,  cost:2,  desc:'잠시 명중과 방어가 오른다.' },
     { id:'detect', name:'악 감지',     short:'감지', lv:5,  cost:3,  desc:'층의 모든 몬스터 위치를 읽는다.' },
-    { id:'smite',  name:'응징의 빛',   short:'응징', lv:9,  cost:5,  desc:'시야의 적 하나를 빛으로 태운다.' },
+    { id:'smite',  name:'응징의 빛',   short:'응징', lv:9,  cost:4,  desc:'시야의 적 하나를 빛으로 태운다.' },
     { id:'heal',   name:'중상 치유',   short:'회복', lv:13, cost:8,  desc:'깊은 상처까지 되돌린다.' },
   ],
 };
@@ -553,12 +559,12 @@ export const PATTERNS = {
    arriving together; putting the first named fight on the same
    step made three staircases out of one. */
 export const NAMED = [
-  { at:6,  spr:'ogre',  n:'뼈를 씹는 자', hp:185, atk:14, ac:14, xp:700,
+  { at:6,  spr:'bonechewer', n:'뼈를 씹는 자', hp:185, atk:14, ac:14, xp:700,
     ai:'hunt', spd:0.9, door:'smash', regen:2, heavy:true, named:true,
     casts:['quake', 'zone'], cool:5,
     warn:'뼈를 씹는 자가 아래에서 기다린다',
     intro:'무언가 커다란 것이 이 층에서 기다리고 있다.' },
-  { at:10, spr:'wraith', n:'재 속의 사제', hp:250, atk:20, ac:22, xp:1800,
+  { at:10, spr:'ashpriest', n:'재 속의 사제', hp:250, atk:20, ac:22, xp:1800,
     ai:'hunt', spd:1.1, on:'fear', door:'open', regen:3, heavy:true, named:true,
     casts:['cross', 'wave'], cool:4,
     warn:'재 속의 사제가 아래에서 기다린다',
@@ -577,7 +583,7 @@ export const NAMED = [
      faster, which is its whole identity: kill it quickly or it
      kills you. It sits in its own lair, so the fight is a
      decision the player makes rather than a toll they pay. */
-  { at:13, spr:'wyrm', n:'화로를 감은 것', hp:450, atk:59, ac:32, xp:2600,
+  { at:13, spr:'forgecoil', n:'화로를 감은 것', hp:450, atk:59, ac:32, xp:2600,
     ai:'hunt', spd:1.35, on:'blind', door:'smash', regen:3, heavy:true, named:true,
     casts:['beam', 'wave', 'quake'], cool:3,
     warn:'화로를 감은 것이 아래에서 기다린다',
@@ -1013,8 +1019,26 @@ export const ARTS = {
        be*. 연타 is the same slot spent forwards. */
     { id:'flurry',   name:'연타',     short:'연타', lv:7,  stam:2,
       desc:'한 호흡에 잇달아 친다. 맞을 때마다 다음 한 대가 무거워지고, 빗나가면 거기서 끝난다.' },
-    { id:'finisher', name:'마무리',   short:'마무리', lv:11, stam:4,
+    /* 마무리는 숨 4를 쓰고 평타의 ×0.87(온전)/×1.08(깎인 방)이었다 —
+       자기 하위 기예인 연타(숨2·×1.89)보다 나쁘다. 값을 내리고
+       기울기를 세운다: 「거의 다 죽은 것을 끝낸다」가 더 가팔라야
+       그 자리에서만 옳은 버튼이 된다. */
+    { id:'finisher', name:'마무리',   short:'마무리', lv:11, stam:3,
       desc:'상대가 잃은 피만큼 무거워지는 한 방.' },
+    /* ── 한계돌파 ─────────────────────────────────────────
+       직업마다 하나씩, 「누가 봐도 이 직업이 위험한 순간」에 쓰는 것.
+       전사가 위험한 순간은 **둘러싸였을 때**다 — 이 게임은 셋에
+       둘러싸이면 12층에서 네 턴에 죽는다(sim/edge.mjs).
+
+       예전에 버티기가 여기 있었는데 빼냈다: 봇이 판당 10.2번 눌렀고,
+       「가만히 서서 버티는 것이 언제나 옳다」가 이 게임의 다른 모든
+       동사(어디에 설 것인가)와 정반대였기 때문이다. 그 문제를 대가로
+       푼다 — 버티는 동안 **한 칸도 못 움직인다.** 언제나 옳은 것이
+       아니라, 도망칠 수 없다고 판단했을 때만 옳은 것이 된다. */
+    /* 한계돌파가 판당 0.05회 눌렸다 — 직업의 기둥이 아니라 장식이다.
+       문턱 9는 봇 기준 판의 끝자락에서야 열린다. 6으로 내린다. */
+    { id:'brace',    name:'버텨선다', short:'버팀', lv:6,  stam:4,
+      desc:'세 턴 동안 받는 피해가 절반 아래로 떨어지고 인접한 것이 물러나지 못한다. 그동안 한 칸도 못 움직인다.' },
   ],
 
   /* ── 도적의 넷 ────────────────────────────────────────
@@ -1034,7 +1058,7 @@ export const ARTS = {
     { id:'fan',        name:'칼부채',      short:'부채', lv:4,  stam:2, shade:2,
       desc:'부채꼴로 칼을 던진다. 그 안의 모든 것이 맞는다. (그림자 2)' },
     { id:'vanish',     name:'어둠 되감기',  short:'되감기', lv:8,  stam:2, shade:1,
-      desc:'싸움 한가운데서 자취를 지운다. 깨어 있던 것들이 너를 놓친다. (그림자 1)' },
+      desc:'붙어 있는 것을 전부 찌르고 두 칸씩 밀어낸 뒤 자취를 지운다. 그 한 대는 전부 기습이다. (그림자 1)' },
     { id:'vitals',     name:'급소',        short:'급소', lv:12, stam:3, shade:3,
       desc:'모은 것을 한 번에 태운다. 갑옷을 지나가는 한 방. (그림자 3)' },
   ],
@@ -1058,7 +1082,9 @@ export const ARTS = {
       desc:'하나를 지목한다. 그것은 더는 아물지 않고, 모두에게 더 아프다.' },
     { id:'judge',    name:'심판',   short:'심판', lv:8,  faith:6,
       desc:'보이는 죽지 않는 것 전부가 크게 다치고 달아난다.' },
-    { id:'martyr',   name:'순교',   short:'순교', lv:12, faith:9,
+    /* 순교의 값은 피해가 아니라 「다섯 턴 뒤에 오는 빚」이다. 신앙 9는
+       판당 한 번도 안 닿는 값이었다. */
+    { id:'martyr',   name:'순교',   short:'순교', lv:12, faith:7,
       desc:'다섯 턴 동안 쓰러지지 않는다. 끝나면 피한 것이 한꺼번에 온다.' },
   ],
 
@@ -1075,19 +1101,37 @@ export const ARTS = {
       desc:'방어를 완전히 무시한다. 그리고 상대의 최대 체력이 클수록 더 아프다.' },
     { id:'storm',   name:'성스러운 폭풍', short:'폭풍', lv:8,  oath:4,
       desc:'주위 여덟 칸 전부. 여기서 죽은 것마다 맹세가 하나씩 돌아온다.' },
-    { id:'crusade', name:'성전',        short:'성전', lv:12, oath:8,
+    /* 성전은 맹세 8을 쓰고 평타의 ×0.75였다 — 「방이 이미 무너져
+       있어야 값을 한다」는 조건이 체력 40%로 깎아 놓아도 성립하지
+       않았다(×0.76). 값을 5로 내리고 한 대를 무겁게 한다. */
+    { id:'crusade', name:'성전',        short:'성전', lv:12, oath:5,
       desc:'가장 가까운 것을 벤다. 죽으면 다음으로 걸어가 또 벤다. 죽지 않는 순간 끝난다.' },
+    /* 팔라딘의 넷은 전부 「누구를 칠 것인가」다 — 물러설 방법이 하나도
+       없었다. 그런데 이 직업은 앞으로 나가는 직업이라 위험한 순간이
+       **자기가 만든 것**이다: 돌진해 들어갔고 나올 수가 없다. */
+    { id:'bulwark', name:'불굴',        short:'불굴', lv:6,  oath:5,
+      desc:'세 턴 동안 쓰러지지 않는다 — 체력이 1 아래로 내려가지 않는다. 끝나도 빚은 없다.' },
   ],
 
   ranger: [
-    { id:'aimed',   name:'조준 사격', short:'조준', lv:1,  stam:2,
+    /* 궁수가 혼자 3~4층 앞섰다(도달 12.3 vs 전사 8.6). 기예 다섯 중
+       넷이 평타보다 낫고 숨은 층마다 저절로 찬다. 손잡이는 위력이
+       아니라 **빈도**에 건다 — 숨은 두 턴에 1이므로 +1은 층당 사용
+       횟수를 25~30% 깎는다. */
+    { id:'aimed',   name:'조준 사격', short:'조준', lv:1,  stam:3,
       desc:'빗나가지 않는다. 그리고 멀수록 아프다 — 활의 감쇠가 뒤집힌다.' },
-    { id:'pierce',  name:'관통 사격', short:'관통', lv:4,  stam:3,
+    { id:'pierce',  name:'관통 사격', short:'관통', lv:4,  stam:4,
       desc:'화살이 일직선 위의 모든 것을 뚫고 지나간다.' },
     { id:'snare',   name:'덫 놓기',   short:'덫',   lv:8,  stam:3,
       desc:'발밑에 덫을 묻는다. 밟은 것은 두 턴을 잃는다.' },
     { id:'volley',  name:'빗발',      short:'빗발', lv:12, stam:5,
       desc:'보이는 모든 것에게 한 발씩. 각각은 절반만 아프다.' },
+    /* 궁수가 위험한 순간은 **붙었을 때**다. 활은 붙으면 막대기이고,
+       이 직업의 축은 「나와 그것 사이의 거리」다. 그 거리를 한 번에
+       되찾는 것 하나가 없었다 — 덫은 놓고 기다리는 것이지 지금
+       빠져나오는 것이 아니다. */
+    { id:'kite',    name:'물러서며 쏘기', short:'물러', lv:9,  stam:4,
+      desc:'네 칸 뒤로 물러나면서, 지나온 자리에 있던 것 전부에게 한 발씩 박는다.' },
   ],
 };
 
@@ -1132,6 +1176,19 @@ export const FAN_RANGE   = 4;
 export const FAN_ARC     = 0.35;  // dot-product floor: a touch wider than 90°
 export const FAN_SHARE   = 0.7;
 export const VANISH_HUSH = 3;     // the turn it is used on is itself spent
+/* 되감기가 나가면서 붙어 있던 것을 찌르고 민다. 「임팩트가 없다」는
+   말을 들은 뒤에 붙인 두 값이다 — 도적이 실제로 위험한 순간은 들켰고
+   **이미 붙었을 때**인데, 예전 되감기는 그때 아무것도 안 했다. */
+/* 한계돌파 셋의 값. 전부 「몇 턴이냐」가 값의 전부다 — 세 턴은
+   한 번의 위기를 넘기기에는 충분하고 한 층을 통째로 지우기에는
+   모자란 길이다. */
+export const STAND_TURNS   = 3;    // 전사 — 그동안 못 움직인다
+export const STAND_CUT     = 0.45; // 받는 피해가 이 배율이 된다
+export const KITE_DIST     = 4;    // 궁수 — 뒤로 네 칸
+export const KITE_MULT     = 0.8;  // 지나온 자리마다 한 발
+export const BULWARK_TURNS = 3;    // 팔라딘 — 그동안 1 아래로 안 내려간다
+export const VANISH_MULT = 0.85;  // 밀려나는 것마다 기습 판정 한 대
+export const VANISH_PUSH = 2;     // 그리고 두 칸 밀린다 — 포위가 풀린다
 export const VITALS_MULT = 2.6;
 
 /* ── 잔향 ─────────────────────────────────────────────────
@@ -1179,7 +1236,7 @@ export const CLEAVE_SHARE = 0.8;   // what each adjacent body takes, vs one clea
 export const BRACE_TURNS  = 4;
 export const BRACE_CUT    = 0.4;   // damage taken, reduced by this share
 export const BRACE_THORNS = 0.5;   // what the blocker hands back, of what it stopped
-export const FINISH_MAX   = 2.5;   // the blow at the target's last sliver
+export const FINISH_MAX   = 3.4;   // the blow at the target's last sliver
 
 /* ── 맹세 ─────────────────────────────────────────────────
    It used to be a number that leaked. +1 defence for every blow
@@ -1414,32 +1471,74 @@ export const UNDEAD = ['wraith', 'mummy', 'lich', 'vampire', 'ashheap', 'emberpr
 
    They are found, never bought and never forged, which is what
    keeps them a story rather than a shopping list. */
+/* ═══ 크랙 ═══════════════════════════════════════════════
+   이름 붙은 것은 「조금 더 좋은 무기」였다. 주사위가 한 단계 크고
+   규칙이 한 줄 붙은 것 — 그러면 그건 희귀한 무기이지 **판을 바꾸는
+   물건**이 아니다. 실측으로도 이름 붙은 것의 낙하가 3.5%인데, 그
+   3.5%를 뽑고도 판이 달라지지 않으면 뽑을 이유가 없다.
+
+   그래서 하나마다 **크랙**을 준다. 크랙은 셋 중 하나다:
+
+     ① 컨셉을 지키는 크랙 — 그 물건이 하는 일을 **말이 안 되는
+        정도까지** 밀어붙인다. 세는 칼은 판이 끝날 때까지 센다.
+     ② 단점을 날려버리는 크랙 — 그 **종류**가 원래 지불하는 값을
+        지우다. 대검은 빗맞고, 활은 붙으면 막대기이고, 지팡이는
+        마나가 마른다. 크랙은 그 줄을 지운다.
+     ③ 상식을 파괴하는 크랙 — 게임이 가르친 규칙 하나를 부순다.
+        천장은 내려가기만 한다, 쫓기면 도망칠 수 없다 — 그런 것들.
+
+   그리고 이제 **벼려지고 물든다.** 「이름이 붙은 것은 이미 제 모습이다」
+   라고 막아 뒀는데, 그건 이 물건들을 판 중반에 죽은 가지로 만드는
+   줄이었다: 강화가 곱이 된 지금 +8은 1.72배이고, 그것을 못 받는
+   무기는 주우면 곧 뒤처진다. 이름이 붙었다고 자라지 못할 이유는 없다.
+   ═══════════════════════════════════════════════════════ */
 export const UNIQUES = [
-  { id:'ashcount', n:'재를 세는 자',   spr:'dagger', t:'dagger', dice:[2,6], d:4,  hands:1,
+  { id:'ashcount', n:'재를 세는 자',   spr:'u_ashcount', t:'dagger', dice:[2,6], d:4,  hands:1,
     rule:'재운 것 하나마다 피해 +1. 층을 내려가면 셈이 처음으로 돌아간다.',
+    crack:'①', crackN:'셈이 끝나지 않는다',
+    crackT:'층을 내려가도 셈이 안 지워진다. 그리고 여덟을 셀 때마다 **주사위가 한 면 커진다.**',
     lore:'자루에 금이 그어져 있다. 세는 쪽은 칼이지 당신이 아니다.' },
-  { id:'longhush', n:'긴 침묵',       spr:'bow',    t:'bow',    dice:[2,6], d:6,  hands:2, rng:7,
+  { id:'longhush', n:'긴 침묵',       spr:'u_longhush',    t:'bow',    dice:[2,6], d:6,  hands:2, rng:7,
     rule:'맞은 것 말고는 아무것도 깨어나지 않는다.',
+    crack:'②', crackN:'붙어도 활이다',
+    crackT:'활은 붙으면 막대기다 — 이것은 아니다. **근접에서도 온전히 쏜다.**',
     lore:'시위를 당겨도 소리가 나지 않는다. 놓아도 마찬가지다.' },
-  { id:'emberpull', n:'화로에서 꺼낸 것', spr:'great', t:'great', dice:[3,6], d:8, hands:2,
+  { id:'emberpull', n:'화로에서 꺼낸 것', spr:'u_emberpull', t:'great', dice:[3,6], d:8, hands:2,
     rule:'잃은 피가 많을수록 무거워진다 — 반쯤 죽었을 때 피해 +60%.',
+    crack:'②', crackN:'빗맞지 않는다',
+    crackT:'대검은 크게 휘두르는 만큼 빗나간다. 이것은 **한 번도 빗나가지 않는다.**',
     lore:'아직 식지 않았다. 몇 해가 지났는데도.' },
-  { id:'promise',  n:'약속',          spr:'sword',  t:'sword',  dice:[2,7], d:9,  hands:1,
+  { id:'promise',  n:'약속',          spr:'u_promise',  t:'sword',  dice:[2,7], d:9,  hands:1,
     rule:'넘치게 때린 만큼이 체력으로 돌아온다.',
+    crack:'③', crackN:'천장이 올라간다',
+    crackT:'이 게임에서 최대 체력은 내려가기만 한다. 이 검으로 넘치게 때리면 **천장이 올라간다** — 층마다 다섯까지.',
     lore:'누가 누구에게 한 약속인지는 적혀 있지 않다.' },
-  { id:'nailer',   n:'못 박는 자',     spr:'mace',   t:'mace',   dice:[3,5], d:10, hands:1,
+  { id:'nailer',   n:'못 박는 자',     spr:'u_nailer',   t:'mace',   dice:[3,5], d:10, hands:1,
     rule:'맞은 것은 다음 턴에 움직이지 못한다.',
+    crack:'③', crackN:'그 자리에 박힌다',
+    crackT:'세 번 맞은 것은 **죽을 때까지 한 칸도 못 움직인다.** 쫓기는 쪽을 바꾼다.',
     lore:'대장장이의 물건이었다. 대장장이는 그것으로 못을 박지 않았다.' },
-  { id:'twicewept', n:'두 번 우는 활', spr:'bow',    t:'bow',    dice:[2,7], d:12, hands:2, rng:8,
+  { id:'twicewept', n:'두 번 우는 활', spr:'u_twicewept',    t:'bow',    dice:[2,7], d:12, hands:2, rng:8,
     rule:'한 번 쏠 때마다 두 발이 나간다. 두 번째는 절반. 화살은 하나만 든다.',
+    crack:'①', crackN:'울음이 멎지 않는다',
+    crackT:'두 번째가 **절반이 아니라 온전해지고**, 그 화살이 무언가를 죽이면 **세 번째가 나간다.**',
     lore:'첫 번째는 맞은 것을 위해, 두 번째는 쏜 것을 위해 운다고 한다.' },
-  { id:'lastlamp', n:'마지막 등불',    spr:'wand',   t:'wand',   dice:[1,6], d:13, hands:1,
+  { id:'lastlamp', n:'마지막 등불',    spr:'u_lastlamp',   t:'wand',   dice:[1,6], d:13, hands:1,
     manaFlat:8, spellPow:0.25,
     rule:'체력이 4분의 1 아래면 주문에 마나가 들지 않는다.',
+    crack:'②', crackN:'마르지 않는다',
+    crackT:'마나가 모자라도 주문이 나간다 — **모자란 만큼을 피로 낸다.** 지팡이는 더 이상 비지 않는다.',
     lore:'심지가 짧을수록 밝다. 그것이 등불에게 좋은 일은 아니다.' },
 ];
 export const uniqueById = id => UNIQUES.find(u => u.id === id);
-export const UNIQUE_ODDS = 0.035;   // share of floor drops, past its depth
+/* 크랙이 붙은 뒤로는 이것 하나가 판을 바꾼다. 그러면 자주 나와서는
+   안 된다 — 판에 한 자루 나올까 말까여야 「나왔다」가 사건이 된다. */
+/* 1.4% 였다. 「최정상급 드롭 확률은 확 줄이되」 — 0.5% 로. 대신
+   이름 있는 무기는 이제 **바깥**(이물)에서 확정으로 하나 나오고,
+   나오면 화면에서 즉시 다른 물건으로 읽힌다. 운이 나쁘면 평생 못
+   보고, 좋으면 그 판이 그것 하나로 기억된다 — 그게 이 게임에서
+   「죽었을 때 아까운 것」의 정확한 모양이다. */
+export const UNIQUE_ODDS = 0.005;   // share of floor drops, past its depth
 
 /* ── the oddities ─────────────────────────────────────────
    An enchantment that only wakes in the wrong hands.
@@ -1774,16 +1873,66 @@ export const SHOPS = [
   { id:4, n:'순회 사제',   spr:'amulet', temple:true, stock:['potCure'],
     t:'파는 사람이 아니다. 붙은 것을 떼어 내 준다. 값은 안 받고 이름만 적어 둔다.' },
   { id:5, n:'약장수',     spr:'potion', stock:['potHeal','potMana','potCure'], cats:true,
-    t:'물약과 촉매. 「몇 번째요? …아, 그러면 이건 두 병 가져가시오.」' },
+    /* 이 게임에서 번호를 가장 잘 쓴 한 줄인데, 대답이 말줄임표로
+       삼켜져 있어서 숫자가 화면에 안 나왔다. 번호가 커질수록 값을
+       **안 깎고 말이 짧아지는** 것이 이 세계의 표현이다. */
+    t:'물약과 촉매.',
+    line: n => n < 10
+      ? '「몇 번째요? …아직 열도 안 됐구려. 그럼 제값 받겠소.」'
+      : `「몇 번째요? …${n}번째.」 값을 더 안 부른다. 부르지 않는 쪽이 무섭다.` },
   { id:6, n:'두루마리 장수', spr:'wand',  stock:['scrMap','scrTele','scrFlee'], rods:true,
     t:'두루마리와 지팡이. 아래에서 주워 온 것을 베껴 판다. 원본은 늘 한 장이 모자란다.' },
   /* Not in town. This one walks the dungeon, which is the only
      reason the gold in your purse means anything after floor 1. */
+  /* ── 수레가 하나뿐이었다 ────────────────────────────────
+     던전에서 만나는 상인은 이 하나이고, 재고에 여덟 종이 통째로
+     들어 있었다. 재 보니 판을 통틀어 열일곱 품목이 전부 이 한
+     수레에서 나왔다 — 그러면 몇 번째로 만나든 **같은 수레**다.
+     그래서 짐을 나눈다: 만날 때마다 무엇을 싣고 왔는지가 다르고,
+     그 짐이 그날의 이름이 된다(SHOP_LOADS). */
   { id:7, n:'떠돌이 상인', spr:'amulet', wander:true,
     stock:['potHeal','potCure','potMana','scrTele','scrMap','scrFlee','torch','smoke'],
     mats:['scrap','dust','essence'], cats:true,
-    t:'층 안에서 만난다. 어떻게 여기까지 내려와 살아 있는지는 묻지 않는 편이 좋다.' },
+    /* 이 상인이 살아 있는 이유를 **설명하지 않으면서** 답한다 — 그는
+       내려가지 않는다. 그는 세는 사람이다. 그러면 「묻지 않는 편이
+       좋다」가 회피가 아니라 무게가 된다. */
+    t:'층 안에서 만난다.',
+    line: n => n <= 1
+      ? '「첫 손님이오.」 어떻게 여기서 살아 있는지는 묻지 않는 편이 좋다.'
+      : `「${n - 1}명이 지나갔소. 사는 사람은 드물었고.」 어떻게 여기서 살아 있는지는 묻지 않는 편이 좋다.` },
 ];
+
+/* ── 이 수레가 오늘 싣고 온 것 ────────────────────────────
+   떠돌이 상인은 층마다 다른 짐을 끌고 온다. 짐마다 이름이 다르고,
+   파는 것이 다르고, 값이 다르다 — 그러면 「또 그 상인」이 아니라
+   「오늘은 무엇을 싣고 왔나」가 된다.
+
+   깊이로 무엇이 나올지를 가른다: 얕은 층에서는 불과 물약처럼 당장
+   목숨을 사는 것, 깊은 층에서는 재료와 촉매처럼 판을 바꾸는 것.
+   그러면 「적재적소」가 규칙이 된다 — 1층에서 정수를 팔아 봐야
+   살 사람도 쓸 자리도 없다. */
+export const SHOP_LOADS = [
+  { id:'wick',  n:'심지 수레', spr:'torch',   d:1, w:10, cut:0.85, mats:[],
+    stock:['torch','torch','potHeal','smoke'],
+    line:'「불부터 고르시오. 값은 깎아 주겠소 — 어두운 데서 죽은 손님은 외상을 못 갚아서.」' },
+  { id:'flask', n:'약 수레', spr:'potion',     d:1, w:9, mats:[],
+    stock:['potHeal','potCure','potMana'],
+    line:'「세 가지뿐이오. 네 번째를 찾던 손님은 안 돌아오더군. 미신이오. 그래도 세 가지요.」' },
+  { id:'paper', n:'종이 수레', spr:'scroll',   d:3, w:8, mats:['scrap'],
+    stock:['scrMap','scrTele','scrFlee'],
+    line:'「나는 못 읽소. 아래에서 주워 베낀 거요. 읽고 나서 값을 물리러 온 사람은 아직 없소.」' },
+  { id:'iron',  n:'쇠 수레', spr:'armor',     d:4, w:8, mats:['scrap','dust'],
+    stock:['picks','torch'], cats:true,
+    line:'「무겁소.」 그는 손바닥을 편다. 「여기까지 끄는 값이 물건값보다 크오. 그래도 아래엔 모루만 있고 쇠가 없지.」' },
+  { id:'ash',   n:'재 수레', spr:'bones',     d:7, w:7, cut:1.25, mats:['essence','dust'],
+    stock:['potHeal'], cats:true,
+    line:'「…이건 위에서 안 팔더군.」 수레 앞을 손으로 쓸어 본다. 「팔 수가 없지. 위에선 이런 게 안 나니까.」 값은 안 깎는다.' },
+  { id:'odd',   n:'이상한 수레', spr:'wand', d:5, w:5, cut:1.4, mats:['essence'],
+    stock:['scrTele','smoke'], cats:true,
+    line:'「무엇에 쓰는지는 나도 모르오.」 잠깐 있다가 덧붙인다. 「값은 아오.」' },
+];
+export const loadsFor = depth =>
+  SHOP_LOADS.filter(l => l.d <= depth);
 
 /* ── affixes ──────────────────────────────────────────────
    One vocabulary, three users: gear, spells and monsters. The
@@ -1902,10 +2051,14 @@ export const BOONS = [
 ];
 export const boonById = id => BOONS.find(b => b.id === id);
 
-/* Per weapon or armour created. 1층 0.6%, 15층 3.0% — rare
-   enough that most runs never see one, common enough that a
-   player who plays for a week has a story. */
-export const transChance = depth => 0.006 + depth * 0.0016;
+/* Per weapon or armour created. 1층 0.6%, 15층 3.0% 이었다.
+   플레이어: 「최정상급 아이템 드롭 확률은 확 줄이되, 획득 시
+   확실하게 체감 가능하게」 — 1층 0.2%, 15층 1.4%로 내린다.
+
+   대신 나올 때는 접두·접미·벼림(+5~8)·각인이 전부 붙어서 나온다
+   (game.js 의 rollAffixes). 「이번 판에 하나 봤다」가 되게 하고,
+   봤으면 그 판이 그것으로 기억되게 한다. */
+export const transChance = depth => 0.002 + depth * 0.0008;
 
 export function rarityOf(item) {
   if (!item) return 0;
@@ -1989,8 +2142,31 @@ export function salvageYield(item) {
   const w = worthOf(item);
   const affixes = (item.pre ? 1 : 0) + (item.suf ? 1 : 0)
                 + (item.engrave || []).length;
+  /* 상한이 48로 굳어 있었다. w/26이 48을 넘는 것은 8층쯤부터라,
+     그 아래로는 **12층의 전설이 8층의 검과 같은 쇳조각**을 냈다 —
+     깊이 내려갈수록 부수는 것이 무의미해진다는 뜻이고, 그게 후반에
+     드롭이 쓰레기로 읽히는 이유 중 하나였다(sim/purse.mjs).
+
+     상한을 그 물건이 **얼마나 벼려졌는가**에 묶는다. 잘 두들긴 것은
+     부수면 그만큼 나오고, 깊은 층에서 주운 맨 물건은 여전히 안 나온다.
+     「깊이」가 아니라 「손이 간 정도」가 기준인 이유는 하나다 — 깊이로
+     묶으면 15층 바닥에 굴러다니는 것을 줍기만 해도 재료가 된다.
+
+     ── 처음에 바닥을 30으로 놓았다. 정반대로 작동했다 ──
+     실측하니 **바닥에 떨어지는 장비는 평균 +0.03, 각인 0.00**이다.
+     그러면 roof는 사실상 언제나 30이고, 옛 상한 48보다 **낮다** —
+     10·12·15층 드롭이 48에서 30으로, 38% 깎였다. 고치려던 「후반
+     드롭이 쓰레기」를 더 심하게 만든 것이다.
+
+     완화의 수혜자는 「내가 +7까지 두들기고 각인을 돋운 물건」인데
+     그건 이 게임에서 **절대 안 부수는 물건**이다. 그걸 표본으로 잡고
+     「32 → 92」라고 적었던 것이 이 실수의 전부다: 부수는 대상은
+     100% 주운 물건이고, 그쪽 숫자를 안 봤다.
+
+     옛 바닥을 지킨다. 벼려진 것은 그 위로 더 나온다. */
+  const roof = 48 + (item.plus || 0) * 6 + (item.engrave || []).length * 10;
   return {
-    scrap:   Math.max(1, Math.min(48, Math.round(w / 26))),
+    scrap:   Math.max(1, Math.min(roof, Math.round(w / 26))),
     dust:    affixes ? affixes + Math.floor(w / 320) : 0,
     essence: w >= 600 ? 1 + Math.floor(w / 2200) : 0,
   };
@@ -2128,6 +2304,37 @@ export const JACKPOT = {
 
 export const ENCHANT_COST = { dust: 4, gold: 130 };
 export const REROLL_COST  = { essence: 1, dust: 2, gold: 220 };
+/* ── 정수가 갈 곳 ─────────────────────────────────────────
+   정수는 나가는 구멍이 재굴림 하나뿐이었고, 그 하나도 1개씩만 먹었다.
+   그래서 판이 끝날 때까지 주머니에 쌓이기만 한다 — 나가는 구멍이 없는
+   재료는 재료가 아니라 점수다(sim/purse.mjs).
+
+   두 구멍을 판다. 둘 다 이미 있는 것을 **고쳐 쓰는** 일이고, 둘 다
+   후반에만 의미가 있다 — 각인은 +3부터 돋고, 유물은 후반에 손이 찬다.
+     · 각인 정련 — 마음에 안 드는 각인 하나를 다시 굴린다
+     · 유물 조율 — 유물 하나의 수치를 한 단계 올린다            */
+export const REFINE_COST = { essence: 2, dust: 2, gold: 300 };
+export const ATTUNE_COST = { essence: 3, gold: 260 };
+/* 조율은 무한이 아니다. 유물 하나에 세 번까지 — 그 위는 유물이 아니라
+   숫자 키우기가 된다. */
+export const ATTUNE_MAX = 3;
+/* ── 무엇에게 먹일 수 있는가 ──────────────────────────────
+   처음에는 든 유물 전부를 목록에 올렸다. 재 보니 **40개 중 40개**가
+   먹여도 아무 숫자도 안 움직였다 — 유물의 v를 실제로 읽는 규칙이
+   일곱 줄뿐이고 나머지는 전부 리터럴이었기 때문이다. 정수 3 + 260금을
+   받고 화면의 숫자만 바꾸는 버튼이었다.
+
+   더 나쁜 쪽도 있었다. 메아리의 종과 울리는 진군의 v는 **연격 문턱**
+   이라 올리면 나빠진다(6 → 9). 값을 내고 유물을 확실히 약화시키는
+   버튼이 목록에 둘 있었다.
+
+   그래서 표에 적는다. 여기 있는 것은 「v를 올리면 분명히 좋아지고,
+   규칙이 실제로 v를 읽는」 유물뿐이다. 나머지는 v가 대가이거나
+   (피의 계약의 −25%), 문턱이거나(메아리의 6), 규칙이 안 읽는다.  */
+export const FEEDABLE = new Set([
+  'mirror', 'wick', 'twin', 'hunger', 'famine',
+  'scale', 'chain', 'reckless', 'vow', 'brand', 'bone', 'seed', 'grudge',
+]);
 
 /* ── catalysts ────────────────────────────────────────────
    Materials are a currency; catalysts are a decision. Each one
@@ -2165,13 +2372,31 @@ export const makeCatalyst = id => ({ kind:'cat', ...catalystById(id) });
    with its own risk profile: blood is cheap when you are healthy
    and suicidal when you are not; gold is painless if you have
    nowhere to spend it; gear is the real cost. */
+/* ── 세 줄이 서로를 지배하지 않게 ─────────────────────────
+   GM과 TRPG의 최적화충이 서로 모르고 같은 표에 도달했다: 「장비」가
+   **대성공 최고 · 허탕 최저 · 재앙 최저**로 세 축 전부에서 이겼다.
+   파레토 지배다. 게다가 배낭에 여벌이 쌓이는 게임에서 「착용품 하나」는
+   체력 40%나 금화 절반보다 대체로 싸다. 버튼 세 개 중 두 개가 잘못
+   눌린 상태였다.
+
+   나쁜 선택지가 있는 것은 이 세계관에 맞다(하윤의 말이 맞다). 그런데
+   지금 문제는 나쁜 게 아니라 **구별이 안 되는** 것이었다. 각자 한 축에서
+   최고이고 한 축에서 최악이면 둘 다 얻는다:
+
+     피    — 대성공이 가장 높고 재앙도 가장 높다. 도박꾼의 줄.
+     금화  — 성공이 가장 높고 재앙이 가장 낮다. 안전한 줄. 대신 대박은 없다.
+     장비  — 허탕이 가장 높다. 비용은 싸지만 헛수고가 잦은 줄.
+
+   합은 셋 다 100이고 기대치는 비슷하게 두되, **분산의 모양**을 다르게
+   했다. 무엇을 바치는지가 「얼마나 좋은가」가 아니라 「어떤 판을
+   하겠는가」를 고르는 것이 된다. */
 export const ALTAR_OFFERS = [
   { id:'blood', n:'피를 바친다',   cost:'현재 체력의 40%',
-    odds:[['대성공', 18], ['성공', 44], ['허탕', 26], ['재앙', 12]] },
+    odds:[['대성공', 30], ['성공', 38], ['허탕', 16], ['재앙', 16]] },
   { id:'gold',  n:'금화를 바친다', cost:'가진 금화의 절반',
-    odds:[['대성공', 14], ['성공', 52], ['허탕', 28], ['재앙', 6]] },
+    odds:[['대성공', 10], ['성공', 60], ['허탕', 28], ['재앙',  2]] },
   { id:'gear',  n:'장비를 바친다', cost:'착용 중인 물건 하나',
-    odds:[['대성공', 30], ['성공', 46], ['허탕', 18], ['재앙', 6]] },
+    odds:[['대성공', 22], ['성공', 42], ['허탕', 30], ['재앙',  6]] },
 ];
 
 /* ── relics ───────────────────────────────────────────────
@@ -2190,65 +2415,72 @@ export const ALTAR_OFFERS = [
    the hand means the early game is tight and the late game is
    where the absurd combinations actually assemble — which is the
    part worth playing for. */
-export const RELIC_SLOTS_BASE = 4;
-export const RELIC_SLOT_DEPTHS = [4, 8, 12];      // +1 slot on reaching each
+/* ── 손이 하나 더 커졌다 ──────────────────────────────────
+   플레이어: 「유물 슬롯 좀 더 늘려주고」. 4+3=7 이었다.
+
+   그냥 늘리기만 하면 「더 많이 들 수 있다」로 끝난다. 같은 커밋에서
+   일반 유물의 값을 0.8배로 내리고 융합물을 1.75배로 올렸으므로,
+   늘어난 자리는 **조합을 짤 자리**다 — 여덟을 들고 다니다가 넷을
+   태워 둘을 만드는 판이 가능해진다. 그게 자리를 늘린 이유다. */
+export const RELIC_SLOTS_BASE = 5;
+export const RELIC_SLOT_DEPTHS = [4, 7, 10, 13];  // +1 slot on reaching each
 export const relicSlots = deepest =>
   RELIC_SLOTS_BASE + RELIC_SLOT_DEPTHS.filter(d => deepest >= d).length;
 export const RELIC_SLOTS = RELIC_SLOTS_BASE + RELIC_SLOT_DEPTHS.length;   // 7, the cap
 
 export const RELICS = [
-  { id:'pact',    n:'피의 계약',     spr:'amulet', k:'pact',    v:0.25,
+  { id:'pact',    n:'피의 계약',     spr:'r_pact', k:'pact',    v:0.25,
     lore:'계약서는 없다. 손바닥을 그어 벽에 대는 것으로 충분했다고 한다.',
     t:'최대 체력 −25%. 치명타 확률 +20%p. 무모함과 섞이면 무엇이 되는지 아무도 모른다.' },
-  { id:'echo',    n:'메아리의 종',   spr:'amulet', k:'echo',    v:6,
+  { id:'echo',    n:'메아리의 종',   spr:'r_echo', k:'echo',    v:6,
     lore:'성소의 종이다. 치면 한 번 울리고, 한 번 더 울린다. 두 번째는 여기 것이 아니다.',
     t:'연격 6 이상이면 공격이 한 번 더 들어간다. 북이 있어야 진군이 된다.' },
-  { id:'hunger',  n:'굶주린 칼날',   spr:'sword',  k:'hunger',  v:3,
+  { id:'hunger',  n:'굶주린 칼날',   spr:'r_hunger',  k:'hunger',  v:3,
     lore:'날이 아니라 자루가 굶었다. 쥔 손이 먼저 가벼워진다.',
     t:'처치할 때마다 체력 +3. 기름을 두 배로 태운다. 위장이 크면 더 굶주린다.' },
-  { id:'mirror',  n:'거울 방패',     spr:'shield', k:'mirror',  v:0.35,
+  { id:'mirror',  n:'거울 방패',     spr:'r_mirror', k:'mirror',  v:0.35,
     lore:'방패로 쓰라고 만든 것이 아니다. 거울이었고, 누군가 그걸 들고 내려왔다.',
     t:'받은 피해의 35%를 때린 쪽에 돌려준다.' },
-  { id:'eye',     n:'심연의 눈',     spr:'scroll', k:'eye',     v:3,
+  { id:'eye',     n:'심연의 눈',     spr:'r_eye', k:'eye',     v:3,
     lore:'뜬 채로 마른 눈알. 감기지 않아서 계속 본다.',
     t:'층에 들어설 때 지도가 전부 보인다. 최대 마나 −3. 부러진 바늘이 가리키는 쪽을 본다.' },
-  { id:'glove',   n:'도굴꾼의 장갑', spr:'ring',   k:'glove',   v:2,
+  { id:'glove',   n:'도굴꾼의 장갑', spr:'r_glove',   k:'glove',   v:2,
     lore:'손가락 끝이 닳아 있다. 파낸 것이 많았다는 뜻이고, 마지막에는 못 나왔다는 뜻이다.',
     t:'상자와 바닥의 전리품이 두 배. 함정을 영영 못 본다.' },
-  { id:'ember',   n:'불씨 항아리',   spr:'potion', k:'ember',   v:1,
+  { id:'ember',   n:'불씨 항아리',   spr:'r_ember', k:'ember',   v:1,
     lore:'항아리 안의 불은 꺼진 적이 없다. 뚜껑을 덮어도 그렇다.',
     t:'모닥불을 두 번 쓸 수 있다.' },
-  { id:'scale',   n:'저울추',        spr:'ring',   k:'scale',   v:0.6,
+  { id:'scale',   n:'저울추',        spr:'r_scale',   k:'scale',   v:0.6,
     lore:'접시가 하나뿐인 저울. 재는 쪽은 언제나 당신이다.',
     t:'체력이 30% 아래일 때 주는 피해 +60%.' },
-  { id:'twin',    n:'쌍둥이 룬',     spr:'wand',   k:'twin',    v:2,
+  { id:'twin',    n:'쌍둥이 룬',     spr:'r_twin',   k:'twin',    v:2,
     lore:'같은 문양이 둘. 하나를 읽으면 다른 하나가 대신 대답한다.',
     t:'주문 비용 −2. 주문 피해 −20%. 서약과 만나면 서로를 지운다.' },
-  { id:'thief',   n:'시간 도둑',     spr:'ring',   k:'thief',   v:0.35,
+  { id:'thief',   n:'시간 도둑',     spr:'r_thief',   k:'thief',   v:0.35,
     lore:'모래가 위로 흐른다. 대신 층이 당신을 더 급하게 민다.',
     t:'층을 내려갈 때 체력을 전부 회복한다. 층의 여유 시간 −35%.' },
-  { id:'bone',    n:'뼈 목걸이',     spr:'amulet', k:'bone',    v:1,
+  { id:'bone',    n:'뼈 목걸이',     spr:'r_bone', k:'bone',    v:1,
     lore:'구슬 하나가 사람 하나다. 실이 아직 남아 있다.',
     t:'처치할 때마다 최대 체력 +1 (최대 +30).' },
-  { id:'chain',   n:'사슬 갑주',     spr:'armor',  k:'chain',   v:4,
+  { id:'chain',   n:'사슬 갑주',     spr:'r_chain',  k:'chain',   v:4,
     lore:'갱도에서 끌던 사슬을 잘라 엮었다. 무게가 그때 그대로다.',
     t:'방어 +4. 은신이 사라진다 — 기습은 없다.' },
-  { id:'compass', n:'부러진 나침반', spr:'ring',   k:'compass', v:1,
+  { id:'compass', n:'부러진 나침반', spr:'r_compass',   k:'compass', v:1,
     lore:'바늘이 부러진 자리에서 아래를 가리킨다. 부러지기 전에도 그랬을 것이다.',
     t:'함정 피해를 입지 않는다. 대신 함정이 보이지 않는다. 심연의 눈이 대신 봐 준다면 이야기가 다르다.' },
-  { id:'gut',     n:'폭식의 위장',   spr:'potion', k:'gut',     v:2,
+  { id:'gut',     n:'폭식의 위장',   spr:'r_gut', k:'gut',     v:2,
     lore:'주머니가 아니라 위장이다. 아직 소화 중인 것이 만져진다.',
     t:'물약 효과가 두 배. 배낭에 물약을 세 종류까지만 넣는다. 굶주린 날붙이와 짝이 맞는다.' },
-  { id:'reckless',n:'무모함의 인장', spr:'sword',  k:'reckless',v:0.8,
+  { id:'reckless',n:'무모함의 인장', spr:'r_reckless',  k:'reckless',v:0.8,
     lore:'인장을 찍은 문서는 남아 있지 않다. 찍은 사람도 마찬가지다.',
     t:'명중 −15%. 치명타 배율 ×1.8. 피로 쓴 계약과 함께라면 더 멀리 간다.' },
-  { id:'vow',     n:'침묵의 서약',   spr:'scroll', k:'vow',     v:0.3,
+  { id:'vow',     n:'침묵의 서약',   spr:'r_vow', k:'vow',     v:0.3,
     lore:'혀를 꿰맨 자국이 있는 두루마리. 스스로 꿰맸다고 적혀 있다.',
     t:'주문을 쓸 수 없다. 근접 피해 +30%. 쌍둥이 룬 앞에서만 말을 더듬는다.' },
 
   /* Second batch. With a hand that grows to seven, the pool has
      to be deep enough that two runs never hold the same five. */
-  { id:'lamp',    n:'꺼지지 않는 등', spr:'torch', k:'lamp',    v:2,
+  { id:'lamp',    n:'꺼지지 않는 등', spr:'r_lamp', k:'lamp',    v:2,
     lore:'기름을 넣은 적이 없는 등. 무엇으로 타는지는 들여다보지 않는 편이 낫다.',
     t:'기름이 줄지 않는다. 대신 불빛이 2칸 좁다.' },
   /* ── 불에 관한 것들 ──────────────────────────────────────
@@ -2256,37 +2488,37 @@ export const RELICS = [
      빛을 건드리는 유물은 수치가 아니라 판을 바꾸고, 판을 바꾸는
      것 중 가장 센 것은 전설(myth)로 잠근다 — 8층 아래에서만 나오고
      뽑히는 무게도 넷 중 하나다. */
-  { id:'nighteye', n:'밤에 익은 눈', spr:'ring', k:'nighteye', v:300,
+  { id:'nighteye', n:'밤에 익은 눈', spr:'r_nighteye', k:'nighteye', v:300,
     lore:'어둠에서 오래 산 것의 눈이다. 뽑은 쪽은 오래 살지 못했다.',
     t:'불이 꺼져도 손이 무뎌지지 않는다. 대신 기름을 300만큼 덜 담는다.' },
-  { id:'everflame', n:'꺼지지 않는 불꽃', spr:'torch', k:'everflame', v:5, myth:1,
+  { id:'everflame', n:'꺼지지 않는 불꽃', spr:'r_everflame', k:'everflame', v:5, myth:1,
     lore:'화로에서 떼어 낸 한 조각. 여기까지 가져온 사람이 있었다는 뜻이다 — 다만 여기까지였다.',
     t:'전설. 불빛이 5칸 아래로 내려가지 않는다 — 기름이 바닥나도. 대신 최대 체력 −20%.' },
-  { id:'moth',    n:'나방의 표식',   spr:'ring',   k:'moth',    v:0.10,
+  { id:'moth',    n:'나방의 표식',   spr:'r_moth',   k:'moth',    v:0.10,
     lore:'재 위에 앉는 나방이 있다. 그것들은 불이 있는 곳을 전부 안다.',
     t:'층에 들어설 때 모닥불·제단·상인·사건 위치가 보인다. 최대 체력 −10%.' },
-  { id:'knot',    n:'매듭 밧줄',     spr:'ring',   k:'knot',    v:0.5,
+  { id:'knot',    n:'매듭 밧줄',     spr:'r_knot',   k:'knot',    v:0.5,
     lore:'광부의 매듭. 배우는 데 한나절, 잊는 데 평생이라고 했다.',
     t:'거미줄과 구덩이가 통하지 않는다. 은신 −50%.' },
-  { id:'toll',    n:'뱃사공의 동전', spr:'gold',   k:'toll',    v:0.5,
+  { id:'toll',    n:'뱃사공의 동전', spr:'r_toll',   k:'toll',    v:0.5,
     lore:'뱃삯이다. 강이 마른 뒤로는 받을 사람이 없어졌다.',
     t:'금화를 두 배로 얻는다. 층을 내려갈 때 가진 금화의 10%를 잃는다. 깃펜이 장부를 적어 준다면.' },
-  { id:'brand',   n:'낙인',          spr:'sword',  k:'brand',   v:0.5,
+  { id:'brand',   n:'낙인',          spr:'r_brand',  k:'brand',   v:0.5,
     lore:'짐승에게 찍던 것. 어느 순간부터 사람에게도 찍었다.',
     t:'정예에게 주는 피해 +50%. 일반 몬스터에게 −15%.' },
-  { id:'quill',   n:'서기의 깃펜',   spr:'scroll', k:'quill',   v:0.25,
+  { id:'quill',   n:'서기의 깃펜',   spr:'r_quill', k:'quill',   v:0.25,
     lore:'적는 손이 없어도 적는다. 적힌 것이 맞는지는 별개다.',
     t:'미확인 물건을 주우면 바로 판별된다. 금화 획득 −25%. 뱃사공의 동전을 세기 좋은 펜이다.' },
-  { id:'grudge',  n:'앙심',          spr:'amulet', k:'grudge',  v:0.04,
+  { id:'grudge',  n:'앙심',          spr:'r_grudge', k:'grudge',  v:0.04,
     lore:'주인이 무엇에 원한을 품었는지는 안 적혀 있다. 계속 품고 있다는 것만 안다.',
     t:'맞을 때마다 피해 +4% 누적(층마다 초기화, 최대 +60%).' },
-  { id:'seed',    n:'돌씨',          spr:'armor',  k:'seed',    v:1,
+  { id:'seed',    n:'돌씨',          spr:'r_seed',  k:'seed',    v:1,
     lore:'돌에서 돌이 자란다. 자라는 쪽은 당신 살이 아니다.',
     t:'층을 내려갈 때 방어 +1 영구. 최대 체력 −15%.' },
-  { id:'wick',    n:'짧은 심지',     spr:'potion', k:'wick',    v:6,
+  { id:'wick',    n:'짧은 심지',     spr:'r_wick', k:'wick',    v:6,
     lore:'너무 짧아 쥘 수가 없다. 그래서 마실 때 손에 옮겨붙는다.',
     t:'물약을 마실 때 인접한 적이 타 들어간다. 회복량 −30%.' },
-  { id:'drum',    n:'전쟁 북',       spr:'amulet', k:'drum',    v:2,
+  { id:'drum',    n:'전쟁 북',       spr:'r_drum', k:'drum',    v:2,
     lore:'가죽이 사람 것이라는 말이 있다. 소리는 확실히 사람을 부른다.',
     t:'맞아도 연격을 4분의 1만 잃는다. 몬스터가 두 칸 더 멀리서 깨어난다. 종과 함께 울리면 행군이 된다.' },
 
@@ -2299,22 +2531,22 @@ export const RELICS = [
 
      Resolved in effStats(), one funnel, so nothing downstream
      has to know an ability score can be rewritten. */
-  { id:'grip',    n:'거인의 손아귀', spr:'sword',  k:'grip',    v:20,
+  { id:'grip',    n:'거인의 손아귀', spr:'r_grip',  k:'grip',    v:20,
     lore:'거인의 손에서 벗긴 장갑. 손가락 하나가 당신 팔뚝만 하다.',
     t:'힘이 20이 된다. 민첩은 6으로 떨어진다.' },
-  { id:'specs',   n:'현자의 안경',   spr:'scroll', k:'specs',   v:1,
+  { id:'specs',   n:'현자의 안경',   spr:'r_specs', k:'specs',   v:1,
     lore:'알이 두꺼워 눈이 커 보인다. 쓰고 있으면 다른 것도 커 보인다.',
     t:'지능과 지혜 중 높은 쪽이 둘 다가 된다. 최대 체력 −20%.' },
-  { id:'acro',    n:'곡예사의 신',   spr:'ring',   k:'acro',    v:6,
+  { id:'acro',    n:'곡예사의 신',   spr:'r_acro',   k:'acro',    v:6,
     lore:'줄 위에서 죽은 사람의 신. 줄은 끊어지지 않았다.',
     t:'민첩 +6. 힘 −4.' },
-  { id:'bull',    n:'황소의 심장',   spr:'amulet', k:'bull',    v:6,
+  { id:'bull',    n:'황소의 심장',   spr:'r_bull', k:'bull',    v:6,
     lore:'심장 모양의 돌이 아니라 그냥 심장이다. 아직 뛴다.',
     t:'체질 +6. 매력 −6.' },
-  { id:'mask',    n:'웃는 가면',     spr:'amulet', k:'mask',    v:18,
+  { id:'mask',    n:'웃는 가면',     spr:'r_mask', k:'mask',    v:18,
     lore:'웃는 표정으로 굳었다. 벗으면 아래도 웃고 있다는 이야기가 있다.',
     t:'매력이 18이 된다. 나머지 다섯 능력치가 1씩 내려간다.' },
-  { id:'ballast', n:'균형추',        spr:'ring',   k:'ballast', v:1,
+  { id:'ballast', n:'균형추',        spr:'r_ballast',   k:'ballast', v:1,
     lore:'배 밑바닥에 싣던 것. 균형은 맞지만 배는 더 깊이 잠긴다.',
     t:'가장 낮은 능력치가 가장 높은 것과 같아진다. 최대 체력 −25%.' },
 
@@ -2327,27 +2559,288 @@ export const RELICS = [
      Every one of them takes the two halves' downsides and makes
      them worse, then pays for it. That is the deal: a fused
      relic is not a better relic, it is a more extreme one.   */
-  { id:'martyr',  n:'순교자의 맹세', spr:'amulet', k:'martyr',  v:0.40, fused:true,
+  { id:'martyr',  n:'순교자의 맹세', spr:'r_martyr', k:'martyr',  v:0.40, fused:true,
     lore:'맹세문의 마지막 줄이 지워져 있다. 지운 것이 아니라 타 없어졌다.',
     t:'최대 체력 −40%. 치명타 확률 +25%p, 배율 ×2.2. 명중 −10%.' },
-  { id:'famine',  n:'끝없는 허기',   spr:'sword',  k:'famine',  v:8,    fused:true,
+  { id:'famine',  n:'끝없는 허기',   spr:'r_famine',  k:'famine',  v:20,   fused:true, crack:'③',
     lore:'허기는 옮는다. 이것을 든 사람의 배낭은 늘 비어 있었다.',
-    t:'처치할 때마다 체력 +8. 물약 효과 두 배. 기름을 세 배로 태운다.' },
-  { id:'paradox', n:'모순의 룬',     spr:'wand',   k:'paradox', v:0.45, fused:true,
+    t:'처치할 때마다 체력 +20 — **천장을 넘겨서**. 물약 효과 두 배. 기름을 세 배로 태운다.' },
+  { id:'paradox', n:'모순의 룬',     spr:'r_paradox',   k:'paradox', v:0.22, fused:true, crack:'②',
     lore:'읽으면 뜻이 맞고, 다시 읽으면 안 맞는다. 세 번째부터는 안 읽게 된다.',
-    t:'주문이 공짜가 된다. 주문 피해 −45%. 근접 피해 +20%.' },
-  { id:'oracle',  n:'눈먼 예언자',   spr:'scroll', k:'oracle',  v:6,    fused:true,
+    t:'주문이 **공짜가 된다** — 마나가 자원이 아니게 된다. 주문 피해 −22%. 근접 피해 +20%.' },
+  { id:'oracle',  n:'눈먼 예언자',   spr:'r_oracle', k:'oracle',  v:3,    fused:true, crack:'③',
     lore:'눈을 스스로 뺐다. 그러고 나서야 아래가 보였다고 적혀 있다.',
-    t:'층에 들어설 때 지도가 전부 보인다. 함정 피해를 입지 않는다. 최대 마나 −6, 불빛이 2칸 좁다.' },
-  { id:'ledger',  n:'회계사의 저울', spr:'gold',   k:'ledger',  v:0.20, fused:true,
-    lore:'장부의 마지막 장에 번호가 스물둘까지 적혀 있다. 그 아래는 비어 있다.',
+    t:'층에 들어설 때 지도가 전부 보인다 — **몬스터가 선 자리까지.** 함정 피해를 입지 않는다. 최대 마나 −3, 불빛이 2칸 좁다.' },
+  { id:'ledger',  n:'회계사의 저울', spr:'r_ledger',   k:'ledger',  v:0.20, fused:true,
+    /* 숫자가 굳어 있어서 마흔 번째 판에서도 「스물둘까지」라고 말했다.
+       살아 있는 장부로 만든다 — 그리고 **비어 있는 그 한 줄이
+       당신이다.** 유물 설명이 플레이어를 가리키는 순간이 이 게임에
+       아직 하나도 없었다. */
+    lore: n => n <= 1
+      ? '장부의 마지막 장이 비어 있다. 첫 줄에 아무것도 없다.'
+      : `장부의 마지막 장에 번호가 ${n - 1}까지 적혀 있다. 그 아래 한 줄이 비어 있다.`,
     t:'금화를 두 배로 얻고 미확인 물건은 즉시 판별된다. 층을 내려갈 때 금화의 20%를 잃는다.' },
-  { id:'march',   n:'울리는 진군',   spr:'amulet', k:'march',   v:4,    fused:true,
+  { id:'march',   n:'울리는 진군',   spr:'r_march', k:'march',   v:3,    fused:true, crack:'①',
     lore:'행군가의 첫 소절만 남았다. 끝까지 부른 무리가 없었다.',
-    t:'연격 4 이상이면 공격이 한 번 더. 맞아도 연격이 깎이지 않는다. 몬스터가 세 칸 더 멀리서 깨어난다.' },
+    t:'연격 3 이상이면 공격이 한 번 더. 맞아도 연격이 깎이지 않는다. 몬스터가 세 칸 더 멀리서 깨어난다.' },
 ];
 
 export const relicById = id => RELICS.find(r => r.id === id);
+
+/* ═══ 아르카나 — 판을 비트는 것 ═══════════════════════════
+   플레이어: 「아르카나는 화면 뒤집는 연출이 아니라, 그런 뭔가 판 자체를
+   비트는 요소가 하나 더 들어가야한다는거임.」
+
+   유물은 「내가 무엇을 할 수 있나」를 바꾼다. 크랙은 그 유물이 「얼마나」
+   가는지를 바꾼다. 아르카나는 그 위의 축이다 — **던전이 어떤 곳인가**를
+   바꾼다. 그래서 값도 내 몸이 아니라 세계에 붙는다: 층이 어떻게 생기고,
+   무엇이 떨어지고, 시간이 어떻게 흐르는가.
+
+   판당 셋을 고른다(4·8·12층). 고를 때마다 **셋 중 하나**이고, 전부
+   양날이다 — 순증이 하나라도 있으면 그 판부터 나머지는 안 고른다.
+   그리고 아르카나는 유물처럼 버릴 수 없다. 판이 끝날 때까지 간다.  */
+/* ── 이물(異物) — 여기 있으면 안 되는 층 ─────────────────
+   플레이어: 「다회차에도 가끔 나올법한, 정말 드문 케이스… 크툴루
+   신화급으로 기괴한 이스터에그 스테이지」.
+
+   그래서 이것들은 **콘텐츠가 아니라 사고**다. 열다섯 층을 열 번
+   내려가는 동안 한 번 볼까 말까 한 것이고, 봤다는 사실 자체가
+   그 판의 이야기가 되어야 한다. 세 가지를 지킨다.
+
+     · **깊은 곳에서만.** 9층 아래. 저층에서 나오면 「특이한 층
+       종류」가 되고, 그러면 이물이 아니라 목록의 한 줄이다.
+     · **운이되, 완전한 운은 아니다.** 아이작의 악마방처럼 기본
+       확률은 아주 낮고, 판이 그것을 **불러들이는 짓**을 했으면
+       올라간다. 그래야 「운이 좋았다」가 아니라 「내가 불렀다」가
+       된다.
+     · **반드시 값을 낸다.** 여길 밟았는데 아무것도 없으면 그건
+       기괴한 것이 아니라 낭비다. 다섯 다 확정 보상이 있다.
+
+   `mods` 는 층 생성기가 읽는 값이고(THEMES 와 같은 키), `pull` 은
+   이 층을 불러들이는 조건이다 — 판정은 game.js 의 oddityDue() 한
+   곳에서만 한다.                                              */
+export const STRANGE_FROM = 9;        // 이 층 아래에서만
+export const STRANGE_BASE = 0.010;    // 층 이동 한 번에 1%
+export const STRANGE_CAP  = 0.085;    // 아무리 불러도 여기까지
+export const STRANGE = [
+  { id:'sanctum', n:'비어 있는 성소', spr:'altar',
+    lore:'문이 안쪽에서 잠겨 있었다. 잠근 사람은 안에 없다.',
+    t:'주문과 기예의 값이 없다. 대신 여기서 나가는 길은 하나뿐이고, 그 길목에 무언가 앉아 있다.',
+    mods:{ rooms:[3,4], size:[8,12], light:1.4, water:0, web:0, mob:0.6 },
+    /* 마법을 쓰는 판이 마법이 공짜인 방을 만난다. */
+    pull:'주문이나 기예를 많이 쓴 판' },
+  { id:'void', n:'바깥', spr:'scroll',
+    lore:'발밑에 돌이 없다. 그런데도 서 있다. 아래를 보지 않는 편이 낫다.',
+    t:'벽이 없다 — 전부 트여 있고 전부 보인다. 그리고 전부 너를 본다.',
+    mods:{ rooms:[2,3], size:[13,16], light:2.0, water:0, web:0, mob:1.4 },
+    pull:'주목이 높은 판' },
+  { id:'eyes', n:'눈의 방', spr:'amulet',
+    lore:'벽이 젖어 있다. 젖은 것이 전부 같은 쪽을 본다.',
+    t:'숨을 수 없다. 이 층에서는 기습이 없고, 대신 모든 것이 처음부터 깨어 있다.',
+    mods:{ rooms:[8,11], size:[4,7], light:0.9, water:0, web:0.4, mob:1.25 },
+    pull:'들키지 않고 걸은 판' },
+  { id:'gullet', n:'뱃속', spr:'potion',
+    lore:'벽이 규칙적으로 조여든다. 세어 보면 네 숨과 박자가 같다.',
+    t:'바닥이 삭는다 — 층의 여유가 절반이다. 대신 여기서 죽는 것들은 전부 아직 소화되지 않은 것을 갖고 있다.',
+    mods:{ rooms:[5,7], size:[5,9], light:0.5, water:2.0, web:1.8, mob:1.5 },
+    pull:'체력이 얼마 없는 판' },
+  { id:'static', n:'지지직', spr:'wand',
+    lore:'무언가가 이 층을 잘못 그리고 있다. 고쳐 그릴 생각은 없어 보인다.',
+    t:'보이는 것을 믿을 수 없다. 대신 그것들도 너를 잘못 본다.',
+    mods:{ rooms:[9,12], size:[3,6], light:0.6, water:0.4, web:0.6, mob:1.1 },
+    pull:'같은 것을 여러 번 본 판' },
+];
+export const strangeById = id => STRANGE.find(o => o.id === id) || null;
+
+export const ARCANA = [
+  { id:'famine', n:'굶주린 판', c:'세계',
+    t:'바닥에 떨어지는 것이 **절반**이 된다. 대신 떨어지는 것마다 **속성이 하나씩 더** 붙는다.',
+    lore:'주울 것이 적은 판은 가난한 판이 아니다. 고를 것이 적은 판이다.' },
+  { id:'flood', n:'밀려오는 판', c:'세계',
+    t:'파도가 **두 배로 빨리** 온다. 대신 파도가 데려온 것은 **전리품을 두 배**로 떨군다.',
+    lore:'아래에서 밀려 올라오는 것들은 손에 무언가를 쥐고 온다.' },
+  { id:'thin', n:'얇은 판', c:'세계',
+    t:'층에 몬스터가 **30% 적다.** 대신 남은 것이 전부 **정예**다.',
+    lore:'수를 줄이면 남는 것은 이름 있는 것들이다.' },
+  { id:'clock', n:'재촉하는 판', c:'시간',
+    t:'층의 여유가 **40% 짧다.** 대신 계단을 밟을 때마다 **최대 체력 +4**가 영구히 붙는다.',
+    lore:'서두른 사람은 오래 산다. 서두를 줄 아는 동안은.' },
+  { id:'still', n:'멎은 판', c:'시간',
+    t:'몬스터가 **두 턴에 한 번** 움직인다. 대신 **너도 그렇다** — 공격만 매 턴이다.',
+    lore:'같이 느려지면 아무것도 안 달라진다고들 한다. 해 보면 다르다.' },
+  { id:'greed', n:'탐욕의 판', c:'재화',
+    t:'금화와 재료가 **두 배**. 대신 **모든 값도 두 배**다 — 모루도 상인도.',
+    lore:'많이 벌고 많이 쓰는 판. 결국 손에 남는 것은 고른 것뿐이다.' },
+  { id:'brittle', n:'무른 판', c:'전투',
+    t:'네가 주는 피해 **+40%**. 대신 받는 피해도 **+40%**다.',
+    lore:'유리로 만든 칼이 가장 잘 든다.' },
+  { id:'dark', n:'꺼진 판', c:'빛',
+    t:'기름이 **두 배로** 탄다. 대신 어둠 속에서 주는 피해가 **+60%**다.',
+    lore:'불을 끄고 나서야 손이 무엇을 아는지 알게 된다.' },
+  { id:'echo', n:'되풀이하는 판', c:'세계',
+    t:'층에 **? 가 하나 더** 깔린다. 대신 **모닥불이 없다.**',
+    lore:'물어볼 곳은 늘고 쉴 곳은 없다.' },
+];
+export const arcanaById = id => ARCANA.find(a => a.id === id);
+/* 4·8·12층. 판에 셋 — 그보다 잦으면 각각이 「그 판의 성격」이 아니라
+   버프 목록이 되고, 드물면 두 번째 판까지 기억에 안 남는다. */
+export const ARCANA_AT = [4, 8, 12];
+
+/* ═══ 유물의 크랙 ══════════════════════════════════════════
+   유물 마흔 개가 전부 「주우면 그 줄이 끝」이었다. 판이 끝날 때까지
+   피의 계약은 −25%/+20%p이고, 저울추는 30% 아래 +60%다. 일곱 칸을
+   채우고 나면 유물 쪽에서는 더 일어날 일이 없다 — 그래서 판 중반부터
+   유물은 배경이 된다.
+
+   크랙은 **그 유물을 쓴 만큼** 열린다. 조건은 전부 그 물건이 하는
+   일과 같은 것을 센다: 저울추는 죽인 수를, 거울 방패는 맞은 수를,
+   쌍둥이 룬은 외운 주문을 센다. 유물을 끼고 놀면 열리고, 끼고만
+   있으면 안 열린다.
+
+   이름 붙은 무기와 같은 세 갈래다:
+     ① 컨셉을 말이 안 되는 데까지 민다
+     ② 그 유물이 지불하는 값을 지운다
+     ③ 게임이 가르친 규칙 하나를 부순다
+
+   조건 종류(전부 ledger() 한 곳에서 센다):
+     kill 처치 · crit 치명 · hit 피격 · spell 주문 · gulp 물약
+     trap 함정 · combo 최고 연격 · elite 정예 처치 · gold 획득 금화
+     floor 이 유물을 낀 채 내려간 층
+   융합 유물은 처음부터 깨져 있다 — 융합이 곧 크랙이다.        */
+export const RELIC_CRACKS = {
+  pact:    { c:'②', at:['crit', 30],   n:'벽이 먼저 물러선다',
+             t:'치명타는 남고 **최대 체력이 돌아온다.** 손바닥으로 쉰다섯 번을 냈다. 받기로 한 것보다 많이 받은 쪽은 더 부르지 못한다.',
+             half:'손바닥의 금이 아물지 않는다. 벌어지는 쪽이다.' },
+  /* ── 연격 갈래 둘이 통째로 죽어 있었다 ────────────────────
+     9와 11이었다. 그런데 봇 열두 판의 **최고** 연격이 1·2·2·2·3·3·
+     3·4·4·5·6·8 — 중앙 3이다. 즉 이 두 크랙은 마흔 중 유일하게
+     **아무도 열 수 없는 조건**이었고, 벤치가 120판에서 0/41 로 그걸
+     잡았다(그전에는 표본이 8~12라 판정 자체가 안 걸렸다).
+     문턱을 만든 사람이 연격이 실제로 몇까지 가는지 안 재고 적은 값이다.
+     닿는 자리로 내린다 — 다섯과 여섯이면 잘 풀린 판의 꼬리다. */
+  echo:    { prize:'연격 셋이면 두 번 울린다', c:'①', at:['combo', 5],  n:'종이 멎지 않는다',
+             t:'연격 **3**이면 울리고, 울린 것이 **또 한 번 울릴 수 있다.** 두 번째가 여기 것이 아니었다면 세 번째는 어디 것인지 묻지 않는 편이 낫다.' },
+  hunger:  { c:'②', at:['kill', 70],   n:'자루가 배부르다',
+             t:'회복은 남고 **기름을 두 배로 태우지 않는다.** 백서른을 먹였다. 배부른 자루는 당신 등불까지 핥지 않는다.',
+             half:'자루가 조용하다. 조용한 쪽이 더 굶은 것이다.' },
+  mirror:  { prize:'받은 것을 전부 되돌린다', c:'①', at:['hit', 80],    n:'거울이 깊어진다',
+             t:'되돌리는 몫이 35%가 아니라 **전부다.**',
+             half:'거울이 더 어둡다. 안쪽에서 세고 있는 것 같다.' },
+  eye:     { c:'③', at:['floor', 4],   n:'눈이 감기지 않는다',
+             t:'지도만이 아니다 — **몬스터가 선 자리가 층 내내 보인다.** 어둠이 정보가 아니게 된다.' },
+  glove:   { c:'③', at:['trap', 9],    n:'함정이 전리품이 된다',
+             t:'밟은 함정은 **피해 대신 물건을 뱉는다.** 파낸 손이 마지막에 무엇을 만졌는지 알겠다 — 열여섯 번이면 그 손이 당신 손보다 빠르다.' },
+  ember:   { prize:'불 없는 층이 없어진다', c:'③', at:['floor', 5],   n:'항아리가 비지 않는다',
+             t:'모닥불을 **세 번** 쓰고, **불이 없는 층이 없어진다.** 대신 층의 여유가 22% 짧다 — 불 쪽이 당신을 따라 내려오면 다른 것도 따라 내려온다.' },
+  scale:   { c:'①', at:['kill', 55],   n:'접시가 기운다',
+             t:'재는 선이 **절반(50%)까지 올라오고**, 피해는 **+120%**. 접시가 하나뿐인 저울은 결국 한쪽으로만 기운다. 그 접시에 얹혀 있는 것이 당신이다.',
+             half:'접시가 조금 내려앉았다. 얹은 적 없는 무게다.' },
+  twin:    { c:'②', at:['spell', 40],  n:'룬이 어긋나지 않는다',
+             t:'비용은 그대로 −2, **주문 피해가 깎이지 않는다.** 백오십 번을 읽는 동안 두 번째가 첫 번째를 외웠다. 이제 대신 대답해도 틀리지 않는다.' },
+  thief:   { c:'③', at:['floor', 6],   n:'모래가 위로 흐른다',
+             t:'층의 여유가 줄지 않는다 — **15% 늘어난다.** 부호가 뒤집힌다.' },
+  bone:    { c:'①', at:['kill', 90],   n:'실이 끝나지 않는다',
+             t:'구슬을 서른까지 세지 않는다. **끝까지 센다.**',
+             half:'실에 아직 자리가 남았다. 구슬 쪽이 그걸 안다.' },
+  chain:   { c:'③', at:['hit', 80],    n:'사슬이 대신 맞는다',
+             t:'층마다 **첫 피격이 언제나 0이다.** 처음 한 대는 사슬이 받는다.',
+             half:'사슬이 한 마디 늘어졌다. 끊어진 것은 아니다.' },
+  compass: { c:'③', at:['trap', 11],   n:'아래를 가리킨다',
+             t:'함정은 여전히 안 보인다. 대신 **계단이 층 내내 보인다.**' },
+  gut:     { prize:'물약이 두 배 반으로 든다', c:'①', at:['gulp', 11],   n:'위장이 끝이 없다',
+             t:'물약 효과가 **2.4배**가 된다. 열한 번을 부었더니 바닥이 안 만져진다. 소화 중이던 것도 이제 안 만져진다.',
+             half:'마신 것이 아직 안 내려갔다. 내려갈 데가 없는 것 같다.' },
+  reckless:{ prize:'치명 배율이 두 배 반', c:'①', at:['crit', 25],   n:'인장을 한 번 더 찍는다',
+             t:'명중은 여전히 −15%. 치명 배율이 **×2.6**. 마흔다섯 번을 찍는 동안 문서도 찍은 사람도 안 남았다.' },
+  vow:     { c:'③', at:['floor', 5],   n:'아무도 당신을 부르지 않는다',
+             t:'몬스터가 **소리로는 깨어나지 않는다** — 보아야 깨어난다.' },
+  lamp:    { c:'①', at:['floor', 4],   n:'등이 안 꺼진다',
+             t:'기름이 줄지 않고, 좁아지던 2칸이 **넓어지는 2칸이 된다.** 여덟 층째다. 무엇으로 타는지 이제는 들여다보지 않아도 안다.' },
+  nighteye:{ c:'①', at:['floor', 5],   n:'눈이 어둠 쪽을 골랐다',
+             t:'어둠에서 무뎌지지 않는 정도가 아니다 — **불이 꺼진 동안 피해 +25%.** 아홉 층을 그 눈으로 봤다. 이제 밝은 쪽이 흐리다.' },
+  everflame:{ c:'②', at:['floor', 3],  n:'화로가 주인을 고른다',
+             t:'불빛은 그대로 5칸. **최대 체력이 돌아온다.** 일곱 층을 지고 내려오는 동안 화로는 태울 것을 당신에게서 아래로 옮겼다. 앞사람은 일곱 층째에 놓았다.' },
+  moth:    { c:'③', at:['floor', 3],   n:'나방이 먼저 난다',
+             t:'전에는 있는 것을 보여 줬다. 이제 **없던 자리를 하나 찾아낸다.** 재 위에 앉는 것들은 아직 안 붙은 불도 안다.' },
+  knot:    { c:'①', at:['trap', 7],    n:'매듭이 함정보다 빠르다',
+             t:'거미줄과 구덩이만이 아니라 **모든 함정이 통하지 않는다.** 한나절에 배운다던 매듭을 손이 열두 번 만에 다 외웠다. 잊는 데는 여전히 평생이 걸린다.',
+             half:'매듭 하나가 저절로 조여 있다. 묶은 적 없는 매듭이다.' },
+  toll:    { c:'②', at:['gold', 18000],  n:'삯을 다 냈다',
+             t:'금화는 두 배 그대로, **층을 내려가도 뺏기지 않는다.** 만사천이면 마른 강을 통째로 산 값이다. 건널 것이 없는 뱃삯은 그냥 돈이다.',
+             half:'주머니에서 동전이 서로 부딪는데, 소리가 강 쪽에서 난다.' },
+  brand:   { prize:'정예에게 두 배로 든다', c:'①', at:['elite', 14],  n:'인두가 안 식는다',
+             t:'정예에게 주는 피해가 **+100%**가 된다. 스물여섯을 찍는 동안 인두가 식는 법을 잊었다. 짐승과 사람을 가르던 줄은 진작 지워졌다.',
+             half:'인두가 식지 않는다. 불에서 뗀 지 한참인데.' },
+  quill:   { c:'①', at:['gold', 14000],  n:'적힌 대로 된다',
+             t:'즉시 판별에 더해, **적힌 것이 나쁘게 나오지 않는다.** 적힌 것이 맞는지는 별개였다. 이제 맞는 쪽이 적힌 쪽에 맞춘다.' },
+  grudge:  { c:'①', at:['hit', 100],    n:'앙심은 잊지 않는다',
+             t:'층이 바뀌어도 **지워지지 않고**, 최대 **+120%**까지 쌓인다.',
+             half:'맞은 자리가 어제 것까지 같이 아프다.' },
+  seed:    { prize:'층마다 방어가 둘씩 자란다', c:'①', at:['floor', 5],   n:'뿌리를 내린다',
+             t:'층을 내려갈 때 방어 **+2**. 아홉 층 아래에서 이것이 무엇을 붙잡고 자라는지는 만져 보면 안다. 갈비뼈다.' },
+  wick:    { prize:'타는 범위가 두 칸, 화상이 두 배', c:'①', at:['gulp', 8],   n:'심지가 길어진다',
+             t:'타는 범위가 **두 칸**, 화상이 **두 배**. 열네 번을 마시는 동안 손이 다 익어서, 이제 옮겨붙을 데가 없다. 그래서 밖으로 붙는다.' },
+  drum:    { c:'①', at:['combo', 6],  n:'북이 멎지 않는다',
+             t:'맞아도 **연격을 하나도 잃지 않는다.**',
+             half:'가죽이 젖어 있다. 두드린 적 없는데 소리가 남아 있다.' },
+  grip:    { c:'③', at:['kill', 65],   n:'힘이 민첩을 대신한다',
+             t:'민첩은 6인 채로, **민첩이 하던 일을 힘이 한다.**' },
+  specs:   { c:'①', at:['spell', 35],  n:'알이 한 겹 더 겹친다',
+             t:'높은 쪽이 둘 다가 되고, **거기에 +4.** 백서른 번을 외우는 동안 알이 두꺼워졌다. 커 보이는 것과 커진 것을 가를 눈은 이 안경 안에 없다.' },
+  acro:    { c:'②', at:['floor', 5],   n:'줄에서 내려온다',
+             t:'민첩 +6은 그대로, **힘이 깎이지 않는다.** 아홉 층 아래에는 줄이 없다. 발끝으로 설 이유가 없어지자 신이 뒤꿈치를 돌려줬다 — 줄은 여전히 안 끊어졌고, 그건 위층 일이다.' },
+  bull:    { prize:'체질이 열 오른다', c:'①', at:['kill', 60],   n:'같이 뛴다',
+             t:'체질이 **+10**이 된다. 백열을 재우는 동안 그것이 당신 박자를 외웠다. 이제 둘이 같이 뛴다 — 멈출 때도 같이 멈춘다.' },
+  mask:    { c:'③', at:['gold', 16000],  n:'가면이 웃어 준다',
+             t:'매력 18에 더해 — **상인이 부르는 값이 절반이 된다.** 벗어도 웃고 있는 얼굴에는 아무도 값을 두 번 부르지 못한다.' },
+  ballast: { c:'②', at:['floor', 6],   n:'더 잠길 물이 없다',
+             t:'가장 낮은 것이 가장 높은 것과 같아지고, **최대 체력이 돌아온다.** 열한 층이면 배 밑에 물이 없다. 가라앉을 데가 없는 배는 무엇을 실어도 뜬 것과 같다.' },
+
+  /* 융합 유물 — 불에서 나온 순간 이미 깨져 있다. */
+  martyr:  { c:'③', at:['fused', 0],   n:'죽어야 산다',
+             t:'판에 한 번, **죽는 대신 최대 체력의 절반으로 일어난다.**' },
+  famine:  { c:'③', at:['fused', 0],   n:'천장을 넘긴다',
+             t:'처치할 때마다 회복이 **최대 체력을 넘겨서** 쌓인다.' },
+  paradox: { prize:'주문에 값이 안 붙는다', c:'②', at:['fused', 0],   n:'값을 적은 줄이 안 맞는다',
+             t:'주문에 값이 안 붙는다. 얼마를 내야 하는지 적어 둔 줄이 읽을 때마다 다른 것을 말하니까 — 세 번째부터는 아무도 청구하지 않는다.' },
+  oracle:  { c:'③', at:['fused', 0],   n:'눈이 없어야 보인다',
+             t:'지도와 **몬스터가 선 자리**가 층에 들어서는 순간 전부 보인다.' },
+  ledger:  { c:'②', at:['fused', 0],   n:'빈 줄에는 못 적는다',
+             t:'금화 두 배와 즉시 판별은 그대로, **층을 내려가도 뺏기지 않는다.** 마지막 장의 그 한 줄은 아직 비어 있다. 이름이 안 적힌 사람에게는 아무도 청구서를 쓰지 못한다.' },
+  march:   { prize:'연격 셋이면 한 번 더, 맞아도 안 깎인다', c:'①', at:['fused', 0],   n:'행군이 멎지 않는다',
+             t:'연격 3이면 한 번 더, 맞아도 깎이지 않는다. 첫 소절만 남은 행군가를 이것이 끝까지 부른다. 왜 끝까지 부른 무리가 없었는지도 같이 알게 된다.' },
+};
+/* 크랙 본문은 두 겹이다: 첫 문장이 수치(카드에 적히는 계약서)이고,
+   그 뒤가 그 물건이 하는 말이다. 로그에는 뒤쪽만 간다 — 세계가
+   「+120%」라고 말하면 그건 두루마리가 아니라 패치 노트다. */
+export const crackSaid = c => {
+  const rest = (c.t || '').replace(/\*\*/g, '').split(/(?<=[.!?])\s+/).slice(1).join(' ').trim();
+  return rest || null;
+};
+export const crackOf = id => RELIC_CRACKS[id];
+/* 조건 하나를 사람이 읽는 말로. HUD와 유물 목록이 같은 문장을 쓴다. */
+export const CRACK_WORDS = {
+  kill: n => `${n}마리를 재우면`, crit: n => `치명 ${n}번이면`,
+  hit:  n => `${n}대를 맞으면`,   spell: n => `주문 ${n}번이면`,
+  gulp: n => `물약 ${n}번이면`,   trap:  n => `함정 ${n}번이면`,
+  combo:n => `연격 ${n}에 닿으면`, elite: n => `정예 ${n}을 재우면`,
+  gold: n => `금화 ${n.toLocaleString()}닢을 세면`,  floor: n => `낀 채 ${n}층을 내려가면`,
+  fused:() => '융합된 순간부터',
+};
+/* 남은 수를 사람의 말로. 「129마리 더」가 「(41/170)」보다 짧고,
+   읽는 쪽이 뺄셈을 안 해도 된다. */
+export const CRACK_LEFT = {
+  kill: n => `${n}마리 더`, crit: n => `치명 ${n}번 더`,
+  hit:  n => `${n}대 더`,   spell: n => `주문 ${n}번 더`,
+  gulp: n => `물약 ${n}번 더`, trap: n => `함정 ${n}번 더`,
+  combo:n => `연격 ${n}만큼 더`, elite: n => `정예 ${n} 더`,
+  gold: n => `${n.toLocaleString()}닢 더`,  floor: n => `${n}층 더`,
+  fused:() => '이미 깨져 있다',
+};
+export const crackNeed = id => {
+  const c = RELIC_CRACKS[id];
+  return c ? CRACK_WORDS[c.at[0]](c.at[1]) : '';
+};
 
 /* ── fusion ───────────────────────────────────────────────
    Two relics into the fire. Most pairs roll on a table; six
@@ -2365,6 +2858,23 @@ export const FUSIONS = [
   { a:'drum',   b:'echo',     out:'march'   },
 ];
 
+/* 이미 한쪽을 들고 있을 때, 다음에 나오는 유물이 **나머지 한쪽**일
+   확률. 마흔 종에 짝이 여섯 쌍뿐이라, 이것 없이는 융합이 설계가
+   아니라 전설이다 — 서른 판을 돌려 0번 일어났다.
+
+   확실하게(1.0) 하지 않는 이유: 확실하면 그건 조합이 아니라 진행이다.
+   반쯤 걸어 두면 「이 유물을 들고 다니면 짝이 온다」가 되고, 그게
+   들고 다닐 이유가 된다. */
+/* ── 짝을 만나기가 더 어려워졌다 ──────────────────────────
+   0.55 였다. 플레이어: 「융합유물 조합을 좀 더 달성하기 어렵되
+   조합하면 더욱 효과 좋아지게」.
+
+   여기가 「어렵되」 쪽이다. 0.55 는 한쪽을 들고 두어 층만 걸으면
+   나머지가 오는 값이라, 짝짓기가 사실상 진행이었다. 0.32 면 들고
+   다니는 판이 실제로 위험을 감수한 값이 되고, 성사됐을 때 그것이
+   그 판의 사건이 된다. 값(FUSED_SCALE 1.75)은 game.js 쪽에 있다. */
+export const FUSE_PULL = 0.32;
+
 export const fusionOf = (x, y) =>
   FUSIONS.find(f => (f.a === x && f.b === y) || (f.a === y && f.b === x)) || null;
 
@@ -2378,7 +2888,13 @@ export const FUSE_ODDS = [
   { id:'slag',  n:'잿더미', w:14, tone:'g',
     t:'둘 다 녹아버리고 재료만 남는다.' },
 ];
-export const FUSE_COST = { dust: 3, gold: 180 };
+/* ── 값을 내렸다: 유물 둘이 이미 값이다 ────────────────────
+   3가루 · 180금이었다. 그런데 융합은 **유물 두 개를 태우는** 일이고,
+   그 둘이 이 게임에서 가장 구하기 어려운 물건이다. 그 위에 재료값을
+   또 얹으면 문이 셋이 된다: 짝을 든다 · 모루를 만난다 · 값을 낸다.
+   봇으로 재니 모루로 옮긴 뒤에도 24판에 1회였고, 값을 물었을 때
+   못 넣은 판이 대부분이었다. 문 하나를 뺀다. */
+export const FUSE_COST = { dust: 1, gold: 40 };
 
 /* ── the descent ──────────────────────────────────────────
    Slay the Spire's map, folded into one screen. Two ways down,
@@ -2390,6 +2906,68 @@ export const FUSE_COST = { dust: 3, gold: 180 };
    `mon`/`item`/`elite` scale what populate() rolls; `flags` are
    read by the rules where they matter. Every branch that gives
    must also take, or it is not a choice. */
+/* ── 층에 과업 ────────────────────────────────────────────
+   GM의 진단: 「15층이 아니라 한 층을 15번이다.」 테마 여섯 개는 층의
+   **모양**만 바꾸고 **할 일**은 안 바꾼다. 판당 1191턴 중 76%가 걷기이고
+   그 걷는 턴의 95%는 아무것도 안 보이는 상태다 — 「계단을 찾는다」 말고는
+   목표가 없다는 것의 직접 측정치다.
+
+   그래서 층마다 할 일을 하나 준다. 계단은 그 일이 끝나야 열린다.
+   새 아트도 새 조작도 없다 — 있는 타일·소품·몬스터를 다시 배치할 뿐이다.
+
+   `from`은 풀리는 깊이. 1~2층은 과업 없이 그냥 내려간다 — 처음 하는
+   사람에게 「계단이 안 열린다」를 먼저 가르치면 그건 규칙이 아니라 벽이다.
+
+   그리고 **안전판**이 반드시 있어야 한다. 잠긴 계단은 봇을 가둘 수 있고,
+   방금 라이브락 12%를 걷어낸 참이다. `PATIENCE`턴이 지나면 과업과 무관하게
+   열린다 — 「이 층은 나를 붙잡아 두려 했지만 실패했다」가 「이 판은 여기서
+   끝났다」보다 언제나 낫다. */
+/* 260이었다. 층 하나가 보통 175~300턴이니 사실상 「그 층 내내 잠겨
+   있다」였고, 정직 벤치의 막힘이 60판에 0~1건으로 문턱(2%)과 한 판
+   차이까지 붙었다. 여유가 없는 안전판은 안전판이 아니다.
+   160이면 보통 층의 절반쯤이라 「서둘러야 한다」는 남고 「갇혔다」는
+   사라진다. */
+export const TASK_PATIENCE = 160;      // 이 턴이 지나면 계단은 그냥 열린다
+/* 층마다는 아니다. 매 층이 과업이면 그건 과업이 아니라 절차다 —
+   「이번 층은 뭔가 다르다」가 되려면 다른 층이 있어야 한다. */
+export const TASK_ODDS = 0.45;
+export const TASKS = [
+  { id:'key',  n:'열쇠를 문 것', from:4, w:3,
+    intro:'계단 자물쇠에 이빨 자국이 있다. 물고 간 것이 아직 이 층에 있다.',
+    done:'배 속에서 쇠붙이가 나온다. 아직 미지근하다.',
+    /* 인내심 시계를 숫자로 말하면 그건 자물쇠가 아니라 타이머다.
+       처음에 「160턴쯤 버티면 문이 삭는다」라고 썼는데, 계기판 린트가
+       그걸 잡았다 — 세계는 배율도 턴 수도 모른다. 삭아 가는 것을
+       보여 주면 같은 정보가 손끝으로 오고, 오히려 늘어난다:
+       원래 문구는 언제나 같은 값(160)을 인쇄했지만 이건 진행을 말한다. */
+    shut:['자물쇠가 꿈쩍도 않는다. 어딘가에서 아직 씹는 소리가 난다.',
+          '자물쇠 둘레로 녹이 번졌다. 이 층도 오래는 못 버티는 모양이다.',
+          '자물쇠가 손 밑에서 부슬거린다. 곧 뜯긴다.'] },
+  /* ── 앞의 「1191턴 → 1529턴」을 철회한다 ──────────────
+     열쇠 과업이 걷기를 늘렸다고 여기 적어 두었고 그 위에서 이 과업을
+     정당화했는데, 근거가 없었다. 같은 설정으로 48판짜리 배치를 세 번
+     복제하니 판당 턴의 중앙값이 1315 / 1318 / 1639로 나온다 —
+     주장된 +338턴이 **아무것도 안 바꾼 배치들 사이의 폭 안에** 통째로
+     들어간다. 2×2 요인 설계(과업×물약, 각 48판)에서는 과업의 부호가
+     물약 유무에 따라 뒤집히고(+89 / −62), 배치 여덟 개의 순위합으로도
+     안 갈린다. 배치 하나 대 배치 하나를 비교한 것이었다.
+
+     그래서 이 과업의 이유는 「걷기를 줄인다」가 아니라 그냥 이것이다:
+     계단을 처음부터 보여 주고 시계를 반으로 줄인다 — 잠그는 것이
+     아니라 **재촉하는** 과업이라 `open`이 필요 없다.
+     앞으로 판당 턴으로 무엇을 판정하려면 최소 세 배치를 복제하고,
+     판정선은 ±300턴보다 좁게 그을 수 없다. */
+  /* 이름이 갈림길의 `rush`(「무너지는 층」)와 겹쳐 있었다. 계단 화면에서
+     그것을 고르고 내려갔는데 로그가 또 「무너지는 층」이라고 말하면,
+     둘이 같은 것인 줄 안다. 다른 물건이다. */
+  { id:'fall', n:'내려앉는 층', from:3, w:3, rush:true,
+    /* 「계단은 저기다」는 코드가 방금 한 일(L.seen을 켠 것)의 자막이고
+       「오래 못 간다」는 clock×0.5의 자막이었다. 무너져서 아래가 보이는
+       것이 곧 계단이 보이는 이유가 되면, 두 자막이 이미지 하나가 된다. */
+    intro:'천장이 흙을 흘린다. 무너져 내린 자리로 아래가 벌써 보인다 — 숨 쉴 때마다 흙이 씹힌다.',
+    done:'', shut:[] },
+];
+
 export const BRANCHES = [
   { id:'plain',  n:'평범한 계단', t:'특별할 것 없는 층.',
     mon:1,    item:1,   elite:1 },

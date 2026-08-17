@@ -217,25 +217,42 @@ const red  = () => G.log.filter(l => l.tone === 'redwrit').map(l => l.text);
   const seen = await pg.evaluate(async () => {
     const Game = await import('/src/game.js'), D = await import('/src/data.js');
     const Meta = await import('/src/meta.js'), UI = await import('/src/ui.js');
+    const W = await import('/src/world.js');
     const G = Game.G;
     const out = [];
     for (const key of ['door', 'speed', 'heavy', 'regen']) {
       const liar = D.MONSTERS.find(m => m.spr && D.hearsayFor(m)?.k === key);
       if (!liar) continue;
+      /* 칸마다 장부를 비운다. 앞 칸에서 판이 돌아가는 동안 뒤 칸의
+         그 줄이 이미 고쳐져 버릴 수 있고, 그러면 「위쪽 수치가 거짓을
+         반박한다」가 뜬다 — 열여섯 번에 한 번 그렇게 났다. 게임이
+         아니라 칸끼리 물이 섞인 것이었다. */
+      Meta.forget();
       for (let i = 0; i < 20; i++) Meta.slew(liar.n);      // 버릇이 열리도록
       Game.enterDepth(6);
       const L = G.level, p = G.player;
+      /* **보이는** 칸에 세운다. 처음에는 벽이 아니기만 하면 됐는데,
+         그 칸이 벽 뒤라 살펴보기 창이 아예 안 열렸고, 그러면 화면에는
+         **앞 칸에서 띄운 창이 그대로** 남아 있다 — 벤치는 그 낡은
+         줄을 읽고 「거미의 속도가 1.00×로 새고 있다」고 말했다.
+         실제로 읽고 있던 것은 직전에 띄운 쥐였다. */
+      p.lightTurns = 900;
+      Game.refreshFov();
       let spot = null;
       for (let x = p.x - 4; x <= p.x + 4 && !spot; x++)
         for (let y = p.y - 3; y <= p.y + 3 && !spot; y++)
-          if (!L.solid(x, y) && !(x === p.x && y === p.y)) spot = { x, y };
+          if (!L.solid(x, y) && !(x === p.x && y === p.y)
+              && L.vis[W.idx(x, y)]) spot = { x, y };
+      if (!spot) continue;
       G.monsters.length = 0;
       G.monsters.push({ ...liar, hp: liar.hp, maxhp: liar.hp,
                         x: spot.x, y: spot.y, awake: true, energy: 0 });
-      p.lightTurns = 900;
       Game.refreshFov();
+      document.getElementById('look-rows').innerHTML = '';   // 낡은 창을 지운다
+      document.getElementById('look-name').textContent = '';
       UI.inspect(spot.x, spot.y);
       out.push({ key, n: liar.n,
+        title: document.getElementById('look-name').textContent,
         rows: [...document.querySelectorAll('#look-rows .endval')]
           .map(e => ({ cls: e.className, t: e.textContent })) });
     }
@@ -248,6 +265,8 @@ const red  = () => G.log.filter(l => l.tone === 'redwrit').map(l => l.text);
     console.log(`      ── ${s.n} (${s.key})`);
     for (const r of s.rows) console.log(`      ${/hearsay/.test(r.cls) ? '»' : ' '} ${r.t}`);
     console.log('');
+    ok(s.title === s.n, `${s.n}: 살펴보기 창이 그것을 열었다 — 낡은 창을 읽으면 아무 숫자나 나온다`,
+       s.title || '(안 열림)');
     ok(!!lie, `${s.n}: 살펴보기 창에 전해 들은 줄이 뜬다`, lie?.t);
     ok(lie ? /전해 들음/.test(lie.t) : false,
        `${s.n}: 남의 말이라고 표시된다 — 안 붙이면 나중에 「버그 아닌가」가 된다`);

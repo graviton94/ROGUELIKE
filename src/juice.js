@@ -29,6 +29,17 @@ let freeze = 0;        // hit-stop, ms
 let flashScreen = 0;   // full-screen tint, 0..1
 let vignette = 0;      // damage read at the edges, 0..1
 let flashHue = 'W';
+/* ── 죽는 순간 ──────────────────────────────────────────
+   플레이어: 「질때는 슬로우모션으로 주인공 확대되면서 왜 죽는지 좀
+   알법하게」. 규칙 쪽이 deathZoom 사건을 던지면 여기서 시간이 늘어지고
+   카메라가 그 자리로 조인다. 화면 쪽(ui.js)이 deathLens() 를 읽어
+   타일 크기와 중심을 그 값으로 민다 — juice 는 규칙도 그리기도
+   모르고, 「얼마나 조였나」만 안다. */
+let deathZoom = 0, deathAt = null;
+export const deathLens = () =>
+  (deathZoom > 0 ? { k: 1 + 1.15 * ease(deathZoom), at: deathAt, dim: 0.55 * ease(deathZoom) } : null);
+/* 처음엔 빠르게 조이고 끝에서 멎는다 — 슬로우모션의 형태가 이것이다. */
+const ease = t => 1 - Math.pow(1 - Math.min(1, t), 3);
 
 const MAX_SHARDS = 260;
 
@@ -100,11 +111,264 @@ function number(x, y, text, color, size, drift) {
   });
 }
 
+/* 크랙이 열리는 순간. 이 판에서 그 유물이 다른 물건이 되는 한 번뿐인
+   프레임이라 레벨업과 같은 무게로 친다. pump 밖에 두는 이유는 하나다 —
+   저 함수는 이미 171갈래이고, 새 사건마다 한 갈래씩 더 얹으면 아무도
+   못 여는 함수가 된다(sim/knots.mjs가 이 커밋에서 바로 잡아냈다). */
+/* 순교의 두 프레임. 같은 유물의 같은 사건이라 한 함수에 둔다. */
+function martyrFx(e, spent) {
+  ring(e.x, e.y, spent ? 1.4 : 1.1, PALETTE.R, spent ? 640 : 260);
+  number(e.x, e.y - (spent ? 0.7 : 0.5), spent ? '순교' : '버틴다',
+         PALETTE.R, spent ? 1.25 : 1.05);
+  if (spent) { flashScreen = Math.max(flashScreen, 0.25); flashHue = 'r'; buzz([80, 40, 80]); sfx.warn(); }
+  else shake = Math.max(shake, 0.4);
+}
+
+/* 되감기가 「사라진다」에서 「빠져나온다」가 됐다. 연출도 그 순서를
+   따라간다 — 칼이 먼저 사방으로 나가고, 그 다음에 연기가 덮는다.
+   예전에는 파란 원 하나가 퍼지고 끝이라 「임팩트가 없다」는 말을
+   들었고, 그 말은 규칙에도 화면에도 둘 다 맞았다. */
+/* 한계돌파 셋의 연출. 셋 다 「피해가 나갔다」가 아니라 **판이
+   바뀌었다**를 그려야 해서, 숫자가 아니라 형태로 말한다. 한 곳에
+   묶는 이유는 pump 가 이미 169갈래이기 때문이다. */
+/* 판을 바꾸는 사건들의 한 문. pump 는 이미 169갈래·868줄이고, 새
+   사건마다 case 를 하나씩 얹으면 아무도 못 여는 함수가 된다 —
+   sim/knots.mjs 가 이 커밋에서 두 번 잡았다. */
+function bigFx(e) {
+  if (e.t === 'arcana') return arcanaFx(e);
+  if (e.t === 'deathZoom') return openLens(e);
+  if (e.t === 'crack') return crackBurst(e);
+  if (e.t === 'vanishOut') return vanishBurst(e);
+  if (e.t === 'martyr' || e.t === 'martyrHold') return martyrFx(e, e.t === 'martyr');
+  return breakFx(e);
+}
+
+/* 아르카나를 고른 순간. 판 전체의 성격이 바뀌는 일이라 화면 전체가
+   한 번 물든다 — 유물이나 크랙과 달리 이건 **내 몸이 아니라 세계**에
+   일어난 일이다. */
+function arcanaFx(e) {
+  const p = G.player;
+  if (!p) return;
+  for (let i = 0; i < 3; i++)
+    ring(p.x, p.y, 2.2 + i * 1.6, i % 2 ? PALETTE.p : PALETTE.P, 700 + i * 200);
+  number(p.x, p.y - 1.1, e.n || '아르카나', PALETTE.P, 1.4);
+  flashScreen = Math.max(flashScreen, 0.2); flashHue = 'P';
+  shake = Math.max(shake, 0.45);
+  buzz([50, 40, 50, 40, 90]);
+  sfx.levelup();
+}
+
+function breakFx(e) {
+  if (e.t === 'brace') return standFx(e);
+  if (e.t === 'kite') return kiteFx(e);
+  return bulwarkFx(e);
+}
+function standFx(e) {
+  /* 전사 — 땅으로 박히는 두 겹의 고리. 밖에서 안으로 조인다(shrink). */
+  ring(e.x, e.y, 2.4, PALETTE.N, 620, true);
+  ring(e.x, e.y, 1.3, PALETTE.y, 420, true);
+  number(e.x, e.y - 0.8, '버틴다', PALETTE.y, 1.2);
+  shake = Math.max(shake, 0.5);
+  buzz([60, 30, 60]);
+  sfx.levelup();
+}
+function kiteFx(e) {
+  /* 궁수 — 지나온 자리로 그어지는 선. 물러난 궤적 자체가 공격이다. */
+  if (e.from) beams.push({ fx: e.from.x + 0.5, fy: e.from.y + 0.5,
+    tx: e.x + 0.5, ty: e.y + 0.5, color: PALETTE.E, age: 0, life: 300, thin: true });
+  ring(e.x, e.y, 1.4, PALETTE.E, 340);
+  number(e.x, e.y - 0.7, `${e.n || 0}발`, PALETTE.E, 1.1);
+  buzz([20, 15, 20]);
+  sfx.roll();
+}
+function bulwarkFx(e) {
+  /* 팔라딘 — 금빛 껍질. 쓰러지지 않는다는 것은 밝은 사건이다. */
+  ring(e.x, e.y, 1.9, PALETTE.y, 700);
+  ring(e.x, e.y, 1.1, PALETTE.w, 480);
+  number(e.x, e.y - 0.8, '불굴', PALETTE.y, 1.2);
+  shake = Math.max(shake, 0.3);
+  buzz([40, 20, 40]);
+  sfx.levelup();
+}
+
+/* ── 빌려 쓰던 넷 ──────────────────────────────────────────
+   그림자 밟기는 회피 굴림의 파란 줄을, 칼 부채는 궁수의 화살비를,
+   급소 찌르기는 전사의 마무리를 그대로 빌려 쓰고 있었다. 규칙은
+   서로 다른 일을 하는데 화면은 같은 말을 하고 있었다는 뜻이다.
+   연타는 아예 제 프레임이 없었다 — 평타 세 번과 구분이 안 됐다.
+
+   bigFx 와 같은 이유로 한 문 뒤에 둔다: pump 는 이미 갈래가 표
+   수준이고, 새 기예마다 case 를 하나씩 얹으면 아무도 못 여는
+   함수가 된다. */
+function artFx(e) {
+  if (e.t === 'stepIn') return stepInFx(e);
+  if (e.t === 'fanOut') return fanOutFx(e);
+  if (e.t === 'vitals') return vitalsFx(e);
+  return flurryFx(e);
+}
+function stepInFx(e) {
+  /* 떠난 자리에 남는 그을음, 도착한 자리에 서는 몸. 굴림과 달리
+     **두 곳**에서 일어난다 — 그게 「이동」과 「등 뒤에 섰다」의 차이다. */
+  const f = e.from || e;
+  ring(f.x, f.y, 1.3, PALETTE.p, 420, true);
+  beams.push({ fx: f.x + 0.5, fy: f.y + 0.5, tx: e.x + 0.5, ty: e.y + 0.5,
+               color: PALETTE.P, age: 0, life: 220, thin: true });
+  ring(e.x, e.y, 0.9, PALETTE.P, 300);
+  burstShards(e.x, e.y, [PALETTE.p, PALETTE.P, PALETTE.k], 10, 1.2);
+  buzz([14, 10, 24]); sfx.roll();
+}
+function fanOutFx(e) {
+  /* 앞쪽 반원으로만 펼쳐지는 다섯 줄. 화살비는 방 전체이고 이건
+     내가 보고 있는 쪽이다 — 방향이 있는 것이 이 기예의 전부다. */
+  const base = Math.atan2(e.ay || 0, e.ax || 1);
+  for (let i = 0; i < 5; i++) {
+    const a = base + (i - 2) * 0.30;
+    beams.push({ fx: e.x + 0.5, fy: e.y + 0.5,
+                 tx: e.x + 0.5 + Math.cos(a) * (e.rng || 4),
+                 ty: e.y + 0.5 + Math.sin(a) * (e.rng || 4),
+                 color: PALETTE.s, age: -i * 18, life: 200, thin: true });
+    slashes.push({ x: e.x + 0.5, y: e.y + 0.5, a, kind: 'dagger', age: -i * 18, life: 180 });
+  }
+  shake = Math.max(shake, 0.16 + (e.n || 0) * 0.04);
+  buzz(18); sfx.roll();
+}
+function vitalsFx(e) {
+  /* 한 점. 고리도 파편도 없고 흰 선 하나와 글자 하나 — 이 기예가
+     하는 일이 정확히 그것이다. */
+  beams.push({ fx: e.x + 0.5, fy: e.y + 0.5, tx: e.tx + 0.5, ty: e.ty + 0.5,
+               color: PALETTE.W, age: 0, life: 160, thin: true });
+  ring(e.tx, e.ty, 0.6, PALETTE.W, 220, true);
+  number(e.tx, e.ty - 0.6, '급소', PALETTE.W, 1.25);
+  freeze = Math.max(freeze, 60);
+  shake = Math.max(shake, 0.3);
+  buzz([26, 12, 26]); sfx.crit();
+}
+function flurryFx(e) {
+  /* 이어 붙인 대수만큼 짧은 호가 겹친다. 연타의 값은 마지막 한
+     대가 무겁다는 것이라, 뒤로 갈수록 커진다. */
+  const a = Math.atan2((e.ty ?? e.y) - e.y, (e.tx ?? e.x) - e.x);
+  for (let i = 0; i < (e.n || 1); i++)
+    slashes.push({ x: e.x + 0.5, y: e.y + 0.5, a: a + (i % 2 ? 0.24 : -0.24),
+                   kind: i + 1 >= (e.n || 1) ? 'great' : 'sword',
+                   age: -i * 42, life: 180 });
+  number(e.x, e.y - 0.9, `${e.n || 1}연타`, PALETTE.o, 0.95 + (e.n || 1) * 0.1);
+  shake = Math.max(shake, 0.12 * (e.n || 1));
+  buzz(10 * (e.n || 1));
+}
+
+/* ── 손에 든 것 ────────────────────────────────────────────
+   game.js 의 auraOf() 가 기예 사건마다 「지금 손에 든 것」을 얹어
+   보낸다. 여기서 하는 일은 그걸 색으로 옮기는 것뿐이다 — 규칙은
+   색을 모르고, 화면은 규칙을 모른다.
+
+   두 가지를 조심했다. 하나, 유물 일곱을 낀 후반에 기예 한 번마다
+   무지개가 터지면 그건 정보가 아니라 소음이라 **둘까지만** 그린다.
+   둘, 이건 기존 연출 **위에** 얹히는 것이라 원래 프레임보다 작고
+   짧아야 한다 — 안 그러면 무슨 기예를 썼는지가 안 보인다. */
+const MARK_TINT = { pierce:'W', reap:'R', storm:'E', hunt:'o', duel:'y', thirst:'R',
+                    bedrock:'s', thorn:'R', dawn:'y', mend:'E', shrug:'G', anchor:'N' };
+const RELIC_TINT = { everflame:'o', ember:'o', lamp:'o', pact:'R', reckless:'R',
+                     martyr:'P', hunger:'R', mirror:'W', vow:'y', scale:'y',
+                     chain:'s', bone:'w', grudge:'P', nighteye:'B', eye:'P' };
+function auraWash(e) {
+  const a = e.aura;
+  if (!a) return;
+  const x = e.x ?? e.fx, y = e.y ?? e.fy;
+  if (x === undefined || y === undefined) return;
+  /* 두 자리를 **역할별로** 나눈다. 처음에는 각인과 유물을 한 줄로
+     이어 붙이고 앞에서 둘을 잘랐는데, 각인 슬롯이 +3·+5·+7에 열리므로
+     **+5부터 각인 둘이 자리를 다 먹고 유물은 몇 개를 끼든 영구히
+     잘려 나갔다.** 「유물 일곱 낀 후반에 무지개가 터지면 소음」이라고
+     걱정한 바로 그 구간이, 정작 유물이 하나도 안 그려지는 구간이었다.
+     덤으로 +5 이후 아우라가 절대 안 변해서 정보가 아니라 고정 물감이
+     됐다. 각인 하나(손이 무엇을 하는가) + 유물 하나(내가 무엇이
+     되었는가). 같은 색이면 뒤엣것은 버린다 — 같은 색 고리 둘은 두
+     개의 정보가 아니라 한 개의 겹줄이다. */
+  const pick = (list, tab) => { for (const k of list) if (tab[k]) return tab[k]; return null; };
+  const mk = pick(a.marks, MARK_TINT);
+  const rl = pick(a.relics, RELIC_TINT);
+  const keys = [mk, rl !== mk ? rl : null].filter(Boolean);
+  /* 강화는 색이 아니라 **양**으로 말한다 — +3마다 한 단계, 셋에서
+     멈춘다. +12와 +9가 화면에서 달라야 할 이유는 없다. */
+  const step = Math.min(3, Math.floor(a.plus / 3));
+  /* 최정상급은 자리를 다투지 않는다. 초월은 흰 껍질, 이름 있는
+     무기는 금빛 — 둘 다 다른 무엇보다 **먼저** 그려지고, 나머지
+     두 자리는 그대로 남는다. 판에 한두 번 볼 물건이라 흔한 것과
+     자리를 나눠 쓸 이유가 없다. */
+  if (a.boon || a.unique) {
+    const k = a.boon ? 'W' : 'y';
+    ring(x, y, 1.15, PALETTE[k], 260);
+    ring(x, y, 0.6, PALETTE[k], 180, true);
+    burstShards(x, y, [PALETTE[k], PALETTE.w], a.boon ? 9 : 5, 1.1);
+  }
+  /* ── 그리고 원래 프레임보다 **작고 짧아야** 한다 ────────────
+     주석에 그렇게 적어 놓고 정반대를 만들었다: 아우라 고리가 1.4/1.95
+     고정이었는데, 기예 스물셋 중 열다섯의 자기 고리가 그보다 작다
+     (급소 0.6 · 관통 0.8 · 그림자 도약 0.9 · 덫 0.9…). 수명도 330ms
+     로 급소의 220ms보다 오래 남았다. 「고리도 파편도 없이 흰 선 하나」
+     라고 적어 둔 기예가 금빛 고리와 파편 열아홉에 파묻혔다.
+
+     그래서 고리를 **작게** 깐다(0.5~0.9칸, 140~200ms). 고리는 이
+     파일에서 「사건이 일어났다」의 원시형이고 아우라는 사건이 아니라
+     형용사다 — 형용사가 문장보다 크면 안 된다. */
+  if (step) burstShards(x, y, [PALETTE.y, PALETTE.w], 2 + step * 2, 0.55 + step * 0.15);
+  for (let i = 0; i < keys.length; i++) {
+    ring(x, y, 0.5 + i * 0.4, PALETTE[keys[i]], 140 + i * 60, true);
+    burstShards(x, y, [PALETTE[keys[i]]], 3, 0.8);
+  }
+}
+
+function vanishBurst(e) {
+  for (let i = 0; i < (e.n || 0); i++) {
+    const a = (i / Math.max(1, e.n)) * Math.PI * 2;
+    ring(e.x + Math.cos(a) * 0.9, e.y + Math.sin(a) * 0.9, 0.8, PALETTE.w, 240);
+  }
+  ring(e.x, e.y, 3.2, PALETTE.B, 520);
+  ring(e.x, e.y, 2.0, PALETTE.b, 380);
+  shake = Math.max(shake, 0.34 + (e.n || 0) * 0.08);
+  buzz([30, 20, 40]);
+  sfx.hit();
+}
+
+function crackBurst(e) {
+  const p = G.player;
+  if (!p) return;
+  /* 처음에 흰 섬광 고리 + 화면 밝힘 + 레벨업 효과음으로 그렸다.
+     크랙의 정의는 「게임이 가르친 규칙 하나를 부순다」인데, 그런
+     순간을 밝은 팡파르로 축하하면 그건 이 게임이 아니라 가챠의
+     「획득!」이다. 다크소울·디아블로에서 무언가가 갈라질 때는 소리가
+     낮아지고 화면이 어두워진다.
+
+     그래서 흰 고리를 뺀다(PALETTE.W는 STYLE.md가 하이라이트 4.83%로
+     규정한 색이고, 화면 전체 섬광으로 쓸 색이 아니다). 남는 것은
+     자수정 고리 하나, 흔들림, 진동, 그리고 낮은 소리다. */
+  ring(p.x, p.y, 1.8, PALETTE.P, 720);
+  ring(p.x, p.y, 2.6, PALETTE.p, 900);
+  number(p.x, p.y - 0.9, e.n || '금이 갔다', PALETTE.P, 1.3);
+  shake = Math.max(shake, 0.62);
+  buzz([70, 50, 70]);
+  sfx.warn();
+}
+
 function ring(x, y, maxr, color, life, shrink) {
   rings.push({ x: x + 0.5, y: y + 0.5, maxr, color, life: life || 380, age: 0, shrink });
 }
 
 const buzz = ms => { try { navigator.vibrate?.(ms); } catch { /* not supported */ } };
+
+/* 죽음의 렌즈를 한 프레임 진행시킨다. 1.4초에 걸쳐 다 조인다 —
+   그보다 짧으면 확대가 안 읽히고, 길면 화면이 멈춘 것처럼 보인다. */
+export function tickDeath(dt) {
+  if (deathZoom > 0 && deathZoom < 1) deathZoom = Math.min(1, deathZoom + dt / 1400);
+}
+export function clearDeath() { deathZoom = 0; deathAt = null; }
+/* 0이 아니라 아주 작은 값으로 시작한다 — 1로 넣으면 tickDeath 가
+   「이미 다 왔다」고 보고 한 프레임 만에 끝난다. 슬로우모션이 아니라
+   컷이 된다. */
+function openLens(e) { deathZoom = 0.001; deathAt = { x: e.x, y: e.y }; freeze = 300; }
+/* 렌즈가 아직 조이는 중인가. 화면 쪽이 이걸 보고 끝 화면을 **늦춘다** —
+   죽자마자 명세서를 띄우면 무엇이 나를 죽였는지 볼 틈이 없다. */
+export const deathHolding = () => deathZoom > 0 && deathZoom < 1;
 
 /* ── event intake ───────────────────────────────────────── */
 export function pump(queue, player) {
@@ -114,6 +378,12 @@ export function pump(queue, player) {
        arrive quieter — that is the one thing sound does better
        than a screen, and it was being thrown away. */
     earFrom(e.x, e.y);
+    /* 기예에는 「지금 손에 든 것」이 실려 온다. 원래 연출보다 **먼저**
+       그린다 — 뒤에 그리면 강화·인챈트가 기예 자체를 덮는다.
+       조건 없이 부른다: 「기예인가」 판정을 여기 두면 pump 가 한 갈래
+       더 굵어지고, 저 함수는 이미 이 저장소에서 가장 굵다. 판정은
+       auraWash 제 안에 있다. */
+    auraWash(e);
     switch (e.t) {
       case 'lunge': {
         const s = at(player);
@@ -366,6 +636,17 @@ export function pump(queue, player) {
         buzz([40, 30, 40]);
         break;
       }
+
+      /* 잠긴 계단을 두드렸다. 로그 한 줄은 다섯 줄 사이에 끼어
+         사라지고, 그러면 「밝은 버튼을 눌렀는데 아무 일도 안 났다」만
+         남는다 — 그건 고장으로 읽힌다. 흔들고, 쇠 색 고리를 튀기고,
+         한 번 울린다. 턴이 탔다는 것을 손이 알아야 한다. */
+      case 'lock':
+        number(e.x, e.y - 0.4, '잠김', PALETTE.y, 1.1);
+        ring(e.x, e.y, 2.2, PALETTE.y, 520);
+        shake = Math.max(shake, 0.34);
+        buzz([30, 24, 30]);
+        break;
 
       case 'resist':
         number(e.x, e.y - 0.4, '저항', PALETTE.B, 1.2);
@@ -639,19 +920,12 @@ export function pump(queue, player) {
         break;
       }
 
-      // 버티기 — nothing flies. A mark on the ground under the
-      // feet, because the art is about *not* moving.
-      case 'brace': {
-        ring(e.x, e.y, 1.15, PALETTE.y, 520);
-        ring(e.x, e.y, 0.75, PALETTE.s, 620);
-        number(e.x, e.y - 0.5, '버틴다', PALETTE.y, 1.1);
-        buzz([20, 30, 20]);
-        sfx.heal();
-        break;
-      }
+      /* 여기 예전 버티기(brace)의 case 가 하나 더 있었다. switch 는
+         먼저 만나는 갈래를 쓰므로, 한계돌파로 다시 쓴 버티기의 연출
+         (standFx)은 **한 번도 화면에 나온 적이 없다** — 조용한 고리
+         하나가 대신 나가고 있었다. 갈래를 지운다. 사건 하나에 갈래
+         하나. */
 
-      // Each blow the stance turns away: a short spark back down
-      // the line it came from. Quiet on purpose — it happens a lot.
       /* ── the priest's four ─────────────────────────────
          The mage throws things; the priest marks them. Three of
          these are lines drawn on something rather than objects
@@ -689,19 +963,10 @@ export function pump(queue, player) {
         sfx.levelup();
         break;
       }
-      case 'martyr':
-        ring(e.x, e.y, 1.4, PALETTE.R, 640);
-        number(e.x, e.y - 0.7, '순교', PALETTE.R, 1.25);
-        flashScreen = Math.max(flashScreen, 0.25); flashHue = 'r';
-        buzz([80, 40, 80]);
-        sfx.warn();
-        break;
-      case 'martyrHold':
-        ring(e.x, e.y, 1.1, PALETTE.R, 260);
-        number(e.x, e.y - 0.5, '버틴다', PALETTE.R, 1.05);
-        shake = Math.max(shake, 0.4);
-        break;
-
+      case 'arcana': case 'deathZoom': case 'crack': case 'vanishOut':
+      case 'brace': case 'kite': case 'bulwark':
+      case 'martyr': case 'martyrHold': bigFx(e); break;
+      case 'stepIn': case 'fanOut': case 'vitals': case 'flurry': artFx(e); break;
       /* ── the ranger's four ─────────────────────────────
          The warrior's arts happen at arm's length and are drawn
          at the hero. These happen across the room and are drawn

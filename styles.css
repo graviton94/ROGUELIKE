@@ -221,6 +221,20 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   scrollbar-width: none; -ms-overflow-style: none;
 }
 .hudtop::-webkit-scrollbar { display: none; }
+/* 이 줄은 가로로 스크롤되는데 **스크롤된다는 표시가 하나도 없었다.**
+   실측: 5층 평범한 상태에서 scrollWidth 404 / clientWidth 366,
+   12층 합성 최악에서 634/366 — 정보의 42%가 화면 밖에 있고 말줄임도
+   페이드도 없다. 사용자는 잘린 것을 잘렸다고 읽지 않는다. 없다고
+   읽는다. 오른쪽 끝을 흐리게 해서 「더 있다」를 공짜로 말한다. */
+.hudtop {
+  mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent);
+}
+/* 매 턴 변하는 것은 「지금 무슨 일이 벌어지나」 칸이 제자리다.
+   특기 칩(101px)이 위 줄에 남아 있어서, 하필 이 게임에서 가장
+   시간에 민감한 정보 — 다음 타격이 확정 치명타인가 — 가 항상
+   먼저 잘렸다. 아래 줄로 내리면 위가 404 → 303이 된다. */
+.hudbot .chip.trait { flex: 0 0 auto; height: 15px; padding: 0 5px; font-size: 9.5px; }
 .hudtop .chip { flex: 0 0 auto; }
 .who { flex: 0 0 auto; font-size: 10px; color: var(--w); white-space: nowrap; }
 /* Fixed height, not padding around a line box. The combo chip
@@ -237,6 +251,12 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   color: var(--G); white-space: nowrap;
 }
 .chip b { color: var(--w); }
+/* 주목·유물 칩은 이제 눌러서 카드를 여는 **문**이다. 그런데 크기는
+   예전 라벨 그대로 21px 였고, 화면 최상단이라 한 손 조작에서 엄지가
+   가장 못 닿는 자리다. 보이는 크기는 그대로 두고 손만 넓힌다. */
+.chip.heat, .chip.relics { position: relative; height: 32px; padding: 0 10px; }
+.chip.heat::after, .chip.relics::after {
+  content: ''; position: absolute; inset: -8px -6px; }
 .chip.gold { color: var(--y); border-color: #605018; } .chip.gold b { color: var(--y); }
 .chip.mana { color: var(--B); border-color: #204068; } .chip.mana b { color: var(--B); }
 .chip.depth { color: var(--o); border-color: #603010; }
@@ -250,6 +270,14 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 /* The pile on the table. It glows brighter as it grows, which
    is the entire persuasion — the number is supposed to be hard
    to walk past. */
+/* 잠긴 계단은 열리는 계단처럼 보이면 안 된다. `live`의 금색을 빼고
+   쇠와 녹의 색으로. 버튼은 살아 있다 — 두드릴 수는 있으니까. */
+#btn-here.shut {
+  color: var(--G); border-color: #6a3a20; background: #1a1216;
+  font-size: 11px;
+}
+.chip.task { color: var(--o); border-color: #7a3f12; }
+.chip.task b { color: var(--o); }
 .chip.wager { color: var(--y); border-color: #806810; }
 .chip.wager b { color: var(--y); }
 .chip.wager.hot {
@@ -295,7 +323,7 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
    실제로 그렇게 접혀 있었다. 라벨은 줄어들지도 접히지도 않는다. */
 .glabel { font-size: 9.5px; color: var(--G); width: 28px;
           flex: 0 0 auto; white-space: nowrap; }
-.gval   { font-size: 10.5px; color: var(--w); width: 62px; text-align: right;
+.gval   { font-size: 10.5px; color: var(--w); min-width: 62px; flex: 0 0 auto; text-align: right;
           flex: 0 0 auto; white-space: nowrap; }
 .track { position: relative; flex: 1 1 auto; min-width: 0; height: 7px;
          background: var(--k); border: 1px solid var(--g); }
@@ -308,6 +336,27 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   background: repeating-linear-gradient(to right, transparent 0 7px, var(--k) 7px 9px);
 }
 .track i.hp { background: var(--R); }
+/* ── 잃어버린 천장 ────────────────────────────────────────
+   상처는 이 게임의 난이도 곡선을 실제로 만드는 장치인데 화면 어디에도
+   없었다. `wound`가 ui.js 전체에 한 번 나오고 그마저 무관한 주석이었다.
+   막대는 `hp / maxhp`로 그려졌고, 그 maxhp가 이미 깎인 천장이라
+   **체력의 40%를 영구히 잃은 몸이 만피와 화면상 완전히 같았다.**
+   플레이어가 겪는 것은 「막대가 꽉 찼으니 한 대 더 맞아도 되겠지」
+   → 두 대에 죽음 → 「방금 만피였는데?」다.
+
+   이제 막대는 **원래 천장**을 기준으로 그리고, 잃은 몫은 오른쪽 끝에
+   죽은 회색으로 남는다. 15/15가 막대의 60%만 채우면 설명 한 줄 없이도
+   몸이 상했다는 것이 손끝으로 온다. */
+.track i.wound {
+  position: absolute; right: 0; top: 0; height: 100%;
+  background: repeating-linear-gradient(-45deg,
+    var(--g) 0 2px, transparent 2px 4px);
+  /* 경계선은 `--r`(마른 피 #5e0f1c) 1픽셀이었다. 막대 바탕 `--k`와
+     명암비 **1.45:1** — 확대해서 봐도 안 보인다. 잃은 천장이 어디서
+     시작하는지가 화면에 없으면 빗금은 그냥 막대 끝 장식이다.
+     `--R`(#c8322c)로 올리고 2픽셀로 하면 3.9:1이 된다. */
+  border-left: 2px solid var(--R);
+}
 .track i.mp { background: var(--B); }
 .track i.st { background: var(--E); }
 
@@ -442,6 +491,8 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   text-align: center; overflow: hidden;
 }
 #acts .quick canvas { width: 16px; height: 16px; image-rendering: pixelated; flex: 0 0 auto; }
+
+}
 #acts .quick .qn { white-space: nowrap; overflow: hidden; min-width: 0; }
 /* Out of the flow, so a narrow button clips the word and never
    the number. The number is the part that decides whether you
@@ -745,7 +796,10 @@ table.keys td:first-child { width: 40%; color: var(--G); }
    so nobody gambles without having seen both numbers. */
 .campopt.wager { border-color: var(--r); }
 .camptag.odds  { font-size: 13px; color: var(--y); letter-spacing: .04em; }
-.campdesc.risk { display: block; margin-top: 5px; font-size: 11px; color: var(--r); }
+/* `--r`(#5e0f1c, 마른 피)는 이 배경 위에서 명암비 1.56:1이다 —
+   실패하면 무엇을 잃는지 적어 둔 줄이 읽히지 않는다. 위험을 말하는
+   줄이 가장 안 읽히는 줄이었다. `--R`로 올리면 4.4:1. */
+.campdesc.risk { display: block; margin-top: 5px; font-size: 11px; color: var(--R); }
 .campopt:active .campdesc.risk, .campopt:active .camptag.odds { color: var(--k); }
 
 /* ── 수레의 기분 ──
@@ -787,6 +841,11 @@ table.keys td:first-child { width: 40%; color: var(--G); }
    choice is meant to be read at a glance and then forgotten,
    because it sticks across fires. */
 .styleswitch { display: flex; gap: 6px; margin-bottom: 8px; }
+/* 모루의 여섯 모드는 한 줄에 밀어 넣어 55×34(390) / 50×34(360)이
+   됐다 — 44px 기준의 77%이고, 그중 둘은 되돌릴 수 없다. 세 칸씩
+   두 줄로 접으면 한 칸이 118×44 가 된다. */
+#anvil-mode { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+#anvil-mode button { min-height: 44px; }
 .styleswitch button {
   flex: 1 1 0; padding: 8px 6px; font-size: 12px;
   border: 1px solid var(--g); background: var(--d); color: var(--G);
@@ -858,7 +917,15 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 .lessonbox p { font-size: 12.5px; line-height: 1.85; margin-bottom: 16px; }
 /* The look-at card. Reached by holding a finger on the map, so
    it has to be dismissable by tapping anywhere. */
-.lookbox { max-width: 320px; }
+/* 유물 일곱을 들면 카드가 뷰포트를 위아래로 53px씩 넘어가고, 안쪽
+   목록에 overflow 가 없어서 **제목도 「닫기」도 화면 밖**이었다.
+   `.askbox #look-rows { touch-action: pan-y }` 가 스크롤을 예상한
+   흔적으로 남아 있는데, 정작 overflow-y 를 안 준 것이다. */
+.lookbox { max-width: 320px; max-height: calc(100vh - 48px);
+           display: flex; flex-direction: column; }
+.lookbox #look-rows { flex: 1 1 auto; min-height: 0; overflow-y: auto;
+                      overscroll-behavior: contain; }
+.lookbox .askbtns { flex: 0 0 auto; }   /* 나가는 문은 언제나 바닥에 */
 .lookbox .camphead { margin-bottom: 10px; }
 .lookbox .endrow { padding: 3px 0; }
 .lookbox .endlabel { flex: 0 0 74px; }
@@ -1125,3 +1192,186 @@ table.keys td:first-child { width: 40%; color: var(--G); }
   border-color: var(--y); color: var(--y);
   letter-spacing: .06em;
 }
+
+/* ── 좁은 폰에서는 두 줄 ──────────────────────────────────
+   횃불이 「탈출」에서 떨어져 나와 칸이 넷이 되자, 320px에서 한 칸이
+   37px로 줄고 「회복」이 잘렸다. 44pt 터치 기준 미달이고, 그 기준은
+   이 게임에서 이미 잘 지켜지고 있던 몇 안 되는 것 중 하나다 —
+   칸을 하나 늘리자고 깨뜨릴 것이 아니다.
+
+   접는다. 2×2면 한 칸이 다시 70px대가 되고, 급할 때 누르는 네 개가
+   엄지 밑에 사각으로 모인다. 줄이 하나 늘지만 그만큼은 값을 한다.
+
+   **파일 끝에 둔다.** 처음에 캔버스 규칙 옆에 뒀더니 뒤에 오는
+   `#acts .pair button { flex: 1 1 0 }`이 같은 우선순위로 덮어써서
+   아무것도 안 변했다 — 미디어 쿼리는 우선순위를 올려 주지 않는다. */
+@media (max-width: 360px) {
+  #acts .quick { flex-wrap: wrap; gap: 3px; }
+  /* 그리고 높이를 깎는다. 접기만 했더니 줄이 하나 늘어 320px에서
+     지도가 43%→35%로 내려갔고(칸 벤치 문턱 36%), 손가락을 얻자고
+     무대를 판 셈이 됐다. 두 줄이 한 줄 반쯤 되게 눌러서 둘 다 가진다. */
+  /* ── 그리고 그 「눌러서」가 17px 이 됐다 ────────────────
+     주석은 「2×2면 한 칸이 다시 70px대」라고 적었는데, 70px대가 된
+     것은 **폭**(92.5)뿐이고 높이는 padding 1px + font 8.5px 때문에
+     17px 로 주저앉았다. 바로 옆 방향 버튼이 45.3px 인데, 그 옆에서
+     체력 1일 때 눌러야 하는 회복 물약이 17px 였다. 폭만 재고 높이를
+     안 잰 것이다. 44px 은 협상 대상이 아니다. */
+  #acts .quick button { flex: 1 1 44%; min-height: 44px; padding: 6px 4px; font-size: 10px; }
+  #acts .quick canvas { width: 16px; height: 16px; }
+  /* 기예 줄은 #acts 밖(격자 위)에 있다 — `#acts .spells` 로 잡으면
+     아무것도 안 걸린다. 실제로 그렇게 써 놓고 19px 을 그대로 뒀다. */
+  .spells button { min-height: 38px; }
+}
+
+/* 390px 에서도 빠른 슬롯이 36px, 기예 칸이 25px 였다 — 좁은 화면
+   전용 규칙만 고쳐 놓고 기본을 안 고쳤다. 44px 은 화면 폭과 무관하다. */
+.pair.quick button { min-height: 44px; }
+.spells button { min-height: 38px; }
+
+/* 불이 사그라들 때 그 칸이 부른다. 깜빡임이 아니라 테두리 색과
+   느린 맥박 — 급한 것은 하나여야 하고, 화면에서 이미 붉은 것이
+   많다(피격·상처·정예 테두리). 이쪽은 잉걸빛으로 부른다. */
+#acts .quick button.urgent {
+  border-color: var(--o); color: var(--o);
+  animation: emberpulse 1.1s ease-in-out infinite;
+}
+@keyframes emberpulse {
+  0%, 100% { box-shadow: inset -2px -2px 0 rgba(0,0,0,.5),
+                         inset 2px 2px 0 rgba(255,255,255,.07); }
+  50%      { box-shadow: inset -2px -2px 0 rgba(0,0,0,.5),
+                         inset 2px 2px 0 rgba(255,255,255,.07),
+                         0 0 0 1px var(--o); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #acts .quick button.urgent { animation: none; }
+}
+
+/* 배낭에서 「지금 든 것보다」. 좋아지는 쪽은 잉걸, 나빠지는 쪽은
+   마른 피 — 색 하나로 결정이 끝나야 목록을 훑을 수 있다. */
+.idesc.cmp      { color: var(--G); }
+.idesc.cmp.up   { color: var(--o); font-weight: 600; }
+.idesc.cmp.down { color: var(--r); }
+
+/* ── 유물의 크랙 ──────────────────────────────────────────
+   유물 줄 아래 한 칸. 아직 안 열린 것은 마른 회색에 채워지는 막대
+   하나, 열린 것은 자수정 테두리다 — 목록을 훑을 때 「무엇이 깨졌나」와
+   「무엇이 깨지는 중인가」가 색 하나로 갈려야 한다.
+
+   처음에 안 열린 쪽을 전부 var(--d)로 칠했다. --d는 **패널의 배경색**
+   이다(#16131a). 그래서 이 기능이 나오는 네 화면 중 셋(몸 탭 · 융합
+   고르기 · 유물 교체 — 전부 어두운 배경)에서 조건문과 막대 트랙이
+   대비 1.05:1로 **한 글자도 안 보였다.** 이번 웨이브의 주력 기능이
+   네 곳 중 세 곳에서 존재하지 않았다는 뜻이다.
+
+   --d는 이 팔레트에서 「그을린 돌 — 바닥, 패널」이라고 적혀 있다.
+   글자에 쓸 색이 아니다. 어두운 곳의 흐린 글자는 --G(빛 받은 돌),
+   더 흐리게는 --g(그늘 속의 돌)까지다. */
+.crackline {
+  display: flex; gap: 5px; align-items: flex-start;
+  margin-top: 3px; padding: 3px 5px;
+  border-left: 2px solid var(--g);
+  background: rgba(255,255,255,0.03);
+}
+.crackline.lit {
+  border-left-color: var(--P);
+  background: rgba(160,110,190,0.10);
+}
+.crackcat { font-size: 11px; color: var(--G); line-height: 1.1; }
+.crackline.lit .crackcat { color: var(--P); }
+.crackbody { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.crackname { font-size: 10px; color: var(--G); }
+.crackline.lit .crackname { color: var(--P); font-weight: 600; }
+.cracktext { font-size: 9px; color: var(--G); line-height: 1.35; }
+.cracktext.dim { color: var(--G); opacity: 0.8; }
+/* 트랙이 안 보이면 채움이 「어디까지의 몇」인지 알 수 없다 — 끝점이
+   없는 선은 24%인지 80%인지 읽히지 않는다. */
+.crackbar { height: 3px; background: var(--g); }
+.crackfill { height: 100%; background: var(--P); }
+/* 같은 줄이 양피지 위에도 올라간다. 처음에 `#look` 으로 걸었는데
+   그건 「그 창이면 종이다」라는 가정이고, 종이는 dressSheet 가 실제로
+   깔았을 때만 있다 — 안 깔린 상태에서는 어두운 카드 위에 어두운 잉크가
+   된다. 그래서 **종이 그 자체**(.sheet)를 기준으로 건다. 종이가
+   있으면 잉크, 없으면 위의 어두운 규칙. */
+.sheet .crackline { border-left-color: #6b5a45; background: rgba(60,40,20,0.07); }
+.sheet .crackcat, .sheet .crackname { color: #5a4a38; }
+.sheet .cracktext { color: #4a4038; }
+.sheet .cracktext.dim { color: #6d5a3a; opacity: 1; }
+.sheet .crackbar { background: rgba(60,40,20,0.35); }
+.sheet .crackfill { background: #6a3d7a; }
+.sheet .crackline.lit { border-left-color: #6a3d7a; background: rgba(90,50,110,0.10); }
+.sheet .crackline.lit .crackcat, .sheet .crackline.lit .crackname { color: #6a3d7a; }
+
+/* 팔까 부술까 — 배낭 줄의 마지막 한 줄. 값 이야기는 낡은 금으로
+   묶어 두면, 성능 이야기(cmp)와 눈에서 안 섞인다. */
+.idesc.trade { color: var(--y); opacity: 0.75; font-size: 9px; }
+
+/* 크랙이 코앞일 때. 칩 하나가 점멸하는 것으로 충분하다 — 화면 어디도
+   더 안 쓰고, 걷는 중에 곁눈으로 잡힌다. */
+.chip.relics.close { border-color: var(--P); animation: crackNear 1.1s ease-in-out infinite; }
+@keyframes crackNear { 0%,100% { color: var(--G); } 50% { color: var(--P); } }
+@media (prefers-reduced-motion: reduce) { .chip.relics.close { animation: none; color: var(--P); } }
+
+/* 못 누르는 큰 버튼. 잠긴 계단과 같은 처방 — 금색을 빼고 쇠와 녹으로,
+   그리고 버튼 글자 자체가 안 되는 이유를 말한다. */
+.big.shut, .big:disabled {
+  color: var(--G); border-color: #4a4045; background: #141014;
+  opacity: 1;
+}
+
+/* 주목 — 깊은 곳이 너를 보는 정도. 평소엔 조용한 회색, 45를 넘으면
+   잉걸, 80을 넘으면 상처의 붉은색으로 맥이 뛴다. */
+/* 0~44 구간에서 이 칩은 기본 칩과 **픽셀 단위로 같았다**(같은 --G,
+   같은 --g). 금화는 금색 테, 층은 주황 테인데 주목 30은 회색 테라
+   가구로 읽혔다 — 이 판의 risk & take 계기가 그렇다. 강철로 가른다. */
+.chip.heat { color: var(--s); border-color: #4a5060; }
+.chip.heat b { color: var(--G); }
+.chip.heat.hot { color: var(--o); border-color: #7a3f12; }
+.chip.heat.hot b { color: var(--o); }
+.chip.heat.burn { color: var(--R); border-color: #7a1c18; animation: heatBurn 1.2s ease-in-out infinite; }
+.chip.heat.burn b { color: var(--R); }
+@keyframes heatBurn { 0%,100% { opacity: .78; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .chip.heat.burn { animation: none; } }
+
+/* 밀어서 닫는 면은 제스처를 **우리가** 가져야 한다. body 의
+   `touch-action: manipulation` 이 살아 있으면 브라우저가 옆으로 미는
+   손가락을 스크롤로 채 가고, 그때부터 pointermove 가 한 번도 안 온다 —
+   양피지 카드를 밀어도 안 닫히던 이유가 이것이다. */
+.askbox, .askbox .sheet { touch-action: none; }
+/* 그리고 이 규칙이 **양피지 카드에는 안 걸려 있었다.** #lorecard 는
+   .askbox 가 아니라서 touch-action:auto 로 남았고, 진짜 손가락으로
+   밀면 pointermove 두 번 만에 브라우저가 제스처를 채 가 pointercancel
+   이 떴다 — 위·왼쪽·오른쪽 전부 안 닫혔다. 마우스는 touch-action 의
+   영향을 안 받으므로 sim/swipe.mjs 는 4/4 초록이었다. 자가 손가락을
+   안 쓰고 있었다는 뜻이다. */
+#lorecard, #lorecard .sheet, #scroll, #scroll .sheet { touch-action: none; }
+/* 다만 카드 안의 목록은 여전히 스크롤돼야 한다. 긴 유물 목록이
+   안 넘어가면 아래쪽 유물을 영영 못 본다. */
+.askbox #look-rows, .askbox .scrollable { touch-action: pan-y; }
+
+/* ── 종이 위의 잉크 ────────────────────────────────────────
+   양피지를 깔면(dressSheet) 유물 **이름과 설명이 종이색과 거의 같아
+   진다** — 종이 평균 rgb(149,134,103) 기준으로 이름 2.26:1, 설명
+   **1.05:1**. 유물 목록에서 이름 줄이 통째로 빈칸으로 보였다.
+   .sheet 오버라이드가 크랙 줄만 어두운 잉크로 바꾸고 나머지는 어두운
+   배경용 크림색 그대로 뒀기 때문이다.
+
+   대비 자(sim/contrast.mjs)가 이 카드를 「그림 배경이라 못 잰다」며
+   명시적으로 제외해 둔 자리에 정확히 이 버그가 있었다. */
+.sheet .iname, .sheet .codexrow .iname { color: #3a2a1c; }   /* 종이 대비 6.4:1 */
+.sheet .idesc, .sheet .codexrow .idesc { color: #4a3a28; }   /* 4.9:1 */
+.sheet .crackname { color: #3f3122; }
+
+/* 아르카나 — 판 자체를 비트는 것. 유물의 자수정을 쓰되 면이 아니라
+   왼쪽 선으로만 — 세 장이 나란히 서면 면은 무지개가 된다. */
+.arcanarow { border-left: 3px solid var(--P); padding-left: 9px; margin-bottom: 10px; }
+.idesc.arcanacat { color: var(--P); opacity: .8; font-size: 9px; }
+.idesc.arcanagood { color: var(--o); }
+/* --r(#5e0f1c)은 어두운 배경 위에서 대비 1.45:1 — 「그 아래는 흐린
+   것이 아니라 없는 것이다」라고 우리 대비 자가 정한 3:1 아래다.
+   판을 되돌릴 수 없게 바꾸는 선택인데 **대가 쪽 절반이 화면에 없었다.**
+   ui.js 는 「좋은 쪽과 값을 같은 크기로 적는다」고 주석까지 달아 놨는데,
+   크기는 같고 대비가 네 배 차이라 눈에는 광고지였다. --R 은 5.2:1. */
+.idesc.arcanacost { color: var(--R); font-weight: 600; }
+.idesc.arcanagood, .idesc.arcanacost { font-size: 12px; }
+.idesc.arcanacat { font-size: 11px; }
+.idesc.arcanalore { color: var(--G); opacity: .7; font-style: italic; margin-top: 3px; }

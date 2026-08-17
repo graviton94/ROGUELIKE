@@ -43,10 +43,15 @@ for (const cls of CLASSES) {
   perClass[cls] = mine;
 }
 
+/* walkSeen은 걷기의 **부분집합**이지 별개의 행동이 아니다. 그런데
+   합을 지우기 **전에** 냈더니 분모에 한 번 더 들어가서, 인쇄되는
+   걷기 비율이 참값보다 4%p쯤 낮게 나왔다(행 합이 94%인 것이 그
+   증거였다). 2회차 시스템 리뷰가 잡았다.
+   지우고 나서 더한다. */
+const watched = total.walkSeen || 0; delete total.walkSeen;
 const sum = Object.values(total).reduce((a, b) => a + b, 0);
 console.log(`\n한 턴은 무엇인가 — ${CLASSES.length}직업 × ${N}판 = ${runs}판 · 평균 ${(depth/runs).toFixed(1)}층 · 판당 ${(turns/runs).toFixed(0)}턴\n`);
 
-const watched = total.walkSeen || 0; delete total.walkSeen;
 for (const cls of CLASSES) delete perClass[cls].walkSeen;
 for (const [k, v] of Object.entries(total).sort((a, b) => b[1] - a[1])) {
   const pct = v * 100 / sum;

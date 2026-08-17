@@ -354,15 +354,102 @@ export const SPRITES = {
     'GgddddgG',
     'gggggggg',
   ],
+  /* ── 대군주만 열여섯으로 ────────────────────────────
+     서른 종을 전부 다시 그리면 손이 고르지 않아 어떤 것은 낫고
+     어떤 것은 못해진다. 그런데 이 하나는 다르다 — 열다섯 층을
+     걸어 내려온 사람이 마지막으로 보는 그림이고, 그때까지 본
+     모든 것보다 커야 한다.
+
+     「불을 피우는 것이 아니라 먹는다.」 그래서 불을 **두르지**
+     않고 **안에** 넣었다: 숯이 된 몸 한가운데가 뚫려 있고 그
+     안이 잉걸에서 금으로, 금에서 흰빛으로 간다. 눈 두 점도 같은
+     색이다 — 안에 있는 것과 보고 있는 것이 같은 불이라는 뜻이다.
+
+     빈칸은 두 칸 이상으로 잡았다. 테두리는 몸에 닿은 빈칸을
+     칠하므로 한 칸짜리 틈은 양쪽에서 칠해져 통째로 메워진다 —
+     처음에 뿔을 한 칸 간격으로 세웠더니 왕관이 금색 막대기가
+     됐다. 열여섯 칸에서 음각은 두 칸부터다. */
   balemperor: [
-    'r.oRRo.r',
-    '.oRWWRo.',
-    'oRyRRyRo',
-    'oRRooRRo',
-    'rRoRRoRr',
-    'rrRooRRr',
-    '.rR..Rr.',
-    'r.o..o.r',
+    '..yy........yy..',
+    '..yy........yy..',
+    '..yyrrrrrrrryy..',
+    '....rrrrrrrr....',
+    '....roorroor....',
+    '....rrrrrrrr....',
+    '....rwrrrrwr....',
+    '.....rrrrrr.....',
+    '.rrrrrrrrrrrrrr.',
+    'rrrrrrrrrrrrrrrr',
+    'rrrrrroooorrrrrr',
+    'rrrrrooyyoorrrrr',
+    'rrrrrooWWoorrrrr',
+    'rrrrrroooorrrrrr',
+    '.rrrrrrrrrrrrrr.',
+    '..rrrr....rrrr..',
+  ],
+
+  /* ── 이름 있는 것 셋 ────────────────────────────────────
+     지금까지 이 셋은 오우거·망령·큰뱀 그림을 그대로 빌려 쓰고 있었다.
+     여섯 층을 걸어 내려와 만나는 「뼈를 씹는 자」가 조금 전에 열
+     마리쯤 잡은 오우거와 같은 그림이면, 이름이 붙어 있다는 사실이
+     화면에는 없는 것이다 — 이름은 로그에만 있었다.
+
+     대군주와 같은 규칙으로 그린다: 열여섯 칸, 음각은 두 칸부터.
+     그리고 셋의 실루엣이 서로 달라야 한다 — 넓적한 것, 길쭉한 것,
+     감긴 것. */
+  bonechewer: [
+    '................',
+    '....nnnnnnnn....',
+    '...nNNNNNNNNn...',
+    '...nNRNNNNRNn...',
+    '...nNNNNNNNNn...',
+    '...nNwwwwwwNn...',
+    '....nNNNNNNn....',
+    '..nnnNNNNNNnnn..',
+    '.nNNNNNNNNNNNNn.',
+    'nNNNNNNNNNNNNNNn',
+    'nNNNwwNNwwNNNNNn',
+    'nNNNNNNNNNNNNNNn',
+    '.nNNNNNNNNNNNNn.',
+    '..nNNNNNNNNNNn..',
+    '..nNNn....nNNn..',
+    '..nnnn....nnnn..',
+  ],
+  ashpriest: [
+    '................',
+    '.....gggggg.....',
+    '....gGGGGGGg....',
+    '...gGGGGGGGGg...',
+    '...gGGBGGBGGg...',
+    '...gGGGGGGGGg...',
+    '....gGwwwwGg....',
+    '.....gGGGGg.....',
+    '...ggGGGGGGgg...',
+    '..gGGGGGGGGGGg..',
+    '..gGGGwwwwGGGg..',
+    '..gGGGGGGGGGGg..',
+    '...gGGGGGGGGg...',
+    '....gGGGGGGg....',
+    '.....gg..gg.....',
+    '....ggg..ggg....',
+  ],
+  forgecoil: [
+    '................',
+    '...rrrrrrrrrr...',
+    '..rroooooooorr..',
+    '.rroRRRRRRRRorr.',
+    '.roRRrrrrrrRRor.',
+    '.roRrroooorrRor.',
+    '.roRroyyyyorRor.',
+    '.roRroyWWyorRor.',
+    '.roRroyyyyorRor.',
+    '.roRrroooorrRor.',
+    '.roRRrrrrrrRRor.',
+    '.rroRRRRRRRRorr.',
+    '..rroooooooorr..',
+    '...rrrrrrrrrr...',
+    '....rr....rr....',
+    '................',
   ],
 
   /* items */
@@ -542,34 +629,58 @@ export const SPRITES = {
 
   /* terrain features */
   stairsDown: [
-    'GGGGGGGG',
-    'Gddddddd',
-    'GGGGGGdd',
-    'Gdddddgd',
-    'GGGGdggd',
-    'Gddddggd',
-    'GGdkkggd',
-    'Gdkkkggd',
+    '................',
+    '..GGGGGGGGGGGG..',
+    '..gggggggggggg..',
+    '...GGGGGGGGGG...',
+    '...gggggggggg...',
+    '....gggggggg....',
+    '....dddddddd....',
+    '.....gggggg.....',
+    '.....dddddd.....',
+    '......dddd......',
+    '......kkkk......',
+    '......kkkk......',
+    '......kkkk......',
+    '......kkkk......',
+    '................',
+    '................',
   ],
   stairsUp: [
-    'dGGGGGGG',
-    'dggkkkdG',
-    'dggkkddG',
-    'dggdddGG',
-    'dgddddGG',
-    'ddddddGG',
-    'dddddGGG',
-    'GGGGGGGG',
+    '................',
+    '................',
+    '................',
+    '...........wwww.',
+    '...........gggg.',
+    '.........wwwwww.',
+    '.........gggggg.',
+    '.......GGGGGGGG.',
+    '.......gggggggg.',
+    '.....GGGGGGGGGG.',
+    '.....dddddddddd.',
+    '...GGGGGGGGGGGG.',
+    '...dddddddddddd.',
+    '................',
+    '................',
+    '................',
   ],
   door: [
-    'gggggggg',
-    'gnnnnnng',
-    'gnNNNNng',
-    'gnNyyNng',
-    'gnNyyNng',
-    'gnNNNNng',
-    'gnnnnnng',
-    'gggggggg',
+    '................',
+    '................',
+    '......nnnn......',
+    '.....nNNNn......',
+    '.....nNNNn......',
+    '....nNNNNn......',
+    '....nNyNNn......',
+    '...nNNNNNn......',
+    '...nNNNNNn......',
+    '..nNNNNNNn......',
+    '..nNNNNNNn......',
+    '..nNNNNNNn......',
+    '..nNNNNNNn......',
+    '..nnnnnnnn......',
+    '................',
+    '................',
   ],
   rubble: [
     '........',
@@ -616,6 +727,39 @@ export const SPRITES = {
     'CCCCCCCC',
     'nnnnnnnn',
     'nNNNNNNn',
+  ],
+  /* ── 떠돌이 상인 ────────────────────────────────────
+     지금까지 던전의 상인은 마을 좌판의 `keeper`(계산대 뒤의 상반신)를
+     그대로 빌려 쓰고 있었다. 계산대는 마을에 있는 것이고, 층 한복판에
+     놓인 계산대는 계산대로 안 읽힌다 — 플레이어가 「돌멩이」라고 부른
+     것이 이것이다.
+
+     이 사람은 서 있는 사람이 아니라 **끌고 다니는 사람**이다. 그러니
+     후드 쓴 형체 왼쪽, 수레 오른쪽, 바퀴 하나. 실루엣이 몬스터 서른네
+     종 어느 것과도 안 닮는 것이 이 그림의 일이다.
+
+     C는 짐마다 물든다 — 어느 수레가 왔는지 방 건너에서 읽힌다.  */
+  /* 두 번째 그림이다. 첫 판은 주석이 「후드 쓴 형체 왼쪽, 수레
+     오른쪽, 바퀴 하나」라고 적어 놓고 실제로는 3열 대칭의 둥근
+     덩어리를 그렸다 — 채움 196/256(이 저장소가 스스로 정한 상한은
+     140), urn·well과 IoU 0.855, orc·wraith와 0.87. 실루엣이 없었다.
+
+     그리고 그 사실을 벤치가 못 잡은 이유는 sim/silhouette.mjs의 소품
+     목록이 **손으로 적혀** 있어서 pedlar가 비교 대상이 아니었기
+     때문이다. 목록을 고치고 다시 잰 뒤에 다시 그린다.
+
+     이번에는 비대칭이 규칙이다: 왼쪽에 세로로 긴 형체, 오른쪽에
+     가로로 넓은 짐칸, 오른쪽 아래에 바퀴. 항아리·우물 같은 둥근
+     덩어리에서 IoU가 떨어지는 것은 색이 아니라 이 모양이다. */
+  pedlar: [
+    '..kk....',
+    '.kCCk...',
+    '.kCkk...',
+    '..CCknnn',
+    '.CCCk.Nn',
+    '..CCknnn',
+    '..n.nyy.',
+    '..n..y..',
   ],
   /* A blank plank. The shop's goods sprite is drawn on top, and
      the goods sprites all have transparent margins, so the plank
@@ -861,14 +1005,22 @@ export const SPRITES = {
     'nnnnnnnn',
   ],
   doorLocked: [
-    'nnnnnnnn',
-    'nNNNNNNn',
-    'nNNyyNNn',
-    'nNNykNNn',
-    'nNNyyNNn',
-    'nNNNNNNn',
-    'nNNNNNNn',
-    'nnnnnnnn',
+    '................',
+    '................',
+    '...gggggggggg...',
+    '...nNNNNNNNNn...',
+    '...nNNNNNNNNn...',
+    '...gggggggggg...',
+    '...nNNNNNNNNn...',
+    '...nNNNNyyNNnss.',
+    '...nNNNNykNNnss.',
+    '...nNNNNNNNNn...',
+    '...gggggggggg...',
+    '...nNNNNNNNNn...',
+    '...nNNNNNNNNn...',
+    '...gggggggggg...',
+    '................',
+    '................',
   ],
   doorBroken: [
     'n.nnnn.n',
@@ -880,6 +1032,508 @@ export const SPRITES = {
     'nn....nn',
     'n.nn.n.n',
   ],
+
+  /* ── 마흔 유물과 일곱 이름 ────────────────────────────────
+     플레이어: 「최정상급 아이템, 유물은 아이콘도 각자 unique하게」.
+
+     그럴 만했다. 유물 마흔이 스프라이트 **열 개**를 나눠 쓰고 있었다
+     — 목걸이 아홉, 반지 아홉, 두루마리 다섯, 검 다섯. 배낭에서
+     「피의 계약」과 「메아리의 종」과 「앙심」이 **완전히 같은 그림**
+     이었고, 그러면 이 게임에서 규칙을 바꾸는 유일한 물건이 화면에서는
+     구분되지 않는다. 이름 있는 무기 일곱도 평범한 단검·활·대검을
+     그대로 입고 있었다 — 판에 하나 나올까 말까 한 것이 바닥에 널린
+     것과 같아 보였다.
+
+     여기서부터 마흔일곱이 각자 제 얼굴이다. 8×8 안에서 서로 안
+     겹치게 하는 방법은 하나뿐이라 그걸 규칙으로 삼았다: **바깥 윤곽이
+     먼저 갈리고, 색은 그다음이다.** 고리(반지·동전·눈)는 안쪽을 서로
+     다르게 파고, 세로로 긴 것(칼·깃펜·심지)은 기울기를 다르게 준다.
+     융합물 여섯은 두 색을 한 칸씩 번갈아 짜서 「합쳐진 것」이 한눈에
+     읽히게 했다.                                                */
+  r_pact: [
+    '..RR....',
+    '.R..R...',
+    'R.rr.R..',
+    'R.rr.R..',
+    '.R..R.R.',
+    '..RR.R..',
+    '......R.',
+    '........',
+  ],
+  r_echo: [
+    '...yy...',
+    '..y..y..',
+    '.y....y.',
+    'y......y',
+    'y.wwww.y',
+    '.y....y.',
+    '..w..w..',
+    '...ww...',
+  ],
+  r_hunger: [
+    '......sW',
+    '.....s.s',
+    '....s.s.',
+    '...s.s..',
+    '..s.....',
+    '.rr.....',
+    'r.r.....',
+    '.r......',
+  ],
+  r_mirror: [
+    '..sWWs..',
+    '.s....s.',
+    's..WW..s',
+    's.WWWW.s',
+    's..WW..s',
+    '.s....s.',
+    '..sWWs..',
+    '........',
+  ],
+  r_eye: [
+    '........',
+    '.gGGGGg.',
+    'g.WkkW.g',
+    '.gGGGGg.',
+    '........',
+    '........',
+    '........',
+    '........',
+  ],
+  r_glove: [
+    '.n.nn.n.',
+    'n.n..n.n',
+    'n......n',
+    '.n....n.',
+    '..n..n..',
+    '..n..n..',
+    '..nnnn..',
+    '........',
+  ],
+  r_ember: [
+    '..o..o..',
+    '...oo...',
+    '..o..o..',
+    '.o....o.',
+    'o.yWWy.o',
+    'o......o',
+    '.o....o.',
+    '..oooo..',
+  ],
+  r_scale: [
+    '...s....',
+    '..s.s...',
+    '.s.s.s..',
+    's..s..s.',
+    '...s....',
+    '..yyy...',
+    '........',
+    '........',
+  ],
+  r_twin: [
+    'P.....P.',
+    'P.....P.',
+    'PPP.PPP.',
+    'P.P.P.P.',
+    'P...P...',
+    'P...P...',
+    '........',
+    '........',
+  ],
+  r_thief: [
+    '.g....g.',
+    '..g..g..',
+    '...gg...',
+    '...ww...',
+    '...gg...',
+    '..g..g..',
+    '.g....g.',
+    '........',
+  ],
+  r_bone: [
+    'w.w..w.w',
+    '.w....w.',
+    '..w..w..',
+    '...ww...',
+    '..w..w..',
+    '.w.ww.w.',
+    '..w..w..',
+    '...ww...',
+  ],
+  r_chain: [
+    's..g..s.',
+    '.s.g.s..',
+    '..sgs...',
+    '..ggg...',
+    '..sgs...',
+    '.s.g.s..',
+    's..g..s.',
+    '........',
+  ],
+  r_compass: [
+    '...g....',
+    '.g...g..',
+    'g..R..g.',
+    '..RR....',
+    'g..R..g.',
+    '.g...g..',
+    '...g....',
+    '........',
+  ],
+  r_gut: [
+    '..ee....',
+    '.e..e...',
+    'e....e..',
+    'e.....e.',
+    '.e.....e',
+    '..e...e.',
+    '...e.e..',
+    '....e...',
+  ],
+  r_reckless: [
+    'RRR..RRR',
+    'R.....R.',
+    '..R.R...',
+    '...R....',
+    '..R.R...',
+    '..nnnn..',
+    '...nn...',
+    '........',
+  ],
+  r_vow: [
+    '.wwwwww.',
+    'w......w',
+    'w.kkkk.w',
+    'w......w',
+    'w.kkkk.w',
+    'w......w',
+    '.wwwwww.',
+    '........',
+  ],
+  r_lamp: [
+    '...nn...',
+    '..n..n..',
+    '.n....n.',
+    'n..WW..n',
+    'n..WW..n',
+    '.n....n.',
+    '..nnnn..',
+    '.n....n.',
+  ],
+  r_nighteye: [
+    '.b....b.',
+    '..bBBb..',
+    '.b.Wk.b.',
+    '..bBBb..',
+    '.b....b.',
+    '........',
+    '........',
+    '........',
+  ],
+  r_everflame: [
+    '...o....',
+    '..o.o...',
+    '..o.Wo..',
+    '.o.WWo..',
+    '.o.Wo...',
+    '..o.o...',
+    '...o....',
+    '........',
+  ],
+  r_moth: [
+    'n......n',
+    'n.n..n.n',
+    'n..NN..n',
+    '.n.NN.n.',
+    '..n..n..',
+    '...nn...',
+    '..n..n..',
+    '.n....n.',
+  ],
+  r_knot: [
+    '.N....N.',
+    '..N..N..',
+    '...NN...',
+    '..N..N..',
+    '.N.NN.N.',
+    'N..NN..N',
+    '.N....N.',
+    '........',
+  ],
+  r_toll: [
+    '........',
+    '..yyyy..',
+    '.y....y.',
+    '.y....y.',
+    '.y....y.',
+    '..yyyy..',
+    '........',
+    '........',
+  ],
+  r_brand: [
+    '..RRRR..',
+    '.R....R.',
+    '.R.oo.R.',
+    '.R....R.',
+    '..RRRR..',
+    '....n...',
+    '....n...',
+    '....n...',
+  ],
+  r_quill: [
+    '.......W',
+    '......W.',
+    '.....W..',
+    '....W...',
+    '...W....',
+    '..W.....',
+    '.w......',
+    'w.......',
+  ],
+  r_grudge: [
+    'p.......',
+    '.p......',
+    '..P.....',
+    '...pP...',
+    '.....P..',
+    '......P.',
+    '.......p',
+    '........',
+  ],
+  r_seed: [
+    '...GG...',
+    '..G..G..',
+    '.G.gg.G.',
+    'G.gggg.G',
+    '.G.gg.G.',
+    '..G..G..',
+    '...GG...',
+    '..e..e..',
+  ],
+  r_wick: [
+    '.....o..',
+    '....o...',
+    '...y....',
+    '..y.....',
+    '.nn.....',
+    'n.n.....',
+    '.n......',
+    '........',
+  ],
+  r_drum: [
+    '..N..N..',
+    '.N.nn.N.',
+    '.N.NN.N.',
+    '.N.NN.N.',
+    '.N.nn.N.',
+    '..N..N..',
+    '.n....n.',
+    'n......n',
+  ],
+  r_grip: [
+    'N.....N.',
+    'N.N..N.N',
+    'N.N..N.N',
+    '.N.NN.N.',
+    '..NNNN..',
+    '...NN...',
+    '........',
+    '........',
+  ],
+  r_specs: [
+    '........',
+    'ss....ss',
+    's.s..s.s',
+    's.s..s.s',
+    '.ss..ss.',
+    '........',
+    '........',
+    '........',
+  ],
+  r_acro: [
+    '....NNN.',
+    '...N...N',
+    '..N...N.',
+    '.N..NN..',
+    'N.N.....',
+    'n.n.....',
+    '.nn.....',
+    '........',
+  ],
+  r_bull: [
+    '.R....R.',
+    'R.R..R.R',
+    'R..RR..R',
+    '.R....R.',
+    '..R..R..',
+    '...RR...',
+    '....R...',
+    '........',
+  ],
+  r_mask: [
+    '.w.ww.w.',
+    'w......w',
+    'w.k..k.w',
+    'w......w',
+    '.w.ww.w.',
+    '..w..w..',
+    '........',
+    '........',
+  ],
+  r_ballast: [
+    '..s..s..',
+    '.s....s.',
+    's.g..g.s',
+    's..gg..s',
+    's.g..g.s',
+    '.s....s.',
+    '..s..s..',
+    '...ss...',
+  ],
+  r_martyr: [
+    '...RR...',
+    '...RR...',
+    'RRRRRRRR',
+    '...WW...',
+    '...RR...',
+    '...RR...',
+    '...RR...',
+    '........',
+  ],
+  r_famine: [
+    '.....s.W',
+    '....s.W.',
+    '...s.W..',
+    '..r.W...',
+    '.rR.....',
+    'r.R.....',
+    '.r......',
+    '........',
+  ],
+  r_paradox: [
+    'P.P.P.P.',
+    '..P.P...',
+    'P.P.P.P.',
+    '..P.P...',
+    'P.P.P.P.',
+    '...P....',
+    '........',
+    '........',
+  ],
+  r_oracle: [
+    'P......P',
+    'P.kkkk.P',
+    'P......P',
+    'P.k..k.P',
+    'P.kkkk.P',
+    '..P..P..',
+    '........',
+    '........',
+  ],
+  r_ledger: [
+    'y......y',
+    'y.y..y.y',
+    '..y..y..',
+    '...yy...',
+    '...yy...',
+    '..y..y..',
+    '.y....y.',
+    '........',
+  ],
+  r_march: [
+    '..y..y..',
+    '.yNNNNy.',
+    '.y....y.',
+    '.yNNNNy.',
+    '.y....y.',
+    '.yNNNNy.',
+    '..y..y..',
+    '........',
+  ],
+  u_ashcount: [
+    '.....g.W',
+    '....g.g.',
+    '...g.g..',
+    '..G.G...',
+    '.gG.G...',
+    '.g..G...',
+    '....G...',
+    '........',
+  ],
+  u_longhush: [
+    '..ww....',
+    '.w..w...',
+    'w....w..',
+    'w....w..',
+    'w....w..',
+    '.w..w...',
+    '..ww....',
+    '...s....',
+  ],
+  u_emberpull: [
+    '....o.W.',
+    '...o.Wo.',
+    '..o.Wo..',
+    '.o.Wo...',
+    'o.Wo....',
+    'oo......',
+    '.n......',
+    '.n......',
+  ],
+  u_promise: [
+    '......yW',
+    '.....y.y',
+    '....y.y.',
+    '...y.y..',
+    '..y.y...',
+    '.W.W....',
+    'WW.W....',
+    'n.......',
+  ],
+  u_nailer: [
+    'ssssssss',
+    's......s',
+    '.ssssss.',
+    '...nn...',
+    '...nn...',
+    '...nn...',
+    '...nn...',
+    '...nn...',
+  ],
+  u_twicewept: [
+    '..w..w..',
+    '.w.BB.w.',
+    'w.B..B.w',
+    '.w....w.',
+    'w.B..B.w',
+    '.w.BB.w.',
+    '..w..w..',
+    '...s....',
+  ],
+  u_lastlamp: [
+    '..WWW...',
+    '.W...W..',
+    '.W.R.W..',
+    '.W...W..',
+    '..WWW...',
+    '...n....',
+    '...n....',
+    '..nnn...',
+  ],
+
+  /* ── 은총 여섯의 문장 ──────────────────────────────────────
+     초월은 절차적으로 만들어지는 물건이라 「초월 전용 그림」을 미리
+     그려 둘 수 없다 — 초월한 단검과 초월한 갑옷은 서로 다른 물건이다.
+     그래서 물건 위에 **은총의 문장**을 얹는다. 여섯이 각자 다르고,
+     흰색 한 색만 쓴다(초월은 색을 안 갖는 등급이라고 RARITY 가 이미
+     정했다). 4×4 안에 그리는 이유는 물건 그림을 덮으면 안 되기
+     때문이다 — 문장은 물건이 아니라 물건에 찍힌 표시다. */
+  b_ruin:  ['W...W...','.W.W....','..W.....','.W.W....','W...W...','........','........','........'],
+  b_aegis: ['.WWW....','W...W...','W...W...','W...W...','.WWW....','........','........','........'],
+  b_hoard: ['.WWW....','W.W.W...','W.W.W...','W.W.W...','.WWW....','........','........','........'],
+  b_echo:  ['..W.....','.W.W....','W...W...','.W.W....','..W.....','........','........','........'],
+  b_tide:  ['WW..W...','..WW.W..','W..WW...','.WW..W..','W...WW..','........','........','........'],
+  b_wrath: ['...W....','..WW....','.WWW....','WWWW....','..W.....','..W.....','........','........'],
 };
 
 /* ── the hero, in two layers ──────────────────────────────
@@ -1065,74 +1719,266 @@ export const CLASS_TINT = {
   rogue:   'd', ranger: 'e', paladin:'y',
 };
 
-const CELL = 8;
+/* ── 칸 하나가 몇 픽셀인가 ────────────────────────────────
+   여덟이었다. 여덟에서는 두 가지가 동시에 불가능했다.
+
+   하나. 바깥에 테두리를 두를 자리가 없다. 8×8은 몸이 곧 칸이라
+   선을 두르면 칸을 넘치고, 그래서 지금까지는 **안쪽** 가장자리를
+   눌러서 어둡게 했다 — 그런데 8×8에서 「투명한 이웃이 있는 픽셀」은
+   몸의 63%다. 테두리를 그린 게 아니라 몸을 갉아먹고 있었다.
+   「외곽선이 배경이랑 식별이 안 된다」와 「픽셀이 얼룩덜룩하다」가
+   둘 다 여기서 나왔다: 안쪽이 제각기 다른 비율로 어두워지니까
+   재질이 아니라 얼룩으로 읽힌다.
+
+   둘. 여덟 칸으로는 얼굴과 몸과 무기를 동시에 그릴 수 없다. 열 몇
+   마리가 같은 실루엣을 쓰게 된 것도 이 때문이다.
+
+   그래서 열여섯으로 올린다. 화면 배치는 한 칸도 안 바뀐다 — 렌더는
+   이미 타일 크기 t로 스케일해서 그리므로, CELL은 「타일 안의 해상도」
+   일 뿐이다. 지금 있는 8×8 그림은 구울 때 2배로 늘려서 그대로 살리고
+   (화면에서 완전히 동일하다), 새로 그리는 것만 16줄로 적으면 된다.
+   한 표에 8줄짜리와 16줄짜리가 섞여 있어도 된다. */
+const CELL = 16;
 const baked = new Map();
 
 /* ── 테두리 ──────────────────────────────────────────────
-   0x72 시트를 같은 자로 재 보니 우리와 갈린 곳은 한 군데였다:
-   그쪽은 외곽 픽셀의 94%가 V<64이고 내부보다 평균 85 어둡다.
-   우리는 5%에 20이었다 — 다시 말해 **테두리가 없었다.** 그래서
-   배경에서 떨어지지 않고 납작하게 보였다.
+   0x72 시트를 같은 자로 재 보니 갈린 곳은 한 군데였다: 그쪽은 외곽
+   픽셀의 94%가 V<64이고 내부보다 평균 85 어둡다. 우리는 5%에 20 —
+   테두리가 없었다.
 
-   8×8에 바깥으로 선을 두르면 칸을 넘치고, 안쪽을 통째로 한 색
-   외곽선으로 채우면 6×6만 남아 형태가 뭉갠다. 그래서 실루엣
-   가장자리를 **눌러서** 어둡게 한다 — 색은 자기 색을 유지한 채
-   어두워지므로 재질은 남고 윤곽만 선다.
-
-   투명한 이웃이 있는 픽셀에만 적용한다. 칸을 꽉 채우는 스프라이트는
-   배경과 겹칠 일이 없으니 테두리도 필요 없다. */
-const RIM = 0.42;                 // 가장자리가 자기 색의 몇 배로 어두워지는가
-function rimColor(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  const r = Math.round((n >> 16) * RIM), g = Math.round(((n >> 8) & 255) * RIM), b = Math.round((n & 255) * RIM);
-  return `rgb(${r},${g},${b})`;
-}
-
+   이제 열여섯 칸이므로 진짜로 **바깥에** 두른다. 몸에 닿은 빈 칸을
+   외곽선 색으로 칠하는 것이라 몸은 한 픽셀도 안 잃고, 선은 언제나
+   한 픽셀이다. 몸이 칸 끝에 닿은 자리에서만 그 한 줄을 몸에서
+   가져온다 — 열여섯 중 하나이므로 6%이고, 예전 63%와 비교할 것이
+   못 된다. */
 function bakeGrid(grid, tint) {
   const c = document.createElement('canvas');
   c.width = CELL; c.height = CELL;
   const x = c.getContext('2d');
 
-  /* 먼저 어느 칸이 차 있는지 알아야 가장자리를 판별할 수 있다. */
+  /* 원본이 몇 줄짜리든 받는다 — 8줄이면 2배로, 16줄이면 그대로.
+     이 한 줄 덕분에 표를 한꺼번에 갈아엎지 않고 한 마리씩 다시
+     그릴 수 있다. */
+  const n = Math.max(1, grid.length);
+  const s = Math.max(1, Math.round(CELL / n));
+
+  /* 화면 해상도(CELL)로 펼친 채움 지도. 테두리는 여기서 판별해야
+     원본이 8줄이든 16줄이든 선 굵기가 언제나 한 픽셀이다. */
   const key = [];
   for (let row = 0; row < CELL; row++) {
-    const line = grid[row] || '';
+    const line = grid[Math.min(n - 1, (row / s) | 0)] || '';
     const out = [];
     for (let col = 0; col < CELL; col++) {
-      let ch = line[col] || '.';
+      let ch = line[Math.min(line.length - 1, (col / s) | 0)] || '.';
       if (ch === 'C') ch = tint || 's';
       out.push(PALETTE[ch] ? ch : null);
     }
     key.push(out);
   }
-  const empty = (r, cl) => r < 0 || cl < 0 || r >= CELL || cl >= CELL || !key[r][cl];
+  const inside = (r, cl) => r >= 0 && cl >= 0 && r < CELL && cl < CELL;
+  const filled = (r, cl) => inside(r, cl) && !!key[r][cl];
 
-  for (let row = 0; row < CELL; row++) {
+  /* 몸 먼저. 자기 색 그대로 — 누르지 않는다. */
+  for (let row = 0; row < CELL; row++)
     for (let col = 0; col < CELL; col++) {
       const ch = key[row][col];
       if (!ch) continue;
-      const color = PALETTE[ch];
-      const edge = empty(row - 1, col) || empty(row + 1, col)
-                || empty(row, col - 1) || empty(row, col + 1);
-      x.fillStyle = edge ? rimColor(color) : color;
+      x.fillStyle = PALETTE[ch];
       x.fillRect(col, row, 1, 1);
     }
-  }
+
+  /* 그 다음 테두리. 몸에 닿은 빈 칸, 그리고 칸 끝에 닿은 몸 한 줄. */
+  x.fillStyle = PALETTE.k;
+  for (let row = 0; row < CELL; row++)
+    for (let col = 0; col < CELL; col++) {
+      if (key[row][col]) {
+        const atEdge = row === 0 || col === 0 || row === CELL - 1 || col === CELL - 1;
+        if (atEdge) x.fillRect(col, row, 1, 1);
+        continue;
+      }
+      if (filled(row - 1, col) || filled(row + 1, col)
+       || filled(row, col - 1) || filled(row, col + 1)) x.fillRect(col, row, 1, 1);
+    }
   return c;
+}
+
+/* ── 잘못 자란 것 ─────────────────────────────────────────
+   「몬스터도 모두 다 기괴하게.」
+
+   서른 장을 손으로 다시 그리는 방법도 있지만, 8×8에서 기괴함은
+   그림 실력이 아니라 **규칙 위반**에서 나온다. 대칭인 것에서 한쪽이
+   없고, 눈이 둘이어야 할 자리에 셋이 있고, 살 한 점이 뼈 색이면
+   그때 사람이 「뭔가 잘못됐다」고 읽는다. 그래서 표를 하나 더 만들지
+   않고 **구우면서 비튼다**.
+
+   종류마다 언제나 같은 방식으로 비틀린다. 판마다 바뀌면 그건 기형이
+   아니라 잡음이고, 잡음은 무섭지 않다 — 같은 것을 두 번 만났을 때
+   같은 자리가 없어야 「이 종은 원래 이렇게 생겼다」가 된다.
+
+   그리고 실루엣은 건드리지 않는다. 세 픽셀 안쪽만 바꾸므로 무엇인지는
+   그대로 읽히고, 자세히 본 사람만 잘못된 것을 본다. 알아볼 수 없게
+   만드는 것은 기괴한 것이 아니라 그냥 망가진 것이다. */
+/* ── 상수는 화면 픽셀로 말해야 한다 ─────────────────────
+   `WRONG_MAX = 3`은 8줄 격자에서 쓰던 값이다. 8줄 그림은 한 칸이
+   화면에서 2×2 = 4픽셀이므로 흰 섬광 3점이 12픽셀 = 타일의 4.7%가
+   된다 — 그건 「안쪽에서 뭔가 켜졌다」가 아니라 「스프라이트가
+   깨졌다」로 읽히는 넓이다. 진짜 16줄 그림에서는 같은 3이 3픽셀
+   = 1.2%다. 같은 상수가 격자에 따라 네 배 다르게 작동하고 있었다.
+
+   두 상수는 차원이 다르다:
+     · 윤곽 훼손은 **길이**다 — 실루엣 둘레의 일부를 뜯는 일이고,
+       둘레는 격자 변 N에 비례한다.        → N¹
+     · 흰 섬광은 **면적**이다 — 타일의 몇 %가 순백인가이고,
+       칸 하나의 면적은 (CELL/N)²이다.     → N²
+   그래서 화면에서 언제나 둘레 6픽셀어치, 섬광 3픽셀어치가 되도록
+   격자 크기에서 되돌려 계산한다. 16줄로 다시 그리기 시작하는 날
+   기형이 조용히 절반으로 줄어드는 사고도 이걸로 막는다. */
+const wrongMax = N => Math.max(2, Math.round(6 * N / CELL));   // 8→3, 16→6
+const sparks   = N => Math.max(1, Math.round(3 * (N / CELL) ** 2)); // 8→1, 16→3
+
+const hashOf = s => {
+  let h = 0;
+  for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) & 0x7fffffff;
+  return h;
+};
+
+function deform(grid, name) {
+  /* 원본 격자의 크기로 센다. CELL로 세면 8줄짜리 그림을 16칸 격자로
+     읽어서 절반이 빈칸이 되고, 그러면 비틀 자리를 못 찾는다 —
+     칸을 16으로 올린 날 이 함수가 조용히 아무것도 안 할 뻔했다. */
+  const N = Math.max(1, grid.length);
+  const g = grid.map(r => (r || '').padEnd(N, '.').slice(0, N).split(''));
+  const filled = [];
+  for (let r = 0; r < N; r++)
+    for (let c = 0; c < N; c++)
+      if (g[r][c] !== '.' && PALETTE[g[r][c]]) filled.push([r, c]);
+  if (filled.length < N) return grid;       // 너무 작은 것은 비틀 여지가 없다
+
+  const h = hashOf(name);
+  const at = (r, c) => (r >= 0 && r < N && c >= 0 && c < N) ? g[r][c] : '.';
+
+  /* ── 첫 겹: 윤곽이 잘못됐다 ────────────────────────────
+     처음에는 세 가지 중 하나만 골라 걸었더니 26종 중 10종만 실루엣이
+     달라졌다 — 나머지는 안쪽 색만 바뀌어서, 멀리서 보면 원래 그림
+     그대로였다. 「모두 다」가 아니었다. 이제 윤곽은 **언제나** 한 번
+     비틀고, 그 위에 안쪽을 한 번 더 비튼다. */
+  if (h % 2 === 0) {
+    /* 한쪽이 없다. 좌우로 짝이 맞는 칸 중 한쪽만 지운다 — 다리 하나가
+       짧거나 어깨 한쪽이 없다. 대칭이 깨지는 것이 8×8에서 가장 싸게
+       살 수 있는 「사람은 이렇게 안 선다」이다. */
+    const pairs = filled.filter(([r, c]) => c < N / 2 && g[r][N - 1 - c] === g[r][c]);
+    const spots = pairs.length ? pairs : filled;
+    for (let i = 0; i < wrongMax(N) && spots.length; i++) {
+      const [r, c] = spots[(h >> (i * 3)) % spots.length];
+      g[r][pairs.length ? N - 1 - c : c] = '.';
+    }
+  } else {
+    /* 하나 더 났다. 몸 가장자리에서 바깥으로 한 칸 자란다 — 가시,
+       혹, 없어야 할 다리. 자란 것은 몸 색 그대로라서 무엇인지는
+       그대로 읽히고, 윤곽만 틀린다. */
+    const rim = filled.filter(([r, c]) =>
+      at(r - 1, c) === '.' || at(r + 1, c) === '.' ||
+      at(r, c - 1) === '.' || at(r, c + 1) === '.');
+    const spots = rim.length ? rim : filled;
+    const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    let grew = 0;
+    for (let i = 0; i < spots.length && grew < wrongMax(N); i++) {
+      const [r, c] = spots[(h >> (i * 3)) % spots.length];
+      const [dr, dc] = dirs[(h >> (i * 2 + 1)) % 4];
+      const rr = r + dr, cc = c + dc;
+      if (rr < 0 || rr >= N || cc < 0 || cc >= N) continue;
+      if (g[rr][cc] !== '.') continue;
+      g[rr][cc] = g[r][c];
+      grew++;
+    }
+  }
+
+  /* ── 둘째 겹: 눈이 하나 더 있다 ────────────────────────
+     이것도 처음에는 반반으로 갈라 걸었다. 그런데 시트를 뽑아 놓고
+     보니 8×8에서 확실하게 불쾌한 것은 이것 하나뿐이었다 — 나머지는
+     이 크기에서 「좀 상했나」로 읽힌다. 그래서 전부에 건다.
+     눈이 없는 것(곰팡이·젤리·잿더미)에는 없던 구멍이 하나 생기는데,
+     형체 없는 것에 눈이 생기는 쪽이 오히려 낫다.
+
+     비대칭으로 붙인다. 좌우가 맞는 눈 셋은 그냥 무늬지만, 한쪽에만
+     붙은 셋째는 얼굴이 아니다. */
+  {
+    const eyes = filled.filter(([r, c]) => g[r][c] === 'k' || g[r][c] === 'R');
+    const dark = eyes.length ? eyes[(h >> 5) % eyes.length] : null;
+    const host = filled[(h >> 7) % filled.length];
+    const [r, c] = dark || host;
+    const ink = dark ? g[r][c] : 'k';
+    for (const [dr, dc] of [[-1, -1], [1, 1], [-1, 1]]) {
+      const rr = r + dr, cc = c + dc;
+      if (at(rr, cc) !== '.' && g[rr][cc] !== ink) { g[rr][cc] = ink; break; }
+    }
+  }
+
+  /* ── 셋째 겹: 살 한 점이 뼈다 ──────────────────────────
+     몸 안쪽만 바꾸므로 실루엣은 그대로다 — 멀리서는 멀쩡하고,
+     가까이서 본 사람만 뼈가 나온 자리를 본다. */
+  {
+    const inner = filled.filter(([r, c]) =>
+      at(r - 1, c) !== '.' && at(r + 1, c) !== '.'
+      && at(r, c - 1) !== '.' && at(r, c + 1) !== '.');
+    const spots = inner.length ? inner : filled;
+    const ink = ['w', 'R', 'w'][(h >> 4) % 3];
+    for (let i = 0; i < wrongMax(N) - 1 && spots.length; i++) {
+      const [r, c] = spots[(h >> (i * 4)) % spots.length];
+      g[r][c] = ink;
+    }
+  }
+  return g.map(r => r.join(''));
+}
+
+/* 그리고 한 장 더 굽는다: **더 잘못된** 판. 화면에서 아주 가끔,
+   한 프레임만 이쪽으로 바뀐다 — 눈을 비비게 만드는 것이 목적이므로
+   여기서는 실루엣을 건드려도 된다. 다시 보면 원래대로다. */
+function wrongen(grid, name) {
+  const N = Math.max(1, grid.length);
+  const g = grid.map(r => (r || '').padEnd(N, '.').slice(0, N).split(''));
+  const h = hashOf(name + '!');
+  const filled = [];
+  for (let r = 0; r < N; r++)
+    for (let c = 0; c < N; c++)
+      if (g[r][c] !== '.' && PALETTE[g[r][c]]) filled.push([r, c]);
+  if (!filled.length) return grid;
+  /* 줄 하나가 통째로 어긋난다. */
+  const row = 1 + (h % Math.max(1, N - 2));
+  const line = g[row].slice();
+  const shift = (h >> 3) % 2 ? 1 : -1;
+  for (let c = 0; c < N; c++) g[row][c] = line[(c - shift + N) % N];
+  /* 그리고 몇 점이 흰 섬광이 된다 — 안쪽에서 무언가 켜진 것처럼. */
+  for (let i = 0; i < sparks(N); i++) {
+    const [r, c] = filled[(h >> (i * 6)) % filled.length];
+    g[r][c] = 'W';
+  }
+  return g.map(r => r.join(''));
 }
 
 /* One keeper per shop, so the six of them are not identical. */
 export const SHOP_TINT = ['e', 's', 'r', 'W', 'P', 'b'];
+/* 여섯 수레의 물. SHOP_LOADS의 차례와 같다 — 심지(잉걸) · 약(초록) ·
+   종이(뼈) · 쇠(쇠회색) · 재(마른 피) · 이상한(자수정). */
+/* 처음에 여섯을 색조로만 갈랐더니 **휘도로는 세 단계**뿐이었다:
+   심지(o)와 약(E)의 휘도비가 1.00, 쇠(g)는 바로 옆 가죽(n)과 1.11 —
+   물이 안 든 것과 구분이 안 됐다. 저채도 팔레트에 안개 알파까지
+   곱해지는 화면에서 색조 차이는 살아남지 못한다. 밝기로 가른다:
+   뼈(w) · steel(s) · 잉걸(o) · 난초(P) · 이끼(e) · 곰팡이(p). */
+export const LOAD_TINT = { wick:'o', flask:'e', paper:'w', iron:'s', ash:'p', odd:'P' };
 
 /* Race under, class over. Any cell the kit leaves as '.' shows
    the body beneath, which is why the face survives the helmet. */
 function bakeHero(race, cls) {
   const body = RACE_BODY[race] || RACE_BODY.human;
   const kit = CLASS_KIT[cls] || CLASS_KIT.warrior;
+  /* 몸과 장비는 같은 크기로 그려져 있다. 그 크기로 겹친다 —
+     8줄짜리 몸을 16칸으로 훑으면 절반이 빈칸이 된다. */
+  const N = Math.max(body.length, kit.length);
   const merged = [];
-  for (let row = 0; row < CELL; row++) {
+  for (let row = 0; row < N; row++) {
     let line = '';
-    for (let col = 0; col < CELL; col++) {
+    for (let col = 0; col < N; col++) {
       const over = (kit[row] || '')[col] || '.';
       line += over !== '.' ? over : ((body[row] || '')[col] || '.');
     }
@@ -1141,7 +1987,59 @@ function bakeHero(race, cls) {
   return bakeGrid(merged, CLASS_TINT[cls]);
 }
 
-export function bakeAll() {
+/* ── 정예의 테두리 ────────────────────────────────────────
+   정예는 몬스터 **종류**가 아니라 아무 몬스터에나 붙는 속성이라, 전용
+   그림을 줄 수가 없다. 지금까지는 칸 네 귀퉁이에 괄호를 그려서 알렸는데,
+   그건 그 자리에 표를 붙인 것이지 **그것**을 표시한 것이 아니다 — 여럿이
+   붙어 있으면 어느 괄호가 누구 것인지 모른다.
+
+   그래서 테두리를 물들인다. 굽는 자리에서 이미 실루엣 바깥 한 줄을
+   외곽선 색으로 칠하고 있으므로, 그 한 줄만 다른 색으로 한 장 더 굽는다.
+   그리는 쪽은 스프라이트를 그린 뒤 이 고리를 덮어 씌우면 된다 —
+   프레임마다 실루엣을 다시 계산하지 않는다.
+
+   두 색뿐이다: 속성 하나면 잉걸, 둘 이상이면 시든 난초. 색이 늘면
+   그건 정보가 아니라 무지개다. */
+export const ELITE_RIM = ['o', 'P'];
+
+function bakeRim(grid, ink) {
+  const c = document.createElement('canvas');
+  c.width = CELL; c.height = CELL;
+  const x = c.getContext('2d');
+  const n = Math.max(1, grid.length);
+  const s = Math.max(1, Math.round(CELL / n));
+  const key = [];
+  for (let row = 0; row < CELL; row++) {
+    const line = grid[Math.min(n - 1, (row / s) | 0)] || '';
+    const out = [];
+    for (let col = 0; col < CELL; col++) {
+      const ch = line[Math.min(line.length - 1, (col / s) | 0)] || '.';
+      out.push(PALETTE[ch] && ch !== 'C' ? ch : (ch === 'C' ? 's' : null));
+    }
+    key.push(out);
+  }
+  const filled = (r, cl) => r >= 0 && cl >= 0 && r < CELL && cl < CELL && !!key[r][cl];
+  x.fillStyle = PALETTE[ink];
+  for (let row = 0; row < CELL; row++)
+    for (let col = 0; col < CELL; col++) {
+      if (key[row][col]) {
+        if (row === 0 || col === 0 || row === CELL - 1 || col === CELL - 1)
+          x.fillRect(col, row, 1, 1);
+        continue;
+      }
+      if (filled(row - 1, col) || filled(row + 1, col)
+       || filled(row, col - 1) || filled(row, col + 1)) x.fillRect(col, row, 1, 1);
+    }
+  return c;
+}
+
+/* 살아 있는 것들의 이름. 표를 여기 손으로 적지 않는다 — data.js의
+   MONSTERS에서 그대로 나오므로, 몬스터를 하나 더 넣으면 그것도 자동으로
+   비틀린다. 손으로 적은 목록은 언젠가 반드시 어긋난다. */
+let flesh = new Set();
+
+export function bakeAll(living) {
+  if (living) flesh = living instanceof Set ? living : new Set(living);
   for (const race of Object.keys(RACE_BODY))
     for (const cls of Object.keys(CLASS_KIT))
       baked.set(`hero:${race}:${cls}`, bakeHero(race, cls));
@@ -1153,6 +2051,17 @@ export function bakeAll() {
         baked.set(`hero:${cls}`, bakeGrid(grid, tint));
     } else if (name === 'keeper') {
       SHOP_TINT.forEach((tint, i) => baked.set(`keeper:${i + 1}`, bakeGrid(grid, tint)));
+    } else if (name === 'pedlar') {
+      baked.set('pedlar', bakeGrid(grid, 'N'));
+      for (const [id, tint] of Object.entries(LOAD_TINT))
+        baked.set(`pedlar:${id}`, bakeGrid(grid, tint));
+    } else if (flesh.has(name)) {
+      const bent = deform(grid, name);
+      baked.set(name, bakeGrid(bent));
+      baked.set(`wrong:${name}`, bakeGrid(wrongen(bent, name)));
+      /* 비틀린 그림에서 고리를 뜬다 — 원본에서 뜨면 정예의 테두리만
+         한 픽셀씩 어긋나 몸에서 떠 보인다. */
+      for (const ink of ELITE_RIM) baked.set(`rim:${ink}:${name}`, bakeRim(bent, ink));
     } else {
       baked.set(name, bakeGrid(grid));
     }
@@ -1160,6 +2069,14 @@ export function bakeAll() {
 }
 
 export const sprite = name => baked.get(name) || baked.get('rubble');
+/* 탐침용. 비틀기 전의 격자를 같은 방식으로 구워 준다 — 그래야
+   「몇 칸이 달라졌는가」를 램프까지 포함해 정확히 셀 수 있다.
+   탐침이 굽는 방식을 따로 흉내 내면 재는 것이 기형이 아니라 흉내가
+   맞았는지가 된다. */
+export const _bakeRaw = grid => bakeGrid(grid);
+/* 있는지 없는지. sprite()는 없으면 돌무더기를 돌려주므로 그것만으로는
+   물어볼 수가 없다. */
+export const hasSprite = name => baked.has(name);
 
 /* ── particle stock ───────────────────────────────────────
    When something dies we throw its own pixels across the
@@ -1219,6 +2136,26 @@ export const TERRAIN = {
   flooded: { base:'b', grain:'B', mortar:'k', floor:'d', dust:'H',  style:'streak' },
   // 소굴: chitin and old web over the stone.
   nest:    { base:'p', grain:'P', mortar:'k', floor:'d', dust:'J',  style:'rough' },
+  /* ── 이물(異物)의 다섯 ────────────────────────────────────
+     여기 있으면 안 되는 층들이라, 돌을 쌓는 방식부터 나머지 여섯과
+     달라야 한다. 판을 밟는 순간 「이건 던전이 아니다」가 글자보다
+     먼저 와야 한다. */
+  /* 비어 있는 성소: 표백된 돌, 아주 넓은 켜. 너무 깨끗해서 불편하다.
+     바닥을 G(밝은 석회)로 뒀더니 무대 벤치가 잡았다 — 바닥 휘도
+     0.2313 은 이 게임에서 가장 밝은 바닥이고, 그러면 그 위에 선
+     것들이 배경에 잠긴다. 벽만 표백하고 바닥은 어둡게 둔다. */
+  sanctum: { base:'w', grain:'W', mortar:'G', floor:'g', dust:'G',  style:'ashlar' },
+  // 바깥: 벽이 벽이 아니다. 고인 물빛 위에 아무것도 안 깔린다.
+  void:    { base:'b', grain:'P', mortar:'k', floor:'k', dust:'b',  style:'streak' },
+  /* 눈의 방: 젖은 살. 켜가 없고 결이 사방으로 돈다.
+     벽과 바닥에 같은 r 을 줬더니 대비가 0.99:1 — 벽과 바닥이 한
+     덩어리라 어디가 길인지 안 보였다. 벽을 R(상처의 붉은색)로
+     올리고 바닥은 마른 피로 내린다. */
+  eyes:    { base:'R', grain:'o', mortar:'r', floor:'r', dust:'r',  style:'rough' },
+  // 뱃속: 삭아 가는 살과 위액. 벽이 이끼빛, 바닥은 마른 피.
+  gullet:  { base:'E', grain:'e', mortar:'r', floor:'r', dust:'e',  style:'streak' },
+  // 지지직: 잘못 그려진 층. 강철빛 잡음이 켜를 끊어 놓는다.
+  static:  { base:'g', grain:'s', mortar:'k', floor:'k', dust:'s',  style:'brick' },
 };
 
 /* ── 구역의 열 ────────────────────────────────────────────
@@ -1278,48 +2215,64 @@ function bakeTerrain(kind, variant) {
   if (terrainCache.has(key)) return terrainCache.get(key);
 
   const T = TERRAIN[theme] || TERRAIN.plain;
+  /* 칸을 16으로 올렸으니 지형도 16으로 그린다. 처음에는 8로 그려서
+     두 배로 늘렸는데, 그러면 결 한 점이 2×2 덩어리가 된다 — 「픽셀이
+     얼룩덜룩하다」가 오히려 심해졌다. 무늬의 **구조**(이음매, 켜)는
+     U배로 키우고, **결**은 한 픽셀로 둔다. 구조는 커야 읽히고 결은
+     작아야 결이다. */
   const c = document.createElement('canvas');
   c.width = CELL; c.height = CELL;
   const x = c.getContext('2d');
+  const U = CELL / 8;                    // 옛 8칸 좌표 한 칸의 크기
+  const u = (a, b, w, h) => x.fillRect(a * U, b * U, w * U, h * U);
   let rs = (variant * 2654435761 + theme.length * 7919) % 2147483647;
   const rr = () => (rs = (rs * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  /* 결 한 점 — 언제나 한 픽셀. 칸이 넓어졌으니 점은 조금 더 뿌려도
+     같은 밀도가 아니라 더 성기게 남는다. */
+  const grit = n => { for (let i = 0; i < n; i++)
+    x.fillRect((rr() * CELL) | 0, (rr() * CELL) | 0, 1, 1); };
 
   if (kind === 'wall') {
     x.fillStyle = PALETTE[T.base]; x.fillRect(0, 0, CELL, CELL);
-    /* 결은 드물어야 결이다. 일곱 점은 무늬가 아니라 잡음이었다. */
+    /* 결은 드물어야 결이다. 일곱 점은 무늬가 아니라 잡음이었다.
+       그리고 **묽어야** 결이다 — 확대해서 보니 좁은 굴의 결(#c8955c)이
+       바탕(#5e3a1c) 위에서 색종이 조각처럼 튀고 있었다. 점 수를 줄이는
+       것만으로는 안 되고, 바탕 쪽으로 반쯤 끌어와야 무늬로 읽힌다. */
+    x.globalAlpha = 0.55;
     x.fillStyle = PALETTE[T.grain];
-    for (let i = 0; i < 3; i++) x.fillRect((rr() * 8) | 0, (rr() * 8) | 0, 1, 1);
+    grit(3);
+    x.globalAlpha = 1;
     x.fillStyle = PALETTE[T.mortar];
     if (T.style === 'brick') {
       // Running bond: one course line, staggered head joints.
-      x.fillRect(0, (variant % 2 ? 3 : 4), CELL, 1);
-      x.fillRect(variant % 2 ? 2 : 5, 0, 1, 4);
-      x.fillRect(variant % 2 ? 6 : 1, 4, 1, 4);
+      u(0, (variant % 2 ? 3 : 4), 8, 0.5);
+      u(variant % 2 ? 2 : 5, 0, 0.5, 4);
+      u(variant % 2 ? 6 : 1, 4, 0.5, 4);
     } else if (T.style === 'ashlar') {
       // Big dressed blocks: two courses, joints lined up.
-      x.fillRect(0, 3, CELL, 1);
-      x.fillRect(0, 7, CELL, 1);
-      x.fillRect(variant % 2 ? 3 : 6, 0, 1, 3);
-      x.fillRect(variant % 2 ? 6 : 3, 4, 1, 3);
+      u(0, 3, 8, 0.5);
+      u(0, 7.5, 8, 0.5);
+      u(variant % 2 ? 3 : 6, 0, 0.5, 3);
+      u(variant % 2 ? 6 : 3, 4, 0.5, 3);
     } else if (T.style === 'streak') {
       // Water has been running down this for a long time.
-      for (let i = 0; i < 3; i++) {
-        const cx = (rr() * 8) | 0;
-        x.fillRect(cx, (rr() * 4) | 0, 1, 3 + ((rr() * 4) | 0));
-      }
+      for (let i = 0; i < 3; i++)
+        u((rr() * 8) | 0, (rr() * 4) | 0, 0.5, 3 + ((rr() * 4) | 0));
     } else {
       // rough: no courses, just broken edges and bite marks.
-      for (let i = 0; i < 6; i++) x.fillRect((rr() * 8) | 0, (rr() * 8) | 0, 1 + ((rr() * 2) | 0), 1);
+      for (let i = 0; i < 4; i++)
+        u((rr() * 8) | 0, (rr() * 8) | 0, 0.5 + ((rr() * 2) | 0), 0.5);
     }
   } else {
     x.fillStyle = PALETTE[T.floor]; x.fillRect(0, 0, CELL, CELL);
     /* 바닥은 조용해야 한다. 배우가 서는 무대이지 무대가 배우는 아니다.
        칸마다 점을 넷씩 뿌리면 수백 칸이 모여 텔레비전 노이즈가 된다 —
-       여섯 변종 중 셋만, 그것도 한두 점만 받는다. */
+       여섯 변종 중 셋만, 그것도 두어 점만 받는다. */
     if (variant % 2 === 0) {
+      x.globalAlpha = 0.5;
       x.fillStyle = PALETTE[T.dust];
-      const dots = 1 + ((rr() * 2) | 0);
-      for (let i = 0; i < dots; i++) x.fillRect((rr() * 8) | 0, (rr() * 8) | 0, 1, 1);
+      grit(2 + ((rr() * 2) | 0));
+      x.globalAlpha = 1;
     }
   }
   /* 그리고 온도. 무늬를 다 그린 뒤에 얇게 덮으므로, 결도 이음매도

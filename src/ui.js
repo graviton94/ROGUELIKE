@@ -4,11 +4,12 @@
    in the DOM; only the map is pixels.
    ═══════════════════════════════════════════════════════════ */
 
-import { sprite, wallTile, floorTile, CELL_SIZE, PALETTE, setTerrainTheme } from './pixels.js';
+import { sprite, hasSprite, wallTile, floorTile, CELL_SIZE, PALETTE, setTerrainTheme } from './pixels.js';
 import * as Pix from './pixels.js';
 import {
   RACES, CLASSES, STATS, STAT_NAME, MAX_DEPTH, SHOPS, AILMENTS, TRAPS, statRange,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, affixName, MATS, ENCHANT_COST, REROLL_COST,
+  REFINE_COST, ATTUNE_COST, ATTUNE_MAX,
   ENCHANT_CURSE, ENCHANT_CURSE_STEP,
   RARITY, CURSED_TONE, rarityOf, isCursed,
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
@@ -94,6 +95,7 @@ export function resize() {
    offsets in juice.js this is what turns a tile hop into a
    step. */
 let camX = 0, camY = 0, camReady = false;
+let endHold = null;
 let heroFacing = 1, heroLastX = null;
 
 function cameraTarget() {
@@ -110,6 +112,7 @@ function camera() {
 }
 
 export function snapCamera() {
+  Juice.clearDeath();
   if (!G.player) return;
   const { cx, cy } = cameraTarget();
   camX = cx; camY = cy; camReady = true;
@@ -125,8 +128,18 @@ export function draw() {
   /* 층의 성격과 깊이를 같이 넘긴다 — 무늬는 성격이 정하고, 온도는
      구역이 정한다. 열다섯 층을 내려가는 동안 돌이 실제로 달아오른다. */
   setTerrainTheme(L.theme?.id || 'plain', G.depth > 0 ? REGIONS.indexOf(regionOf(G.depth)) : 0);
-  const t = CELL_SIZE * scale;
+  /* 죽는 순간의 렌즈. 카메라가 그 자리로 조이고 타일이 커진다 —
+     「왜 죽었는지」를 읽으려면 먼저 **무엇이 거기 서 있었는지**가
+     보여야 한다. juice 가 얼마나 조였는지만 알려 주고, 어디를 어떻게
+     그릴지는 여기서 정한다. */
+  const lens = Juice.deathLens();
+  const t = Math.round(CELL_SIZE * scale * (lens ? lens.k : 1));
   if (!camReady) snapCamera();
+  if (lens?.at) {
+    const lc = Math.ceil(viewW / t), lr = Math.ceil(viewH / t);
+    camX = lens.at.x - (lc - 1) / 2;
+    camY = lens.at.y - (lr - 1) / 2;
+  }
 
   const jolt = Juice.shakeVec();
   const cx = camX + jolt.x, cy = camY + jolt.y;
@@ -172,6 +185,24 @@ export function draw() {
 
       if (tile === ROCK || tile === SHOP) {
         ctx.drawImage(wallTile(x, y), px, py, t, t);
+        /* 벽에도 외곽선. 스프라이트는 구울 때 테두리를 얻었는데 지형은
+           못 얻었고(지형은 구울 때 이웃을 모른다), 그래서 벽 덩어리가
+           덩어리가 아니라 무늬 밭으로 읽혔다 — 어디까지가 벽이고
+           어디부터 바닥인지가 색 차이로만 있었다.
+
+           바닥에 면한 쪽에만 한 줄 긋는다. 벽끼리 붙은 면에 그으면
+           격자무늬가 되고, 그건 테두리가 아니라 모눈종이다. */
+        const u = Math.max(1, Math.round(t / CELL_SIZE));   // 한 픽셀
+        ctx.fillStyle = PALETTE.k;
+        const wallAt = (ax, ay) => {
+          if (ax < 0 || ay < 0 || ax >= MW || ay >= MH) return true;
+          const tt = L.tiles[idx(ax, ay)];
+          return tt === ROCK || tt === SHOP;
+        };
+        if (!wallAt(x, y - 1)) ctx.fillRect(px, py, t, u);
+        if (!wallAt(x, y + 1)) ctx.fillRect(px, py + t - u, t, u);
+        if (!wallAt(x - 1, y)) ctx.fillRect(px, py, u, t);
+        if (!wallAt(x + 1, y)) ctx.fillRect(px + t - u, py, u, t);
       } else {
         ctx.drawImage(floorTile(x, y), px, py, t, t);
         if (tile === DOWN) {
@@ -249,13 +280,18 @@ export function draw() {
       const signId = L.signAt?.get(i);
       if (signId && L.seen[i]) {
         const shop = SHOPS.find(s => s.id === signId);
+        /* 층에서 만나는 상인의 간판은 **오늘 끌고 온 짐**을 건다.
+           표에 굳은 부적 하나가 걸려 있던 동안, 여섯 수레는 전부
+           같은 간판이었다 — 짐을 나눈 것이 화면에 안 나온 것이다. */
+        const load = shop?.wander ? Game.wanderLoad() : null;
         ctx.globalAlpha = 1;
         /* 간판은 좌판 위에 걸린다 — 같은 칸을 꽉 채워 그리면 아래의
            좌판을 완전히 덮어서, 여섯 수레가 「공중에 뜬 판자」로
            보인다. 위쪽 3/4만 쓰고 아랫단은 좌판의 다리에 내준다. */
         const sh = t * 0.74;
         ctx.drawImage(sprite('sign'), px, py, t, sh);
-        if (shop) ctx.drawImage(sprite(shop.spr), px, py, t, sh);
+        const icon = load?.spr || shop?.spr;
+        if (icon) ctx.drawImage(sprite(icon), px, py, t, sh);
       }
 
       const keeperId = L.keeperAt?.get(i);
@@ -263,7 +299,12 @@ export function draw() {
         ctx.globalAlpha = 1;
         // A slow shift of weight, so the town does not look embalmed.
         const sway = Math.sin(performance.now() / 700 + keeperId) * t * 0.035;
-        ctx.drawImage(sprite(`keeper:${keeperId}`), px + sway, py, t, t);
+        /* 마을의 좌판 주인은 계산대 뒤에 서 있고, 층의 상인은 수레를
+           끌고 다닌다. 여태 둘이 같은 그림이었다 — 층 한복판에 놓인
+           계산대는 계산대로 안 읽히고, 그래서 돌멩이로 보였다. */
+        const cart = keeperId === 7 ? Game.wanderLoad() : null;
+        const who = keeperId === 7 ? `pedlar:${cart?.id || 'wick'}` : `keeper:${keeperId}`;
+        ctx.drawImage(sprite(who), px + sway, py, t, t);
       }
 
       const shopId = L.shopAt.get(i);
@@ -394,6 +435,11 @@ export function draw() {
     }
     ctx.globalAlpha = vis ? 1 : 0.6;
     ctx.drawImage(sprite(it.spr), ix, iy + bob, t, t);
+    /* 초월은 절차적으로 만들어지므로 제 그림을 미리 못 갖는다.
+       대신 은총의 문장을 물건 위에 찍는다 — 여섯이 각자 다르고,
+       바닥에서도 배낭에서도 같은 표시다. 「획득 시 확실하게 체감
+       가능하게(외관)」의 마지막 조각. */
+    if (it.boon) ctx.drawImage(sprite(`b_${it.boon}`), ix, iy + bob, t, t);
     ctx.globalAlpha = 1;
   }
 
@@ -423,26 +469,76 @@ export function draw() {
     if (m._lx != null && m.x !== m._lx) m._face = m.x > m._lx ? 1 : -1;
     m._lx = m.x;
 
-    /* An elite gets a marker so you can decide to walk away from
-       it before you are already in melee with it. Corner brackets
-       out of whole pixels, not a stroked circle — the one shape
-       the tile grid can draw honestly. */
-    if (m.elite?.length && seenNow) {
-      ctx.save();
-      ctx.globalAlpha = 0.55 + Math.sin(performance.now() / 420) * 0.18;
-      ctx.fillStyle = m.elite.length > 1 ? PALETTE.P : PALETTE.o;
-      const u = px1, arm = u * 3;
-      const bx0 = Math.round(mx) - u,  by0 = Math.round(my) - u;
-      const bx1 = Math.round(mx + t),  by1 = Math.round(my + t);
-      ctx.fillRect(bx0, by0, arm, u);           ctx.fillRect(bx0, by0, u, arm);
-      ctx.fillRect(bx1 + u - arm, by0, arm, u); ctx.fillRect(bx1, by0, u, arm);
-      ctx.fillRect(bx0, by1, arm, u);           ctx.fillRect(bx0, by1 + u - arm, u, arm);
-      ctx.fillRect(bx1 + u - arm, by1, arm, u); ctx.fillRect(bx1, by1 + u - arm, u, arm);
-      ctx.restore();
+    /* 정예 표식. 예전에는 칸 네 귀퉁이에 괄호를 그렸는데, 그것은
+       그 **자리**에 표를 붙인 것이지 그것을 표시한 것이 아니다 —
+       셋이 붙어 서 있으면 어느 괄호가 누구 것인지 모르고, 괄호가
+       옆 칸의 벽·바닥과 겹쳐 읽혔다.
+
+       이제 그것의 테두리 자체를 물들인다. 실루엣 바깥 한 줄이라
+       몸을 한 픽셀도 안 가리고, 몇 마리가 붙어 있든 각자 자기
+       윤곽을 갖는다. 속성 하나면 잉걸, 둘 이상이면 시든 난초.
+       고리는 스프라이트를 그린 **뒤에** 덮는다 — 먼저 그리면
+       스프라이트 자신의 검은 외곽선에 덮여 사라진다. */
+    const eliteInk = m.elite?.length ? (m.elite.length > 1 ? 'P' : 'o') : null;
+
+    /* 미믹은 안 어긋난다. 상자인 척하는 것이 떨리면 그건 이 게임에서
+       가장 잘 만든 장치를 공짜로 알려 주는 셈이다. */
+    const gl = m.disguise ? null : glitchNow(m, glitchOf(m));
+    if (gl) {
+      /* sprite()는 못 찾으면 돌무더기를 돌려준다 — 「|| sprite(m.spr)」로는
+         못 막는다. 대군주가 한 프레임 동안 돌무더기가 될 뻔했다. */
+      const img = gl.other && hasSprite(`wrong:${m.spr}`)
+        ? sprite(`wrong:${m.spr}`) : sprite(m.spr);
+      if (m._face === -1) {
+        ctx.save();
+        ctx.translate(mx + t / 2, 0); ctx.scale(-1, 1); ctx.translate(-(mx + t / 2), 0);
+        blitGlitch(img, mx, my, t, gl, px1);
+        ctx.restore();
+      } else blitGlitch(img, mx, my, t, gl, px1);
+    } else blitActor(sprite(m.spr), mx, my, t, o, m._face === -1);
+
+    if (eliteInk && seenNow && hasSprite(`rim:${eliteInk}:${m.spr}`)) {
+      const prevA = ctx.globalAlpha;
+      /* 숨 쉰다. 가만히 있으면 그림의 일부로 읽히고, 그러면 「이 종은
+         원래 테두리가 주황이구나」가 된다. */
+      /* 진폭을 ±0.24에서 ±0.14로 줄였다. 0.48까지 내려가는 골짜기에서
+         시든 난초(#9a6ab0, 명도 0.69)는 어두운 바닥에 섞여 명도 0.41이
+         된다 — 「속성 둘」 표식이 주기의 일부 동안 화면에서 사라진다는
+         뜻이다. 벤치가 그것을 먼저 잡았다: 같은 화면을 재는데 어떤
+         판은 246점, 어떤 판은 0점이 나왔고, 표본 간격이 380ms 주기와
+         맞물려 골짜기에만 내려앉으면 열 번 내리 0이었다. 재는 쪽의
+         버그처럼 보였지만 원인은 그림 쪽이었다 — 사람도 같은 순간에
+         같은 것을 못 본다. 0.68~0.96이면 숨은 그대로 쉬고 골짜기에서도
+         읽힌다. */
+      /* 다시 좁혔다. 0.68~0.96에서도 밝은 회색 바닥 위에서는 시든
+         난초의 **채도가 0.07까지 내려간다** — 색상은 살아 있는데
+         색으로는 안 읽힌다는 뜻이고, 「속성 둘」이라는 정보가 바닥
+         색깔에 따라 사라진다. 숨은 밝기로 쉬게 하고(0.9~1.0) 색은
+         건드리지 않는다. 알파 블렌딩은 채도를 먼저 죽인다. */
+      ctx.globalAlpha = prevA * (0.95 + Math.sin(performance.now() / 380) * 0.05);
+      ctx.drawImage(sprite(`rim:${eliteInk}:${m.spr}`), Math.round(mx), Math.round(my), t, t);
+      ctx.globalAlpha = prevA;
     }
 
-    blitActor(sprite(m.spr), mx, my, t, o, m._face === -1);
     if (m.disguise) continue;     // no sleep marker, no health bar — it is furniture
+
+    /* ── 열쇠를 문 것 ────────────────────────────────────
+       과업은 「저것을 잡아야 한다」인데 「저것」을 지목할 방법이
+       화면에 하나도 없었다 — `hasKey`가 저장소 전체에서 규칙 두
+       곳에만 있고 UI·미니맵·스프라이트에 0곳이었다. 360판을 세어
+       보니 주인까지 평균 21칸이고, 스프라이트도 이름도 옆의 같은
+       종과 구별되지 않는다. 지목할 수 없으면 결정이 아니라
+       전수조사다. 그러니 그것의 머리 위에 열쇠를 얹는다. */
+    if (seenNow && m.hasKey && G.task && !G.taskDone) {
+      const kx = mx + t * 0.14, ky = my - t * 0.04;
+      ctx.font = `900 ${Math.floor(t * 0.58)}px Galmuri11, ui-monospace, monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = Math.max(2, t * 0.18);
+      ctx.strokeStyle = PALETTE.k;
+      ctx.strokeText('⚷', kx, ky);
+      ctx.fillStyle = PALETTE.y;
+      ctx.fillText('⚷', kx, ky);
+    }
 
     /* A sleeping target is a free critical, so say so plainly —
        an opportunity the player can't see isn't a decision. */
@@ -458,7 +554,24 @@ export function draw() {
       ctx.fillText('z', zx, zy);
     }
 
-    if (seenNow && m.awake && m.intent) drawIntent(m.intent, mx, my, t);
+    /* ── 어둠은 예고를 가린다 ────────────────────────────
+       기름 소모를 4배로 올리고 4분의 1로 낮춰 봤더니 도달 층이
+       6.42 / 5.98 / 6.08 — 오차 안에서 같았다. 기름이 덜 무는 게
+       아니라 **결과와 연결이 끊겨** 있었다. 불이 꺼져도 반경 2 안은
+       그대로 보이고, 싸움은 대개 붙어서 하므로 어둠이 전투에 아무
+       값도 매기지 않았던 것이다.
+
+       예고(붉은 별)는 이 게임에서 가장 값진 정보다 — 그 한 칸을
+       읽으면 물러설 수 있고 못 읽으면 2.5배를 맞는다. 그리고 그것은
+       **보는 것**이다. 불이 꺼진 채로 싸우면 다음 턴에 무엇이
+       오는지 모른다. 매 턴 드는 값이고, 그래서 기름이 처음으로
+       전투와 이어진다.
+
+       방이 밝으면(제 불이 아니어도) 보인다 — 어둠의 값이지
+       근시의 값이 아니다. */
+    const litHere = p.lightTurns > 0
+      || (L.roomOf[idx(m.x, m.y)] >= 0 && L.rooms[L.roomOf[idx(m.x, m.y)]]?.lit);
+    if (seenNow && m.awake && m.intent && litHere) drawIntent(m.intent, mx, my, t);
 
     if (seenNow && m.hp < m.maxhp) {
       const w = Math.round(t * (m.hp / m.maxhp));
@@ -535,6 +648,18 @@ export function draw() {
      number so the pulse and its speed can never disagree. */
   const low = p.maxhp ? Math.max(0, 1 - p.hp / (p.maxhp * 0.25)) : 0;
   Juice.drawScreenFlash(ctx, viewW, viewH, G.running ? low : 0);
+  /* 죽음의 렌즈가 `dim` 을 계산해 놓고 **아무도 안 읽고 있었다.**
+     그래서 죽는 순간 화면이 어두워지는 게 아니라 오히려 밝아졌다 —
+     타일이 2.15배로 커지면 광원 감쇠가 타일 좌표 기준이라 같은 밝기가
+     더 넓은 면적을 덮는다. 다크소울·디아블로의 죽음은 색이 빠지고
+     어두워지는 순간인데 여기서는 조명이 켜졌다. */
+  const dying = Juice.deathLens();
+  if (dying?.dim) {
+    ctx.save();
+    ctx.fillStyle = `rgba(14,11,16,${dying.dim.toFixed(3)})`;
+    ctx.fillRect(0, 0, viewW, viewH);
+    ctx.restore();
+  }
   drawMini();
 }
 
@@ -1000,6 +1125,83 @@ export const heroSprite = p =>
    pass that whitens it for a few frames when it takes a hit.
    `flip` mirrors around the sprite's own centre line — the same
    baked canvas serves both directions. */
+/* ── 글리치 ───────────────────────────────────────────────
+   「실제 그래픽도 반영될 정도로 글리치하게.」
+
+   그런데 화면 전체에 노이즈를 씌우면 그건 필터지 공포가 아니다.
+   무서운 것은 **그것만** 잘못 보이는 것이다. 그래서 어긋나는 것은
+   몬스터 한 마리씩이고, 얼마나 어긋나는지는 장식이 아니라 판의
+   상태에서 나온다:
+
+     · 깊이 — 아래로 갈수록 보이는 것을 믿을 수 없다
+     · 불   — 기름이 줄면 심해진다. 이 게임의 모든 것이 그렇듯이
+     · 상처 — 몸이 상할수록 심해진다
+     · 그것 자체 — 이름 있는 것, 정예, 그리고 「서 있는 것」은 바닥값이 높다
+
+   시간은 90ms 칸으로 끊는다. 프레임마다 새로 뽑으면 60Hz로 떨려서
+   눈이 아프고, 그건 불쾌한 게 아니라 그냥 못 만든 것이다. 한 칸
+   동안은 같은 모양으로 어긋나 있어야 사람이 그것을 **본다**. */
+const GLITCH_MS = 90;
+const glitchHash = (s, q) => {
+  let h = q | 0;
+  for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) & 0x7fffffff;
+  return h;
+};
+
+function glitchOf(m) {
+  const p = G.player;
+  if (!p) return 0;
+  let a = (G.depth || 0) / 15 * 0.45;
+  /* 기름. lightRadius가 줄면 그만큼 올라간다 — 7칸이 온전한 상태다. */
+  a += (1 - Math.min(1, (G.lightRadius || 7) / 7)) * 0.30;
+  if (p.maxhp) a += (1 - p.hp / p.maxhp) * 0.15;
+  if (m.ai === 'unseen') a = Math.max(a, 0.85);
+  else if (m.boss) a = Math.max(a, 0.7);
+  else if (m.named) a = Math.max(a, 0.5);
+  else if (m.elite?.length) a = Math.max(a, 0.35);
+  return Math.min(1, a);
+}
+
+/* 한 마리, 한 칸(90ms) 동안의 어긋남. 값이 아니라 결정이라서 그리는
+   쪽에서 매번 다시 뽑지 않는다. */
+function glitchNow(m, amount) {
+  if (amount <= 0.02) return null;
+  const q = Math.floor(performance.now() / GLITCH_MS);
+  const h = glitchHash(m.spr || '?', q + m.x * 7 + m.y * 13);
+  /* 얼마나 자주 어긋나는가. 최대치에서도 한 칸 걸러 한 칸이다 —
+     내내 어긋나 있으면 그건 그냥 그렇게 생긴 것이 된다. */
+  if ((h % 1000) / 1000 > amount * 0.5) return null;
+  const kind = h % 100;
+  return {
+    /* 줄 하나가 옆으로 밀린다. 가장 싸고 가장 확실한 것. */
+    shear: 1 + (h >> 3) % 2,
+    row: (h >> 5) % 6 + 1,
+    dir: (h >> 9) % 2 ? 1 : -1,
+    /* 색이 갈라진다 — 붉은 쪽이 한 칸 뒤처진다. */
+    split: amount > 0.35,
+    /* 그리고 아주 가끔, 한 칸 동안만 통째로 다른 것이 된다. */
+    other: kind < 4 && amount > 0.5,
+  };
+}
+
+/* 어긋난 채로 그린다. 스프라이트를 세 조각(위·어긋난 줄·아래)으로
+   잘라 가운데만 밀어 놓는다 — 캔버스 세 번이지, 픽셀을 만지지 않는다. */
+function blitGlitch(img, px, py, t, g, unit) {
+  const u = t / CELL_SIZE;                 // 스프라이트 한 픽셀의 화면 크기
+  const y0 = g.row, y1 = Math.min(CELL_SIZE, g.row + g.shear);
+  const off = g.dir * unit;
+  if (g.split) {
+    const a = ctx.globalAlpha;
+    ctx.globalAlpha = a * 0.35;
+    ctx.drawImage(img, px - unit, py, t, t);
+    ctx.globalAlpha = a;
+  }
+  ctx.drawImage(img, 0, 0, CELL_SIZE, y0, px, py, t, y0 * u);
+  ctx.drawImage(img, 0, y0, CELL_SIZE, y1 - y0, px + off, py + y0 * u, t, (y1 - y0) * u);
+  ctx.drawImage(img, 0, y1, CELL_SIZE, CELL_SIZE - y1,
+                px, py + y1 * u, t, (CELL_SIZE - y1) * u);
+}
+
 function blitActor(img, px, py, t, o, flip = false) {
   if (flip) {
     ctx.save();
@@ -1046,6 +1248,26 @@ function autosave(reason) {
   savedTurn = G.turn;
 }
 
+/* ── 죽음의 렌즈만 화면 전환 앞에서 통과시킨다 ──────────────
+   죽으면 규칙이 G.screen='end' 로 바꾸고, 그러면 frame 이 그 줄에서
+   끝난다 — Juice.pump 가 영영 안 돌고, 죽음 사건이 큐에 남은 채 화면은
+   곧장 명세서로 넘어간다. 「슬로우모션으로 확대」가 한 프레임도 안
+   그려지던 이유가 이것이다.
+
+   그 사건 하나만 먼저 꺼내 렌즈를 켠다. 켜져 있는 동안은 판을 계속
+   그린다 — 그게 이 연출의 전부다. */
+function dyingFrame(dt) {
+  if (G.fx.some(e => e.t === 'deathZoom')) {
+    Juice.pump(G.fx.filter(e => e.t === 'deathZoom'), G.player);
+    G.fx = G.fx.filter(e => e.t !== 'deathZoom');
+  }
+  if (!Juice.deathHolding() || !G.level) return false;
+  Juice.tickDeath(dt);
+  Juice.update(dt, [G.player, ...G.monsters]);
+  draw();
+  return true;
+}
+
 function frame(ts) {
   rafId = requestAnimationFrame(frame);
   const dt = Math.min(50, ts - (lastTs || ts));
@@ -1054,6 +1276,11 @@ function frame(ts) {
      screen that is running before anybody exists. */
   if (!$('sc-title').hidden) { drawTitleScene(); return; }
   if (!G.player) return;
+  /* 여기 `Juice.tickDeath(dt)` 가 하나 더 있었다. 바로 아래
+     `dyingFrame(dt)` 안에서 또 부르므로 렌즈가 **한 프레임에 두 번**
+     감겼다 — 「1.4초에 걸쳐 조인다」고 적어 둔 연출이 0.7초에 끝나고,
+     끝 화면을 여는 endHold(1500ms)까지 남는 0.8초 동안 최대치로 굳은
+     정지 화면이 남았다. 홀드 중에 정확히 한 번 도는 쪽만 남긴다. */
 
   /* Permadeath: the slot dies with the run. This lives in the
      loop rather than on the ending screen because death can
@@ -1065,6 +1292,7 @@ function frame(ts) {
     Save.clear(activeSlot);
   }
 
+  if (dyingFrame(dt)) return;
   if (!G.level || G.screen !== 'play') return;
 
   if (lastDepth !== G.depth) {
@@ -1116,8 +1344,13 @@ export function refresh() {
 
   $('hud-name').textContent  = `${RACES[p.race].name} ${CLASSES[p.cls].name}`;
   $('hud-lv').textContent    = p.lv;
-  $('hud-hp').textContent    = `${p.hp}/${p.maxhp}`;
-  $('hud-hpbar').style.width = `${(p.hp / p.maxhp) * 100}%`;
+  /* 원래 천장을 분모로 쓴다. `p.maxhp`는 이미 상처로 깎인 값이라,
+     그걸로 나누면 상한 40%를 잃은 몸이 만피와 똑같이 100%로 그려진다. */
+  const wound = p.wound || 0;
+  const roof = p.maxhp + wound;
+  $('hud-hp').textContent    = wound ? `${p.hp}/${p.maxhp} (−${wound})` : `${p.hp}/${p.maxhp}`;
+  $('hud-hpbar').style.width = `${(p.hp / roof) * 100}%`;
+  $('hud-wound').style.width = `${(wound / roof) * 100}%`;
   $('hud-ac').textContent    = Game.armourClass(p);
   $('hud-gold').textContent  = p.gold;
   /* The chip says where, not only how deep. "9층"은 숫자고
@@ -1208,7 +1441,9 @@ export function refresh() {
        나갔다. 남은 칸은 어차피 늘 보여야 하는 값이므로, 벌을 알리는
        칩이 아니라 배낭 버튼 자체가 들고 있는 게 맞다. */
     const bag = $('btn-inv');
-    if (bag) bag.textContent = `배낭 ${used}/${cap}`;
+    /* 「배낭 6.5/20」은 개수처럼 읽힌다 — 실제로는 무게이고, 그래서
+       소수점이 붙는다. 무엇을 세는 숫자인지를 말한다. */
+    if (bag) bag.textContent = `배낭 무게 ${used}/${cap}`;
   }
   if (G.depth > 0 && p.lightTurns <= 0) flags.push('암흑');
   else if (G.depth > 0 && p.lightTurns < 80) flags.push('불빛 희미');
@@ -1235,13 +1470,24 @@ export function refresh() {
      올리고, 그러면 누르려던 것이 아닌 것이 눌린다. */
   const here = Game.hereOffer();
   const stair = Game.stairHere();
+  /* 잠긴 계단이 열리는 계단과 **픽셀 단위로 같은 버튼**이었다 —
+     밝은 금색, 활성, 같은 글자. 누르면 화면에 아무 일도 안 일어나고
+     로그 다섯 줄 중 하나에 주황 한 줄이 낀다. 세 번 누르면 세 턴이
+     날아가는데 화면은 그 사실도 말하지 않는다. 모바일에서 이건
+     거의 언제나 「고장」으로 읽힌다.
+     라벨을 상태로 바꾸고, 금색을 뺀다. 삭아 가는 세 단계 문구는
+     이미 있으니 버튼에 그대로 실으면 그 자체가 타이머가 된다. */
+  const shut = stair === 'down' ? Game.stairsLocked() : null;
   const hb = $('btn-here');
   hb.disabled = !here && !stair;
-  hb.classList.toggle('live', !!(here || stair));
+  hb.classList.toggle('live', !!((here || stair) && !shut));
+  hb.classList.toggle('shut', !!shut);
   hb.textContent = here ? (here.shop ? `${here.n}${wa(here.n)} 거래` : `${here.n} 열기`)
+                 : shut ? `🔒 잠긴 계단 — ${Game.lockHint()}`
                  : stair === 'down' ? '▼ 내려가기'
                  : stair === 'up'   ? '▲ 올라가기'
                  : '발밑에 아무것도 없다';
+  if (shut) teach('task');
 
   const logBox = $('log');
   logBox.innerHTML = '';
@@ -1293,8 +1539,24 @@ export function refresh() {
   wager.hidden = !(G.bank >= 2);
   if (G.bank >= 2) {
     const bp = Game.bankPurse2();
-    $('hud-bank-n').textContent = `${G.bank}층 ${bp ? bp.gold : 0}닢`;
+    /* 「판돈 12층 1840닢」은 97px을 먹었다. 층수는 바로 옆 지역 칩에
+       이미 적혀 있으므로 여기서는 액수와 「쌓이는 중」만 말한다. */
+    $('hud-bank-n').textContent = `◍${bp ? bp.gold : 0}↑`;
+    wager.title = `${G.bank}층 연속 — 불 앞에 앉으면 탄다`;
     wager.classList.toggle('hot', G.bank >= 4);
+  }
+
+  /* 층에 과업이 걸리면 그 층의 규칙이 바뀐다 — 45%의 층에서.
+     그런데 화면에 표시가 없었다. `say(G.task.intro)`는 지역 소개
+     lorecard보다 먼저 나가므로 카드를 치우고 나면 이미 스크롤아웃
+     되어 있고, 그러면 남는 것은 「랜덤 편차」라는 인상이다.
+     칩 하나면 층 내내 남는다. */
+  const task = $('hud-task');
+  const tk = G.depth > 0 && G.task && !G.taskDone ? G.task : null;
+  task.hidden = !tk;
+  if (tk) {
+    $('hud-task-n').textContent = tk.n;
+    task.title = tk.intro || '';
   }
 
   /* The class counter. A trait the player cannot watch fill is
@@ -1322,7 +1584,28 @@ export function refresh() {
   const rel = $('hud-relics');
   const held = Game.relicList();
   rel.hidden = !held.length;
-  $('hud-relics-n').textContent = `${held.length}/${RELIC_SLOTS}`;
+  /* 칩이 「유물 4/7」만 말하던 동안, 크랙은 두 번 탭해야 나오는 창
+     안에만 있었다. 크랙은 이 층에서 무엇을 할지를 바꾸는 장치다 —
+     함정을 밟을까, 연격을 노릴까, 정예를 피할까. 그 판단은 걷는 중에
+     일어나는데 정보가 창 안에 있으면 사람은 그냥 안 본다. 향할 곳이
+     화면 밖에 있는 것이 「루즈하다」의 직접 원인이다.
+
+     가장 가까운 하나만 건다. 넷을 걸면 그건 목록이지 목표가 아니다. */
+  /* 주목. 이 판의 risk & take 계기다 — 세지면 아래가 너를 보고,
+     본 만큼 층이 깨어 있고 정예가 잦고 시계가 짧다. 누르면 무엇이
+     달라지는지 전부 적힌 카드가 뜬다. */
+  const heat = G.heat || 0;
+  const hc = $('hud-heat');
+  hc.hidden = !(G.depth > 0);
+  $('hud-heat-n').textContent = String(heat);
+  hc.className = 'chip heat' + (heat >= 80 ? ' burn' : heat >= 45 ? ' hot' : '');
+  hc.style.cursor = 'pointer';
+  hc.onclick = () => showHeat();
+
+  const near = Game.nearestCrack();
+  $('hud-relics-n').textContent = `${held.length}/${RELIC_SLOTS}`
+    + (near ? ` · ✧ ${near.n} ${near.left}` : '');
+  rel.classList.toggle('close', !!near && near.at >= 0.9);
   /* 들고 있는 유물을 어디서도 볼 수 없었다. 숫자만 있고 목록이 없으면
      그것은 정보가 아니라 알림이다 — 칩을 누르면 편다. */
   rel.style.cursor = 'pointer';
@@ -1369,6 +1652,12 @@ function renderQuick() {
     if (!n) { n = el('b', 'qty'); b.appendChild(n); }
     n.textContent = s.qty > 1 ? String(s.qty) : '';
     n.hidden = s.qty <= 1;
+    /* 불이 사그라들면 그 칸이 뛴다. HUD의 「불 55」가 빨개져도 사람은
+       누를 것을 못 찾는다 — 로그 한 줄보다 버튼이 직접 부르는 편이
+       확실하다. 그리고 어둠이 이제 예고를 가리므로, 이 칸은 편의가
+       아니라 싸움의 일부다. */
+    b.classList.toggle('urgent',
+      s.role === 'torch' && (G.player?.lightTurns || 0) < 120);
     b.onclick = () => { stopAuto(); act(() => Game.useItem(s.idx)); };
   });
 }
@@ -1443,6 +1732,119 @@ function paintSlotRow(row, slots) {
 
 /* 지금 들고 있는 것들. 살펴보기 카드를 그대로 빌려 쓴다 — 읽는
    창이 하나면 밀어내기도 한 곳에서만 손보면 된다. */
+/* 크랙 한 줄. 열렸으면 무엇이 깨졌는지, 아직이면 **무엇을 세고 있고
+   얼마나 왔는지** 같은 자리에 쓴다. 조건을 숨기면 크랙은 우연이 되고,
+   우연은 빌드가 안 된다 — 세는 것이 보여야 그쪽으로 논다. */
+function crackRow(id) {
+  const c = Game.crackOf(id);
+  if (!c) return null;
+  const on = Game.cracked(id);
+  const row = el('div', 'crackline' + (on ? ' lit' : ''));
+  row.appendChild(el('span', 'crackcat', c.c));
+  const b = el('div', 'crackbody');
+  b.appendChild(el('span', 'crackname', c.n));
+  if (on) {
+    b.appendChild(el('span', 'cracktext', c.t.replace(/\*\*/g, '')));
+  } else {
+    const pr = Game.crackProgress(id);
+    /* 여태 안 열린 줄에는 조건만 있고 **상금이 없었다**. 「170마리를
+       재우면」 옆에 「실이 끝나지 않는다」만 있으면, 그것이 체력인지
+       시야인지 피해인지 모르는 채로 170마리를 향해 놀 사람은 없다 —
+       조건만 보이고 상금이 안 보이면 목표가 아니라 잡음이다.
+       전문은 열렸을 때 읽는다. 여기서는 굵게 표시된 한 구절만. */
+    /* 굵은 첫 구절을 정규식으로 짜내고 있었다. 그런데 그 구절이 숫자면
+       화면에는 `3` · `+2` · `×2.6` 만 뜬다 — 마흔 중 열하나가 그랬다.
+       바로 위 주석이 「조건만 보이고 상금이 안 보이면 잡음이다」라고
+       말하는데, 그 잡음을 스스로 27%를 만들고 있었다. 데이터가
+       말하게 한다(c.prize). 나머지는 첫 구절이 이미 문장이다. */
+    const prize = c.prize || (c.t.match(/\*\*(.+?)\*\*/) || [])[1];
+    if (prize) b.appendChild(el('span', 'cracktext', prize));
+    /* 그리고 남은 수를 절대값으로. 「129마리 더」가 「(41/170)」보다
+       짧고, 사람이 계산을 안 해도 된다. */
+    b.appendChild(el('span', 'cracktext dim', Game.crackLeft(id)));
+    const bar = el('div', 'crackbar');
+    const fill = el('div', 'crackfill');
+    fill.style.width = `${Math.min(100, Math.round(pr.have / pr.need * 100))}%`;
+    bar.appendChild(fill); b.appendChild(bar);
+  }
+  row.appendChild(b);
+  return row;
+}
+
+/* 주목이 지금 무엇을 하고 있는지, 전부. 숫자 하나만 띄우면 그건
+   경고등이지 거래 조건이 아니다. */
+function showHeat() {
+  const h = G.heat || 0;
+  $('look-name').textContent = '깊은 곳이 너를 본다';
+  $('look-sub').textContent = `주목 ${h}/${Game.HEAT_MAX}`;
+  const rows = $('look-rows'); rows.innerHTML = '';
+  const line = (k, v) => {
+    const r = el('div', 'endrow');
+    r.appendChild(el('span', 'endlabel', k));
+    r.appendChild(el('span', 'endval', v));
+    rows.appendChild(r);
+  };
+  rows.appendChild(el('p', 'empty', Game.HEAT_WORD(h)));
+  /* ── 계기판이 아니라 거래 조건표다 ─────────────────────
+     처음에 「곡선보다 1.3배 앞서 있다」·「평소의 2.9배」·「몬스터
+     세기 114%」로 적었다. **「곡선」은 개발자의 단어이고** 세계에
+     곡선은 없다. 「몬스터 세기」는 「세다(強)」와 「세다(數)」가 겹쳐
+     한 번에 안 읽히기까지 했다. 숫자는 남기되 사건으로 적는다.
+
+     그리고 계수를 손으로 다시 적지 않는다 — 0.6·0.035·0.022·0.0035·
+     0.0025 를 여기 베껴 두면 규칙이 바뀔 때 화면이 조용히 거짓말을
+     하게 되고, 이 카드의 값은 「거래 조건이 미리 다 적혀 있다」
+     하나뿐이다. 깔때기를 그대로 부른다. */
+  const pow = Math.round(Game.powerOf());
+  const want = Math.round(Game.expectedPower(G.depth));
+  line('네가 가진 것', pow > want
+    ? '이 층이 예상한 것보다 무겁다' : '아직 이 층이 예상한 만큼이다');
+  line('그래서', pow > want
+    ? '아래가 네 이름을 안다' : '아래는 너를 대충 본다');
+  rows.appendChild(el('div', 'endsep'));
+  const wake = Math.round(Game.heatAwake() * 100);
+  line('기다리고 있는 것', wake
+    ? `층에 들어서면 열에 ${Math.max(1, Math.round(wake / 10))}은 이미 눈을 뜨고 있다`
+    : '층은 자고 있다');
+  line('알아채는 거리', `${Game.heatWake().toFixed(1)}배 멀리서 고개를 돌린다`);
+  line('이름 있는 것', `${Game.heatElite().toFixed(1)}배 자주 나온다`);
+  line('층의 여유', `전보다 ${100 - Math.round(Game.heatClock() * 100)}% 짧다 — 파도가 일찍 온다`);
+  line('몬스터', `같은 이름이 ${Game.heatStat().toFixed(2)}배 두껍게 나온다`);
+  $('look').hidden = false;
+}
+
+/* ── 아르카나 ────────────────────────────────────────────
+   4·8·12층에 한 번씩, 셋 중 하나. 전부 양날이라 「좋은 것 고르기」가
+   아니라 **이 판을 어떤 판으로 만들 것인가**를 고르는 화면이다.
+   그래서 좋은 쪽과 값을 같은 크기로 적는다 — 한쪽만 크게 쓰면
+   그건 광고지 결정이 아니다. */
+function renderArcana() {
+  const list = $('arcana-list'); list.innerHTML = '';
+  const have = (G.arcana || []).length;
+  $('arcana-sub').textContent =
+    `${G.depth}층. 이 판의 ${have + 1}번째 — 고른 것은 판이 끝날 때까지 간다.`;
+  for (const a of Game.arcanaOffer()) {
+    const row = el('button', 'itemrow arcanarow');
+    const mid = el('div', 'imid');
+    const nm = el('span', 'iname', a.n);
+    nm.style.color = 'var(--P)';
+    nm.classList.add('transcend');
+    mid.appendChild(nm);
+    mid.appendChild(el('span', 'idesc arcanacat', a.c));
+    /* 좋은 쪽과 값은 문장 안에서 「대신」으로 갈린다. 그 경계를 색으로
+       한 번 더 긋는다 — 읽지 않고 고르는 손을 막는 유일한 장치다. */
+    const parts = a.t.split('대신');
+    const good = el('span', 'idesc arcanagood', parts[0].replace(/\*\*/g, '').trim());
+    mid.appendChild(good);
+    if (parts[1]) mid.appendChild(el('span', 'idesc arcanacost',
+      '대신 ' + parts[1].replace(/\*\*/g, '').trim()));
+    mid.appendChild(el('span', 'idesc arcanalore', a.lore));
+    row.appendChild(mid);
+    row.onclick = () => { if (!armed()) return; Game.takeArcana(a.id); setScreen('play'); refresh(); };
+    list.appendChild(row);
+  }
+}
+
 function showRelicList() {
   const held = Game.relicList();
   if (!held.length) return;
@@ -1462,6 +1864,7 @@ function showRelicList() {
     const box = el('div', 'codextext');
     box.appendChild(el('div', 'iname', r.n));
     box.appendChild(el('div', 'idesc', r.t || ''));
+    const ck = crackRow(r.id); if (ck) box.appendChild(ck);
     row.appendChild(box);
     rows.appendChild(row);
   }
@@ -1486,7 +1889,37 @@ let armUntil = 0;
 export const armScreens = () => { armUntil = Date.now() + ARM_MS; };
 export const armed = () => Date.now() >= armUntil;
 
+/* 어느 화면 하나만 남기고 전부 감춘다. setScreen 밖으로 뺀 이유는
+   매듭 린트가 이 커밋에서 그 함수를 복잡도 30 위로 밀어 올렸다고
+   잡았기 때문이고, 실제로 이건 「무엇을 보여줄까」 하나뿐이다.
+
+   판을 가리지 않고 그 위에 얹히는 여섯(SHEETS)은 예외다 — 층에
+   무엇이 남았고 내가 어디 섰는지가 바로 그 창이 묻는 정보라서. */
+const SCREEN_IDS = ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help',
+                    'camp', 'slots', 'altar', 'stairs', 'relic', 'event', 'anvil',
+                    'codex', 'arcana'];
+function showOnly(name) {
+  const sheeted = SHEETS.includes(name);
+  for (const s of SCREEN_IDS) {
+    const box = $(`sc-${s}`);
+    box.hidden = (s !== name) && !(s === 'play' && sheeted);
+    box.classList.toggle('assheet', s === name && sheeted);
+  }
+}
+
 export function setScreen(name) {
+  /* ── 죽는 순간은 화면을 늦춘다 ─────────────────────────
+     죽자마자 명세서를 띄우면 **무엇이 나를 죽였는지 볼 틈이 없다.**
+     규칙 쪽은 이미 끝났다고 말했지만(G.running=false), 화면은 렌즈가
+     다 조일 때까지 판을 계속 그린다 — 카메라가 그 자리로 들어가고
+     시간이 늘어지는 1.4초. 그 뒤에 명세서가 온다. */
+  if (name === 'end' && Juice.deathHolding()) {
+    G.screen = 'play';
+    clearTimeout(endHold);
+    endHold = setTimeout(() => setScreen('end'), 1500);
+    draw();
+    return;
+  }
   /* 같은 화면을 다시 그리는 것은 새로 열리는 것이 아니다 — d-pad가
      모닥불 화면을 매 걸음 다시 그리므로, 여기서 구분하지 않으면
      불 앞에서는 아무 버튼도 영영 눌리지 않는다. */
@@ -1502,18 +1935,16 @@ export function setScreen(name) {
      instead of replacing it. Losing the map loses "what is left on
      this floor and where I am standing" — which is precisely the
      information the fire is asking you to decide with. */
-  const sheeted = SHEETS.includes(name);
-  for (const s of ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help',
-                   'camp', 'slots', 'altar', 'stairs', 'relic', 'event', 'anvil', 'codex']) {
-    const box = $(`sc-${s}`);
-    box.hidden = (s !== name) && !(s === 'play' && sheeted);
-    box.classList.toggle('assheet', s === name && sheeted);
-  }
+  showOnly(name);
   if (name === 'play') {
+    /* 아르카나가 밀린 채로 판에 돌아오면 안 된다 — 4층에 들어선 순간
+       고르는 화면이 떠야 그 층부터 그 판이 된다. */
+    if (Game.arcanaDue(G.depth)) { setScreen('arcana'); return; }
     resize(); refresh();
     // Back on the map: whatever was waiting can be read now.
     if (loreQueue.length && $('lorecard').hidden) showLore();
   }
+  if (name === 'arcana') renderArcana();
   if (name === 'inv')  renderInventory();
   if (name === 'shop') renderShop();
   if (name === 'spell') renderSpells();
@@ -1690,7 +2121,7 @@ export function renderSlots() {
         begin();
       } else {
         if (!info) return;
-        if (!Save.load(i)) { ask('저장을 읽지 못했습니다.', '파일이 손상되었을 수 있습니다.', null); return; }
+        if (!Save.load(i)) { ask('저장을 읽지 못했다. 파일이 상했을 수 있다.', '파일이 손상되었을 수 있습니다.', null); return; }
         activeSlot = i;
         savedEnding = false;
         savedTurn = G.turn;
@@ -2068,9 +2499,32 @@ export function pushLore(ev) {
    선택을 요구하는 창(#ask)에는 붙이지 않는다. 질문을 밀어서 없앨 수
    있으면 그것은 질문이 아니다. */
 const SWIPE_GO = 40;
-function swipeAway(box, done) {
+/* ── 밀어도 안 닫히던 이유 ────────────────────────────────
+   플레이어: 「지금 팝업들(양피지) 위나 좌우로 밀어내도 화면에서
+   안꺼짐」.
+
+   코드는 멀쩡했다. 막고 있던 것은 CSS다 — body 에 `touch-action:
+   manipulation` 이 걸려 있어서, 손가락이 옆으로 움직이는 순간 브라우저가
+   그것을 **스크롤 제스처로 채 간다.** 그러면 pointermove 가 우리에게
+   한 번도 안 오고, 대신 pointercancel 이 온다. dx·dy 는 0인 채로
+   남고, 밀어낸 거리는 언제나 문턱(40px) 아래다.
+
+   그래서 두 곳을 고친다: 미는 면에 `touch-action: none` 을 걸어
+   제스처를 우리가 갖고(styles.css), 채였을 때는 닫지 말고 제자리로
+   돌린다(아래). 그리고 카드 바깥을 눌러도 닫히게 한다 — 모바일에서
+   그건 「밀어내기」와 같은 뜻의 동작이다. */
+/* `tapCloses` 는 「읽는 카드」와 「치우는 카드」를 가른다. 본문을
+   탭하면 닫는 규칙이 스크롤 되는 카드에도 걸려 있어서, 일곱 줄짜리
+   주목 거래 조건표를 읽다가 손가락이 닿으면 사라졌다. 층 배너처럼
+   5초면 저절로 없어지는 것은 탭으로 치우는 편이 옳고, 유물 목록과
+   주목 카드처럼 **읽으려고 연 것**은 아니다. 바깥(백드롭) 탭과
+   미는 동작은 양쪽 다 그대로 닫는다. */
+function swipeAway(box, done, { tapCloses = true } = {}) {
   if (box.__swipe) return;
   box.__swipe = true;
+  /* 카드 바깥(어두운 바닥)을 누르면 닫힌다. 카드 자체의 클릭은
+     아래 surface 쪽이 먹으므로 여기까지 안 올라온다. */
+  box.addEventListener('pointerdown', e => { if (e.target === box) done(); });
   let id = null, sx = 0, sy = 0, dx = 0, dy = 0, moved = false;
   const surface = box.querySelector('.sheet') || box;
 
@@ -2099,8 +2553,12 @@ function swipeAway(box, done) {
   const finish = e => {
     if (e.pointerId !== id) return;
     id = null;
+    /* 브라우저가 제스처를 채 가면 pointercancel 이 온다. 그때는
+       **닫으면 안 된다** — 손가락이 아직 화면에 있고, 사용자는 아직
+       아무것도 결정하지 않았다. 제자리로 돌린다. */
+    if (e.type === 'pointercancel') { reset(); return; }
     const far = Math.max(Math.abs(dx), Math.max(0, -dy));
-    if (!moved) { done(); return; }              // 밀지 않았으면 탭이다
+    if (!moved) { if (tapCloses) done(); return; }   // 밀지 않았으면 탭이다
     if (far < SWIPE_GO) { reset(); return; }
     const gx = Math.abs(dx) > Math.abs(dy) ? Math.sign(dx) * 460 : 0;
     const gy = gx ? 0 : -420;
@@ -2453,7 +2911,7 @@ function renderInventory() {
       if (r >= 2 && !isCursed(it)) nm.classList.add('shine');
       row.appendChild(nm);
       row.appendChild(el('span', 'eqstat',
-        it.kind === 'weapon' ? `${it.dice[0]}d${it.dice[1]}` : `AC ${it.ac}`));
+        it.kind === 'weapon' ? `${it.dice[0]}d${it.dice[1]}` : `방어 ${it.ac}`));
       if (it.kind === 'weapon' && WEAPON_TYPES[it.t]) {
         const note = el('div', 'wtype');
         note.appendChild(el('b', '', WEAPON_TYPES[it.t].n));
@@ -2480,6 +2938,7 @@ function renderInventory() {
     const mid = el('div', 'imid');
     mid.appendChild(el('span', 'iname magic', r.n));
     mid.appendChild(el('span', 'idesc', r.t));
+    const ck = crackRow(r.id); if (ck) mid.appendChild(ck);
     row.appendChild(mid);
     rl.appendChild(row);
   }
@@ -2529,6 +2988,22 @@ function renderInventory() {
       : Game.isKnown(it.id) ? (it.desc || '사용 가능') : '마셔 보기 전에는 알 수 없다'));
     const pt = plusText(it);
     if (pt) mid.appendChild(el('span', 'idesc plus', pt));
+    /* 「지금 든 것보다」. 배낭은 결정을 내리는 화면인데, 지금까지
+       주사위와 속성 이름만 있고 **그래서 이게 나은가**는 없었다.
+       2d6과 1d10 중 무엇이 나은지를 사람이 암산하게 두면 그 줄은
+       정보가 아니라 장식이다. 규칙이 쓰는 피해식을 그대로 지난다
+       (Game.compareToHeld) — 화면이 약속한 값과 손이 내는 값이
+       갈릴 수 없다. */
+    const cmp = Game.compareToHeld(it);
+    if (cmp) {
+      const up = cmp.pct > 0, same = cmp.pct === 0;
+      mid.appendChild(el('span', 'idesc cmp' + (up ? ' up' : same ? '' : ' down'),
+        Game.compareLine(it)));
+    }
+    /* 그리고 「이걸 어떻게 할까」. 장착이 아닌 쪽의 결정 — 팔 것인가
+       부술 것인가 — 는 여태 화면 어디에도 숫자가 없었다. */
+    const tl = Game.tradeLine(it);
+    if (tl) mid.appendChild(el('span', 'idesc trade', tl));
     row.appendChild(mid);
     row.appendChild(el('span', 'iact',
       it.kind === 'cat' ? '모루에서' : it.kind === 'use' ? '사용' : '장착'));
@@ -2538,7 +3013,7 @@ function renderInventory() {
     row.onclick = () => {
       if (it.kind === 'cat') return;
       if (it.kind === 'use' && !Game.isKnown(it.id)) {
-        ask(`${Game.lookOf(it.id)}을(를) 써 볼까요?`,
+        ask(`${Game.lookOf(it.id)}을(를) 쓴다.`,
             '무엇인지 알 수 없습니다. 좋을 수도, 아닐 수도.',
             () => { Game.useItem(i); renderInventory(); refresh(); });
         return;
@@ -2589,13 +3064,22 @@ function paintIcon(canvas, sprName) {
 /* shop */
 function renderShop() {
   const shop = G.shop, p = G.player;
-  $('shop-name').textContent = `${shop.id}. ${shop.n}`;
+  /* 떠돌이 수레는 층마다 다른 짐을 끌고 온다. 그 짐이 곧 이름이다 —
+     「떠돌이 상인」이라고만 쓰면 몇 번째로 만나든 같은 상인이고,
+     실제로 재 보니 판을 통틀어 열일곱 품목이 전부 이 한 수레에서
+     나왔다. 이름이 바뀌면 재고를 보기 전에 무엇을 실었는지 안다. */
+  const load = shop.wander ? Game.wanderLoad() : null;
+  $('shop-name').textContent = load ? `${load.n}` : `${shop.id}. ${shop.n}`;
   $('shop-gold').textContent = p.gold;
 
   const buyList = $('shop-buy'); buyList.innerHTML = '';
   /* Each door says what only it does, right above the shelf.
      Six signs that all read "물약 있음" is the same as no signs. */
-  if (shop.t) buyList.appendChild(el('p', 'empty shopline', shop.t));
+  /* 상인이 당신의 번호를 안다. 표에는 굳은 문장을 두고, 세는 말은
+     함수로 받는다 — 「23번째」는 판마다 달라야 하는 값이다. */
+  const said = [load ? load.line : shop.t,
+                shop.line ? shop.line(G.sent || 1) : null].filter(Boolean).join(' ');
+  if (said) buyList.appendChild(el('p', 'empty shopline', said));
 
   /* 오늘 이 수레의 기분. 값이 왜 이런지 말해 주지 않으면 흔들리는
      값은 그냥 버그처럼 읽힌다. 그리고 흥정은 한 번뿐이라 버튼도
@@ -2671,8 +3155,11 @@ function renderShop() {
     row.appendChild(el('span', 'iact', `${cost}g`));
     row.onclick = () => {
       if (p.gold < cost) { Game.say('금화가 모자란다.', 'warn'); refresh(); return; }
-      ask(`${affixName(item)}을(를) ${cost}금에 사시겠습니까?`,
-          `가진 금화 ${p.gold} → ${p.gold - cost}`,
+      /* 게임 전체가 하다체·명령형인데 결정을 내리는 바로 그 순간에만
+         점원 말투가 끼어들고 있었다. 「~하시겠습니까」는 상냥한
+         제안이고, 이 창은 되돌릴 수 없는 계약이다. */
+      ask(`${affixName(item)}. ${cost}닢.`,
+          `가진 것 ${p.gold.toLocaleString()} → ${(p.gold - cost).toLocaleString()}`,
           () => { Game.buy(item); renderShop(); refresh(); });
     };
     buyList.appendChild(row);
@@ -2823,7 +3310,12 @@ function affixBlurb(it) {
   const odd = Game.oddityOf(G.player, it);
   if (odd) parts.unshift(`❉ ${odd.n} — ${odd.t}`);
   // A named weapon leads with its rule; the name is the affix.
-  if (it.unique) parts.unshift(it.rule);
+  if (it.unique) {
+    /* 크랙은 이 물건이 다른 장비와 다른 이유 그 자체인데, 표에만
+       적혀 있고 화면에 한 번도 안 나왔다. 규칙 위에 올린다. */
+    if (it.crackN) parts.unshift(`✧ ${it.crack} ${it.crackN} — ${it.crackT.replace(/\*\*/g, '')}`);
+    parts.unshift(it.rule);
+  }
   // Rules first, numbers after: the 은총 and the engravings change
   // what the item does, the affixes only change how much.
   for (const id of [...(it.engrave || [])].reverse())
@@ -2899,21 +3391,32 @@ export function renderCamp() {
     `◍${p.gold} · ${MATS.scrap.n} ${m.scrap} · ` +
     `${MATS.dust.n} ${m.dust} · ${MATS.essence.n} ${m.essence}`;
 
+  /* 불은 한 번만 쓸 수 있고, 이제 셋 중 하나만 준다. 세 줄을 나란히
+     놓는 이유가 그것이다 — 고르지 않은 둘이 무엇이었는지가 화면에
+     남아야 「포기했다」가 된다. 어두운 채로 성한 몸으로 갈 것인가,
+     밝은 채로 상한 몸으로 갈 것인가. */
+  const wound = p.wound || 0;
+  const oilRoom = Math.max(0, Game.oilCap() - p.lightTurns);
+  const searCost = Math.min(p.lightTurns, Game.WOUND_OIL);
+  const searBurn = Math.max(1, Math.round(p.maxhp * Game.CAMP_SEAR_HP));
   const options = [
-    { id:'rest', n:'휴식', desc:
+    { id:'wick', n:'심지를 갈다', desc:
+        `기름 +${Math.min(oilRoom, Game.CAMP_OIL)} · 다음 층을 볼 수 있다`,
+      tag: p.lightTurns < 200 ? '곧 꺼진다' : `기름 ${p.lightTurns}` },
+    { id:'sear', n:'지지다', desc:
+        wound
+          ? `상처 ${Math.round(wound * (searCost / Game.WOUND_OIL))} 닫힘 · 기름 −${searCost} · 체력 −${searBurn}`
+          : '닫을 상처가 없다',
+      tag: wound ? (searCost >= Game.WOUND_OIL ? '전부' : '절반') : '—',
+      poor: !wound },
+    { id:'rest', n:'숨을 돌리다', desc:
         `체력 +${heal} (최대의 ${Math.round(Game.CAMP_HEAL * 100)}%) · 마나 회복 · 모든 상태이상 해제`,
-      tag: p.hp < p.maxhp * 0.5 ? '지금은 이게 답일지도' : '공짜' },
+      tag: p.hp < p.maxhp * 0.5 ? '지금은 이게 답일지도' : `${p.hp}/${p.maxhp}` },
   ];
 
   /* Only offered when there is something to offer. A dead row
      that says "you need two relics" is a row that is dead for
      most of most runs. */
-  if (Game.canFuse()) options.push({
-    id:'fuse', n:'융합', desc:
-      `유물 둘을 불에 넣는다. 대부분은 도박이지만, 서로를 알아보는 짝이 있다. (${Game.costText(FUSE_COST)})`,
-    tag: Game.canAfford(FUSE_COST) ? '유물 둘 소모' : '재료 부족',
-    poor: !Game.canAfford(FUSE_COST),
-  });
 
   for (const o of options) {
     const row = el('button', 'campopt' + (o.poor ? ' poor' : ''));
@@ -2925,6 +3428,8 @@ export function renderCamp() {
     row.appendChild(el('span', 'campdesc', o.desc));
     if (!o.poor) row.onclick = () => {
       if (o.id === 'rest') { Game.campRest(); setScreen('play'); refresh(); return; }
+      if (o.id === 'wick') { Game.campWick(); setScreen('play'); refresh(); return; }
+      if (o.id === 'sear') { Game.campSear(); setScreen('play'); refresh(); return; }
       campMode = o.id;
       renderCampTargets();
     };
@@ -2974,12 +3479,12 @@ let campCareful = false;
 
 /* The fire now offers rest, the wager and fusion — nothing that
    touches metal. So this is only ever the fusion path. */
+/* 모닥불의 융합 화면은 없어졌다 — 융합은 모루로 갔다(index.html 참고).
+   이 자리는 남겨 둔다: 모닥불이 다시 무언가를 「고른 뒤에 대상을
+   고르는」 일을 갖게 되면 여기로 돌아온다. */
 function renderCampTargets() {
   $('camp-choices').hidden = true;
   $('camp-targets').hidden = false;
-  $('camp-target-head').textContent = '무엇과 무엇을 넣을까';
-  teach('fuse');
-  renderFuse();
 }
 
 /* ── the anvil ──────────────────────────────────────────────
@@ -3025,13 +3530,83 @@ export function renderAnvil() {
         `${Math.round((ENCHANT_CURSE + ENCHANT_CURSE_STEP * 2) * 100)}%. ${Game.costText(ENCHANT_COST)}`
       : anvilMode === 'reroll'
       ? `이미 붙은 속성을 다시 굴린다. 저주는 절대 붙지 않는다. ${Game.costText(REROLL_COST)}`
+      : anvilMode === 'refine'
+      ? `마지막에 돋은 각인을 지져 없앤다. 자리는 남고, 그 자리에서 다시 돋는다 — 무엇이 돋을지는 쇠가 정한다. ${Game.costText(REFINE_COST)}`
+      : anvilMode === 'attune'
+      ? `유물에게 정수를 먹인다. 한 번에 한 단계, 유물마다 ${ATTUNE_MAX}번까지. ${Game.costText(ATTUNE_COST)}`
       : campCareful
       ? `값은 ${CAREFUL_MULT}배. 성공률 +${Math.round(CAREFUL_BONUS * 100)}%p, 실패해도 깎이거나 부서지지 않는다.`
       : `값은 그대로. ${Math.round(UPGRADE_CRIT * 100)}% 확률로 두 단계가 오른다 — 대신 실패하면 깎이고, 깊은 +에서는 부서진다.`;
 
+  /* 융합은 두들기는 일이 아니라 넣는 일이라, 촉매도 대상 목록도
+     안 쓴다. 화면을 통째로 바꿔 준다. */
+  const fusing = anvilMode === 'fuse';
+  $('anvil-list').hidden = fusing;
+  $('anvil-list-head').hidden = fusing;
+  $('anvil-cat-head').hidden = fusing || $('anvil-cat-head').hidden;
+  $('fuse-box').hidden = !fusing;
+  if (fusing) {
+    $('anvil-list-head').textContent = '무엇과 무엇을 넣을까';
+    $('anvil-note').textContent = Game.canFuse()
+      ? `유물 둘을 불에 넣는다. 대부분은 도박이지만 서로를 알아보는 짝이 여섯 있다. ${Game.costText(FUSE_COST)}`
+      : '유물이 둘은 있어야 한다.';
+    teach('fuse');
+    renderFuse();
+    return;
+  }
+  /* 조율은 장비가 아니라 유물을 다룬다 — 촉매도 강화 방식도 안 쓴다. */
+  if (anvilMode === 'attune') {
+    $('anvil-list-head').textContent = '무엇에게 먹일까';
+    $('anvil-cat-head').hidden = true; $('anvil-cats').hidden = true;
+    renderAttune();
+    return;
+  }
   renderCatalysts();
   renderAnvilTargets();
 }
+
+/* 정수가 갈 두 번째 곳. 유물의 수치는 판이 시작할 때 정해져서 끝까지
+   그대로였다 — 크랙이 「무엇을 하는가」를 바꾼다면 먹이는 것은
+   「얼마나」를 바꾼다. 둘 다 그 유물을 밀고 가기로 한 판에서만 의미가
+   있다. 「조율」이 아니라 「먹이기」인 이유는 game.js 쪽에 적어 뒀다. */
+function renderAttune() {
+  const list = $('anvil-list');
+  list.innerHTML = '';
+  /* 받아먹는 것만 올린다. 처음에는 든 유물 전부를 올렸는데, 실측하니
+     40개 중 40개가 먹여도 아무 숫자도 안 움직였다 — 규칙이 v를 읽는
+     유물이 몇 개뿐이었기 때문이다. 그리고 둘(메아리·진군)은 v가
+     연격 문턱이라 먹이면 나빠졌다. */
+  const held = Game.relicList().filter(r => Game.feedable(r.id));
+  const all = Game.relicList();
+  if (!held.length) {
+    list.appendChild(el('p', 'empty', all.length
+      ? '든 유물 중 받아먹는 것이 없다. 되돌리고 · 태우고 · 재는 것들이 먹는다.'
+      : '먹일 유물이 없다.'));
+    return;
+  }
+  const poor = !Game.canAfford(ATTUNE_COST);
+  for (const r of held) {
+    const left = Game.attuneLeft(r.id);
+    const row = el('button', 'itemrow');
+    const ic = el('canvas', 'icon'); paintIcon(ic, r.spr); row.appendChild(ic);
+    const mid = el('div', 'imid');
+    mid.appendChild(el('span', 'iname magic', r.n));
+    mid.appendChild(el('span', 'idesc', r.t));
+    const now = r.v + (G.player.tuned?.[r.id] || 0);
+    mid.appendChild(el('span', 'idesc plus',
+      left > 0 ? `${trim(now)} → ${trim(now + Game.attuneStep(r))} · ${left}번 더 먹는다`
+               : '더 안 먹는다'));
+    row.appendChild(mid);
+    const blocked = poor || left <= 0;
+    row.appendChild(el('span', 'iact', left <= 0 ? '—' : poor ? '재료 부족' : '먹인다'));
+    if (blocked) { row.classList.add('poor'); row.disabled = true; }
+    else row.onclick = () => { Game.attuneRelic(r.id); renderAnvil(); refresh(); };
+    list.appendChild(row);
+  }
+}
+/* 유물의 수치는 비율이기도 하고 개수이기도 하다. 0.35는 0.35로,
+   6은 6으로 읽혀야 한다. */
+const trim = v => (Math.abs(v) < 1.5 ? v.toFixed(2).replace(/\.?0+$/, '') : String(Math.round(v)));
 
 function renderCatalysts() {
   const on = anvilMode === 'upgrade' ? 'upgrade' : 'enchant';
@@ -3055,6 +3630,34 @@ function renderCatalysts() {
     row.onclick = () => { anvilCat = anvilCat === c.id ? null : c.id; renderAnvil(); };
     box.appendChild(row);
   }
+}
+
+/* 강화 줄 하나. renderAnvilTargets 밖에 두는 이유는 매듭 린트가
+   이 커밋에서 그 함수를 복잡도 30 위로 밀어 올렸다고 잡았기 때문이고,
+   실제로 여기 있는 것은 「강화의 판돈을 어떻게 적는가」 하나뿐이라
+   나머지 모드와 섞여 있을 이유가 없었다. */
+function upgradeRow(t, mid) {
+  const cost = Game.upgradeCostFor(t.key, campCareful);
+  const bet = Game.upgradeOddsFor(t.key, campCareful, anvilCat);
+  /* 판돈은 전부 적는다. 저주가 판돈에 들어왔는데 화면이 그걸 안
+     말하면, 그건 도박이 아니라 함정이다. */
+  const risk = bet.breakPct ? `실패 시 −1 또는 ${Math.round(bet.breakPct * 100)}% 파괴`
+             : bet.down     ? '실패 시 −1'
+             : '실패해도 손해는 값뿐';
+  const line = el('span', 'idesc bet',
+    `+${t.plus} → +${t.plus + (bet.crit >= 1 ? 2 : 1)} · ${risk}`
+    + (bet.hexPct ? ` · ${Math.round(bet.hexPct * 100)}% 저주` : '')
+    + ` · ${Game.costText(cost)}`);
+  if (bet.breakPct || bet.hexPct) line.classList.add('danger');
+  mid.appendChild(line);
+  /* The milestone gets its own line and its own colour. It is the
+     only strike where success changes what the item *is*, and the
+     odds are visibly worse for exactly that. */
+  if (bet.milestone)
+    mid.appendChild(el('span', 'idesc mark',
+      `이 한 방에 각인이 새겨진다 — 그래서 성공률이 `
+      + `${Math.round(ENGRAVE_PENALTY * 100)}%p 낮다.`));
+  return { blocked: !Game.canAfford(cost), label: `${Math.round(bet.odds * 100)}%` };
 }
 
 function renderAnvilTargets() {
@@ -3091,39 +3694,16 @@ function renderAnvilTargets() {
       continue;
     }
     if (anvilMode === 'upgrade') {
-      const cost = Game.upgradeCostFor(t.key, campCareful);
-      const bet = Game.upgradeOddsFor(t.key, campCareful, anvilCat);
-      blocked = !Game.canAfford(cost);
-      {
-        /* The bet, printed. Odds on the right where the price used
-           to be, and what a failure costs written into the row —
-           the altar taught this game that a gamble is only fun
-           when you can see its shape before you take it. */
-        label = `${Math.round(bet.odds * 100)}%`;
-        /* 판돈은 전부 적는다. 저주가 판돈에 들어왔는데 화면이 그걸
-           안 말하면, 그건 도박이 아니라 함정이다. */
-        const risk = bet.breakPct ? `실패 시 −1 또는 ${Math.round(bet.breakPct * 100)}% 파괴`
-                   : bet.down     ? '실패 시 −1'
-                   : '실패해도 손해는 값뿐';
-        const line = el('span', 'idesc bet',
-          `+${t.plus} → +${t.plus + (bet.crit >= 1 ? 2 : 1)} · ${risk}`
-          + (bet.hexPct ? ` · ${Math.round(bet.hexPct * 100)}% 저주` : '')
-          + ` · ${Game.costText(cost)}`);
-        if (bet.breakPct || bet.hexPct) line.classList.add('danger');
-        mid.appendChild(line);
-        /* The milestone gets its own line and its own colour. It
-           is the only strike where success changes what the item
-           *is*, and the odds are visibly worse for exactly that. */
-        if (bet.milestone) {
-          const mk = el('span', 'idesc mark',
-            `이 한 방에 각인이 새겨진다 — 그래서 성공률이 ` +
-            `${Math.round(ENGRAVE_PENALTY * 100)}%p 낮다.`);
-          mid.appendChild(mk);
-        }
-      }
+      ({ blocked, label } = upgradeRow(t, mid));
     } else if (anvilMode === 'reroll') {
       blocked = !Game.canAfford(REROLL_COST);
-      label = blocked ? '재료 부족' : '재련';
+      label = blocked ? '재료 부족' : '속성 다시';
+    } else if (anvilMode === 'refine') {
+      blocked = !Game.canAfford(REFINE_COST);
+      label = blocked ? '재료 부족' : '각인 지우기';
+      const last = t.item?.engrave?.[t.item.engrave.length - 1];
+      if (last) mid.appendChild(el('span', 'idesc mark',
+        `${engraveById(last)?.n}이(가) 돋은 자리를 지진다 — 그 자리에서 다시 돋는다.`));
     } else {
       blocked = !Game.canAfford(ENCHANT_COST);
       label = blocked ? '재료 부족' : '인챈트';
@@ -3132,8 +3712,24 @@ function renderAnvilTargets() {
     row.appendChild(el('span', 'iact', label));
 
     if (!blocked) row.onclick = () => {
+      /* 되돌릴 수 없는 둘에도 확인을 붙인다 — 강화의 부서짐 확인과
+         같은 잣대다. 이름을 갈라 놨어도 오탭은 남는다. */
+      if (anvilMode === 'refine') {
+        const last = t.item?.engrave?.[t.item.engrave.length - 1];
+        ask(`${t.name}의 각인을 지질까?`,
+            `${engraveById(last)?.n || '마지막 각인'}이(가) 사라진다. 되돌릴 수 없다.`,
+            () => { Game.anvilRefine(t.key); renderAnvil(); refresh(); });
+        return;
+      }
+      if (anvilMode === 'reroll') {
+        ask(`${t.name}의 속성을 다시 굴릴까?`,
+            '지금 붙어 있는 것이 사라지고 새로 붙는다. 더 나빠질 수도 있다.',
+            () => { Game.anvilEnchant(t.key, true, anvilCat);
+                    anvilCat = null; renderAnvil(); refresh(); });
+        return;
+      }
       if (anvilMode !== 'upgrade') {
-        Game.anvilEnchant(t.key, anvilMode === 'reroll', anvilCat);
+        Game.anvilEnchant(t.key, false, anvilCat);
         anvilCat = null; renderAnvil(); refresh(); return;
       }
       /* One confirm, and only where it is earned: a strike that
@@ -3170,7 +3766,6 @@ let fusePick = [];
 function renderFuse() {
   const box = $('fuse-box');
   box.hidden = false;
-  $('camp-target-head').textContent = '무엇과 무엇을 넣을까';
 
   const held = Game.relicList();
   fusePick = fusePick.filter(id => held.some(r => r.id === id));
@@ -3186,6 +3781,7 @@ function renderFuse() {
     if (r.fused) nm.classList.add('transcend');
     mid.appendChild(nm);
     mid.appendChild(el('span', 'idesc', r.t));
+    const ck = crackRow(r.id); if (ck) mid.appendChild(ck);
     row.appendChild(mid);
     row.appendChild(el('span', 'iact', on ? '넣음' : ''));
     row.onclick = () => {
@@ -3216,6 +3812,16 @@ function renderFuse() {
   const go = $('fuse-go');
   const poor = !Game.canAfford(FUSE_COST);
   go.disabled = fusePick.length !== 2 || poor;
+  /* 잠긴 계단에서 이미 배운 것: 못 누르는 버튼이 누를 수 있는 버튼과
+     픽셀 단위로 같으면 그건 고장으로 읽힌다. 실측으로 이 버튼은
+     disabled인데 글자색·테두리색이 살아 있는 것과 같았다. 그리고
+     **못 하는 일의 확률표를 먼저 보여 주고** 안 되는 이유는 그 위에
+     작은 회색으로 놓여 있었다 — 순서가 뒤집혀 있었다. */
+  go.classList.toggle('shut', go.disabled);
+  go.textContent = fusePick.length !== 2 ? '유물 둘을 고르시오'
+                 : poor ? `${Game.costText(FUSE_COST)}가 모자란다`
+                 : '불에 넣는다';
+  odds.hidden = !Game.canFuse();
 
   if (fusePick.length !== 2) {
     $('fuse-note').textContent = `둘을 고르시오. ${Game.costText(FUSE_COST)}가 듭니다. 넣은 둘은 돌아오지 않습니다.`;
@@ -3240,7 +3846,10 @@ function renderFuse() {
     const [x, y] = fusePick;
     fusePick = [];
     Game.fuseRelics(x, y);
-    setScreen('play');
+    /* 모루는 닳지 않는다 — 융합도 그렇다. 넣고 나서 화면을 닫지 않고
+       그 자리에 남는다: 유물이 셋이면 두 번 넣을 수 있어야 하고,
+       그 「한 번 더」가 조합을 계획으로 만든다. */
+    renderAnvil();
     refresh();
   };
 }
@@ -3433,13 +4042,40 @@ const LESSONS = [
   { id:'heavy',  t:'<b>붉은 별</b>은 다음 턴에 2.5배로 내리친다는 뜻입니다.<br>' +
                     '<b>같은 방향을 빠르게 두 번</b> 누르면 두 칸 굴러 피합니다(기력 2).' },
   { id:'ground', t:'바닥이 칠해지고 숫자가 뜨면 <b>그 칸이 곧 맞습니다.</b> 숫자는 남은 턴 수입니다. 나가거나 구르세요.' },
-  { id:'fire',   t:'모닥불은 <b>한 번만</b> 씁니다 — 휴식 · 판돈 · 유물 융합 중 하나.<br>' +
-                    '쇠를 두들기는 일(강화 · 인챈트 · 재련)은 <b>모루</b>에서 하고, 모루는 닳지 않습니다.' },
+  /* 이 게임의 난이도 곡선을 실제로 만드는 장치인데, 지금까지 화면에
+     한 글자도 없었다. 플레이어가 겪는 것은 「막대가 꽉 찼으니 한 대 더
+     맞아도 되겠지」 → 두 대에 죽음 → 「방금 만피였는데?」다. 갱구에서
+     항아리 확률을 가르치던 카드 한 장을 여기로 옮긴 셈이다 — 판을
+     실제로 죽이는 쪽에. */
+  { id:'wound',  t:'큰 한 방은 <b>견딜 수 있는 몸 자체</b>를 깎습니다.<br>' +
+                    'HP 막대 오른쪽 끝의 <b>빗금 친 회색</b>이 영영 잃은 몫입니다 — ' +
+                    '체력을 다 채워도 그만큼은 안 돌아옵니다.<br>' +
+                    '닫을 수 있는 곳은 <b>모닥불</b>뿐입니다.' },
+  /* 이 카드가 없어진 기능을 가르치고 있었다 — 융합은 모루로 갔고
+     모닥불의 일은 셋으로 바뀌었는데 카드는 옛 화면을 설명했다.
+     카드가 없는 것보다 나쁘다: 배운 대로 갔는데 그 선택지가 없으면
+     사람은 자기가 뭘 잘못했다고 생각한다. */
+  { id:'fire',   t:'모닥불은 <b>한 번만</b> 씁니다 — 심지를 갈거나 · 지지거나 · 숨을 돌리거나, <b>셋 중 하나</b>.<br>' +
+                    '벼리고 물들이고 융합하는 일은 전부 <b>모루</b>에서 하고, 모루는 닳지 않습니다.' },
   { id:'fork',   t:'계단이 갈라지면 <b>주는 것과 가져가는 것이 전부 적혀 있습니다.</b> 평범한 계단은 항상 있습니다.' },
-  { id:'relic',  t:'<b>유물</b>은 숫자가 아니라 규칙을 바꿉니다. 자리는 4칸에서 시작해 7칸까지 늘어납니다.' },
+  { id:'relic',  t:'<b>유물</b>은 숫자가 아니라 규칙을 바꿉니다. 자리는 4칸에서 시작해 7칸까지 늘어납니다.<br>' +
+                    '유물마다 <b>잠긴 두 번째 줄</b>이 있습니다. 그 유물을 쓴 만큼 열립니다 — ' +
+                    '위의 <b>유물 칩</b>이 지금 무엇을 세고 있는지 말해 줍니다.' },
+  /* 막대가 반쯤 찼을 때가 가르칠 때다. 주운 순간에 가르치면 아직
+     아무것도 안 세고 있어서 할 말이 없다. */
+  { id:'crack',  t:'유물 하나가 <b>반쯤 찼습니다.</b> 크랙은 그 유물이 하는 일과 같은 것을 셉니다 — ' +
+                    '거울 방패는 맞은 수를, 저울추는 재운 수를.<br>' +
+                    '<b>①</b> 컨셉을 끝까지 밉니다 · <b>②</b> 그 유물이 치르던 값을 지웁니다 · ' +
+                    '<b>③</b> 게임이 가르친 규칙 하나를 부숩니다.' },
+  { id:'cart',   t:'이 상인은 층마다 <b>다른 짐</b>을 끌고 옵니다 — 심지 · 약 · 종이 · 쇠 · 재 · 이상한 수레.<br>' +
+                    '파는 것도 부르는 값도 다릅니다. <b>지도의 간판</b>이 오늘 무엇을 싣고 왔는지 말해 줍니다.' },
   { id:'clock',  t:'층마다 <b>여유 턴</b>이 있습니다. 다 쓰면 몬스터가 계속 나타납니다 — 그때는 정리를 포기하고 계단으로.' },
   { id:'bank',   t:'쉬지 않고 내려갈수록 <b>판돈</b>이 불어납니다. 모닥불에서 챙길 수 있고, <b>죽으면 전부 잃습니다.</b>' },
   { id:'oil',    t:'기름이 줄면 <b>보이는 반경이 좁아집니다.</b> 횃불을 쓰거나, 좁은 시야로 싸우거나.' },
+  { id:'dark',   t:'방금 <b>붉은 예고가 뜨지 않았습니다.</b> 고장이 아닙니다 — 불이 꺼져 있으면 ' +
+                    '멀리 있는 것이 무엇을 준비하는지 <b>보이지 않습니다.</b><br>' +
+                    '붙어 있는 것과 <b>밝은 방 안</b>은 그대로 보입니다. 그 밖은 어둠 속에서 팔이 올라갑니다 — ' +
+                    '그리고 그 한 방은 <b>보통의 두 배 반</b>입니다.' },
   { id:'prop',   t:'방 안의 통 · 화로 · 기둥 · 뼈 무더기 · 항아리는 <b>부딪치면</b> 상호작용합니다.<br>' +
                     '화로는 <b>기름을 아껴 주지만 주변을 깨웁니다.</b> 항아리는 다섯에 하나가 터집니다. ' +
                     '<b>탭해서 살펴보면</b> 확률이 적혀 있습니다.' },
@@ -3450,6 +4086,11 @@ const LESSONS = [
   { id:'fuse',   t:'유물 <b>둘</b>을 불에 넣으면 하나가 나옵니다 — 보통은 확률표대로.<br>' +
                     '하지만 <b>서로를 알아보는 짝</b>이 여섯 있습니다. 목록은 없습니다. ' +
                     '<b>유물 설명의 마지막 문장</b>이 짝을 가리킵니다.' },
+  { id:'cling',  t:'<b>붙어 있는 것에서 물러나면 그만큼 따라붙습니다.</b> 걸어서 떨어뜨릴 수 있는 것이 아닙니다.<br>' +
+                    '떼어내려면 <b>구르거나</b>(구르는 동안은 따라붙지 않습니다), 문을 닫거나, 연막을 쓰거나 — 아니면 싸워서 끝내야 합니다.' },
+  { id:'task',   t:'이 층에는 <b>과업</b>이 걸려 있습니다 — 층마다 걸리지는 않습니다.<br>' +
+                    '계단이 잠겼다면 <b>열쇠를 문 것</b>이 이 층 어딘가에 있습니다. 머리 위에 열쇠가 붙어 있습니다.<br>' +
+                    '잡지 못해도 됩니다 — <b>자물쇠는 시간이 지나면 삭습니다.</b> 두드릴 때마다 한 턴이 탑니다.' },
   { id:'anvil',  t:'<b>모루는 닳지 않습니다.</b> 재료가 남아 있는 만큼 계속 두들길 수 있습니다 — ' +
                     '여기서 전 재산을 태울 수도, 확실히 강해질 수도 있습니다.<br>' +
                     '강화는 <b>+2부터 실패합니다.</b> <b>과감</b>은 가끔 두 단계, 깊은 +에서는 <b>부서집니다.</b> ' +
@@ -3509,11 +4150,18 @@ function checkLessons() {
   if (G.monsters.some(m => m.awake && m.intent && G.level.vis[idx(m.x, m.y)])) teach('intent');
   if (G.monsters.some(m => m.intent === 'heavy' || m.intent === 'wind')) teach('heavy');
   if (G.hazards.length) teach('ground');
+  if ((G.player.wound || 0) > 0) teach('wound');
   if (G.bank >= 2) teach('bank');
   if (G.player.lightTurns < 320) teach('oil');
+  if (G.darkAte) teach('dark');
+  if (G.clung) teach('cling');
   if (G.monsters.some(m => m.thief && G.level.vis[idx(m.x, m.y)])) teach('thief');
   if (Game.pressureLevel() > 0) teach('clock');
   if ((G.player.relics || []).length) teach('relic');
+  /* 크랙은 주웠을 때가 아니라 **반쯤 찼을 때** 가르친다 — 그때가
+     「이걸 향해 놀 수 있다」가 처음 참이 되는 순간이다. */
+  { const near = Game.nearestCrack(); if (near && near.at >= 0.5) teach('crack'); }
+  if (G.level?.merchant) teach('cart');
   if (G.level?.props?.size) teach('prop');
 }
 
@@ -3779,6 +4427,7 @@ export function renderRelicSwap() {
     const mid = el('div', 'imid');
     mid.appendChild(el('span', 'iname magic', r.n));
     mid.appendChild(el('span', 'idesc', r.t));
+    const ck = crackRow(r.id); if (ck) mid.appendChild(ck);
     row.appendChild(mid);
     row.appendChild(el('span', 'iact', '버린다'));
     row.onclick = () => { Game.swapRelic(i); setScreen('play'); refresh(); };
@@ -3922,8 +4571,14 @@ function renderEnd() {
      메타 진행(기억)이 왜 남는지가 이 한 줄로 설명된다 — 남는 것은
      네 실력이 아니라 네 시체를 본 다음 놈의 학습이다. */
   const nextLine = el('p', 'note',
-    e.win ? '아래가 조용하다. 처음으로, 아무도 세지 않아도 되는 밤이다.'
-          : '도르래가 한 번 더 감긴다. 다음 사람이 준비되고 있다.');
+    /* 「다음 사람」은 개념이고 「24번째」는 사람이다. 그리고 이 줄이
+       다음 판의 오프닝(「24번째다」)과 정확히 맞물린다 — 죽음 화면이
+       예고한 숫자를 다음 판의 첫 줄이 받는다. 지금까지 그 이음매가
+       비어 있었다.
+       승리 쪽: 「아무도 세지 않아도 되는」이 무엇을 세는지 말하지 않아서
+       뜬 말이었다. 세던 것은 번호이고, 승리란 번호가 늘지 않는 것이다. */
+    e.win ? `${s.sent || 1}에서 멈췄다. 도르래가 처음으로 비어 있다.`
+          : `도르래가 한 번 더 감긴다. ${(s.sent || 1) + 1}번째가 목에 쇠를 채우고 있다.`);
   $('end-sub').textContent = e.win
     ? `${MAX_DEPTH}층에서. 처음으로, 누군가 그만큼 내려갔다.`
     : `${s.depth === 0 ? '갱구' : s.depth + '층'}에서 ${e.by}에게.`;
@@ -3940,6 +4595,19 @@ function renderEnd() {
     box.appendChild(row);
   };
 
+  /* ── 왜 죽었는지 ────────────────────────────────────────
+     여태 이 화면이 말한 것은 「무엇에게 죽었나」 하나였다. 그건 사인이지
+     이유가 아니다. 이유는 **안 쓴 것**에 있다 — 주머니에 물약이 셋
+     있었는데 안 마셨다든가, 한계돌파가 열려 있었는데 안 눌렀다든가,
+     여유를 백 턴 넘겨서 파도가 셋째로 오고 있었다든가.
+
+     그래서 부검을 맨 위에 놓는다. 아래의 기록(인물·도달·무기)은
+     지나간 판의 명세서이고, 이쪽은 **다음 판에 쓸 것**이다. */
+  if (!e.win && e.post?.length) {
+    box.appendChild(el('h3', 'sect', '왜 죽었나'));
+    for (const row of e.post) line(row.k, row.v, row.hot ? 'R' : 'G');
+    box.appendChild(el('div', 'endsep'));
+  }
   line('인물', `${RACES[s.race || p.race].name} ${CLASSES[s.cls || p.cls].name} · Lv ${s.lv}`);
   line('도달', `${s.depth}층 / ${MAX_DEPTH}`, s.depth >= 10 ? 'o' : '');
   line('무기', s.weapon || '맨손', s.weaponType ? 'w' : 'g');
@@ -3949,6 +4617,14 @@ function renderEnd() {
   line('최고 연격', `${s.combo}`, s.combo >= 10 ? 'y' : '');
   line('처치 · 상자 · 사건', `${s.kills || 0} · ${s.opened || 0} · ${s.events || 0}`);
   line('금화 · 턴', `${s.gold}닢 · ${s.turn}턴`);
+  /* 잃은 천장과 안 쓴 것. 둘 다 「무엇이 이 판을 끝냈는가」에 대한
+     답이고, 지금까지 결산에 없던 줄이다. 상처는 0일 때도 적는다 —
+     「한 번도 안 깎였다」는 그 자체로 읽을 값이다. */
+  const roof = (s.maxhp || 0) + (s.wound || 0);
+  line('잃은 천장', s.wound
+    ? `−${s.wound} (${roof ? Math.round(s.wound / roof * 100) : 0}%)`
+    : '없음 — 한 번도 깎이지 않았다', s.wound ? 'R' : 'g');
+  if (s.unused) line('배낭에 남은 것', `${s.unused}개를 안 썼다`, s.unused >= 3 ? 'o' : 'g');
   /* 빚. 금화를 점수가 아니라 「얼마나 갚았나」로 다시 읽는 줄이다 —
      이 한 줄이 있으면 판 내내 주운 동전에 이유가 생긴다. 아무도
      다 갚지 못했고, 그것도 세계관의 일부다. */
@@ -4125,7 +4801,9 @@ function walkTo(tx, ty) {
    step — walking onto a fire, opening a chest with a relic in
    it. One list, so a new screen is never routed from three
    places and forgotten in a fourth. */
-const INTERRUPTS = ['shop', 'camp', 'altar', 'stairs', 'relic', 'event', 'anvil'];
+/* 'arcana' 가 여기 없었다. 규칙이 G.screen='arcana' 를 세워도
+   act() 가 그것을 인터럽트로 안 봐서 그냥 'play' 로 덮였다. */
+const INTERRUPTS = ['shop', 'camp', 'altar', 'stairs', 'relic', 'event', 'anvil', 'arcana'];
 /* Everything that happens *on a floor*. The shop is in town where
    there is no map worth keeping, so it stays a whole screen. */
 const SHEETS = ['camp', 'altar', 'stairs', 'relic', 'event', 'anvil'];
@@ -4282,8 +4960,12 @@ export function bindInput() {
 
   $('lesson-ok').onclick = () => closeLesson();
   $('look-close').onclick = () => { $('look').hidden = true; };
-  /* 살펴보기 카드도 밀어서 치운다. 여기는 읽는 창이지 묻는 창이 아니다. */
-  swipeAway($('look'), () => { $('look').hidden = true; });
+  /* 살펴보기 카드도 밀어서 치운다. 여기는 읽는 창이지 묻는 창이 아니다.
+     ── 그래서 **탭으로는 안 닫는다.** 이 카드가 담는 것은 유물 목록과
+     주목의 거래 조건표(일곱 줄)이고, 읽는 중에 손가락이 본문에 닿으면
+     사라졌다. 스크롤이 붙은 지금은 더 그렇다 — 목록을 넘기려고 대는
+     손과 치우려는 손이 같아진다. 미는 것과 백드롭 탭은 그대로 닫는다. */
+  swipeAway($('look'), () => { $('look').hidden = true; }, { tapCloses: false });
   $('look').addEventListener('pointerdown', e => {
     if (e.target.id === 'look') $('look').hidden = true;   // tap the backdrop
   });
@@ -4300,7 +4982,11 @@ export function bindInput() {
   for (const b of soundBtns) b.onclick = () => { Audio.init(); Audio.toggleMute(); paintSound(); };
   paintSound();
 
-  $('btn-inv').onclick    = () => { stopAuto(); setScreen('inv'); };
+  /* 버튼에 「배낭 5.5/20」이라고 적혀 있는데 열리면 「몸」 탭이었다.
+     라벨과 도착지가 다른 것은 그 자체로 오터치이고, 처음 하는 사람은
+     물약을 찾으러 들어갔다가 장비창을 보고 한 번 더 눌러야 한다.
+     라벨이 가리키는 곳으로 연다. */
+  $('btn-inv').onclick    = () => { stopAuto(); invTab = 'bag'; setScreen('inv'); };
   $('btn-cast').onclick   = () => { stopAuto(); setScreen('spell'); };
   $('btn-door').onclick   = () => { stopAuto(); act(Game.closeDoor); };
   /* 밀도를 올리는 유일한 손잡이. 버튼 하나로 두는 이유는, 이것이
@@ -4463,3 +5149,12 @@ function bindMapGestures() {
 }
 
 export { pick };
+/* 탐침용. 화면을 찍어서 글리치를 세면 재고 있는 것이 글리치가 아니라
+   바닥 무늬가 된다 — 그리는 쪽이 부르는 그 함수를 그대로 내준다. */
+export { glitchOf as _glitchOf, glitchNow as _glitchNow };
+/* 탐침용. 벽 테두리는 그리는 자리에서 긋는 것이라 화면에서만 잴 수
+   있고, 화면에서 재려면 그 벽이 화면 어디에 그려졌는지 알아야 한다.
+   좌표를 안 내주면 벤치는 「어두운 픽셀이 몇 %인가」 같은 것을 세게
+   되는데, 그건 배경을 세는 것이지 테두리를 세는 것이 아니다 —
+   실제로 그렇게 만들어 놓고 통과시킨 적이 있다. */
+export { camera as _camera };

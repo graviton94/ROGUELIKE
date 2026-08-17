@@ -4,3 +4,17 @@ node_modules/
 .vscode/
 .idea/
 proto/deeprun-delve.html
+
+# 임시 브라우저 탐침. playwright 는 저장소 안에서만 resolve 되므로
+# 한 번 쓰고 버리는 화면 확인용 스크립트도 sim/ 안에 만들어야 한다.
+# 아래 접두사는 그 용도로 예약한다 — 리뷰어 세션과 스크린샷 확인이
+# 여기에 파일을 만들었다 지운다.
+#
+# sim/_botlib.mjs 와 sim/_stat.mjs 는 임시가 아니라 공용 모듈이다.
+# 밑줄 하나로 뭉뚱그려 무시하면 그 둘이 같이 사라지므로, 접두사를
+# 셋으로 좁혀서 적는다.
+sim/_rev*.mjs
+sim/_shot*.mjs
+sim/_smoke*.mjs
+sim/_tmp*.mjs
+sim/rv*.mjs

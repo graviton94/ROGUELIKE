@@ -10,7 +10,10 @@ import * as Save from './save.js';
 import * as Data from './data.js';
 import * as Audio from './audio.js';
 
-bakeAll();
+/* 살아 있는 것들은 구우면서 비튼다 — 이름표는 MONSTERS에서 그대로
+   나오므로 몬스터를 하나 더 넣으면 그것도 자동으로 비틀린다. */
+bakeAll(new Set([...Data.MONSTERS, ...Data.NAMED, Data.BOSS]
+  .map(m => m && m.spr).filter(Boolean)));
 UI.bindInput();
 UI.startLoop();
 

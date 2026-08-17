@@ -335,6 +335,14 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
           flex: 0 0 auto; white-space: nowrap; }
 .track { position: relative; flex: 1 1 auto; min-width: 0; height: 7px;
          background: var(--k); border: 1px solid var(--g); }
+/* ── 그을린 통 ────────────────────────────────────────────
+   비전 폭주 뒤 열 턴. 마나가 어떤 식으로도 안 차는 동안 계기가
+   식는다 — 값 칸에는 남은 턴이 찍히고(ui.js), 여기서는 그 줄이
+   「지금 작동하지 않는 계기」로 보이게 한다. 안 그러면 열 턴 동안
+   통이 고장 난 것으로 읽힌다. */
+.gauge.seared .glabel, .gauge.seared .gval { color: var(--o); }
+.gauge.seared .track { border-color: var(--o); }
+.gauge.seared .track i { opacity: .35; }
 .track i { display: block; height: 100%; transition: width .16s linear; }
 /* Console gauges come in cells. The ticks are painted over the
    fill in the track's own background colour, so the bar reads as

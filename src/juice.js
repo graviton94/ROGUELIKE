@@ -513,6 +513,24 @@ function spellFx(e) {
       sfx.levelup();
       break;
     }
+    /* ── 비전 폭주 ────────────────────────────────────────
+       통을 태우는 것이므로 **모이는 프레임이 없다** — 화살과 응징은
+       손으로 오므라들고, 이것은 처음부터 바깥으로만 간다. 고리 다섯이
+       한꺼번에 나가고(서리는 셋이 시차를 두고 나간다) 화면이 통째로
+       한 번 하얘진 뒤 보랏빛으로 식는다.
+       궁극기의 등급을 §4의 표에서 그대로 가져온다: 정지 180ms ·
+       늘어짐 320ms. freeze 를 서리(70)의 두 배 넘게 두는 자리다. */
+    case 'surge': {
+      for (let i = 0; i < 5; i++)
+        ring(e.x, e.y, 1.2 + i * 2.1, i % 2 ? PALETTE.W : PALETTE.P, 300 + i * 90);
+      burstShards(e.x, e.y, [PALETTE.P, PALETTE.p, PALETTE.W, PALETTE.k], 34, 2.2);
+      flashScreen = Math.max(flashScreen, 0.5); flashHue = 'p';
+      freeze = Math.max(freeze, 180);
+      shake = Math.max(shake, 0.75);
+      number(e.x, e.y - 1.1, '폭주', PALETTE.P, 1.5, true);
+      buzz([70, 40, 90]); sfx.crit();
+      break;
+    }
     default:
       ring(e.x, e.y, 1.4, C, 260, true);
       sfx.crit();

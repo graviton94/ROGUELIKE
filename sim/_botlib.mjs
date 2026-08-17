@@ -204,7 +204,7 @@ function runBot(race, cls, clear, opt = {}) {
   }
   Game.descend();
   const st = { crits: 0, sneaks: 0, kills: 0, misses: 0, camps: 0, elites: 0, named: 0, shops: 0, broke: 0, events: 0, rolls: 0, branch: {},
-               heals: 0, healMiss: 0, healDry: 0 };
+               heals: 0, healMiss: 0, healDry: 0, surges: 0 };
   let path = null, guard = 0, depthAt = G.depth, lastShout = -99, holdUntil = -1;
   const hist = [];
   let traded = false;   // one visit per floor; the bot has no other reason to stop
@@ -654,12 +654,22 @@ function runBot(race, cls, clear, opt = {}) {
          6이다: 그 정책으로 재면 「치유가 한 번도 안 나가는 직업 셋」이
          나오고, 그건 게임이 아니라 봇이 만든 결과다.
          깊이 다쳤으면 큰 것, 아니면 작은 것, 낼 수 없으면 다른 것. */
+      /* ── 싸움 중과 싸움 뒤의 문턱이 다르다 ────────────────────
+         하나로 두었다(55%). 그런데 공통 치유가 열린 뒤로는 **공격도
+         마나로 하는 직업**이 통을 전부 회복에 쓴다: 마법사는 체력이
+         작아서 55% 아래에 자주 있고, 마나 회복은 여섯 턴에 하나이므로
+         들어온 2를 그때마다 경상 치유로 태운다. 실측으로 24판에 마력
+         화살이 **한 번도** 안 나갔다(주문 프레임 벤치가 잡았다 — 그
+         판에서 나간 주문이 「치유」와 「서리」뿐이었다).
+         그래서 갈린다: 눈앞에 있으면 35% 아래에서만, 아무것도 안
+         보이면 55% 아래에서. 후자가 「싸움이 끝났으니 채운다」다. */
       const big = has('heal'), small = has('cure');
       const wantBig = p.hp < p.maxhp * 0.35;
       const pick = (wantBig && afford(big)) ? big
                  : afford(small) ? small
                  : afford(big) ? big : null;
-      if (pick && p.hp < p.maxhp * 0.55) {
+      const needHeal = p.hp < p.maxhp * (visible.length ? 0.35 : 0.55);
+      if (pick && needHeal) {
         /* 누른 것이 아니라 나간 것을 센다 — `p.casts` 는 cast 가 모든
            검사를 지나 마나를 실제로 뺀 뒤에만 오른다. */
         const was = p.casts || 0;
@@ -671,7 +681,7 @@ function runBot(race, cls, clear, opt = {}) {
          쓴 횟수만으로는 못 읽는다 — 못 쓴 횟수가 있어야 작은 통과 안
          쓰는 통이 갈린다. 마나로 물어야 한다(payable): 서약에 막힌
          턴을 여기 섞으면 이 칸이 통 크기가 아니라 유물 보유율을 센다. */
-      if ((big || small) && p.hp < p.maxhp * 0.55
+      if ((big || small) && needHeal
           && !payable(small) && !payable(big)) st.healDry++;
 
       // Surrounded is what 서리 폭발 is for.
@@ -686,6 +696,24 @@ function runBot(race, cls, clear, opt = {}) {
       const bless = has('bless');
       if (afford(bless) && !p.blessed && (adj.length || far.length >= 2)) { Game.cast(bless.id); continue; }
 
+      /* ── 비전 폭주 (마법사의 궁극기) ────────────────────────
+         정책이 없으면 그 칸은 「아무도 안 누르는 칸」으로 측정된다
+         (sim/README.md 의 경고 셋째). 규칙의 조건과 같은 술어로 쓴다:
+         태울 것이 문턱을 넘고, 맞을 것이 여럿이고, **지금 통을 비워도
+         괜찮을 때**만 — 폭주 뒤 열 턴은 치유도 막히므로, 피가 없을 때
+         쏘는 것은 자살이다. 그 판단이 이 주문의 전부이므로 봇도 그
+         판단을 해야 재는 것이 주문이 된다. */
+      /* 문턱을 「둘 이상 · 통 8할」로 잡았다가 되돌렸다. 그 정책은
+         **판 내내 통이 비어 있는 마법사**를 만든다 — 폭주 뒤 열 턴은
+         마나가 안 차고, 그 사이에 다시 둘이 보이면 또 모자란 채로
+         걷는다. 실측으로 마력 화살이 24판에 한 번도 안 나갔다(주문
+         프레임 벤치가 그걸 잡았다: 판에서 나간 주문이 「치유」뿐).
+         폭주는 방을 지우는 주문이므로 **방이 있을 때** 쓴다. */
+      const surge = has('surge');
+      if (afford(surge) && visible.length >= 3 && p.hp > p.maxhp * 0.55
+          && p.mana >= p.maxmana * 0.9) {
+        castCounted('주문:폭주', surge.id); st.surges++; continue;
+      }
       /* 잔향 (마법사). A spell leaves an afterimage that changes
          the next one, so the caster plays sentences: set one up
          when it is cold, cash it in when it is warm. A policy that

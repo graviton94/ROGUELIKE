@@ -25,7 +25,11 @@ import { chromium } from 'playwright';
 let bad = 0;
 const ok = (c, m, g) => { console.log(`  ${c ? '·' : '✗'} ${m}${g !== undefined ? ` — ${g}` : ''}`); if (!c) bad++; };
 
-console.log('\n주문 프레임 벤치 — 여덟이 다르게 보이는가\n');
+/* 열이 됐다 — 공통 치유 둘(순서 3-①)과 비전 폭주(3-②)가 들어왔다.
+   폭주는 시야에 무언가 있어야 나가는 주문이므로 아래 ①절(마을에서
+   부르는 쪽)에는 못 넣는다 — 봇이 실제로 쓰는지는 sim/mage.mjs 가
+   잰다. 여기서는 **그리는 쪽이 안 던지는가**를 본다. */
+console.log('\n주문 프레임 벤치 — 열이 다르게 보이는가\n');
 
 /* ── ① 규칙 쪽: 시전이 프레임을 띄우는가 ────────────────── */
 const Game = await import('../src/game.js');
@@ -52,12 +56,20 @@ for (const [cls, ids] of Object.entries(CAST)) {
 {
   const { runBot } = await import('./_botlib.mjs');
   const seen = new Set();
-  /* 8판으로 잡았더니 간헐적으로 실패했다 — 봇이 그 안에 쏠 대상을
-     못 만나는 판이 있다. 간헐적으로 우는 벤치는 안 우는 것만 못하다. */
-  for (let i = 0; i < 24 && !seen.has('bolt'); i++) {
-    runBot('human', 'mage', false);
-    for (const e of Game.G.fx) if (e.t === 'spellCast') seen.add(e.id);
-  }
+  /* ── 판이 끝난 뒤에 G.fx 를 읽고 있었다 ────────────────────
+     8판에서 24판으로 늘려도 간헐적으로 울었고, 「봇이 쏠 대상을 못
+     만나는 판이 있다」로 적어 두었다. 아니었다. `_botlib` 이 **반복마다
+     `G.fx.length = 0`** 으로 큐를 비운다(자기 계수기를 센 뒤에). 그래서
+     판이 끝난 뒤에 남아 있는 것은 **마지막 한 반복의 프레임**뿐이고,
+     이 절은 24판을 굴려서 마지막 턴 하나를 보고 있었다 — 통과하면
+     운이었고 실패하면 게임을 의심하게 만드는 자였다.
+
+     큐가 비워지기 전에, 판이 도는 동안 본다. 그러면 판 하나로도
+     결정적이다. */
+  for (let i = 0; i < 24 && !seen.has('bolt'); i++)
+    runBot('human', 'mage', false, { onTurn: (g) => {
+      for (const e of (g.fx || [])) if (e.t === 'spellCast') seen.add(e.id);
+    } });
   ok(seen.has('bolt'), '조준 주문도 실제 판에서는 프레임을 띄운다 — 대상이 있을 때만 시전되므로',
      [...seen].join(' ') || '없음');
 }
@@ -86,7 +98,7 @@ const thrown = await pg.evaluate(async () => {
   /* 없는 id 와 없는 realm 도 넣는다 — 주문을 하나 새로 만드는 사람이
      프레임을 안 붙였을 때 화면이 멈추면 안 된다. */
   const ids = ['bolt', 'smite', 'frost', 'blink', 'detect', 'map',
-               'cure', 'heal', 'bless', '아직없는주문'];
+               'cure', 'heal', 'bless', 'surge', '아직없는주문'];
   for (const id of ids) for (const realm of ['arcane', 'divine', null]) {
     for (const aura of [null, { plus: 5, marks: ['venom'], relics: ['grudge'],
                                 boon: null, unique: null }]) {
@@ -101,12 +113,12 @@ const thrown = await pg.evaluate(async () => {
   catch (err) { out.push(`좌표 없음: ${err.message}`); }
   return out;
 });
-ok(thrown.length === 0, '주문 프레임 예순 갈래가 안 던진다 — 없는 id·없는 realm·좌표 없음 포함',
+ok(thrown.length === 0, '주문 프레임 예순여섯 갈래가 안 던진다 — 없는 id·없는 realm·좌표 없음 포함',
    thrown[0] || '전부 통과');
 await pg.waitForTimeout(900);
 ok(errs.length === 0, '콘솔 오류 없음', errs[0] || '');
 await b.close();
 
 console.log(bad ? `\n주문 프레임 벤치: ${bad}건 실패\n`
-                : '\n주문 프레임 벤치: 여덟이 다 제 그림을 갖고 있다\n');
+                : '\n주문 프레임 벤치: 열이 다 제 그림을 갖고 있다\n');
 process.exit(bad ? 1 : 0);

@@ -828,6 +828,20 @@ function diamond(c, x, y, r) {
   c.moveTo(x, y - r); c.lineTo(x + r * 0.72, y);
   c.lineTo(x, y + r); c.lineTo(x - r * 0.72, y); c.closePath();
 }
+/* 비전 폭주. 별 넷(축복·되감기)이 이미 쓰이고 있으므로 **여덟 갈**로
+   가른다 — 8×8에서 넷과 여덟은 「가시가 몇 개냐」로 즉시 갈리고, 그
+   차이가 「받는 주문」과 「터지는 주문」의 차이다. 안쪽 반지름을
+   star4(0.3)보다 더 죄어(0.22) 가시가 더 날카롭게 읽히게 한다. */
+function starburst(c, x, y, r) {
+  const n = 8, inner = r * 0.22;
+  for (let i = 0; i < n * 2; i++) {
+    const a = (i / (n * 2)) * Math.PI * 2 - Math.PI / 2;
+    const rad = i % 2 ? inner : r;
+    const px = x + Math.cos(a) * rad, py = y + Math.sin(a) * rad;
+    if (i) c.lineTo(px, py); else c.moveTo(px, py);
+  }
+  c.closePath();
+}
 function arrow(c, x, y, r) {
   c.moveTo(x + r, y);
   c.lineTo(x - r * 0.18, y - r * 0.78);
@@ -1112,6 +1126,7 @@ const SPELL_ICONS = {
   detect: [eye,                                       'y'],
   frost:  [flake,                                     'B'],
   map:    [(c, x, y, r) => grid(c, x, y, r * 0.86),   'G'],
+  surge:  [starburst,                                 'p'],
   cure:   [(c, x, y, r) => plus(c, x, y, r * 0.82),   'W'],
   heal:   [plus,                                      'W'],
   bless:  [(c, x, y, r) => star4(c, x, y, r * 0.95),  'y'],
@@ -1424,7 +1439,14 @@ export function refresh() {
      자기가 방금 쓴 자원을 화면에서 못 본다. */
   const mana = $('hud-mana-wrap');
   mana.hidden = false;
-  $('hud-mana').textContent = `${p.mana}/${p.maxmana}`;
+  /* 그을린 동안에는 통이 안 찬다. 그것이 화면에 안 보이면 플레이어는
+     열 턴 동안 「마나가 고장 났다」를 본다 — 이 게임에서 가장 자주
+     고쳐 온 종류의 결함이 정확히 그것이다(§0). 칩이 식고, 이름 옆에
+     남은 턴을 적는다. */
+  // `seared` 는 「이 턴까지」이므로 남은 턴은 차이 + 1 이다.
+  const scar = p.seared ? Math.max(0, p.seared - G.turn + 1) : 0;
+  mana.classList.toggle('seared', scar > 0);
+  $('hud-mana').textContent = scar > 0 ? `그을림 ${scar}턴` : `${p.mana}/${p.maxmana}`;
   $('hud-manabar').style.width = p.maxmana ? `${(p.mana / p.maxmana) * 100}%` : '0%';
 
   /* Always shown, town included. It toggled on depth at first,
@@ -1791,7 +1813,12 @@ function paintSlotRow(row, slots) {
       b.title = s.silent ? `${s.name} — 침묵의 서약으로 봉인됨`
               : s.noTarget ? (s.art ? `${s.name} — 손이 닿는 곳에 아무것도 없다`
                                     : `${s.name} — 시야에 적이 없다`)
+              /* 식은 이유가 「모자라서」인지 「태울 것이 없어서」인지는
+                 다른 말이다. 태우는 주문은 값이 통 전체라, 값을 적으면
+                 언제나 「낼 수 있다」로 읽힌다 — 문턱을 적는다. */
+              : s.thin ? `${s.name} — 태울 것이 모자라다 (마나 ${s.min} 이상)`
               : s.floorOnce ? `${s.name} · ${s.spent ? '이 층에서는 이미 썼다' : '층에 한 번'}`
+              : s.burn ? `${s.name} · 통에 있는 ${s.cost} 전부를 태운다`
               : `${s.name} · ${s.cost}${s.art ? poolName(G.player?.cls) : 'mp'}`;
     }
     /* An art spends breath, not mana, and the row has to say so
@@ -2182,8 +2209,10 @@ function renderLegend() {
     c.width = 72; c.height = 72;
     drawSpellInto(c.getContext('2d'), s.id, 36, 36, 72);
     row.appendChild(c);
+    /* 태우는 주문의 값은 숫자가 아니다 — `0mp` 라고 적으면 열쇠가
+       거짓말을 한다. 값이 「통에 있는 전부」임을 그대로 적는다. */
     row.appendChild(el('span', 'eqname',
-      `${s.names.join(' · ')} — ${s.lv}레벨 · ${s.cost}mp · ${s.desc}`));
+      `${s.names.join(' · ')} — ${s.lv}레벨 · ${s.burn ? '통을 전부' : `${s.cost}mp`} · ${s.desc}`));
     sbox.appendChild(row);
   }
 }

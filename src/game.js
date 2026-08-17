@@ -42,6 +42,7 @@ import {
   POOL, poolName, HARD_HIT, POOL_UNDEAD,
   VANISH_MULT, VANISH_PUSH,
   ECHOES, ECHO_TURNS, ECHO_POWER, ECHO_SPLASH,
+  SURGE_MULT, SURGE_DRY, SURGE_MIN,
   FLURRY_MAX, FLURRY_STEP, FLURRY_STAM, MARK_STEP, MARK_MAX,
   AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE, SMOKE_RADIUS, SMOKE_TURNS,
   QUIVERS, quiverById, BOW_MELEE, BOW_FALLOFF, GEAR_SLOTS,
@@ -1336,6 +1337,35 @@ export function manaEvery(p) {
   return Math.max(3, Math.round(clamp(12 - wise * 2, 6, 18) / (raceRule(p, 'manaFast') || 1)));
 }
 
+/* ── 마나가 들어오는 문 하나 ───────────────────────────────
+   일곱 자리가 각자 `p.mana` 를 직접 올리고 있었다 — 물약 · 술사의
+   지팡이 · 시간 도둑 · 레벨업 · 자연 회복 · 모닥불 · 살덩이. 통이
+   시전자만의 것이던 동안은 그래도 굴러갔는데, 「그을음」처럼 **마나가
+   돌아오는 것 자체를 막는 규칙**을 붙이려면 문이 하나여야 한다.
+   일곱 곳에 같은 검사를 심으면 여섯 곳은 맞고 한 곳이 새고, 그러면
+   「분명 안 찬다고 했는데 모닥불에서는 찬다」가 된다(§5-2).
+
+   n 이 Infinity 면 「가득」이다. 실제로 들어간 양을 돌려주므로 부르는
+   쪽이 「0이 들어갔다」를 보고 말을 고를 수 있다 — 거절하는 이유를
+   여기서 말하지 않는 것은 자리마다 문장이 다르기 때문이다(모닥불에서
+   안 차는 것과 물약이 안 듣는 것은 같은 말로 적으면 안 된다). */
+/* 「언제까지」로 적는다 — G.hushUntil 과 같은 모양이고 같은 부등호다
+   (`>= G.turn`). 처음에 `> G.turn` 으로 쓰고 `turn + 10` 을 넣었더니
+   실제로 막히는 턴이 아홉이었다: 시전한 턴은 이미 지나간 턴이라
+   그 뒤로 열 턴을 세면 마지막 하나가 빠진다. 벤치가 732 vs 733 으로
+   잡았다. 0을 「그을리지 않음」으로 쓰므로 그 검사도 같이 한다 —
+   `0 >= 0` 이 참이라, 안 쓰면 0턴째의 모든 판이 그을린 판이 된다. */
+export const seared = p => !!p?.seared && p.seared >= G.turn;
+export function gainMana(p, n) {
+  if (!p || !p.maxmana) return 0;
+  if (seared(p)) return 0;
+  const want = n === Infinity ? p.maxmana : Math.max(0, Math.round(n));
+  const got = Math.min(p.maxmana - p.mana, want);
+  if (got <= 0) return 0;
+  p.mana += got;
+  return got;
+}
+
 export const BREATH_WEAR = 0.7;    // 상처가 천장을 끌어내리는 비율
 export const BREATH_DEEP = 0.012;  // 4층 아래로 한 층마다
 export const breathRoof = p => {
@@ -1493,8 +1523,10 @@ export const spellList = p =>
 export const artList = p => (ARTS[p?.cls] || []).filter(a => a.lv <= p.lv);
 export const artById = (p, id) => artList(p).find(a => a.id === id);
 
-/* Spells that do nothing at all without something in sight. */
-const TARGETED = ['bolt', 'smite'];
+/* Spells that do nothing at all without something in sight.
+   폭주도 여기 있다 — 태울 것은 있는데 맞을 것이 없으면, 통을 비우고
+   열 턴을 그을리고 아무 일도 안 일어난다. */
+const TARGETED = ['bolt', 'smite', 'surge'];
 
 /* The whole book at once — always the same five, always in the
    same order, with what is not yet learned shown as a locked
@@ -1571,7 +1603,13 @@ export function spellSlots() {
       lv: s.lv, cost, locked, silent, noTarget,
       plus: p.spellPlus?.[s.id] || 0,
       affix: p.spellAffix?.[s.id] || null,
-      ready: !locked && !silent && !noTarget && p.mana >= cost,
+      /* `p.mana >= cost` 만으로는 태우는 주문을 못 막는다 — 값이 통
+         전체이므로 그 검사는 언제나 참이다. 문턱(`min`)을 여기서 같이
+         보고, cast() 도 같은 줄을 본다. 두 곳이 갈리면 「눌리는데 안
+         나가는 버튼」이 하나 더 생긴다. */
+      burn: !!s.burn, thin: !!s.min && p.mana < s.min, min: s.min || 0,
+      ready: !locked && !silent && !noTarget
+             && p.mana >= cost && p.mana >= (s.min || 0),
     };
   }));
 }
@@ -1925,8 +1963,12 @@ export function useItem(slotIdx) {
     }
     case 'mana': {
       if (!p.maxmana) { say('아무 일도 일어나지 않았다.'); break; }
-      const m = Math.round(Math.min(p.maxmana - p.mana, (Math.ceil(p.maxmana * 0.5) + roll(1, 6)) * gulp));
-      p.mana += m; say(`머리가 맑아진다. 마나 +${m}.`, 'good'); break;
+      /* 그을린 동안에는 병을 열지 않는다. 마시고 0이 들어가는 것은
+         「값을 치렀는데 아무 일도 안 일어난 것」이고, 이 게임에서
+         그것은 언제나 버그로 읽힌다(§0). 값을 안 치르게 한다. */
+      if (seared(p)) { say('그을음이 아직 식지 않았다. 병을 열어도 소용없다.', 'warn'); spent = false; break; }
+      const m = gainMana(p, (Math.ceil(p.maxmana * 0.5) + roll(1, 6)) * gulp);
+      say(`머리가 맑아진다. 마나 +${m}.`, 'good'); break;
     }
     case 'map':   revealMap(); say('층의 구조가 머릿속에 그려진다.', 'good'); break;
     case 'teleport': teleport(); say('공간이 접혔다 펴진다.', 'good'); break;
@@ -2665,6 +2707,13 @@ export function cast(spellId) {
   // damage in the hand — the sharpest build commitment here.
   if (hasRelic('vow')) { say('서약이 혀를 막는다. 주문은 나오지 않는다.', 'warn'); return; }
   const cost = spellCost(p, sp);
+  /* 태우는 주문의 문턱. 통에 남은 것이 문턱보다 적으면 나가지 않는다 —
+     2를 태워 4를 내고 열 턴을 그을리는 것은 궁극기가 아니라 함정이다.
+     줄(spellSlots)이 같은 줄을 읽어 미리 식어 있다. */
+  if (sp.min && p.mana < sp.min) {
+    say(`태울 것이 모자라다 — 마나 ${sp.min} 아래로는 폭주하지 않는다.`, 'warn');
+    return;
+  }
   /* ② 크랙 「마르지 않는다」. 지팡이가 지불하는 값은 하나다 — 마나가
      마르면 시전자는 몽둥이를 든 사람이 된다. 이 지팡이는 그 줄을
      지운다: 모자란 만큼을 **피로 낸다.** 그러면 마나는 자원이 아니라
@@ -2703,7 +2752,7 @@ export function cast(spellId) {
   G.act = 'cast';                 // 마나가 실제로 나간 지점에서만 센다
   // 술사의 지팡이: the rod gives one back. Small, constant, and
   // the reason a mage keeps a wand in hand rather than a sword.
-  if (fitRule(p, 'siphon')) p.mana = Math.min(p.maxmana, p.mana + 1);
+  if (fitRule(p, 'siphon')) gainMana(p, 1);
   p.casts = (p.casts || 0) + 1;
   if (echo) takeEcho(p);          // consumed here, whatever it does below
   /* 룬을 새긴 자의 것: the plate still chokes the pool. What does
@@ -2854,6 +2903,30 @@ export function cast(spellId) {
             : '얼릴 것이 없다.', n ? 'good' : ''); break;
     }
     case 'map': revealMap(); say('층의 구조가 머릿속에 그려진다.', 'good'); break;
+    /* 태운 것이 그대로 피해다. `cost` 는 위에서 통 전체였고 이미
+       빠져나갔으므로, 여기서 다시 읽으면 0이다 — 뺀 값을 들고 온다. */
+    case 'surge': {
+      const each = Math.max(1, Math.round(cost * SURGE_MULT * pow));
+      let n = 0;
+      /* ── 그을음이 **피해보다 먼저** 붙는다 ──────────────────
+         뒤에 두었더니 통이 도로 찼다: 폭주가 방을 지우면 그 경험치로
+         레벨이 오르고, 레벨업은 통을 가득 채우는 자리다(gainMana).
+         피해 → 처치 → 경험치 → 레벨업 → 가득, 이 전부가 hurtMonster
+         한 줄 안에서 끝나므로 루프가 끝난 뒤에 그을리면 이미 늦다.
+         실측으로 마나 36으로 쏘고 41로 끝났다 — 값을 안 치른 궁극기.
+         그을음을 먼저 붙이면 그 문이 닫힌 채로 레벨업이 지나간다. */
+      p.seared = G.turn + SURGE_DRY;
+      fx({ t:'burst', x:p.x, y:p.y, r: reach ? 12 : 7, color:'P' });
+      for (const m of [...visible]) {
+        if (!G.monsters.includes(m) || m.disguise) continue;
+        hurtMonster(m, each, '비전 폭주', { weapon: 'spell' });
+        spellDrain(aff, each);
+        rime(m); n++;
+      }
+      say(n ? `마나 ${cost}가 전부 탔다 — ${count(n)}에게 ${each}씩. 그리고 통이 그을렸다.`
+            : `마나 ${cost}가 전부 탔다. 그리고 통이 그을렸다.`, 'level');
+      break;
+    }
   }
   /* 자취: this cast was free of the clock, so it also leaves
      nothing behind. Without that the mage blinks, casts free,
@@ -2879,6 +2952,13 @@ export const spellPower = (p, id) =>
   * (hasRelic('paradox') ? 0.55 : hasRelic('twin') && !cracked('twin') ? 0.8 : 1);
 
 export const spellCost = (p, sp) => {
+  /* 태우는 주문의 값은 **지금 통에 있는 것 전부**다. 맨 위에 두는
+     이유가 셋 있다: 아래의 「값이 0인 자리」들(빈 성소 · 역설의 유물 ·
+     마지막 등불)이 0을 돌려주면 폭주는 아무것도 안 태우고 아무 피해도
+     못 내는데(피해가 태운 양에서 나온다), 그건 공짜가 아니라 고장이다.
+     할인도 같은 이유로 안 받는다. 그리고 이 값이 그대로 칸에 찍히므로
+     화면의 숫자가 곧 피해 예고가 된다. */
+  if (sp.burn) return p?.mana || 0;
   const a = SPELL_AFFIXES.find(x => x.id === p.spellAffix?.[sp.id]);
   if (strangeIs('sanctum')) return 0;    // 비어 있는 성소에는 값이 없다
   if (hasRelic('paradox')) return 0;
@@ -3282,7 +3362,7 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   } else G.bank = 0;
   // 시간 도둑 buys the descent back — and charges for it in turns.
   if (depth > 0 && hasRelic('thief') && p.hp < p.maxhp) {
-    p.hp = p.maxhp; p.mana = p.maxmana;
+    p.hp = p.maxhp; gainMana(p, Infinity);
     say('시간 도둑이 상처를 되감았다.', 'good');
     fx({ t:'heal', x:p.x, y:p.y, amt:0 });
   }
@@ -5999,7 +6079,7 @@ function gainXp(n) {
     const before = p.maxhp;
     recalc(p);
     p.hp += p.maxhp - before;
-    p.mana = p.maxmana;
+    gainMana(p, Infinity);
     /* A milestone level is announced as one, with the number the
        player actually gained — the point of moving growth into
        steps is lost if the steps are silent. */
@@ -6352,7 +6432,14 @@ export function endTurn(skipMonsters = false) {
   if (p.cls === 'priest' && rested && G.turn % 6 === 0 && p.hp < p.maxhp)
     p.hp = Math.min(p.maxhp, p.hp + Math.max(1, Math.round(regen * healScale())));
   if (p.maxmana && G.turn % manaEvery(p) === 0 && p.mana < p.maxmana)
-    p.mana = Math.min(p.maxmana, p.mana + 1);
+    gainMana(p, 1);
+  /* 그을음이 식는 턴에 한 번 말한다. 「왜 마나가 안 차는지」를 화면이
+     말했으므로 「언제 다시 차는지」도 말해야 짝이 맞는다 — 안 그러면
+     플레이어는 통이 고장 난 줄 알고 남은 판을 걷는다. */
+  if (p.seared && G.turn === p.seared + 1) {
+    say('그을음이 식었다. 마나가 다시 돌아온다.', 'good');
+    fx({ t:'echoLeft', x:p.x, y:p.y, id:'spark' });
+  }
 
   /* 그림자, the slow way: time spent with nothing awake looking at
      you. The two fast ways (an ambush, a roll) are things you do;
@@ -7889,7 +7976,10 @@ export function campRest() {
   const heal = Math.min(p.maxhp - p.hp,
     Math.ceil(p.maxhp * CAMP_HEAL * (hasShackle('dryspring') ? 0.5 : 1)));
   p.hp += heal;
-  p.mana = p.maxmana;
+  /* 모닥불도 그을음을 못 지운다. 예외를 하나 두면 「폭주 → 모닥불」이
+     값 없는 순환이 되고, 그 순환이 있는 궁극기는 궁극기가 아니다.
+     열 턴이라 오래 앉아 있을 일도 아니다. */
+  gainMana(p, Infinity);
   const cured = ailList(p);
   p.ail = {};
   p.stuck = 0;
@@ -9043,7 +9133,7 @@ function grantBoon(result, weight, gave = 'blood') {
     },
     flesh: () => {
       const got = Math.min(p.maxhp - p.hp, Math.ceil(p.maxhp * 0.5));
-      p.hp += got; p.mana = p.maxmana; p.ail = {};
+      p.hp += got; gainMana(p, Infinity); p.ail = {};
       fx({ t:'heal', x:p.x, y:p.y, amt:got });
       say(`상처가 전부 닫힌다. 체력 +${got}.`, 'good');
     },

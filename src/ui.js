@@ -1934,6 +1934,17 @@ export const backTarget = () =>
    배낭·상점을 오가는 것까지 기억하면 「돌아갈 곳」이 매번 바뀌어
    오히려 못 돌아간다. setScreen 밖에 두는 이유는 저 함수가 이미
    매듭 린트의 목록에 있기 때문이다. */
+/* 기록할 판이 없으면 버튼이 **미리** 그렇게 보여야 한다 — 눌러 보고
+   알게 되는 것은 한 번 속은 것이다. setScreen 밖에 두는 이유는 저
+   함수가 이미 매듭 린트의 목록에 있기 때문이다. */
+function armTrace() {
+  const t = $('btn-trace2');
+  if (!t) return;
+  const has = !!G.player && !!(G.trace || []).length;
+  t.disabled = !has;
+  t.textContent = has ? '판 기록 내려받기' : '판을 시작하면 받을 수 있다';
+}
+
 function rememberFrom(name) {
   if (!OVERLAYS.includes(name)) return;
   if (OVERLAYS.includes(G.screen)) return;
@@ -1942,6 +1953,7 @@ function rememberFrom(name) {
 
 export function setScreen(name) {
   rememberFrom(name);
+  if (name === 'help') armTrace();
   /* ── 죽는 순간은 화면을 늦춘다 ─────────────────────────
      죽자마자 명세서를 띄우면 **무엇이 나를 죽였는지 볼 틈이 없다.**
      규칙 쪽은 이미 끝났다고 말했지만(G.running=false), 화면은 렌즈가
@@ -4409,7 +4421,22 @@ export async function shareRun() {
    왜 JSON 인가: 읽는 쪽이 사람과 기계 둘 다다. 맨 앞에 사람이 읽을
    머리말 몇 줄을 얹고 그 아래 원본을 통째로 둔다 — 붙여 넣으면
    바로 읽히고, sim/replay.mjs 로 넣으면 표가 나온다. */
-export function dumpRun() {
+export function dumpRun(btn) {
+  /* ── 기록할 것이 없으면 파일을 만들지 않는다 ────────────────
+     첫 화면의 조작법에서도 이 버튼이 눌린다. 그런데 그때는 판이
+     시작되기 전이라 G.player 조차 없고, 그대로 떨구면
+     `undefined/undefined Lv0 · 0층 · 0턴 · events []` 짜리 빈 파일이
+     나간다 — 실제로 플레이어가 그 파일을 보냈다. 아무 말 없이 빈
+     것을 주는 것은 「내려받기가 고장났다」와 구분되지 않는다. */
+  if (!G.player || !(G.trace || []).length) {
+    if (btn) {
+      const was = btn.textContent;
+      btn.textContent = '아직 기록할 판이 없다';
+      setTimeout(() => { btn.textContent = was; }, 2200);
+    }
+    Game.say('아직 기록할 판이 없다 — 한 층이라도 내려간 뒤에 받으시오.', 'warn');
+    return false;
+  }
   const d = Game.traceDump();
   const head = [
     `깊은 곳 판 기록 · ${d.build} · 형식 v${d.v}`,
@@ -4432,6 +4459,7 @@ export function dumpRun() {
   a.download = `deepdelve-${d.cls || 'run'}-d${d.deepest}-${stamp}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  return true;
 }
 
 /* ── the fork ─────────────────────────────────────────────

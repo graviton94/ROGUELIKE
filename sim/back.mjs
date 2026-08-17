@@ -21,7 +21,9 @@ let bad = 0;
 const ok = (c, m, g) => { console.log(`  ${c?'·':'✗'} ${m}${g!==undefined?` — ${g}`:''}`); if (!c) bad++; };
 
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-const pg = await b.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+const ctx = await b.newContext({ viewport: { width: 390, height: 844 },
+  isMobile: true, hasTouch: true, acceptDownloads: true });
+const pg = await ctx.newPage();
 const errs = [];
 pg.on('pageerror', e => errs.push(String(e)));
 await pg.goto('http://127.0.0.1:8199/index.html');
@@ -99,6 +101,30 @@ await pg.evaluate(() => window.UI.setScreen('inv'));
 await wait();
 await back('inv'); await wait();
 ok(await at() !== 'play', '끝난 뒤의 닫기는 판으로 안 간다 — 돌아갈 판이 없다', await at());
+
+/* ── 판 기록이 실제로 떨어지는가 ──────────────────────────
+   이 문이 있어야 「봇으로 재현하지 말고 내 판을 봐라」가 성립한다.
+   그리고 파일 **이름**까지 봐야 한다: 처음에 `…-15층-….json` 으로
+   지었더니 브라우저가 download 속성을 통째로 무시하고 확장자도 없는
+   `download` 를 떨궜다 — 받은 쪽은 그게 무슨 파일인지 모른다. */
+console.log('');
+for (const [what, screen, id] of [['조작법', 'help', 'btn-trace2'],
+                                  ['끝 화면', 'end', 'btn-trace']]) {
+  await pg.evaluate(s2 => window.UI.setScreen(s2), screen);
+  await pg.waitForTimeout(300);
+  const box = await pg.evaluate(i => { const e = document.getElementById(i);
+    const r = e?.getBoundingClientRect(); return e ? { w: Math.round(r.width), h: Math.round(r.height) } : null; }, id);
+  ok(box && box.h >= 44, `${what} 의 판 기록 버튼이 손가락 크기다`,
+     box ? `${box.w}×${box.h}` : '없음');
+  const [dl] = await Promise.all([
+    pg.waitForEvent('download', { timeout: 6000 }).catch(() => null),
+    pg.evaluate(i => document.getElementById(i)?.click(), id),
+  ]);
+  ok(!!dl, `${what} 에서 파일이 실제로 떨어진다`, dl ? dl.suggestedFilename() : '안 떨어짐');
+  ok(!!dl && /^deepdelve-[\w-]+\.json$/.test(dl.suggestedFilename()),
+     `${what} — 이름이 아스키다 (한글이 섞이면 브라우저가 이름을 통째로 버린다)`,
+     dl ? dl.suggestedFilename() : '');
+}
 
 console.log('');
 ok(errs.length === 0, '콘솔 오류 없음', errs[0] || '');

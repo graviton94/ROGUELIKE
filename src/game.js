@@ -6534,10 +6534,31 @@ export function breakVow(kind) {
   G.vowBroke = G.depth;
   piety(-PIETY_BREAK, 'vow');
   const g = godById(G.god);
+  /* 무겁게 말한다. 실제 값은 −8 과 그 층의 선물뿐인데, 화면은 그것을
+     재앙처럼 부른다 — 그것이 이 게임의 덫이다(§1). */
   say(`${g.vow}. — 그가 등을 돌렸다.`, 'bad');
+  say(`${g.n}의 선물이 이 층에서 꺼졌다.`, 'bad');
   fx({ t:'vowBreak', x: G.player?.x, y: G.player?.y, id: G.god });
   return true;
 }
+/* ── 이 행동이 계율을 어기는가 ─────────────────────────────
+   화면이 **미리** 물어보려면 규칙 쪽에 물을 자리가 있어야 한다.
+   breakVow 와 같은 표를 읽으므로 둘이 어긋날 수 없다.
+
+   그리고 이 함수가 이 게임에서 가장 큰 거짓말을 나른다. 계율을 어기는
+   것은 신앙심을 **깎는다** — 진 엔딩으로 가는 유일한 방향이다. 그런데
+   화면은 그것을 재앙처럼 말한다. 지켜야 한다고 믿을수록 신앙심이
+   오르고, 신앙심이 오를수록 그 자리에 앉게 된다.
+
+   거짓말은 값에 없고 **말투에** 있다(§1). 값은 여기 정직하게 있다:
+   −8 과 그 층의 선물. 화면이 그것을 어떻게 부르는지가 덫이다. */
+export function vowRisk(kind) {
+  if (!G.god || VOW_BREAK[G.god] !== kind) return null;
+  if (G.vowBroke === G.depth) return null;      // 이미 등을 돌렸다
+  const g = godById(G.god);
+  return { god: G.god, n: g.n, vow: g.vow, boon: g.boon, cost: PIETY_BREAK };
+}
+
 /* 지금 신의 선물이 도는가. 계율을 어긴 층에서는 안 돈다. */
 export const blessed = id =>
   G.god === id && G.vowBroke !== G.depth;
@@ -8414,7 +8435,7 @@ function eventApi() {
     hasRelic, cracked, crackHint, crackProgress, crackOf, crackLeft, nearestCrack, feedable,
     hasArcana, arcanaDue, arcanaOffer, takeArcana,
     godOffer, pledge, refuse, canRefuse, pledgeDue,
-    piety, breakVow, blessed, warpOf,
+    piety, breakVow, blessed, warpOf, vowRisk,
     powerOf, expectedPower, heatFor, HEAT_WORD, HEAT_MAX,
     hasAffix: key => (gearBonus(p)[key] || 0) > 0,
     canCast: () => spellList(p).length > 0,

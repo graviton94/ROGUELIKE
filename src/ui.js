@@ -2176,6 +2176,44 @@ function renderLegend() {
    security warning, which is the wrong tone for "이 검을 살까". */
 let askResolve = null;
 
+/* ── 계율을 어기는 버튼은 손가락을 피한다 ──────────────────
+   DESIGN.md §4. 광신(신앙심 70)부터 열린다.
+
+   「신이 강요한다」를 문장으로 말하는 대신 **버튼이 실제로 말을 안
+   듣게** 만든다. 물약 버튼이 손가락을 피하기 시작하면, 그 판의 손은
+   물약을 덜 마시게 되고 — 신앙심은 더 오른다.
+
+   피하되 **못 누르게는 안 한다.** 못 누르면 그건 고장이고(§0), 이
+   게임은 어려워도 되지만 고장 나 보이면 안 된다. 비켜서기만 한다.
+
+   흔들림은 시간이 아니라 **자리**로 정한다. 매 프레임 떨면 그건
+   기괴한 게 아니라 성가신 것이다 — 손가락이 다가올 때만 비킨다. */
+function vowShy(row, kind) {
+  if (!Game.vowRisk(kind)) return;
+  /* 문턱은 **신앙심**으로 읽는다. 처음에 juice 의 warpLens 를 읽었는데
+     그건 렌더 루프가 채우는 값이라 화면을 막 켠 순간에는 비어 있다 —
+     광신 85 에서도 안 피했다. 「광신부터」는 렌더 상태가 아니라 규칙의
+     문턱이므로 규칙에서 읽는 것이 맞다. */
+  const zeal = Game.warpOf() * 100;
+  if (zeal < Data.PIETY_ZEAL) return;
+  const dodge = () => {
+    const d = 2 + Math.round((zeal - Data.PIETY_ZEAL) / 10);
+    row.style.transition = 'transform 90ms ease-out';
+    row.style.transform = `translateX(${(Math.random() < 0.5 ? -d : d)}px)`;
+    setTimeout(() => { row.style.transform = ''; }, 220);
+  };
+  row.addEventListener('pointerenter', dodge);
+  row.addEventListener('touchstart', dodge, { passive: true });
+}
+
+/* 이 물건을 쓰면 어떤 계율에 걸리는가. 규칙 쪽 표(VOW_BREAK)와 같은
+   이름을 쓴다 — 여기서 따로 세면 언젠가 화면과 규칙이 다른 말을 한다. */
+function vowKindOf(it) {
+  if (!it || it.kind !== 'use') return null;
+  if (it.use === 'heal' || it.use === 'bigHeal') return 'gulp';
+  return null;
+}
+
 export function ask(text, sub, onYes) {
   dressAll();
   // Same resolver the log uses, so a confirmation reads like the
@@ -3197,10 +3235,27 @@ function renderInventory() {
             () => { Game.useItem(i); renderInventory(); refresh(); });
         return;
       }
+      /* ── 계율 앞에서 한 번 막는다 ──────────────────────────
+         플레이어가 「어기면 안 되는 것」으로 배우게 하려면 **어기기
+         전에** 물어야 한다. 어기고 나서 로그로 알려 주면 그건 벌이지
+         가르침이 아니다.
+
+         그리고 이것이 이 게임에서 가장 큰 거짓말이다(§1). 계율을
+         어기는 것은 신앙심을 깎고, 신앙심이 낮은 것이 진 엔딩으로
+         가는 유일한 길이다. 그런데 이 창은 그것을 재앙처럼 말한다.
+         지켜야 한다고 믿을수록 그 자리에 앉게 된다. */
+      const risk = it.kind === 'use' ? Game.vowRisk(vowKindOf(it)) : null;
+      if (risk) {
+        ask(`${risk.n}이(가) 보고 있다.`,
+            `${risk.vow}. 어기면 이 층에서 ${risk.boon.replace(/\.$/, '')} — 그것이 멎는다.`,
+            () => { Game.useItem(i); renderInventory(); refresh(); });
+        return;
+      }
       it.kind === 'use' ? Game.useItem(i) : Game.equip(i);
       renderInventory(); refresh();
     };
     row.oncontextmenu = e => e.preventDefault();
+    vowShy(row, vowKindOf(it));
 
     /* Breaking gear is how junk becomes progress, so the option
        sits on the row itself rather than behind a mode. */
@@ -3618,7 +3673,17 @@ export function renderCamp() {
     if (!o.poor) row.onclick = () => {
       if (o.id === 'rest') { Game.campRest(); setScreen('play'); refresh(); return; }
       if (o.id === 'wick') { Game.campWick(); setScreen('play'); refresh(); return; }
-      if (o.id === 'sear') { Game.campSear(); setScreen('play'); refresh(); return; }
+      if (o.id === 'sear') {
+        /* 지지는 것은 흉터를 지우는 일이다 — 상처를 세는 자의 계율. */
+        const risk = Game.vowRisk('mend');
+        if (risk) {
+          ask(`${risk.n}이(가) 세고 있다.`,
+              `${risk.vow}. 어기면 이 층에서 ${risk.boon.replace(/\.$/, '')} — 그것이 멎는다.`,
+              () => { Game.campSear(); setScreen('play'); refresh(); });
+          return;
+        }
+        Game.campSear(); setScreen('play'); refresh(); return;
+      }
       campMode = o.id;
       renderCampTargets();
     };
@@ -5251,7 +5316,17 @@ export function bindInput() {
   /* 밀도를 올리는 유일한 손잡이. 버튼 하나로 두는 이유는, 이것이
      실수로 눌리면 안 되는 결정이기 때문이다 — 자동 이동을 끊고
      한 번의 의식적인 누름으로만 나간다. */
-  $('btn-shout').onclick  = () => { stopAuto(); act(Game.shout); };
+  $('btn-shout').onclick  = () => {
+    /* 소리치기도 계율이 될 수 있다(침묵의 어머니). 같은 문으로 묻는다. */
+    const risk = Game.vowRisk('shout');
+    if (risk) {
+      ask(`${risk.n}이(가) 듣고 있다.`,
+          `${risk.vow}. 어기면 이 층에서 ${risk.boon.replace(/\.$/, '')} — 그것이 멎는다.`,
+          () => { stopAuto(); act(Game.shout); });
+      return;
+    }
+    stopAuto(); act(Game.shout);
+  };
   $('btn-here').onclick   = () => {
     stopAuto();
     /* 발밑의 것이 먼저다. 계단 위에는 다른 것이 놓이지 않으므로

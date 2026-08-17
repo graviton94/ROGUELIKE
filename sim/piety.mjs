@@ -119,5 +119,31 @@ ok(wrong.length === 0, '④ 신앙심이 그대로 뒤틀림이 된다 — 옮�
 G.piety = PIETY_MAX + 999;
 ok(Game.warpOf() <= 1, '   그리고 1을 안 넘는다', Game.warpOf().toFixed(2));
 
+/* ── ⑤ 덫이 정직한 값 위에 서 있는가 ────────────────────
+   이 게임에서 가장 큰 거짓말은 **말투**에 있다(§1). 계율을 어기는 것은
+   신앙심을 깎고, 신앙심이 낮은 것이 진 엔딩으로 가는 유일한 길이다.
+   그런데 화면은 그것을 재앙처럼 말한다.
+
+   그러니 값은 반드시 정직해야 한다 — 말투가 거짓이면 값이라도 참이어야
+   플레이어가 나중에 되짚어 볼 수 있다. 어긴 대가는 −8 과 그 층의
+   선물뿐이고, 그 이상은 없다. */
+console.log('');
+fresh();
+G.depth = 5; G.god = 'blood'; G.piety = 50;
+const hp0 = G.player.hp, stam0 = G.player.stam, gold0 = G.player.gold;
+Game.breakVow('gulp');
+ok(G.player.hp === hp0 && G.player.stam === stam0 && G.player.gold === gold0,
+   '⑤ 계율을 어겨도 몸·기력·금화는 안 건드린다 — 값은 정직하다',
+   `−${PIETY_BREAK} 과 그 층의 선물뿐`);
+ok(Game.vowRisk('gulp') === null,
+   '   이미 어긴 층에서는 더 경고하지 않는다 — 돌아설 곳이 없다');
+fresh();
+G.depth = 5; G.god = 'blood'; G.piety = 50;
+const risk = Game.vowRisk('gulp');
+ok(risk && risk.vow && risk.boon && risk.cost === PIETY_BREAK,
+   '   그리고 어기기 **전에** 무엇을 잃는지 다 말한다',
+   risk ? `${risk.vow} · ${risk.cost}` : '없음');
+ok(Game.vowRisk('shout') === null, '   남의 계율로는 경고하지 않는다');
+
 console.log(bad ? `\n신앙심 벤치: ${bad}건 실패\n` : '\n신앙심 벤치: 거절해도 물들되, 광신에는 안 닿는다\n');
 process.exit(bad ? 1 : 0);

@@ -331,6 +331,27 @@ function stepInFx(e) {
    숨 끊기: 짧은 한 줄과 글자 하나. 급소와 같은 문(vitals)을 쓸 수는
    없다 — 저쪽은 화면에 「급소」라고 쓰므로, 빌려 쓰면 숨 끊기를 눌러도
    급소라고 적힌다. 등급은 §4의 특화(정지 110ms)다. */
+/* 심판의 일격. pump 밖으로 뺀 이유는 매듭 린트다 — pump 는 이미
+   「해체 순서」 맨 위이고(복잡도 172 · 849줄), 성전이 돌려보낸 판결을
+   갈래 하나로 얹으면서 기준선 네 줄을 다 넘겼다. 얹은 것보다 조금 더
+   뺀다: 기준선을 올리려면 이유를 적어야 하고, 여기서 댈 이유는 「기예를
+   하나 더했다」뿐이라 그건 이유가 아니다. */
+function judgestFx(e) {
+  ring(e.tx, e.ty, 1.9, PALETTE.y, 380);
+  beams.push({ fx:e.x + 0.5, fy:e.y - 1.2, tx:e.tx + 0.5, ty:e.ty + 0.5,
+               color:PALETTE.W, age:0, life:260 });
+  /* 성전이 돌려보낸 판결은 흰 고리 한 겹이 더 붙는다 — 손이 누른 것과
+     맹세가 부른 것은 화면에서 갈려야 한다. 자주 나가므로(다섯 번까지)
+     무게는 안 올린다. */
+  if (e.crusade) {
+    ring(e.tx, e.ty, 1.2, PALETTE.W, 240);
+    number(e.tx, e.ty - 0.9, '판결', PALETTE.W, 1.0);
+  }
+  flashScreen = Math.max(flashScreen, e.crusade ? 0.18 : 0.3); flashHue = 'y';
+  freeze = e.crusade ? 40 : 80;
+  shake = Math.max(shake, e.crusade ? 0.32 : 0.6);
+  buzz(e.crusade ? 20 : 36); sfx.crit();
+}
 function hushCutFx(e) {
   beams.push({ fx: e.x + 0.5, fy: e.y + 0.5, tx: e.tx + 0.5, ty: e.ty + 0.5,
                color: PALETTE.p, age: 0, life: 150, thin: true });
@@ -1276,19 +1297,7 @@ export function pump(queue, player) {
         shake = Math.max(shake, 0.55);
         break;
 
-      case 'judgest':
-        ring(e.tx, e.ty, 1.9, PALETTE.y, 380);
-        beams.push({ fx:e.x + 0.5, fy:e.y - 1.2, tx:e.tx + 0.5, ty:e.ty + 0.5,
-                     color:PALETTE.W, age:0, life:260 });
-        /* 성전이 돌려보낸 판결은 흰 고리 한 겹이 더 붙는다 — 손이
-           누른 것과 맹세가 부른 것은 화면에서 갈려야 한다. 자주
-           나가므로(다섯 번까지) 무게는 안 올린다. */
-        if (e.crusade) { ring(e.tx, e.ty, 1.2, PALETTE.W, 240); number(e.tx, e.ty - 0.9, '판결', PALETTE.W, 1.0); }
-        flashScreen = Math.max(flashScreen, e.crusade ? 0.18 : 0.3); flashHue = 'y';
-        freeze = e.crusade ? 40 : 80;
-        shake = Math.max(shake, e.crusade ? 0.32 : 0.6);
-        buzz(e.crusade ? 20 : 36); sfx.crit();
-        break;
+      case 'judgest': judgestFx(e); break;
 
       case 'storm':
         for (let i = 0; i < 3; i++) ring(e.x, e.y, 1.2 + i * 0.5, PALETTE.y, 300 + i * 90);

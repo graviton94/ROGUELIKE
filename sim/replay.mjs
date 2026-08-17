@@ -40,6 +40,54 @@ console.log(`${d.deepest}층 · ${d.turns}턴 · `
   + (d.ending ? (d.ending.win ? '클리어' : `${d.ending.by}에게`) : '진행 중')
   + ` · 유물 ${d.relics.length} · 아르카나 ${d.arcana.length} · 총 강화 +${d.plus}\n`);
 
+/* ── 이 브라우저에 남아 있던 것 ────────────────────────────
+   층별 기록은 v43 부터만 쌓인다. 그 전에 친 판들은 층별로는 사라졌지만
+   **누적 장부와 저장 슬롯**은 남아 있고, 파일이 그것도 싣고 온다.
+   층별 표만큼 자세하지는 않아도 「몇 판에 몇 번 완주했나」와 「그
+   순간 손에 뭐가 있었나」는 여기서 나온다 — 밸런스 질문의 절반이
+   실은 그 둘이다. */
+if (d.meta) {
+  const m = d.meta, t = m.totals || {}, b = m.best || {};
+  console.log('  ── 누적 장부 ──');
+  console.log(`  판 ${m.runs || 0}회 · 완주 ${m.wins || 0}회`
+    + (m.runs ? ` (완주율 ${(100 * (m.wins || 0) / m.runs).toFixed(0)}%)` : '')
+    + ` · 최고 ${b.depth || 0}층 Lv${b.lv || 0} · 최고 연격 ${b.combo || 0}`
+    + ` · 최고 금화 ${b.gold || 0} · 최단 ${b.turn || 0}턴`);
+  console.log(`  누적 — 처치 ${t.kills || 0} · 벼림 ${t.forged || 0} · 상자 ${t.opened || 0}`
+    + ` · 각인 ${t.engraved || 0} · 내려간 층 ${t.depth || 0}`);
+  if (m.last) {
+    const l = m.last;
+    console.log(`  마지막 판 — ${l.race || '?'}/${l.cls || '?'} Lv${l.lv || 0}`
+      + ` · ${l.depth || 0}층 · ${l.turn || 0}턴 · ${l.win ? '클리어' : (l.by || '죽음')}`);
+  }
+  for (const f of (m.fallen || []).slice(0, 3))
+    console.log(`  시체 — ${f.cls || '?'} Lv${f.lv || 0} · ${f.depth || 0}층 · ${f.by || '?'}`);
+  console.log('');
+}
+if (d.slots?.length) {
+  console.log('  ── 저장 슬롯 (진행 중이던 판이 멈춘 순간) ──');
+  for (const s of d.slots) {
+    console.log(`  #${s.slot} ${s.race}/${s.cls} Lv${s.lv} · ${s.depth}층(최고 ${s.deepest})`
+      + ` · ${s.hp} · ${s.turn}턴 · 금화 ${s.gold} · 주목 ${s.heat}/${s.provoked}`
+      + ` · 총 강화 +${s.plus} · 처치 ${s.kills} · 최고 연격 ${s.bestCombo}`);
+    console.log(`     유물 ${(s.relics || []).join(' · ') || '—'}`);
+    console.log(`     크랙 ${(s.cracks || []).length}개`
+      + (s.strangeSeen?.length ? ` · 이물 ${s.strangeSeen.join(' · ')}` : ''));
+    for (const it of s.gear || [])
+      console.log(`     ${it.unique ? '★' : '·'} ${it.n}`
+        + (it.plus ? ` +${it.plus}` : '')
+        + [it.pre, it.suf, it.boon, ...(it.engrave || [])].filter(Boolean)
+            .map(x => ` [${x}]`).join(''));
+  }
+  console.log('');
+}
+
+if (!ev.length) {
+  console.log('  (층별 기록이 없는 파일 — 이 판을 v43 이후로 한 번 굴리면');
+  console.log('   층마다 주목·비율·전투력·쓴 턴·기예까지 같이 나온다.)\n');
+  process.exit(0);
+}
+
 /* ── 층별 표 ──────────────────────────────────────────────
    「이 판이 어디서 쉬웠나」는 한 줄로 안 나온다. 층마다 나란히
    놓아야 어느 구간이 평평했는지가 보인다. */

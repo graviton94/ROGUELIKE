@@ -20,7 +20,7 @@
    단계가 없는 게임이다), **두 곳에 다른 숫자가 있는 상태**는 막을 수
    있다. 저장 형식을 같이 적는 이유는 그쪽이 호환을 끊는 유일한
    값이라, 판번호보다 그것이 먼저 궁금해지기 때문이다. */
-export const BUILD = 'v43';
+export const BUILD = 'v45';
 export const SAVE_FORMAT = 8;
 
 export const MAX_DEPTH = 15;
@@ -372,7 +372,7 @@ export const SPELLS = {
     { id:'bless',  name:'축복',        short:'축복', lv:3,  cost:2,  desc:'잠시 명중과 방어가 오른다.' },
     { id:'detect', name:'악 감지',     short:'감지', lv:5,  cost:3,  desc:'층의 모든 몬스터 위치를 읽는다.' },
     { id:'smite',  name:'응징의 빛',   short:'응징', lv:9,  cost:4,  desc:'시야의 적 하나를 빛으로 태운다.' },
-    { id:'heal',   name:'중상 치유',   short:'회복', lv:13, cost:8,  desc:'깊은 상처까지 되돌린다.' },
+    { id:'heal',   name:'중상 치유',   short:'회복', lv:13, cost:8,  desc:'깊은 상처까지 되돌린다 — 흉터를 3할 닫고 천장을 되돌린다.' },
   ],
 };
 
@@ -748,7 +748,7 @@ export const RESONANCE = [
     weak:'한 대만 맞아도 연격이 절반으로 꺾인다. 서서 맞는 빌드로는 켤 수 없다.',
     say:'멈추지 않는 동안에만 배가 부르다.' },
 
-  { id:'shadowstep', n:'그림자 걸음', spr:'dagger',
+  { id:'shadowstep', role:'basic', n:'그림자 걸음', spr:'dagger',
     need: (g, p) => !g.noStealth && g.stealth >= 0.20 && (g.crit > 0 || p?.cls === 'rogue'),
     want: '은신을 두르고 치명타를 얹어',
     t:'잠든 것을 잡아도 층이 깨지 않는다. 방 하나를 한 마리씩 지울 수 있다.',
@@ -1004,7 +1004,77 @@ export const thiefPurse = depth => ({
    already had and something to spend it on. */
 export const ROLL_COST = 2;
 export const ROLL_DIST = 2;
-export const staminaMax = p => 3 + Math.floor(p.lv / 6) + Math.max(0, statBonus(p.stats.dex));
+/* ── 통은 하나, 이름은 여섯 ──────────────────────────────────
+   신앙·맹세·그림자가 각자 제 통을 갖고 있었다. 최대치도(12·10·5),
+   차는 규칙도, 모자랄 때 나오는 말도 전부 달랐다 — 도적은 심지어
+   기력과 그림자를 **동시에** 냈다. 배우는 쪽에서 보면 직업을 바꿀
+   때마다 자원 체계를 새로 배우는 것이고, 만드는 쪽에서 보면 같은
+   질문(「낼 수 있나」)에 답하는 자리가 넷이었다.
+
+   통을 하나로 합친다. 값은 전부 기력이고, 직업마다 **이름만** 다르다.
+   직업의 정체성은 통이 아니라 **차는 규칙**으로 옮긴다 — 그래서
+   사제는 여전히 맞아야 차고, 팔라딘은 여전히 죽여야 차고, 도적은
+   여전히 안 보여야 찬다. 잃은 것은 넷째 숫자뿐이다.
+
+   값의 자는 전사다(원래 그렇게 쓰여 있었다): lv1 2 · lv4 3 · lv8 4 ·
+   lv12 5. 사제의 순교만 6 — 이 직업은 통이 느리게 차는 대신 크다. */
+/* ── 전사의 값 ────────────────────────────────────────────
+   광전사. 죽음에 가까울수록 세지고, 그동안 더 아프게 맞는다. */
+export const COMBO_SHARE   = 0.72;  // 연격 한 대가 평타의 몇 할인가
+export const FRENZY_TURNS  = 8;
+export const FRENZY_MAX    = 0.80;  // 다 죽어 갈 때 주는 피해 +80%
+export const FRENZY_TAKE   = 0.25;  // 그동안 받는 피해도 +25%
+export const TAUNT_TURNS   = 2;
+export const TAUNT_CUT     = 0.20;  // 받는 피해 −20%
+export const TAUNT_GAIN    = 1;     // 맞을 때마다 돌아오는 기력
+export const TAUNT_CAP     = 2;     // 다만 턴당 이만큼까지 — 없으면 무한 기관이다
+export const MAELSTROM_PULL  = 3;   // 한 번에 끌어당기는 칸
+export const MAELSTROM_MAX   = 4;   // 최대 회전 수
+export const MAELSTROM_SHARE = 0.62;
+
+export const POOL = {
+  warrior: { n:'기력',   every: 2 },
+  ranger:  { n:'호흡',   every: 2 },
+  /* 숨어 있으면 세 배로 찬다 — 「숨어서 고르고 나와서 쓴다」가 이
+     직업이고, 그 문장이 이제 회복률에 그대로 적혀 있다. */
+  rogue:   { n:'그림자', every: 6, unseenEvery: 2 },
+  /* ── 여기 둘은 시계가 거의 안 돈다 ────────────────────────
+     신앙과 맹세는 **수동 회복이 아예 없던** 자원이었다. 「복도에
+     안전하게 서서 쌓을 방법이 없다」가 사제 설계의 전부였다.
+
+     통을 합치면서 무심코 시계를 붙였더니 실측 72판에서 성흔이
+     18회 → 563회, 심판의 일격이 322회 → 2108회가 됐다. 통을
+     합치는 것과 **차는 규칙을 바꾸는 것**은 다른 일이다.
+
+     0으로 둘 수는 없다. 통이 하나라서 이제 구르기(2)와 문 부수기도
+     같은 통에서 나가고, 시계가 멈추면 그 둘이 영영 막힌다. 그래서
+     느린 시계를 남긴다 — 잡일은 굴러가되 기예는 여전히 맞아야
+     나온다.
+
+     그리고 이 값은 **두 번 잘못 잡았다.** 처음에 9/7로 뒀다가 봇 표가
+     「기예를 다섯 배 쓴다」고 해서 18/16으로 늦췄는데, 그 표는 나간
+     기예가 아니라 **누른 버튼**을 세고 있었다(sim/_botlib.mjs). 자를
+     고치고 다시 재니 늦춘 쪽이 팔라딘의 도달 층을 10.0 → 7.0으로
+     떨어뜨렸다. 망가진 자를 보고 게임을 고친 것이다.
+
+     이 통은 이제 구르기와 문 부수기도 먹으므로, 예전 맹세 통(10,
+     시계 없음, 기예 전용)보다 **가난하다.** 시계로 그만큼 돌려준다. */
+  priest:  { n:'신앙',   every: 8, onHurt: 1, onHard: 2, more: 3 },
+  paladin: { n:'맹세',   every: 6, onHurt: 1, onKill: 1, more: 3 },
+  mage:    { n:'기력',   every: 2 },
+};
+export const poolName = cls => POOL[cls]?.n || '기력';
+
+/* 통이 커졌다(3+lv/6 → 5+lv/4). 예전 통은 기예 하나가 겨우 들어가는
+   크기였는데, 이제 이 통이 신앙 12와 맹세 10이 하던 일까지 한다.
+   lv1 6~7 · lv12 8~11 · lv20 10~13. */
+/* `more`: 통의 크기도 직업이 정한다. 사제와 팔라딘은 예전에 12와
+   10짜리 통을 **따로** 갖고 있었고 그 통은 구르기에 안 쓰였다. 합친
+   통을 모두에게 같은 크기로 주면 이 둘만 지갑이 얇아진다 — 실측으로
+   팔라딘의 도달 층이 10.0 → 6.9였다. 크기로 돌려준다. */
+export const staminaMax = p =>
+  Math.max(3, 5 + Math.floor(p.lv / 4) + Math.max(0, statBonus(p.stats.dex))
+    + (POOL[p.cls]?.more || 0) + (RACE_RULE[p.race]?.pool || 0));
 export const STAM_REGEN_EVERY = 2;
 
 /* ── the arts ─────────────────────────────────────────────
@@ -1020,40 +1090,31 @@ export const STAM_REGEN_EVERY = 2;
    the scale everything else gets cut to, measured before the rest
    are written — the same order that worked for the resonances. */
 export const ARTS = {
+  /* ── 전사의 넷 — 광전사 ────────────────────────────────
+     축은 「무기가 모양을 정한다」와 「죽음에 가까울수록 세진다」다.
+     활과 지팡이는 아예 못 든다(CANT_HOLD) — 넷이 전부 무기가 정한
+     모양으로 나가므로, 활을 든 전사는 그 넷이 다 이상해진다. */
   warrior: [
-    { id:'shove',    name:'밀쳐내기', short:'밀침', lv:1,  stam:2,
-      desc:'앞의 것을 두 칸 밀어낸다. 벽에 부딪히면 한 턴 무너진다.' },
-    { id:'cleave',   name:'휩쓸기',   short:'휩쓸기', lv:3,  stam:3,
-      desc:'인접한 모든 것을 한 번에 벤다.' },
-    /* 버티기 stood here: four turns of taking less and handing
-       some back. Measured, a bot pressed it 10.2 times a run at
-       level twelve — more than the other three arts put together —
-       because standing still and absorbing is always available and
-       never wrong. That is the opposite of what every other verb
-       in this game asks for, which is a decision about *where to
-       be*. 연타 is the same slot spent forwards. */
-    { id:'flurry',   name:'연타',     short:'연타', lv:7,  stam:2,
-      desc:'한 호흡에 잇달아 친다. 맞을 때마다 다음 한 대가 무거워지고, 빗나가면 거기서 끝난다.' },
-    /* 마무리는 숨 4를 쓰고 평타의 ×0.87(온전)/×1.08(깎인 방)이었다 —
-       자기 하위 기예인 연타(숨2·×1.89)보다 나쁘다. 값을 내리고
-       기울기를 세운다: 「거의 다 죽은 것을 끝낸다」가 더 가팔라야
-       그 자리에서만 옳은 버튼이 된다. */
-    { id:'finisher', name:'마무리',   short:'마무리', lv:11, stam:3,
-      desc:'상대가 잃은 피만큼 무거워지는 한 방.' },
-    /* ── 한계돌파 ─────────────────────────────────────────
-       직업마다 하나씩, 「누가 봐도 이 직업이 위험한 순간」에 쓰는 것.
-       전사가 위험한 순간은 **둘러싸였을 때**다 — 이 게임은 셋에
-       둘러싸이면 12층에서 네 턴에 죽는다(sim/edge.mjs).
-
-       예전에 버티기가 여기 있었는데 빼냈다: 봇이 판당 10.2번 눌렀고,
-       「가만히 서서 버티는 것이 언제나 옳다」가 이 게임의 다른 모든
-       동사(어디에 설 것인가)와 정반대였기 때문이다. 그 문제를 대가로
-       푼다 — 버티는 동안 **한 칸도 못 움직인다.** 언제나 옳은 것이
-       아니라, 도망칠 수 없다고 판단했을 때만 옳은 것이 된다. */
-    /* 한계돌파가 판당 0.05회 눌렸다 — 직업의 기둥이 아니라 장식이다.
-       문턱 9는 봇 기준 판의 끝자락에서야 열린다. 6으로 내린다. */
-    { id:'brace',    name:'버텨선다', short:'버팀', lv:6,  stam:4,
-      desc:'세 턴 동안 받는 피해가 절반 아래로 떨어지고 인접한 것이 물러나지 못한다. 그동안 한 칸도 못 움직인다.' },
+    /* 평타가 이미 계열 규칙을 갖고 있다(WEAPON_TYPES: 단검은 두 번,
+       도끼는 양옆까지, 창은 두 칸). 그래서 「무기별 기본 공격」을 그냥
+       스킬로 만들면 **공짜로 되는 것을 기력 주고 사는 버튼**이 된다.
+       값을 하려면 평타가 **안** 하는 것을 해야 한다: 맞은 것 하나하나가
+       세 번째 손의 셈을 올린다. 도끼면 셋이 동시에 오른다. */
+    { id:'combo', role:'basic', name:'연격', short:'연격', lv:1, stam:2,
+      desc:'무기가 정한 모양대로 친다. 그리고 **맞은 것 하나하나가** 세 번째 손의 셈을 올린다.' },
+    /* 광전사의 얼굴. 무적이 아니라 **폭주**다 — 예전에 이 자리에 있던
+       버티기는 「가만히 서서 버티는 것이 언제나 옳다」라서 잘려 나갔고,
+       무적을 주면 같은 실수를 반복한다. 끌 수 없는 것도 그래서다. */
+    { id:'frenzy', role:'signature', name:'광폭', short:'광폭', lv:4, stam:3,
+      desc:'잃은 피에 비례해 주는 피해가 오른다(최대 +80%). 대신 받는 피해도 +25%. 끌 수 없다.' },
+    /* 단점 상쇄. 전사가 죽는 자리는 둘러싸였을 때인데, 이 직업은
+       둘러싸이는 것을 **원한다** — 그러면 그것을 값으로 바꿔야 한다. */
+    { id:'taunt', role:'cover', name:'도발', short:'도발', lv:8, stam:4,
+      desc:'두 턴 동안 곁의 것들이 나만 친다. 받는 피해 −20%. 맞을 때마다 기력이 돌아온다(턴당 둘까지).' },
+    /* 궁극기. 이 게임에 **당기는 것이 하나도 없다** — 미는 것은 둘인데.
+       광역 회전은 이미 넷째이므로 무게를 회전이 아니라 당기기에 싣는다. */
+    { id:'maelstrom', role:'ultimate', name:'피의 소용돌이', short:'소용돌이', lv:12, stam:5,
+      desc:'보이는 것을 전부 내 곁으로 끌어당긴다. 그리고 곁의 것을 전부 벤다 — 끌려온 것이 많을수록 여러 번.' },
   ],
 
   /* ── 도적의 넷 ────────────────────────────────────────
@@ -1068,14 +1129,14 @@ export const ARTS = {
      makes the things around you lose you, which turns the next
      blow into an ambush, which pays a shade back. */
   rogue: [
-    { id:'shadowstep', name:'그림자 도약', short:'도약', lv:1,  stam:1, shade:1,
-      desc:'보이는 적의 등 뒤로 건너뛰어 친다. 그 한 대는 기습이다. (그림자 1)' },
-    { id:'fan',        name:'칼부채',      short:'부채', lv:4,  stam:2, shade:2,
-      desc:'부채꼴로 칼을 던진다. 그 안의 모든 것이 맞는다. (그림자 2)' },
-    { id:'vanish',     name:'어둠 되감기',  short:'되감기', lv:8,  stam:2, shade:1,
-      desc:'붙어 있는 것을 전부 찌르고 두 칸씩 밀어낸 뒤 자취를 지운다. 그 한 대는 전부 기습이다. (그림자 1)' },
-    { id:'vitals',     name:'급소',        short:'급소', lv:12, stam:3, shade:3,
-      desc:'모은 것을 한 번에 태운다. 갑옷을 지나가는 한 방. (그림자 3)' },
+    { id:'shadowstep', role:'basic', name:'그림자 도약', short:'도약', lv:1,  stam:2,
+      desc:'보이는 적의 등 뒤로 건너뛰어 친다. 그 한 대는 기습이다.' },
+    { id:'fan', role:'signature',        name:'칼부채',      short:'부채', lv:4,  stam:4,
+      desc:'부채꼴로 칼을 던진다. 그 안의 모든 것이 맞는다.' },
+    { id:'vanish', role:'cover',     name:'어둠 되감기',  short:'되감기', lv:8,  stam:3,
+      desc:'붙어 있는 것을 전부 찌르고 두 칸씩 밀어낸 뒤 자취를 지운다. 그 한 대는 전부 기습이다.' },
+    { id:'vitals', role:'ultimate',     name:'급소',        short:'급소', lv:12, stam:5,
+      desc:'모은 것을 한 번에 태운다. 갑옷을 지나가는 한 방.' },
   ],
 
   /* The ranger cast the mage's five spells with worse intelligence
@@ -1093,15 +1154,15 @@ export const ARTS = {
   priest: [
     /* 넷 다 「맞은 것」을 값으로 바꾼다 — 그게 이 직업의 자원이 오는
        곳이고, 지금까지 그 자원이 사는 물건이 없었다. */
-    { id:'repay',    name:'되갚기', short:'되갚기', lv:1,  faith:3,
+    { id:'repay', role:'basic',    name:'되갚기', short:'되갚기', lv:1,  stam:3,
       desc:'이 층에서 받은 것을 눈앞의 하나에게 한 번에 돌려준다. 많이 맞았을수록 무겁다.' },
-    { id:'word',     name:'말씀',   short:'말씀', lv:4,  faith:4,
+    { id:'word', role:'signature',     name:'말씀',   short:'말씀', lv:4,  stam:4,
       desc:'네 칸 안의 모든 것이 두 턴 동안 얼어붙는다. 피해는 없다 — 시간을 산다.' },
-    { id:'stigma',   name:'성흔',   short:'성흔', lv:8,  faith:6,
+    { id:'stigma', role:'cover',   name:'성흔',   short:'성흔', lv:8,  stam:5,
       desc:'하나에 성흔을 새긴다. 그것이 맞을 때마다 곁의 것들도 같이 맞는다.' },
     /* 순교의 값은 피해가 아니라 「다섯 턴 뒤에 오는 빚」이다. 신앙 9는
        판당 한 번도 안 닿는 값이었다. */
-    { id:'martyr',   name:'순교',   short:'순교', lv:12, faith:7,
+    { id:'martyr', role:'ultimate',   name:'순교',   short:'순교', lv:12, stam:6,
       desc:'다섯 턴 동안 쓰러지지 않는다. 끝나면 피한 것이 한꺼번에 온다.' },
   ],
 
@@ -1112,16 +1173,14 @@ export const ARTS = {
      in the room is the worst one — and then how to get to it,
      through it, and on to the next. */
   paladin: [
-    { id:'charge',  name:'돌진',        short:'돌진', lv:1,  oath:2,
+    { id:'charge', role:'signature',  name:'돌진',        short:'돌진', lv:4,  stam:2,
       desc:'네 칸까지 직선으로 달려가 첫 번째 것을 들이받는다. 벽에 처박히면 두 턴을 잃는다.' },
-    { id:'judgest', name:'심판의 일격',  short:'일격', lv:4,  oath:3,
+    { id:'judgest', role:'basic', name:'심판의 일격',  short:'일격', lv:1,  stam:3,
       desc:'방어를 완전히 무시한다. 그리고 상대의 최대 체력이 클수록 더 아프다.' },
-    { id:'storm',   name:'성스러운 폭풍', short:'폭풍', lv:8,  oath:4,
-      desc:'주위 여덟 칸 전부. 여기서 죽은 것마다 맹세가 하나씩 돌아온다.' },
     /* 성전은 맹세 8을 쓰고 평타의 ×0.75였다 — 「방이 이미 무너져
        있어야 값을 한다」는 조건이 체력 40%로 깎아 놓아도 성립하지
        않았다(×0.76). 값을 5로 내리고 한 대를 무겁게 한다. */
-    { id:'crusade', name:'성전',        short:'성전', lv:12, oath:5,
+    { id:'crusade', role:'ultimate', name:'성전',        short:'성전', lv:12, stam:5,
       desc:'가장 가까운 것을 벤다. 죽으면 다음으로 걸어가 또 벤다. 죽지 않는 순간 끝난다.' },
     /* 팔라딘의 넷은 전부 「누구를 칠 것인가」다 — 물러설 방법이 하나도
        없었다. 그런데 이 직업은 앞으로 나가는 직업이라 위험한 순간이
@@ -1137,7 +1196,7 @@ export const ARTS = {
        「아무 때나 못 쓴다」는 성질은 그대로이고(층당 하나), 「지금
        써야 하는데 맹세가 없다」는 일은 사라진다. 순교(신앙 7 + 다섯
        턴 뒤의 빚)와도 이제 확실히 다른 물건이다. */
-    { id:'bulwark', name:'불굴',        short:'불굴', lv:6,  floorOnce:true,
+    { id:'bulwark', role:'cover', name:'불굴',        short:'불굴', lv:8,  floorOnce:true,
       desc:'세 턴 동안 쓰러지지 않는다 — 체력이 1 아래로 내려가지 않는다. 층에 한 번, 값은 없다.' },
   ],
 
@@ -1146,19 +1205,17 @@ export const ARTS = {
        넷이 평타보다 낫고 숨은 층마다 저절로 찬다. 손잡이는 위력이
        아니라 **빈도**에 건다 — 숨은 두 턴에 1이므로 +1은 층당 사용
        횟수를 25~30% 깎는다. */
-    { id:'aimed',   name:'조준 사격', short:'조준', lv:1,  stam:3,
+    { id:'aimed', role:'basic',   name:'조준 사격', short:'조준', lv:1,  stam:3,
       desc:'빗나가지 않는다. 그리고 멀수록 아프다 — 활의 감쇠가 뒤집힌다.' },
-    { id:'pierce',  name:'관통 사격', short:'관통', lv:4,  stam:4,
+    { id:'pierce', role:'signature',  name:'관통 사격', short:'관통', lv:4,  stam:4,
       desc:'화살이 일직선 위의 모든 것을 뚫고 지나간다.' },
-    { id:'snare',   name:'덫 놓기',   short:'덫',   lv:8,  stam:3,
-      desc:'발밑에 덫을 묻는다. 밟은 것은 두 턴을 잃는다.' },
-    { id:'volley',  name:'빗발',      short:'빗발', lv:12, stam:5,
+    { id:'volley', role:'ultimate',  name:'빗발',      short:'빗발', lv:12, stam:5,
       desc:'보이는 모든 것에게 한 발씩. 각각은 절반만 아프다.' },
     /* 궁수가 위험한 순간은 **붙었을 때**다. 활은 붙으면 막대기이고,
        이 직업의 축은 「나와 그것 사이의 거리」다. 그 거리를 한 번에
        되찾는 것 하나가 없었다 — 덫은 놓고 기다리는 것이지 지금
        빠져나오는 것이 아니다. */
-    { id:'kite',    name:'물러서며 쏘기', short:'물러', lv:9,  stam:4,
+    { id:'kite', role:'cover',    name:'물러서며 쏘기', short:'물러', lv:8,  stam:4,
       desc:'네 칸 뒤로 물러나면서, 지나온 자리에 있던 것 전부에게 한 발씩 박는다.' },
   ],
 };
@@ -1177,17 +1234,15 @@ export const ARTS = {
    fight; a priest is strongest at the end of a bad one. That
    inversion is the class, and none of the four arts below is a
    heal. */
-export const FAITH_MAX     = 12;
-export const FAITH_PER_HURT = 1;    // per blow taken, not per point
-export const FAITH_PER_UNDEAD = 2;
-/* A hard blow is worth two. At one per hit the bar filled about
-   as fast as 성역 and 파문 emptied it, so 순교 — nine of twelve —
-   was a button nobody could reach: it fired zero times in twelve
-   measured runs. Weighting the heavy hits means the bar fills
-   fastest exactly when the floor is trying to kill you, which is
-   the only moment the art is for. */
-export const FAITH_HARD_HIT = 0.15; // share of maximum health that counts as hard
-export const FAITH_PER_HARD = 2;
+/* 통은 이제 하나이고(POOL 참조), 신앙은 그 통의 **사제 이름**이다.
+   남은 둘은 「무엇이 통을 채우는가」에 대한 값이라 여기 남는다.
+
+   크게 맞은 한 대는 두 몫이다. 한 대에 하나씩만 주면 통이 비는
+   속도를 못 따라가서, 순교는 열두 판에 0회 눌린 버튼이었다. 무겁게
+   맞을수록 빨리 찬다는 것은 곧 **바닥이 나를 죽이려 들 때 가장 빨리
+   찬다**는 뜻이고, 그 순간이 이 기예들이 있는 유일한 이유다. */
+export const HARD_HIT     = 0.15;  // 최대 체력의 이 몫 이상이면 「크게 맞았다」
+export const POOL_UNDEAD  = 2;     // 사제가 언데드를 재웠을 때 돌아오는 몫
 export const SANCTUM_TURNS = 6;
 export const SANCTUM_CUT   = 0.55;  // damage taken inside, reduced by this share
 export const ANATHEMA_MORE = 0.35;  // what a marked thing takes on top
@@ -1220,11 +1275,11 @@ export const STIGMA_SPLASH = 0.55;  // 성흔 붙은 것이 맞으면 주변이 
 export const STIGMA_RANGE  = 2;
 
 /* ── 그림자 ───────────────────────────────────────────────
-   Five is the cap because the most expensive art costs three: a
-   full pouch is one 급소 and a 도약, or two 칼부채 — enough that a
-   full pouch is a plan, few enough that it is never a rotation. */
-export const SHADOW_MAX  = 5;
-export const SHADOW_TICK = 5;     // turns unseen that earn one
+   제 통을 갖고 있었다(최대 5). 그런데 도적만 **기력과 그림자를 동시에**
+   내고 있었으므로, 둘 중 하나가 비면 못 쓰는 기예가 되어 지갑을 두 개
+   확인해야 했다. 이제 통은 기력 하나이고 「그림자」는 그 통의 도적
+   이름이다. 대신 차는 규칙이 도적의 것으로 남는다 — 아무도 못 보면
+   매 턴 찬다(POOL.rogue.unseen). 숨는 것이 곧 재장전이다. */
 export const FAN_RANGE   = 4;
 export const FAN_ARC     = 0.35;  // dot-product floor: a touch wider than 90°
 export const FAN_SHARE   = 0.7;
@@ -1304,9 +1359,7 @@ export const FINISH_MAX   = 3.4;   // the blow at the target's last sliver
    spent on four ways of killing. Which means the paladin
    accelerates — a good swing pays for the next one, and the room
    gets worse for it rather than better. */
-export const OATH_MAX     = 10;
-export const OATH_PER_HIT = 1;
-export const OATH_PER_KILL = 1;
+/* 맹세도 통을 잃고 이름만 남는다 — 맞으면 하나, 재우면 하나(POOL.paladin). */
 export const CHARGE_DIST  = 4;     // tiles crossed to reach the first body
 export const CHARGE_SLAM  = 2;     // turns lost by something driven into a wall
 export const JUDGE_STRIKE = 0.12;  // share of the target's maximum, on top of the swing
@@ -1545,39 +1598,52 @@ export const UNDEAD = ['wraith', 'mummy', 'lich', 'vampire', 'ashheap', 'emberpr
    줄이었다: 강화가 곱이 된 지금 +8은 1.72배이고, 그것을 못 받는
    무기는 주우면 곧 뒤처진다. 이름이 붙었다고 자라지 못할 이유는 없다.
    ═══════════════════════════════════════════════════════ */
+/* ── 이름 있는 것은 곡선 **위**에 있어야 한다 ────────────────
+   플레이어: 「유일무기가 성능 쓰레기인 거 같고…」
+
+   맞았다. 같은 계열의 평범한 무기와 나란히 재니 일곱 중 넷이
+   **아래**에 있었다 — 그것도 깊을수록 더 나빠졌다:
+     화로에서 꺼낸 것 0.88배 · 못 박는 자 0.90배 · 두 번 우는 활 1.00배
+     마지막 등불은 별 박힌 홀보다 주사위도 마나도 주문력도 낮았다.
+   0.5%로 떨어지는 물건이 주워서 **갈아 끼울 이유가 없는** 상태였다.
+   로그라이크에서 운이 값을 하려면, 나왔을 때 판이 달라져야 한다.
+
+   이제 제 계열에서 같은 깊이 최고의 1.3~1.7배다. 규칙은 그 위에
+   얹히는 것이지 성능을 대신하는 것이 아니다 — 「대신 규칙이 좋잖아」는
+   주워서 안 끼우는 물건을 설명하는 말이지 정당화하는 말이 아니다. */
 export const UNIQUES = [
-  { id:'ashcount', n:'재를 세는 자',   spr:'u_ashcount', t:'dagger', dice:[2,6], d:4,  hands:1,
+  { id:'ashcount', n:'재를 세는 자',   spr:'u_ashcount', t:'dagger', dice:[2,7], d:4,  hands:1,
     rule:'재운 것 하나마다 피해 +1. 층을 내려가면 셈이 처음으로 돌아간다.',
     crack:'①', crackN:'셈이 끝나지 않는다',
     crackT:'층을 내려가도 셈이 안 지워진다. 그리고 여덟을 셀 때마다 **주사위가 한 면 커진다.**',
     lore:'자루에 금이 그어져 있다. 세는 쪽은 칼이지 당신이 아니다.' },
-  { id:'longhush', n:'긴 침묵',       spr:'u_longhush',    t:'bow',    dice:[2,6], d:6,  hands:2, rng:7,
+  { id:'longhush', n:'긴 침묵',       spr:'u_longhush',    t:'bow',    dice:[3,5], d:6,  hands:2, rng:7,
     rule:'맞은 것 말고는 아무것도 깨어나지 않는다.',
     crack:'②', crackN:'붙어도 활이다',
     crackT:'활은 붙으면 막대기다 — 이것은 아니다. **근접에서도 온전히 쏜다.**',
     lore:'시위를 당겨도 소리가 나지 않는다. 놓아도 마찬가지다.' },
-  { id:'emberpull', n:'화로에서 꺼낸 것', spr:'u_emberpull', t:'great', dice:[3,6], d:8, hands:2,
+  { id:'emberpull', n:'화로에서 꺼낸 것', spr:'u_emberpull', t:'great', dice:[4,7], d:8, hands:2,
     rule:'잃은 피가 많을수록 무거워진다 — 반쯤 죽었을 때 피해 +60%.',
     crack:'②', crackN:'빗맞지 않는다',
     crackT:'대검은 크게 휘두르는 만큼 빗나간다. 이것은 **한 번도 빗나가지 않는다.**',
     lore:'아직 식지 않았다. 몇 해가 지났는데도.' },
-  { id:'promise',  n:'약속',          spr:'u_promise',  t:'sword',  dice:[2,7], d:9,  hands:1,
+  { id:'promise',  n:'약속',          spr:'u_promise',  t:'sword',  dice:[3,8], d:9,  hands:1,
     rule:'넘치게 때린 만큼이 체력으로 돌아온다.',
     crack:'③', crackN:'천장이 올라간다',
     crackT:'이 게임에서 최대 체력은 내려가기만 한다. 이 검으로 넘치게 때리면 **천장이 올라간다** — 층마다 다섯까지.',
     lore:'누가 누구에게 한 약속인지는 적혀 있지 않다.' },
-  { id:'nailer',   n:'못 박는 자',     spr:'u_nailer',   t:'mace',   dice:[3,5], d:10, hands:1,
+  { id:'nailer',   n:'못 박는 자',     spr:'u_nailer',   t:'mace',   dice:[3,8], d:10, hands:1,
     rule:'맞은 것은 다음 턴에 움직이지 못한다.',
     crack:'③', crackN:'그 자리에 박힌다',
     crackT:'세 번 맞은 것은 **죽을 때까지 한 칸도 못 움직인다.** 쫓기는 쪽을 바꾼다.',
     lore:'대장장이의 물건이었다. 대장장이는 그것으로 못을 박지 않았다.' },
-  { id:'twicewept', n:'두 번 우는 활', spr:'u_twicewept',    t:'bow',    dice:[2,7], d:12, hands:2, rng:8,
+  { id:'twicewept', n:'두 번 우는 활', spr:'u_twicewept',    t:'bow',    dice:[3,6], d:12, hands:2, rng:8,
     rule:'한 번 쏠 때마다 두 발이 나간다. 두 번째는 절반. 화살은 하나만 든다.',
     crack:'①', crackN:'울음이 멎지 않는다',
     crackT:'두 번째가 **절반이 아니라 온전해지고**, 그 화살이 무언가를 죽이면 **세 번째가 나간다.**',
     lore:'첫 번째는 맞은 것을 위해, 두 번째는 쏜 것을 위해 운다고 한다.' },
-  { id:'lastlamp', n:'마지막 등불',    spr:'u_lastlamp',   t:'wand',   dice:[1,6], d:13, hands:1,
-    manaFlat:8, spellPow:0.25,
+  { id:'lastlamp', n:'마지막 등불',    spr:'u_lastlamp',   t:'wand',   dice:[2,6], d:13, hands:1,
+    manaFlat:20, spellPow:0.60,
     rule:'체력이 4분의 1 아래면 주문에 마나가 들지 않는다.',
     crack:'②', crackN:'마르지 않는다',
     crackT:'마나가 모자라도 주문이 나간다 — **모자란 만큼을 피로 낸다.** 지팡이는 더 이상 비지 않는다.',
@@ -1779,6 +1845,69 @@ export const pickLine = (list, name, tick = 0) =>
   list[tick % list.length].replace(/\{n\}/g, name);
 
 /* Weapons carry dice (count × sides) and a type. Armour carries ac. */
+/* ── 직업이 못 드는 무기 ──────────────────────────────────
+   전사의 기예 넷은 전부 **무기가 정한 모양**으로 나간다. 활을 든
+   전사는 그 넷이 전부 이상해지고, 지팡이를 든 전사는 주문도 못 쓰면서
+   막대기로 때린다. 「쓸 수는 있는데 나쁘다」는 선택이 아니라 함정이다.
+
+   거절하는 문장은 계열마다 다르다. 「착용할 수 없습니다」는 규칙을
+   말하지만 **이유**를 안 말하고, 이유를 모르면 그것은 버그로 읽힌다. */
+/* ── 종족은 규칙이지 보정이 아니다 ────────────────────────
+   여태 종족은 **능력치 보정 + 설명 한 줄**이었다. 그리고 설명이
+   약속한 것을 코드가 안 지키는 자리도 있었다 — 하플링의 「그림자를
+   잘 쓴다」는 은신 수치 하나가 전부였고, 드워프의 「돌 밑에서
+   태어났다」는 실명 면역뿐이었다.
+
+   종족마다 **규칙 하나와 대가 하나**를 준다. 대가가 있어야 고르는
+   것이 되고, 없으면 그냥 더 좋은 종족이 하나 생길 뿐이다.
+
+   전부 이미 있는 깔때기를 지난다 — 새 배관은 없다:
+     통 크기        staminaMax        마나 회복   manaEvery
+     물약 효과      healScale         주문 값     spellCost
+     받는 피해      hurtPlayer        흉터        tookHit
+     못 드는 무기   cantHold          조용할 때   poolGain('quiet')
+     상태이상 길이  afflict           기예 값     useArt
+
+   숫자는 DCSS 것을 안 가져온다. 저쪽은 15시간·27분기짜리 저울이고
+   여기는 15층·3000턴이다 — 구조만 빌리고 값은 우리 벤치로 잰다. */
+export const RACE_RULE = {
+  human:     { gain:'신앙심이 1.4배 빨리 오른다',      cost:'상태이상이 한 턴 더 간다',
+               piety:1.4, ailPlus:1 },
+  halfElf:   { gain:'기예와 주문이 두 레벨 일찍 열린다', cost:'통이 둘 작다',
+               early:2, pool:-2 },
+  elf:       { gain:'마나가 두 배로 빨리 돌아온다',     cost:'받는 물리 피해 +15%',
+               manaFast:2, physUp:0.15 },
+  halfling:  { gain:'아무도 못 볼 때 통이 두 배로 찬다', cost:'양손 무기를 못 든다',
+               quiet:2, noTwoHand:true },
+  gnome:     { gain:'주문 값이 하나 싸다',             cost:'최대 체력 −15%',
+               spellCut:1, hpPct:-0.15 },
+  dwarf:     { gain:'흉터가 절반만 남는다',            cost:'마나가 절반만 돌아온다',
+               woundCut:0.5, manaFast:0.5 },
+  halfOrc:   { gain:'체력 4분의 1 아래에서 피해 +30%',  cost:'회복 물약 효과 −25%',
+               cornered:0.30, potion:0.75 },
+  /* 처음에 대가를 둘 붙였다가(물약 절반 + 기예 값 +1) 도달 층이
+     5.57로 내려앉았다 — 드워프와 4.2층 차이. 이 종족은 xp 1.45로
+     **이미 가장 느리게 크는** 종족이라 대가 하나가 이미 붙어 있었다.
+     기예 값을 되돌리고, 대신 얻는 쪽을 진짜로 만든다: 이 몸은
+     **맞는 중에도 아문다.** 다른 종족은 열 턴을 안 맞아야 숨이
+     돌아오는데 이쪽만 그 문턱이 없다 — 그게 트롤이다.
+
+     물약도 처음엔 절반으로 뒀는데 너무 셌다: 기준선에서 이미
+     꼴찌(7.71 vs 드워프 9.47)인 종족에 −0.94를 더 얹어 6.77이 됐다.
+     0.7로 되돌린다 — 「병에 덜 답하는 몸」은 남기되 그것만으로 판이
+     끝나지는 않게. */
+  halfTroll: { gain:'맞는 중에도 아문다 — 두 배로',     cost:'물약 효과 −30%',
+               regenX:2, potion:0.7, regenInFight:true },
+};
+export const raceRule = (p, k) => RACE_RULE[p?.race]?.[k];
+
+export const CANT_HOLD = {
+  warrior: {
+    bow:  '활은 이 손에 없다. 전사는 거리를 두는 법을 안 배웠다.',
+    wand: '막대기다. 이 손에 쥐면 그냥 나쁜 몽둥이다.',
+  },
+};
+
 export const WEAPONS = [
   { spr:'dagger', n:'단검',         t:'dagger', dice:[1,5],  d:0,  cost:20,   hands:1 },
   { spr:'mace',  n:'곤봉',         t:'mace',   dice:[1,7],  d:0,  cost:24,   hands:1 },
@@ -1856,8 +1985,12 @@ export const SCROLL_LOOKS = [
 export const CONSUMABLES = [
   { id:'potHeal',  spr:'potion', n:'치유의 물약',     d:0,  cost:22,  rar:12, use:'heal',
     desc:'체력 20 + 2d8 + 레벨×2 회복' },
-  { id:'potCure',  spr:'potion', n:'중상 치유 물약',  d:5,  cost:90,  rar:7,  use:'bigHeal',
-    desc:'최대 체력의 60% + 3d10 회복' },
+  /* 「깊은 상처까지 되돌린다」고 써 놓고 실제로는 기본 물약과 숫자만
+     달랐다. 이제 그 문장이 규칙이다 — 상처를 3할 닫는다. 값을 90에서
+     150으로 올린다: 상처를 지우는 것은 이 게임에서 모닥불 + 기름
+     260이 하던 일이고, 그만한 값이 있어야 한다. */
+  { id:'potCure',  spr:'potion', n:'중상 치유 물약',  d:5,  cost:150, rar:7,  use:'bigHeal',
+    desc:'최대 체력의 60% + 3d10 회복. 그리고 흉터를 3할 닫는다 — 천장이 돌아온다.' },
   { id:'potMana',  spr:'potion', n:'정신의 물약',     d:2,  cost:60,  rar:8,  use:'mana',
     desc:'최대 마나의 50% + 1d6 회복' },
   /* Not a potion — a tool. It sits in the same pack line because
@@ -2704,6 +2837,102 @@ export const STRANGE = [
     pull:'같은 것을 여러 번 본 판' },
 ];
 export const strangeById = id => STRANGE.find(o => o.id === id) || null;
+
+/* ── 다섯 신 ──────────────────────────────────────────────
+   DESIGN.md §1·§4. 다섯을 고르는 것처럼 보이지만 전부 같은 것이다.
+   어느 얼굴을 골라도 같은 곳으로 데려간다.
+
+   ── 신은 무엇을 속이는가 ────────────────────────────────
+   **수치를 안 속인다.** 처음에 say(말한 것)와 real(실제)을 갈라서
+   감춰진 대가를 심었는데, 그건 설계가 틀렸다. 성능을 속이면 플레이어가
+   결정을 못 하고, 결정을 못 하는 것은 이 게임에서 「고장」으로 읽힌다
+   (§0). 그리고 로그라이크에서 값을 못 재는 선택지는 선택지가 아니다.
+
+   속이는 것은 **서사**다. 신은 「무찌르면 평화가 온다」고 말했다.
+   그런데 강해져서 내려가는 것 자체가 **다음 용사가 만날 더 강한
+   악마를 빚는 과정**이다. 받은 선물 하나하나가 다음 판의 보스에게
+   그대로 얹힌다.
+
+   그래서 선물의 설명은 정직하다. 계율도 미리 말한다. 거짓말은 값에
+   없고 **결과에** 있다 — 그리고 그 결과는 이 판이 아니라 다음 판에서
+   드러난다.
+
+   말투는 **명령형**이다(§2). 짧고, 이유를 안 댄다.
+
+   숫자는 아직 안 박았다 — 순서 2-2(신앙심과 계율)에서 잰다. */
+export const GODS = [
+  { id:'ember', n:'꺼지지 않는 것', face:'불',
+    call:'불을 지켜라. 어둠은 내 것이 아니다.',
+    boon:'등불이 밝은 동안 주는 피해가 오른다.',
+    vow:'어둠 속에서 싸우지 마라',
+    lore:'그는 빛을 준 적이 없다. 태울 것을 줬을 뿐이다.' },
+
+  { id:'blood', n:'피를 세는 자', face:'피',
+    call:'세어라. 나는 숫자만 안다.',
+    boon:'재운 것마다 몸이 조금씩 돌아온다.',
+    vow:'병에 든 것을 마시지 마라',
+    lore:'세는 쪽은 그이지 당신이 아니다.' },
+
+  { id:'hush', n:'침묵의 어머니', face:'침묵',
+    call:'조용히 하여라.',
+    boon:'들키지 않은 채 걸을수록 손이 빨라진다.',
+    vow:'소리치지 마라',
+    lore:'어머니라고 불리는 이유는 아무도 모른다.' },
+
+  { id:'scale', n:'저울을 든 자', face:'저울',
+    call:'쌓지 마라. 흐르게 하여라.',
+    boon:'쓴 금화만큼 값이 내려간다.',
+    vow:'금화를 쌓아 두지 마라',
+    lore:'저울의 한쪽은 언제나 비어 있다.' },
+
+  { id:'scar', n:'상처를 세는 자', face:'상처',
+    call:'견뎌라. 아물지 마라.',
+    boon:'흉터가 깊을수록 무겁게 친다.',
+    vow:'흉터를 지우지 마라',
+    lore:'그가 세는 것은 상처가 아니라 견딘 횟수다.' },
+];
+export const godById = id => GODS.find(g => g.id === id);
+
+/* ── 신앙심 ────────────────────────────────────────────────
+   DESIGN.md §4. 자원이 아니라 **저주**다 — 쌓이는 것이지 모으는 것이
+   아니다. 두 갈래로 오르고, 한쪽만 막을 수 있다:
+
+     층을 내려가는 것   층당 3.   막을 수 없다
+     선물을 받는 것     하나에 15. 이쪽만 거절로 막는다
+
+   두 값은 설계가 요구하는 두 문장에서 풀었다:
+     · 전부 거절하면 광신에 안 닿는다  → 15층 × 3 = 45 (문턱 70 아래)
+     · 셋 다 받으면 12층 전에 닿는다   → 12×3 + 3×15 = 81 (12층에서 광신)
+
+   문턱 셋은 화면의 문턱이기도 하다(§4의 뒤틀림 표와 같은 자리). */
+export const PIETY_MAX   = 100;
+export const PIETY_FLOOR = 3;    // 한 층 내려갈 때마다
+export const PIETY_GIFT  = 15;   // 선물 하나마다
+export const PIETY_BREAK = 8;    // 계율을 어길 때마다 깎이는 몫
+export const PIETY_STIR  = 35;   // 여기부터 화면이 어긋난다
+export const PIETY_ZEAL  = 70;   // 여기부터 광신
+
+/* 계율. 무엇을 하면 어기는 것인가 — 이름은 이미 있는 깔때기의 이름이다.
+   금지를 규칙으로 만드는 자리는 그 깔때기 하나뿐이어야 한다. */
+export const VOW_BREAK = {
+  ember: 'dark',     // 등불이 꺼진 채로 싸웠다
+  blood: 'gulp',     // 병에 든 것을 마셨다
+  hush:  'shout',    // 소리쳤다
+  scale: 'hoard',    // 금화를 쌓아 뒀다
+  scar:  'mend',     // 흉터를 지웠다
+};
+export const HOARD_AT = 600;     // 저울을 든 자가 「쌓았다」고 보는 금화
+
+/* 거절. 언제나 네 번째 칸에 있되 심연 8단에서만 열린다(DESIGN.md §4).
+   숨기지 않고 **잠근다** — 위키도 공략도 없는 게임이라 완전히 감추면
+   아무도 못 찾고, 못 찾는 진 엔딩은 없는 진 엔딩이다. */
+export const REFUSE = {
+  n:'거절한다',
+  say:'아무것도 받지 않는다.',
+  locked:'아직 거절할 수 있는 자가 아니다.',
+  at: MAX_SHACKLE,
+  lore:'거절한 자의 이름은 어디에도 안 적혀 있다.',
+};
 
 export const ARCANA = [
   { id:'famine', n:'굶주린 판', c:'세계',

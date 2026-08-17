@@ -175,7 +175,12 @@ export function finish(summary) {
   t.engraved += summary.engraved || 0;
   t.kills    += summary.kills || 0;
   t.depth    += summary.depth || 0;
-  m.last = summary;
+  /* ── 다음 판의 보스가 여기서 정해진다 ────────────────────
+     DESIGN.md §1. 이긴 판의 영웅이 최심부에 앉는다(game.js lastHero).
+     그런데 **진 엔딩으로 끝낸 판은 안 앉는다** — 앉지 않았으니까.
+     그 판을 남기면 거절한 사람이 다음 사람의 악마가 되고, 그건 이
+     게임이 말하려는 것과 정반대다. */
+  if (!(summary.win && summary.kind === 'true')) m.last = summary;
   /* 시체를 남긴다. 완주는 안 남긴다 — 걸어 나간 사람은 아래에 없다. */
   if (!summary.win && summary.depth > 0) {
     m.fallen = [{

@@ -10,7 +10,25 @@ const pressed = new Set();
 /* 시전 기회 대비 「눈앞에 있는데 살 수 있는 주문이 없던」 턴. 자원이
    자원인지 묻는 유일한 지표 — 걷는 턴의 잔량은 아무것도 말하지 않는다. */
 export const DRY = { dry: 0, cast: 0 };
-function useArtCounted(id) { ARTUSE[id] = (ARTUSE[id]||0)+1; Game.cast(id); }
+/* ── 누른 것이 아니라 나간 것을 센다 ────────────────────────
+   여기서 누르기 전에 세고 있었다. 그런데 cast는 거절할 수 있다 —
+   자원이 모자라거나, 손에 닿는 것이 없거나, 이 층에서 이미 썼거나.
+   그래서 이 표는 「기예를 몇 번 썼나」가 아니라 「버튼을 몇 번
+   눌렀나」였고, 팔라딘의 심판의 일격이 층당 20.9회로 찍혔다. 실제로
+   나간 것은 층당 4.2회다 — 다섯 배를 부풀려 읽고 있었다.
+
+   게임에 이미 「나갔다」를 세는 자리가 있다(G.artsUsed는 useArt가
+   모든 검사를 통과한 뒤에만 오른다). 그걸 읽는다.
+
+   눌렀는데 안 나간 것도 값이다 — 봇이 헛손질하는 횟수는 곧 봇 정책과
+   게임의 거절 조건이 어긋난 정도다. 따로 센다. */
+export const ARTMISS = {};
+function useArtCounted(id) {
+  const was = Game.G.artsUsed || 0;
+  Game.cast(id);
+  if ((Game.G.artsUsed || 0) > was) ARTUSE[id] = (ARTUSE[id] || 0) + 1;
+  else ARTMISS[id] = (ARTMISS[id] || 0) + 1;
+}
 /* The mage's lines want to record *which sentence* was cast, not
    only which spell, so they pass a label and the spell id apart. */
 function castCounted(label, id) { ARTUSE[label] = (ARTUSE[label]||0)+1; Game.cast(id); }
@@ -258,9 +276,16 @@ function runBot(race, cls, clear, opt = {}) {
 
        무엇을 고르는지가 아니라 「고른다」가 중요하므로 셋 중 하나를
        무작위로 집는다. 편향된 정책은 나중에 A/B 로 따로 잰다. */
-    if (G.screen === 'arcana' && Game.arcanaDue(G.depth)) {
-      const off = Game.arcanaOffer();
-      if (off.length) { Game.takeArcana(off[Math.floor(Math.random() * off.length)].id); }
+    if (G.screen === 'arcana' && Game.pledgeDue(G.depth)) {
+      /* 서약. 아르카나가 여기 있었는데 신으로 바뀌었고, 봇이 그것을
+         모르는 채로 열 판을 굴렸더니 평균 5.7층이 나왔다 — 사실상
+         **전부 거절**하는 판을 굴리고 있었다(설계상 가장 어려운 길).
+         봇이 최악 루트만 굴리면 앞으로의 모든 측정이 거기서 잡힌다.
+
+         봇은 언제나 받는다. 「거절」은 사람의 선택이지 기본값이 아니고,
+         기본값으로 재야 다른 것들이 비교된다. */
+      const off = Game.godOffer();
+      if (off.length) Game.pledge(off[Math.floor(Math.random() * off.length)].id);
       G.screen = 'play'; screenAt = 'play'; screenFor = 0;
     }
     if (G.screen !== 'play') {
@@ -348,31 +373,33 @@ function runBot(race, cls, clear, opt = {}) {
          수 없을 만큼 붙었고(brace), 붙었는데 활이고(kite), 다음 한
          대에 죽을 때(bulwark). 마무리·밀치기보다 **먼저** 본다 —
          나중에 두면 그 둘이 먼저 걸려서 영영 안 눌린다. */
-      const brace = art('brace');
-      if (can(brace) && !(p.brace > 0) && adjA.length >= 2 && p.hp < p.maxhp * 0.55)
-        { useArtCounted('brace'); continue; }
+      /* ── 전사 — 광전사 ────────────────────────────────────
+         옛 정책은 shove·cleave·flurry·finisher·brace 를 불렀는데 그
+         다섯이 통째로 없어졌다. 그대로 두니 봇이 기예를 **판당 0회**
+         썼고, 평균 층만 멀쩡해서 통과처럼 보였다 — 기예를 하나도 안
+         쓰는 전사를 열두 판 굴려 놓고 「전사를 쟀다」고 할 뻔했다.
 
-      /* 버티기 is gone — it was the standing-still verb, and the
-         measurement that killed it came from this harness: 12판에
-         버티기 296 · 휩쓸기 83 · 마무리 72 · 밀치기 3. 연타 is the
-         same slot spent forwards, so the policy is the burst
-         question: one thing in front, worth the pool, and enough
-         breath to finish the chain. */
-      const flurry = art('flurry');
-      if (can(flurry) && adjA.length === 1 && p.stam >= 4
-          && adjA[0].hp > adjA[0].maxhp * 0.35)
-        { useArtCounted('flurry'); continue; }
+         넷의 조건은 각자 다르다: 소용돌이는 **여럿이 보일 때**,
+         도발은 몰렸을 때, 광폭은 피가 줄었을 때, 연격은 기본. */
+      const maelstrom = art('maelstrom');
+      /* 보이는 것을 센다. 아래 블록들이 각자 `seen` 을 다시 만들므로
+         여기서 그 이름을 쓰면 TDZ 로 죽는다 — 제 이름으로 센다. */
+      const inSight = G.monsters.filter(m =>
+        !m.disguise && G.level.vis[idx(m.x, m.y)]);
+      if (can(maelstrom) && inSight.length >= 3) { useArtCounted('maelstrom'); continue; }
 
-      const cleave = art('cleave');
-      if (can(cleave) && adjA.length >= 2) { useArtCounted('cleave'); continue; }
+      const taunt = art('taunt');
+      if (can(taunt) && !(p.taunt > 0) && adjA.length >= 2)
+        { useArtCounted('taunt'); continue; }
 
-      const fin = art('finisher');
-      if (can(fin) && adjA.some(m => m.hp < m.maxhp * 0.45)) { useArtCounted('finisher'); continue; }
+      /* 광폭은 **피가 줄었을 때** 켠다. 잃은 피에 비례해 세지므로
+         가득 찬 채로 켜면 아무 일도 안 일어나고 받는 피해만 는다. */
+      const frenzy = art('frenzy');
+      if (can(frenzy) && !(p.frenzy > 0) && adjA.length && p.hp < p.maxhp * 0.6)
+        { useArtCounted('frenzy'); continue; }
 
-      // Cornered: buy a tile. Only worth stamina when it is bad.
-      const shove = art('shove');
-      if (can(shove) && adjA.length >= 3 && p.hp < p.maxhp * 0.5)
-        { useArtCounted('shove'); continue; }
+      const combo = art('combo');
+      if (can(combo) && adjA.length) { useArtCounted('combo'); continue; }
 
       /* Paladin. The class accelerates on kills, so the policy is
          written to spend rather than to hoard: sweep a crowd
@@ -398,8 +425,8 @@ function runBot(race, cls, clear, opt = {}) {
           && seenP.filter(m => m.hp < m.maxhp * 0.4).length >= 2)
         { useArtCounted('crusade'); continue; }
 
-      const storm = art('storm');
-      if (canSwear(storm) && adjA.length >= 2) { useArtCounted('storm'); continue; }
+      /* 성스러운 폭풍은 잘렸다 — 광역 회전이 이미 휩쓸기·칼부채·빗발로
+         셋이었고, 팔라딘만의 것은 「거리를 지우고 들이받는다」쪽이다. */
 
       const judgest = art('judgest');
       if (canSwear(judgest)
@@ -455,9 +482,8 @@ function runBot(race, cls, clear, opt = {}) {
 
       // The trap is only worth a turn if something is chasing and
       // the hero is about to leave the tile anyway.
-      const snare = art('snare');
-      if (can(snare) && adjA.length >= 1 && p.hp < p.maxhp * 0.45)
-        { useArtCounted('snare'); continue; }
+      /* 덫 놓기는 잘렸다 — 궁수의 단점 상쇄는 「지금 빠져나오는」
+         물러서며 쏘기이지 놓고 기다리는 덫이 아니다. */
 
       /* Priest. Faith is not stamina — it does not tick back, so
          the policy spends it only where the art is the whole answer.
@@ -824,6 +850,10 @@ function runBot(race, cls, clear, opt = {}) {
       // Holding a bow is a commitment; swapping to
       // a marginally larger die throws the whole build away.
       if (it.kind === 'weapon' && worn?.t === 'bow' && it.t !== 'bow') return false;
+      /* 이 손에 안 들리는 물건은 영영 「더 좋은 것」으로 보인다 —
+         equip 이 거절하면서 턴도 안 쓰므로 위 while 이 여기서 돈다.
+         방패 줄과 똑같은 사고이고, 그래서 판정은 게임의 문을 쓴다. */
+      if (Game.cantHold(p, it)) return false;
       return !worn || score(it) > score(worn);
     });
     if (better >= 0) { Game.equip(better); continue; }

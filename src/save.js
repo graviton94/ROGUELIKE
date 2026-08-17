@@ -290,7 +290,6 @@ export function apply(data) {
   p.iframe = p.iframe || 0;
   p.brace = p.brace || 0;          // 버티기, mid-stance across a save
   p.stillFor = p.stillFor || 0;
-  p.faith = p.faith || 0;
   p.martyr = p.martyr || 0;
   p.martyrDebt = p.martyrDebt || 0;
   if (p.stam == null) p.stam = 0;
@@ -323,6 +322,45 @@ export function read(slot) {
 export function clear(slot) {
   try { localStorage.removeItem(key(slot)); } catch { /* nothing to do */ }
 }
+
+/* ── 이 브라우저에 남아 있는 것 ────────────────────────────
+   플레이어: 「이때까지 한 건 안 남는 거구나… 내 로컬 캐시에 있는 걸
+   활용할 수 없나?」
+
+   층별 기록(trace)은 이번 판부터만 쌓인다 — 그건 사실이다. 그런데
+   **로컬에 이미 있는 것**으로도 답할 수 있는 질문이 꽤 있다:
+
+     · 저장 슬롯 — 진행 중인 판의 **전체 상태**가 그대로 있다.
+       그 순간의 장비·유물·아르카나·주목·깊이·전투력을 그대로 읽을
+       수 있다. 층별 이력은 없지만 「지금 이 판이 곡선의 어디에
+       있는가」는 정확히 나온다.
+     · 누적 장부(meta) — 판 수·승 수·최고 깊이·총 처치·마지막 판의
+       요약·최근 시체 셋. 「이 사람이 몇 판을 어떻게 굴렸나」다.
+
+   레벨 격자는 뺀다 — 3.5KB짜리 base64 넷이고, 밸런스에 대해
+   아무것도 말하지 않는다. */
+export function slotDigest(slot) {
+  const d = read(slot);
+  if (!d || !d.player) return null;
+  const p = d.player;
+  const gear = ['weapon', 'body', 'shield'].map(k => p.equip?.[k]).filter(Boolean);
+  return {
+    slot, format: d.format, savedAt: d.savedAt,
+    depth: d.depth, deepest: d.deepest, turn: d.turn,
+    race: p.race, cls: p.cls, lv: p.lv, hp: `${p.hp}/${p.maxhp}`, gold: p.gold,
+    heat: d.heat, provoked: d.provoked,
+    branch: d.branch, arcana: d.arcana, strangeSeen: d.run?.strangeSeen || [],
+    relics: p.relics || [], cracks: Object.keys(d.cracks || {}),
+    plus: gear.reduce((n, it) => n + (it.plus || 0), 0),
+    gear: gear.map(it => ({ n: it.n, plus: it.plus || 0, pre: it.pre || null,
+                            suf: it.suf || null, boon: it.boon || null,
+                            unique: it.unique || null, engrave: it.engrave || [] })),
+    mats: p.mats || null, kills: d.kills, bestCombo: d.bestCombo,
+    floorTurn: d.floorTurn, waves: d.waves,
+  };
+}
+export const allSlots = () =>
+  Array.from({ length: SLOTS }, (_, i) => slotDigest(i)).filter(Boolean);
 
 /* A cheap header for the slot list — never parses the level. */
 export function describe(slot) {

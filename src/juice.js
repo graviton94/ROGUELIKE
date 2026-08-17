@@ -41,6 +41,114 @@ export const deathLens = () =>
 /* 처음엔 빠르게 조이고 끝에서 멎는다 — 슬로우모션의 형태가 이것이다. */
 const ease = t => 1 - Math.pow(1 - Math.min(1, t), 3);
 
+/* ── 시간 ──────────────────────────────────────────────────
+   플레이어: 「스킬이 너무 전부 즉시시전 아님? 강한 스킬이나 치명타는
+   슬로우 모션 이후 빨리감기 + 이펙트 몰아서 표현이나, 컷신 같은
+   효과나 줌인이나…」
+
+   히트스톱(freeze)은 있었는데 **배속이 없었다.** 멈췄다가 원속으로
+   돌아오면 그건 「끊긴 것」이지 슬로우모션이 아니다. 늘어졌다가
+   당겨져야 한 방이 무거워 보인다. 네 마디로 돈다:
+
+     정지(freeze) → 늘어짐(slow) → 빨리감기(snap) → 원속
+
+   빨리감기가 마지막에 있는 이유는 **밀린 이펙트를 몰아 주기** 위해서다.
+   늘어지는 동안 파편과 고리는 제자리에 가까이 머물고, 당겨질 때 한꺼번에
+   흩어진다 — 그것이 「이펙트 몰아서」의 실제 모양이다. */
+let slowLeft = 0, slowRate = 1, snapLeft = 0;
+const SNAP_MS = 160, SNAP_RATE = 1.4;
+
+/* ── 렌즈 하나, 두 가지 이유 ──────────────────────────────
+   죽을 때만 열리던 카메라다. 궁극기도 같은 카메라를 쓴다 — 다만
+   **짧고, 어둡게 하지 않는다.** 죽음은 판이 끝나는 순간이라 색이
+   빠져야 하고, 궁극기는 판이 계속되는 순간이라 안 빠져야 한다.
+   그리고 죽음의 렌즈는 조이고 멎지만 이건 들어갔다 **나온다** —
+   나오지 않으면 그건 연출이 아니라 고장이다. */
+let punchT = 0, punchAt = null, punchK = 0;
+const PUNCH_MS = 440;
+
+/* 카메라가 읽는 자리. 죽음이 있으면 죽음이 이긴다 — 판이 끝나는
+   순간에 궁극기 줌이 섞이면 둘 다 안 읽힌다. */
+export function lens() {
+  const d = deathLens();
+  if (d) return d;
+  if (punchT <= 0 || !punchAt) return null;
+  const t = 1 - punchT / PUNCH_MS;
+  return { k: 1 + punchK * Math.sin(Math.min(1, t) * Math.PI), at: punchAt, dim: 0 };
+}
+
+/* ── 뒤틀림 ────────────────────────────────────────────────
+   DESIGN.md §3. 화면이 얼마나 잘못됐는가 — 0에서 1까지.
+
+   이 문 하나가 뒤에 오는 것 전부를 받는다: 신앙심(내려갈수록 짙어진다),
+   이물 층(규칙이 통째로 다른 층), 광신(70 위). 셋이 각자 화면을 뒤틀면
+   세 가지 다른 기괴함이 생기고, 그러면 그건 문법이 아니라 잡음이다.
+
+   **글리치는 팔레트 안에서 한다.** 새 색을 안 만든다 — 26색이 이
+   게임의 얼굴이고, 뒤틀림이 그 얼굴을 바꾸면 뒤틀린 게 아니라 다른
+   게임이 된다.
+
+   네 표현이 순서대로 열린다. 한꺼번에 열면 35에서 이미 다 보여서
+   70이 아무 말도 못 한다:
+
+     0.00–0.35  아무 일도 없다
+     0.35–0.55  잔상 — 이전 프레임이 한 겹 남는다
+     0.55–0.70  + 색 분리 — 붉은 쪽과 푸른 쪽이 어긋난다
+     0.70–1.00  + 찢김과 오독 — 줄이 밀리고, 타일이 딴 것으로 보인다
+
+   마지막의 **오독이 가장 값싸고 가장 무섭다.** 규칙은 안 바뀐다 —
+   벽은 여전히 벽이고 지나갈 수 없다. 눈만 속는다. */
+let warp = 0;
+export function setWarp(v) { warp = Math.max(0, Math.min(1, v || 0)); }
+export const warpAt = () => warp;
+/* 그리는 쪽이 읽는 자리. juice 는 무엇을 그릴지 모르고 「얼마나
+   잘못됐나」만 안다 — deathLens 와 같은 계약이다. */
+export function warpLens() {
+  if (warp < 0.35) return null;
+  const t = (warp - 0.35) / 0.65;                  // 0..1 로 다시 편다
+  return {
+    ghost:   Math.min(0.30, 0.10 + t * 0.24),      // 잔상 진하기
+    split:   warp >= 0.55 ? Math.round(1 + t * 2) : 0,   // 색 분리 픽셀
+    tear:    warp >= 0.70 ? Math.round(1 + t * 3) : 0,   // 찢김 픽셀
+    misread: warp >= 0.70 ? (warp - 0.70) / 0.30 * 0.12 : 0,  // 타일이 딴 것으로
+  };
+}
+
+/* ── 연출 등급 ────────────────────────────────────────────
+   스킬마다 연출을 따로 짜면 스물넷이 각자 다른 말을 한다. 등급을
+   정해 두면 스킬을 설계할 때 「이건 몇 등급」 한 줄이면 끝나고,
+   화면은 한 가지 문법만 말한다.
+
+   죽음 줄은 여기 없다 — 그건 판이 끝나는 순간이라 규칙이 다르고,
+   이미 제 자리(openLens)를 갖고 있다. */
+const BEAT = {
+  /* 치명타 · 기본 기예. 자주 터지므로 슬로우가 없다 — 매번 늘어지면
+     세 번째 판부터는 연출이 아니라 지연이다. */
+  hit: { freeze: 70,  shake: 0.30, flash: 0.12 },
+  /* 직업특화 기예. 늘어지되 카메라는 안 움직인다. */
+  sig: { freeze: 110, shake: 0.45, flash: 0.20, slow: [0.45, 260] },
+  /* 궁극기. 늘어졌다 당겨지고, 그동안 카메라가 그 자리로 들어갔다 나온다. */
+  ult: { freeze: 180, shake: 0.70, flash: 0.34, slow: [0.30, 320], zoom: 0.25 },
+};
+/* 시간이 지금 어느 마디에 있는가. 밖에서 읽을 자리가 없으면 배속을
+   **간접**으로 잴 수밖에 없는데, 흔들림은 난수 지터라 순간 크기가
+   널뛴다 — 그걸로 쟀다가 궁극기가 「2프레임」으로 찍혔다. 상태를
+   그냥 내준다. deathHolding()·shakeVec()·lens() 와 같은 종류의 창이다. */
+export const timeState = () =>
+  ({ freeze, slowLeft, slowRate, snapLeft, punchT });
+
+export function beat(grade, at, hue = 'W') {
+  const b = BEAT[grade];
+  if (!b) return;
+  freeze = Math.max(freeze, b.freeze);
+  shake = Math.max(shake, b.shake);
+  if (b.flash) { flashScreen = Math.max(flashScreen, b.flash); flashHue = hue; }
+  /* 겹치면 **더 느린 쪽**이 이긴다. 궁극기 중에 평타가 들어와서
+     슬로우를 풀어 버리면 그 한 방이 통째로 날아간다. */
+  if (b.slow) { slowRate = Math.min(slowRate, b.slow[0]); slowLeft = Math.max(slowLeft, b.slow[1]); }
+  if (b.zoom && at && Number.isFinite(at.x)) { punchAt = at; punchK = b.zoom; punchT = PUNCH_MS; }
+}
+
 const MAX_SHARDS = 260;
 
 /* Actors are plain objects that survive between turns, so a
@@ -326,6 +434,94 @@ function auraWash(e) {
 
    artFx·bigFx 와 같은 이유로 한 문 뒤에 둔다 — pump 는 이 저장소에서
    가장 굵은 함수이고, 매듭 린트가 이 커밋에서 바로 잡았다. */
+/* ── 주문마다 제 그림 ──────────────────────────────────────
+   플레이어: 「아이템이나 주문 임펙트, 특히 주문의 효과가 너무 구림.」
+
+   숫자는 약하지 않았다 — 주문 한 방이 평타의 4~7배다. 약한 것은
+   화면이었다. 피해 주문 셋이 전부 같은 선 하나에 색만 달랐고,
+   나머지 다섯은 아무 프레임도 없었다 — 점멸은 그냥 순간이동했고,
+   축복은 로그 한 줄이 전부였다.
+
+   이건 **시전 프레임**이다: 주문이 나가는 순간의 그림. 맞은 자리의
+   그림(beam·burst)은 그대로 두고 그 앞에 선다. 그래서 「내가 무엇을
+   했나」와 「그것이 무엇에 닿았나」가 화면에서 갈린다.
+
+   기예와 같은 문 뒤에 둔다 — pump 는 이미 이 저장소에서 가장 굵은
+   함수이고, 주문 여덟에 case 를 여덟 개 얹으면 아무도 못 연다. */
+function spellFx(e) {
+  const holy = e.realm === 'divine';
+  const C = holy ? PALETTE.y : PALETTE.P;      // 신성은 금빛, 비전은 보랏빛
+  const C2 = holy ? PALETTE.W : PALETTE.p;
+  switch (e.id) {
+    /* 손에서 모였다가 튀어 나간다. 모이는 쪽을 그리는 것이 핵심이다 —
+       선만 있으면 「어디선가 선이 나왔다」이고, 모임이 있으면
+       「내가 쐈다」가 된다. */
+    case 'bolt': case 'smite': {
+      ring(e.x, e.y, 1.4, C, 240, true);       // 손으로 오므라드는 고리
+      burstShards(e.x, e.y, [C, C2], 8, 0.7);
+      if (e.tx !== undefined) {
+        /* 굵은 줄 하나에 얇은 줄 둘 — 한 줄이면 가늘고, 셋이면 굵다. */
+        for (let i = 0; i < 3; i++)
+          beams.push({ fx: e.x + 0.5, fy: e.y + 0.5, tx: e.tx + 0.5, ty: e.ty + 0.5,
+                       color: i ? C2 : C, age: -i * 24, life: 240, thin: i > 0 });
+      }
+      shake = Math.max(shake, holy ? 0.34 : 0.26);
+      buzz(holy ? [30, 14, 40] : [22, 10, 26]);
+      sfx.crit();
+      break;
+    }
+    /* 얼음은 안쪽에서 바깥으로 밀려 나간다. 고리 셋이 시차를 두고
+       퍼지고, 그 뒤에 붙는 burst 가 실제 사거리를 그린다. */
+    case 'frost': {
+      for (let i = 0; i < 3; i++)
+        ring(e.x, e.y, 1.6 + i * 1.5, PALETTE.B, 300 + i * 120);
+      burstShards(e.x, e.y, [PALETTE.B, PALETTE.W, PALETTE.b], 22, 1.5);
+      flashScreen = Math.max(flashScreen, 0.22); flashHue = 'b';
+      freeze = Math.max(freeze, 70);
+      shake = Math.max(shake, 0.4);
+      buzz([44, 24, 44]); sfx.crit();
+      break;
+    }
+    /* 점멸은 **두 곳**에서 일어난다 — 그림자 도약이 그랬듯이. 여기서는
+       떠나는 자리만 그린다(도착 자리는 규칙이 옮긴 뒤라 좌표가 없다). */
+    case 'blink': {
+      ring(e.x, e.y, 1.5, PALETTE.P, 320, true);
+      burstShards(e.x, e.y, [PALETTE.P, PALETTE.p, PALETTE.k], 12, 1.1);
+      buzz([12, 8, 20]); sfx.roll();
+      break;
+    }
+    /* 층을 훑는다. 넓고 얇은 고리 셋 — 피해가 없으니 파편도 없다. */
+    case 'detect': case 'map': {
+      for (let i = 0; i < 3; i++)
+        ring(e.x, e.y, 3 + i * 3.2, C2, 420 + i * 160);
+      number(e.x, e.y - 0.9, e.id === 'map' ? '지형' : '감지', C2, 1.0, true);
+      sfx.levelup();
+      break;
+    }
+    /* 몸으로 스며든다 — 바깥에서 안으로 오므라드는 고리. 치유와
+       축복이 같은 방향인 것은 둘 다 「받는」 주문이기 때문이다. */
+    case 'cure': case 'heal': {
+      ring(e.x, e.y, e.id === 'heal' ? 2.6 : 1.8, PALETTE.g, 380, true);
+      burstShards(e.x, e.y, [PALETTE.g, PALETTE.W], e.id === 'heal' ? 16 : 9, 0.9);
+      flashScreen = Math.max(flashScreen, e.id === 'heal' ? 0.18 : 0.10); flashHue = 'g';
+      sfx.heal();
+      break;
+    }
+    case 'bless': {
+      ring(e.x, e.y, 2.0, PALETTE.y, 420, true);
+      number(e.x, e.y - 0.9, '축복', PALETTE.y, 1.1, true);
+      sfx.levelup();
+      break;
+    }
+    default:
+      ring(e.x, e.y, 1.4, C, 260, true);
+      sfx.crit();
+  }
+  /* 잔향이 실려 있으면 한 겹 더. 마법사의 축이 화면에 안 보이면
+     그건 로그에만 있는 축이다. */
+  if (e.echo) ring(e.x, e.y, 2.2, PALETTE.W, 300);
+}
+
 function priestFx(e) {
   if (e.t === 'repay') {
     /* 모아 둔 것이 한 번에 나간다. 굵은 줄 하나 + 무게. */
@@ -498,7 +694,10 @@ export function pump(queue, player) {
           const s = at(findByPos(e)); if (s) { s.flash = 1; s.squash = 1; }
           burstShards(e.x, e.y, spriteColors(e.spr || 'rat'), big ? 14 : 6, big ? 1.5 : 0.9);
           shake = Math.max(shake, big ? 0.42 : 0.13);
-          if (big) { freeze = 70; ring(e.x, e.y, 1.6, PALETTE.y); flashScreen = 0.22; flashHue = 'y'; }
+          /* 치명타는 「한 대」 등급이다. 여태 여기서 손으로 freeze 와
+             flash 를 적고 있었는데, 같은 무게의 다른 사건들과 숫자가
+             제각각이었다 — 등급을 지나게 하면 한 곳에서 바뀐다. */
+          if (big) { beat('hit', { x: e.x, y: e.y }, 'y'); ring(e.x, e.y, 1.6, PALETTE.y); }
           buzz(big ? 32 : 10);
           if (e.sneak) sfx.sneak(); else if (e.crit) sfx.crit(); else sfx.hit(e.weapon, 1);
         } else {
@@ -584,6 +783,10 @@ export function pump(queue, player) {
         buzz(e.big ? [40, 40, 40, 40, 140] : [30, 40, 30, 40, 90]);
         sfx.levelup();
         break;
+
+      /* 시전 프레임. 맞은 자리의 그림(beam·burst)보다 **먼저** 온다 —
+         규칙 쪽에서 그 순서로 띄운다. */
+      case 'spellCast': spellFx(e); break;
 
       case 'beam':
         beams.push({ fx: e.fx, fy: e.fy, tx: e.tx, ty: e.ty, color: PALETTE[e.color] || PALETTE.P, life: 260, age: 0 });
@@ -1072,7 +1275,7 @@ export function pump(queue, player) {
         break;
 
       case 'oathback':
-        number(e.x, e.y - 1.1, `맹세 +${e.n}`, PALETTE.y, 1.15);
+        number(e.x, e.y - 1.1, `+${e.n}`, PALETTE.y, 1.15);
         ring(e.x, e.y, 0.9, PALETTE.y, 260);
         break;
 
@@ -1262,7 +1465,16 @@ const findByPos = e => monsterLookup(e.x, e.y);
 
 /* ── simulation ─────────────────────────────────────────── */
 export function update(dt, actors) {
+  /* ── 정지 → 늘어짐 → 빨리감기 → 원속 ──────────────────────
+     세 마디 다 **실제 시간**으로 줄고, 애니메이션에 건네는 dt만
+     늘렸다 줄인다. 남은 시간까지 배속으로 깎으면 늘어질수록 슬로우가
+     짧아져서 배율을 올린 만큼 효과가 사라진다. */
+  if (punchT > 0) punchT -= dt;
   if (freeze > 0) { freeze -= dt; dt = Math.min(dt, 3); }   // hit-stop: near-still, never frozen solid
+  else if (slowLeft > 0) {
+    slowLeft -= dt; dt *= slowRate;
+    if (slowLeft <= 0) { snapLeft = SNAP_MS; slowRate = 1; }
+  } else if (snapLeft > 0) { snapLeft -= dt; dt *= SNAP_RATE; }
 
   const k = Math.min(1, dt / 16.7);
 
@@ -1456,4 +1668,8 @@ export function reset() {
   shards.length = 0; numbers.length = 0; rings.length = 0; beams.length = 0;
   slashes.length = 0; vignette = 0;
   shake = 0; freeze = 0; flashScreen = 0;
+  /* 시간과 렌즈도 같이 푼다 — 층을 넘어가는데 슬로우가 남아 있으면
+     다음 층이 느리게 시작한다. */
+  slowLeft = 0; slowRate = 1; snapLeft = 0; punchT = 0; punchAt = null;
+  warp = 0;
 }

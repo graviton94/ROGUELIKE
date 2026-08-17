@@ -18,7 +18,7 @@ import {
   BOSS, tellsOf, tellsNeeded, rulebook, hearsayFor, CONSUMABLES, RESONANCE,
   REGIONS, regionOf, MEMORIES, memoryEarned, SHACKLES, MAX_SHACKLE, josa,
   UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS, FUSE_ODDS, FUSE_COST,
-  xpToLevel, statBonus, FAITH_MAX, OATH_MAX,
+  xpToLevel, statBonus, poolName,
 } from './data.js';
 import { EVENTS } from './events.js';
 
@@ -29,6 +29,7 @@ import {
   ROCK, FLOOR, DOWN, UP, DOOR, RUBBLE, SHOP,
   DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN, WEB, WATER, CAMP, ALTAR, EVENT, ANVIL, PROP, propAt,
 } from './world.js';
+import * as Data from './data.js';
 import * as Game from './game.js';
 import { G } from './game.js';
 import * as Juice from './juice.js';
@@ -133,7 +134,10 @@ export function draw() {
      「왜 죽었는지」를 읽으려면 먼저 **무엇이 거기 서 있었는지**가
      보여야 한다. juice 가 얼마나 조였는지만 알려 주고, 어디를 어떻게
      그릴지는 여기서 정한다. */
-  const lens = Juice.deathLens();
+  /* 카메라는 죽음의 렌즈와 궁극기의 렌즈를 같은 자리에서 읽는다 —
+     둘 다 「얼마나 조였고 어디를 보나」일 뿐이다. 아래 어둡게 하는
+     쪽만 죽음 전용으로 남는다. */
+  const lens = Juice.lens();
   const t = Math.round(CELL_SIZE * scale * (lens ? lens.k : 1));
   if (!camReady) snapCamera();
   if (lens?.at) {
@@ -185,7 +189,7 @@ export function draw() {
       ctx.globalAlpha = alpha;
 
       if (tile === ROCK || tile === SHOP) {
-        ctx.drawImage(wallTile(x, y), px, py, t, t);
+        warped(ctx, wallTile(x, y), px, py, t, x, y);
         /* 벽에도 외곽선. 스프라이트는 구울 때 테두리를 얻었는데 지형은
            못 얻었고(지형은 구울 때 이웃을 모른다), 그래서 벽 덩어리가
            덩어리가 아니라 무늬 밭으로 읽혔다 — 어디까지가 벽이고
@@ -205,7 +209,7 @@ export function draw() {
         if (!wallAt(x - 1, y)) ctx.fillRect(px, py, u, t);
         if (!wallAt(x + 1, y)) ctx.fillRect(px + t - u, py, u, t);
       } else {
-        ctx.drawImage(floorTile(x, y), px, py, t, t);
+        warped(ctx, floorTile(x, y), px, py, t, x, y);
         if (tile === DOWN) {
           /* 내려가는 자리는 이 게임에서 유일하게 「반드시 찾아야 하는」
              칸이다. 8×8 계단 그림 하나로는 어두운 바닥에서 안 읽힌다 —
@@ -683,7 +687,44 @@ const MINI_TILE = {
   [WATER]: 'b', [WEB]: 's', [RUBBLE]: 'g',
 };
 
-export function drawMini() {
+export /* ── 뒤틀린 채로 그린다 ────────────────────────────────────
+   DESIGN.md §3. juice 가 「얼마나 잘못됐나」만 알려 주고, 무엇을 어떻게
+   그릴지는 여기서 정한다 — deathLens 와 같은 계약이다.
+
+   지형에만 붙인다. 몬스터와 영웅까지 뒤틀면 **무엇이 나를 죽이는지**가
+   안 보이고, 그건 기괴한 게 아니라 불공평한 것이다. 벽이 거짓말하는
+   것과 적이 안 보이는 것은 다른 물건이다. */
+function warped(ctx, img, px, py, t, x, y) {
+  const w = Juice.warpLens();
+  if (!w) { ctx.drawImage(img, px, py, t, t); return; }
+  const a0 = ctx.globalAlpha;
+  /* 찢김 — 가로 줄 하나가 밀린다. 줄 번호로 정하므로 매 프레임
+     같은 줄이 밀린다: 무작위로 흔들면 그건 글리치가 아니라 지진이다. */
+  const dx = w.tear && ((y * 7 + 3) % 5 === 0) ? w.tear : 0;
+  /* 색 분리 — 같은 그림을 붉은 쪽과 푸른 쪽으로 어긋나게 두 번 더.
+     팔레트 밖으로 안 나간다: 원본을 그대로 겹치고 합성만 바꾼다. */
+  if (w.split) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = a0 * 0.34;
+    ctx.drawImage(img, px + dx - w.split, py, t, t);
+    ctx.drawImage(img, px + dx + w.split, py, t, t);
+    ctx.restore();
+  }
+  ctx.globalAlpha = a0;
+  ctx.drawImage(img, px + dx, py, t, t);
+  /* 잔상 — 한 겹이 어둠으로 남는다. 이전 프레임을 들고 있지 않으므로
+     제자리에 옅게 겹쳐 「한 프레임 늦게 따라오는」 인상만 만든다. */
+  if (w.ghost) {
+    ctx.save();
+    ctx.globalAlpha = a0 * w.ghost;
+    ctx.drawImage(img, px + dx, py + 1, t, t);
+    ctx.restore();
+  }
+  ctx.globalAlpha = a0;
+}
+
+function drawMini() {
   const px = MINI_SIZES[miniStep];
   mini.classList.toggle('off', !px);
   if (!px || !G.level || !G.player) return;
@@ -1321,6 +1362,10 @@ function frame(ts) {
   }
   // The ear stands where the hero stands.
   Audio.listenAt(G.player.x, G.player.y);
+  /* 신앙심이 곧 뒤틀림이다(§4). 규칙 쪽은 0~100 숫자만 알고, 그것이
+     화면에서 무엇이 되는지는 여기서 정한다 — 두 자리에서 계산하면
+     「깊어질수록 기괴해진다」가 둘로 갈린다. */
+  Juice.setWarp(Game.warpOf());
   Juice.pump(G.fx, G.player);
   Juice.update(dt, [G.player, ...G.monsters]);
 
@@ -1721,12 +1766,16 @@ function paintSlotRow(row, slots) {
       b.title = `${s.lv}레벨에 익힙니다`;
     } else {
       label.appendChild(document.createTextNode(s.short));
-      label.appendChild(el('b', '', String(s.cost)));
+      /* 값이 횟수인 기예에는 숫자가 없다. 「1」을 찍으면 기력 1로
+         읽히므로 점을 찍는다 — 다 쓰면 빈 점이 되어 그 자체가
+         「이 층에서는 끝」이다. */
+      label.appendChild(el('b', '', s.floorOnce ? (s.spent ? '○' : '●')
+                                                : String(s.cost)));
       b.title = s.silent ? `${s.name} — 침묵의 서약으로 봉인됨`
               : s.noTarget ? (s.art ? `${s.name} — 손이 닿는 곳에 아무것도 없다`
                                     : `${s.name} — 시야에 적이 없다`)
-              : s.floorOnce ? `${s.name} · 층에 한 번`
-              : `${s.name} · ${s.cost}${s.art ? (s.faith ? '신앙' : s.oath ? '맹세' : '기력') : 'mp'}`;
+              : s.floorOnce ? `${s.name} · ${s.spent ? '이 층에서는 이미 썼다' : '층에 한 번'}`
+              : `${s.name} · ${s.cost}${s.art ? poolName(G.player?.cls) : 'mp'}`;
     }
     /* An art spends breath, not mana, and the row has to say so
        without a word — the cost pip carries the stamina colour. */
@@ -1824,32 +1873,67 @@ function showHeat() {
    그래서 좋은 쪽과 값을 같은 크기로 적는다 — 한쪽만 크게 쓰면
    그건 광고지 결정이 아니다. */
 function renderArcana() {
+  /* ── 서약 화면 ────────────────────────────────────────────
+     DESIGN.md §4. 아르카나가 쓰던 화면을 그대로 쓴다 — 넷째 칸이
+     붙었을 뿐이다.
+
+     **신이 말한 것만 뜬다.** 실제로 일어나는 것(real)은 이 함수가
+     아예 안 읽는다 — 규칙 쪽(godOffer)이 안 내보내기도 하지만, 화면이
+     그것을 알면 언젠가 새 나간다.
+
+     그리고 이 화면도 뒤틀린다. 신앙심이 깊어질수록 신의 말이 흔들리고,
+     넷째 칸은 점점 멀어진다. */
   const list = $('arcana-list'); list.innerHTML = '';
-  const have = (G.arcana || []).length;
-  $('arcana-sub').textContent =
-    `${G.depth}층. 이 판의 ${have + 1}번째 — 고른 것은 판이 끝날 때까지 간다.`;
-  for (const a of Game.arcanaOffer()) {
+  const have = (G.gifts || []).length + (G.refused || 0);
+  const w = Juice.warpLens();
+  $('arcana-sub').textContent = G.god
+    ? `${G.depth}층. 그가 다시 말한다.`
+    : `${G.depth}층. 무언가 듣고 있다.`;
+
+  for (const g of Game.godOffer()) {
     const row = el('button', 'itemrow arcanarow');
     const mid = el('div', 'imid');
-    const nm = el('span', 'iname', a.n);
-    /* 자수정은 유물의 색이다. 아르카나는 몸이 아니라 **세계**에
-       붙는 것이라 다른 축을 쓴다 — 창백한 물빛. */
-    nm.style.color = 'var(--B)';
+    const nm = el('span', 'iname', g.n);
+    nm.style.color = 'var(--P)';
     nm.classList.add('transcend');
     mid.appendChild(nm);
-    mid.appendChild(el('span', 'idesc arcanacat', a.c));
-    /* 좋은 쪽과 값은 문장 안에서 「대신」으로 갈린다. 그 경계를 색으로
-       한 번 더 긋는다 — 읽지 않고 고르는 손을 막는 유일한 장치다. */
-    const parts = a.t.split('대신');
-    const good = el('span', 'idesc arcanagood', parts[0].replace(/\*\*/g, '').trim());
-    mid.appendChild(good);
-    if (parts[1]) mid.appendChild(el('span', 'idesc arcanacost',
-      '대신 ' + parts[1].replace(/\*\*/g, '').trim()));
-    mid.appendChild(el('span', 'idesc arcanalore', a.lore));
+    mid.appendChild(el('span', 'idesc arcanacat', g.face));
+    /* 부름은 명령형이다(§2) — 짧고, 이유를 안 댄다. */
+    mid.appendChild(el('span', 'idesc arcanagood', `「${g.call}」`));
+    /* 선물. **정직하다** — 성능을 속이면 결정을 못 하고, 결정을 못 하는
+       것은 이 게임에서 「고장」으로 읽힌다(§0). 신이 속이는 것은 값이
+       아니라 「무찌르면 평화가 온다」쪽이다. */
+    mid.appendChild(el('span', 'idesc arcanacost', g.boon));
+    mid.appendChild(el('span', 'idesc arcanacat', `계율 — ${g.vow}`));
+    mid.appendChild(el('span', 'idesc arcanalore', g.lore));
     row.appendChild(mid);
-    row.onclick = () => { if (!armed()) return; Game.takeArcana(a.id); setScreen('play'); refresh(); };
+    if (w) row.style.transform = `translateX(${(w.split || 0) * (Math.random() < 0.5 ? -1 : 1)}px)`;
+    row.onclick = () => { if (!armed()) return; Game.pledge(g.id); setScreen('play'); refresh(); };
     list.appendChild(row);
   }
+
+  /* ── 넷째 칸 ──────────────────────────────────────────────
+     언제나 있고, 심연 8단에서만 열린다. 숨기지 않고 **잠근다** —
+     위키도 공략도 없는 게임이라 완전히 감추면 아무도 못 찾고, 못 찾는
+     진 엔딩은 없는 진 엔딩이다. 잠긴 채로 보이면 왜 잠겼는지 알고
+     싶어진다. */
+  const can = Game.canRefuse();
+  const row = el('button', 'itemrow arcanarow' + (can ? '' : ' poor'));
+  const mid = el('div', 'imid');
+  const nm = el('span', 'iname', Data.REFUSE.n);
+  nm.style.color = can ? 'var(--w)' : 'var(--g)';
+  mid.appendChild(nm);
+  mid.appendChild(el('span', 'idesc arcanacost',
+    can ? Data.REFUSE.say : Data.REFUSE.locked));
+  if (can) mid.appendChild(el('span', 'idesc arcanalore', Data.REFUSE.lore));
+  row.appendChild(mid);
+  row.disabled = !can;
+  /* 뒤틀리면 이 칸이 **멀어진다.** 신이 원하지 않는 쪽이라는 것을
+     문장이 아니라 손가락이 알게 된다(§4). */
+  if (can && w) row.style.transform = `translateX(${w.split * 3}px)`;
+  row.onclick = () => { if (!armed()) return; if (Game.refuse()) { setScreen('play'); refresh(); } };
+  list.appendChild(row);
+  void have;
 }
 
 function showRelicList() {
@@ -1940,9 +2024,18 @@ export const backTarget = () =>
 function armTrace() {
   const t = $('btn-trace2');
   if (!t) return;
-  const has = !!G.player && !!(G.trace || []).length;
-  t.disabled = !has;
-  t.textContent = has ? '판 기록 내려받기' : '판을 시작하면 받을 수 있다';
+  /* 「줄 것이 있는가」는 이번 판만의 질문이 아니다. 층별 기록이 없어도
+     이 브라우저에는 저장 슬롯과 누적 장부가 남아 있고, 그것만으로도
+     답할 수 있는 질문이 있다. 그래서 셋 중 하나라도 있으면 열린다 —
+     그리고 무엇을 주는지 버튼이 미리 말한다. 「판 기록」이라 써 놓고
+     장부만 주면 받은 쪽은 고장으로 읽는다. */
+  const live = !!G.player && !!(G.trace || []).length;
+  const meta = Meta.read();
+  const kept = Save.allSlots().length > 0 || (meta.runs || 0) > 0;
+  t.disabled = !live && !kept;
+  t.textContent = live ? '판 기록 내려받기'
+    : kept ? '이 브라우저에 남은 기록 내려받기'
+    : '판을 시작하면 받을 수 있다';
 }
 
 function rememberFrom(name) {
@@ -1985,7 +2078,7 @@ export function setScreen(name) {
   if (name === 'play') {
     /* 아르카나가 밀린 채로 판에 돌아오면 안 된다 — 4층에 들어선 순간
        고르는 화면이 떠야 그 층부터 그 판이 된다. */
-    if (Game.arcanaDue(G.depth)) { setScreen('arcana'); return; }
+    if (Game.pledgeDue(G.depth)) { setScreen('arcana'); return; }
     resize(); refresh();
     // Back on the map: whatever was waiting can be read now.
     if (loreQueue.length && $('lorecard').hidden) showLore();
@@ -2082,6 +2175,32 @@ function renderLegend() {
    Native confirm() blocks the render loop and looks like a
    security warning, which is the wrong tone for "이 검을 살까". */
 let askResolve = null;
+
+/* ── 계율을 어기는 것은 **손이 닿기 어려운 곳으로 간다** ─────
+   DESIGN.md §4. 광신(신앙심 70)부터.
+
+   처음에 「손가락이 다가오면 비켜선다」로 만들었는데 그건 **모바일에서
+   아예 안 도는 코드**였다. 터치에는 hover 가 없다 — pointerenter 는
+   마우스의 것이고, 손가락은 다가오는 단계 없이 그냥 닿는다. 그런데
+   벤치가 `dispatchEvent(new PointerEvent('pointerenter'))` 로 합성
+   이벤트를 쏴서 통과로 찍혔다. 자가 거짓말한 것이다(이 세션 네 번째).
+
+   터치에서 되는 방식으로 바꾼다: **자리를 옮긴다.** 광신부터 계율에
+   걸리는 줄이 배낭 맨 아래로 내려간다. 손가락이 기억하는 자리에 그것이
+   없고, 찾아야 한다. 누르는 것은 여전히 되므로 고장이 아니고(§0),
+   근육 기억이 배신당하는 쪽이 비켜서는 것보다 오래 남는다. */
+function vowSinks(it) {
+  if (!Game.vowRisk(vowKindOf(it))) return false;
+  return Game.warpOf() * 100 >= Data.PIETY_ZEAL;
+}
+
+/* 이 물건을 쓰면 어떤 계율에 걸리는가. 규칙 쪽 표(VOW_BREAK)와 같은
+   이름을 쓴다 — 여기서 따로 세면 언젠가 화면과 규칙이 다른 말을 한다. */
+function vowKindOf(it) {
+  if (!it || it.kind !== 'use') return null;
+  if (it.use === 'heal' || it.use === 'bigHeal') return 'gulp';
+  return null;
+}
 
 export function ask(text, sub, onYes) {
   dressAll();
@@ -3023,7 +3142,12 @@ function renderInventory() {
 
   const list = $('pack-list'); list.innerHTML = '';
   if (!p.pack.length) list.appendChild(el('p', 'empty', '배낭이 비었다.'));
-  p.pack.forEach((slot, i) => {
+  /* 광신부터 계율에 걸리는 줄이 **맨 아래로 내려간다**(vowSinks).
+     손가락이 기억하는 자리에 그것이 없다. 원래 칸 번호(i)는 그대로
+     들고 간다 — 화면의 순서가 바뀌었다고 규칙의 칸이 바뀌면 안 된다. */
+  const order = p.pack.map((slot, i) => [slot, i]);
+  order.sort((a, b) => (vowSinks(a[0].item) ? 1 : 0) - (vowSinks(b[0].item) ? 1 : 0));
+  order.forEach(([slot, i]) => {
     const it = slot.item;
     const row = el('button', 'itemrow');
     const ic = el('canvas', 'icon'); paintIcon(ic, it.spr);
@@ -3083,12 +3207,45 @@ function renderInventory() {
     // A catalyst is not a thing you use here — it is a thing you
     // throw into a strike at the anvil, so the row only reads.
     if (it.kind === 'cat') row.disabled = true;
+    /* ── 못 드는 물건은 **누르기 전에** 말한다 ─────────────────
+       규칙 쪽은 거절하면서 이유를 로그에 적는다. 그런데 로그는 누른
+       뒤에 읽는 것이고, 이 게임에서 「눌렀는데 아무 일도 안 일어났다」는
+       거의 언제나 고장으로 읽힌다. 줄 자체가 미리 말하게 한다.
+       판정은 게임의 문(cantHold)을 쓴다 — 여기서 따로 세면 언젠가
+       규칙과 화면이 다른 말을 한다. */
+    const nope = Game.cantHold(G.player, it);
+    if (nope) {
+      row.disabled = true;
+      row.classList.add('poor');
+      row.querySelector('.iact').textContent = '못 듦';
+      mid.appendChild(el('span', 'idesc', nope));
+    }
     row.onclick = () => {
       if (it.kind === 'cat') return;
-      if (it.kind === 'use' && !Game.isKnown(it.id)) {
+      /* ── 계율 앞에서 한 번 막는다 ──────────────────────────
+         플레이어가 「어기면 안 되는 것」으로 배우게 하려면 **어기기
+         전에** 물어야 한다. 어기고 나서 로그로 알려 주면 그건 벌이지
+         가르침이 아니다.
+
+         그리고 이것이 이 게임에서 가장 큰 거짓말이다(§1). 계율을
+         어기는 것은 신앙심을 깎고, 신앙심이 낮은 것이 진 엔딩으로
+         가는 유일한 길이다. 그런데 이 창은 그것을 재앙처럼 말한다.
+         지켜야 한다고 믿을수록 그 자리에 앉게 된다. */
+      /* 계율 검사가 **감정 창보다 먼저**다. 처음엔 뒤에 뒀는데, 정체를
+         모르는 물약은 감정 창에서 `return` 해 버려서 계율 경고를 통째로
+         건너뛰었다 — 진짜 탭으로 재고서야 보였다. */
+      const risk = it.kind === 'use' ? Game.vowRisk(vowKindOf(it)) : null;
+      const unknown = it.kind === 'use' && !Game.isKnown(it.id);
+      const go = () => { Game.useItem(i); renderInventory(); refresh(); };
+      if (risk) {
+        ask(`${risk.n}이(가) 보고 있다.`,
+            `${risk.vow}. 어기면 이 층에서 ${risk.boon.replace(/\.$/, '')} — 그것이 멎는다.`
+            + (unknown ? ' 무엇인지도 알 수 없다.' : ''), go);
+        return;
+      }
+      if (unknown) {
         ask(`${Game.lookOf(it.id)}을(를) 쓴다.`,
-            '무엇인지 알 수 없습니다. 좋을 수도, 아닐 수도.',
-            () => { Game.useItem(i); renderInventory(); refresh(); });
+            '무엇인지 알 수 없습니다. 좋을 수도, 아닐 수도.', go);
         return;
       }
       it.kind === 'use' ? Game.useItem(i) : Game.equip(i);
@@ -3271,17 +3428,18 @@ function renderSpells() {
   /* A class with arts reads its breath here, not its mana — the
      header has to name the resource the buttons below spend, and
      a warrior's page is not called 주문. */
+  /* 제목도 그 직업이 쓰는 말로 부른다 — 자원은 하나여도 사제의 쪽은
+     기도이고 팔라딘의 쪽은 맹세다. 통을 합치는 것과 말을 뺏는 것은
+     다른 일이다. */
+  const PAGE = { priest:'기도', paladin:'맹세', rogue:'은신술', ranger:'궁술' };
+  const own = PAGE[p.cls] || '무술';
   $('spell-title').textContent = !arts.length ? '주문'
-    : arts.some(a => a.faith) ? (spells.length ? '기도와 주문' : '기도')
-    : arts.some(a => a.oath) ? (spells.length ? '맹세와 주문' : '맹세')
-    : (spells.length ? '무술과 주문' : '무술');
+    : (spells.length ? josa(`${own}과(와) 주문`) : own);
   $('spell-chip').firstChild.textContent = arts.length ? '' : '✦ ';
-  const usesFaith = arts.some(a => a.faith);
-  const usesOath = arts.some(a => a.oath);
+
   $('spell-mana').textContent = !arts.length ? `${p.mana}/${p.maxmana}`
-    : (usesFaith ? `신앙 ${p.faith || 0}/${FAITH_MAX}`
-     : usesOath ? `맹세 ${p.oath || 0}/${OATH_MAX}`
-     : `기력 ${p.stam}/${p.maxStam}`)
+    /* 통이 하나이므로 읽는 줄도 하나다. 이름만 직업에서 온다. */
+    : (`${poolName(p.cls)} ${p.stam}/${p.maxStam}`)
       + (p.maxmana ? ` · ✦ ${p.mana}/${p.maxmana}` : '');
   for (const a of arts) {
     const row = el('button', 'itemrow artrow' + (p.stam < a.stam ? ' poor' : ''));
@@ -3293,7 +3451,7 @@ function renderSpells() {
     row.appendChild(mid);
     row.appendChild(el('span', 'iact',
       a.floorOnce ? '층에 한 번'
-      : a.faith ? `${a.faith}신앙` : a.oath ? `${a.oath}맹세` : `${a.stam}기력`));
+      : `${a.stam}${poolName(p.cls)}`));
     row.onclick = () => { Game.cast(a.id); setScreen('play'); refresh(); };
     list.appendChild(row);
   }
@@ -3511,7 +3669,17 @@ export function renderCamp() {
     if (!o.poor) row.onclick = () => {
       if (o.id === 'rest') { Game.campRest(); setScreen('play'); refresh(); return; }
       if (o.id === 'wick') { Game.campWick(); setScreen('play'); refresh(); return; }
-      if (o.id === 'sear') { Game.campSear(); setScreen('play'); refresh(); return; }
+      if (o.id === 'sear') {
+        /* 지지는 것은 흉터를 지우는 일이다 — 상처를 세는 자의 계율. */
+        const risk = Game.vowRisk('mend');
+        if (risk) {
+          ask(`${risk.n}이(가) 세고 있다.`,
+              `${risk.vow}. 어기면 이 층에서 ${risk.boon.replace(/\.$/, '')} — 그것이 멎는다.`,
+              () => { Game.campSear(); setScreen('play'); refresh(); });
+          return;
+        }
+        Game.campSear(); setScreen('play'); refresh(); return;
+      }
       campMode = o.id;
       renderCampTargets();
     };
@@ -4428,22 +4596,40 @@ export function dumpRun(btn) {
      `undefined/undefined Lv0 · 0층 · 0턴 · events []` 짜리 빈 파일이
      나간다 — 실제로 플레이어가 그 파일을 보냈다. 아무 말 없이 빈
      것을 주는 것은 「내려받기가 고장났다」와 구분되지 않는다. */
-  if (!G.player || !(G.trace || []).length) {
+  /* ── 그리고 이 브라우저에 이미 있는 것도 같이 싣는다 ────────
+     플레이어: 「이때까지 한 건 안 남는 거구나… 내 로컬 캐시에 있는
+     걸 활용할 수 없나?」
+
+     층별 기록은 이번 판부터만 쌓인다 — 그건 사실이다. 그런데
+     localStorage 에 이미 있는 둘로도 답할 수 있는 질문이 꽤 있다:
+     **저장 슬롯**(진행 중인 판의 전체 상태 — 그 순간의 장비·유물·
+     주목·전투력)과 **누적 장부**(판 수·승 수·최고 깊이·총 처치·
+     마지막 판 요약·최근 시체 셋). 그래서 판이 없어도 파일은 나간다.
+     빈 파일이 되는 것은 셋 다 없을 때뿐이다. */
+  const meta = Meta.read();
+  const slots = Save.allSlots();
+  const live = !!G.player && !!(G.trace || []).length;
+  if (!live && !slots.length && !(meta.runs > 0)) {
     if (btn) {
       const was = btn.textContent;
-      btn.textContent = '아직 기록할 판이 없다';
+      btn.textContent = '아직 아무 기록도 없다';
       setTimeout(() => { btn.textContent = was; }, 2200);
     }
-    Game.say('아직 기록할 판이 없다 — 한 층이라도 내려간 뒤에 받으시오.', 'warn');
+    Game.say('아직 아무 기록도 없다 — 한 층이라도 내려간 뒤에 받으시오.', 'warn');
     return false;
   }
   const d = Game.traceDump();
+  d.meta = meta;
+  d.slots = slots;
   const head = [
     `깊은 곳 판 기록 · ${d.build} · 형식 v${d.v}`,
     `${d.race}/${d.cls} Lv${d.lv} · ${d.deepest}층 · ${d.turns}턴`
       + ` · ${d.ending ? (d.ending.win ? '클리어' : `${d.ending.by}에게`) : '진행 중'}`,
     `유물 ${d.relics.length} · 아르카나 ${d.arcana.length} · 총 강화 +${d.plus}`
       + ` · 처치 ${d.kills} · 최고 연격 ${d.bestCombo}`,
+    `이 브라우저에 남은 것 — 판 ${d.meta?.runs || 0}회 · 완주 ${d.meta?.wins || 0}회`
+      + ` · 최고 ${d.meta?.best?.depth || 0}층 · 저장 슬롯 ${d.slots.length}개`
+      + (d.events.length ? '' : ' (층별 기록은 이번 판부터 쌓인다)'),
     '', '── 아래는 원본. sim/replay.mjs 가 읽는다 ──', '',
   ].join('\n');
   const body = head + JSON.stringify(d, null, 1);
@@ -4697,7 +4883,32 @@ function renderEnd() {
   }
   const m = Meta.read();
 
-  $('end-title').textContent = e.win ? '불이 꺼졌다' : '당신은 죽었다';
+  /* ── 끝이 셋이다 ────────────────────────────────────────
+     DESIGN.md §1. 이기는 것이 실패다. 무엇을 이겼는지가 신앙심으로
+     갈리고, 그 갈래를 규칙이 문자열 하나로 건네준다(endKind). */
+  const ENDS = {
+    throne: ['그 자리에 앉았다',
+             '가장 깊은 곳의 것을 눕혔다. 그것은 앞서 간 자였다.',
+             '앉을 자리가 비어 있었고, 다리가 저절로 굽었다. 다음 사람이 내려올 것이다.'],
+    hollow: ['불이 꺼졌다',
+             '가장 깊은 곳의 것을 눕혔다. 그것은 앞서 간 자였다.',
+             '앉지 않았다. 그렇다고 걸어 나가지도 못했다.'],
+    true:   ['아무것도 받지 않았다',
+             '가장 깊은 곳의 것을 눕혔다. 그것은 앞서 간 자였고, 당신이 될 뻔한 것이었다.',
+             '처음으로 위를 올려다본다. 거기 있는 것은 신이 아니다.'],
+  };
+  const end = e.win ? (ENDS[e.kind] || ENDS.hollow) : null;
+  $('end-title').textContent = end ? end[0] : '당신은 죽었다';
+  if (end) {
+    const sub = $('end-sub') || $('end-title').parentElement;
+    /* 두 줄을 제목 아래에 붙인다. 진 엔딩만 위를 올려다본다. */
+    for (const old of [...(sub.querySelectorAll?.('.endline') || [])]) old.remove();
+    for (const line of end.slice(1)) {
+      const p2 = el('p', 'tag endline', line);
+      if (e.kind === 'true') p2.style.color = 'var(--W)';
+      $('end-title').after(p2);
+    }
+  }
   /* 죽음이 끝이 아니라 「다음 사람」이라는 것을, 사망 화면이 말한다.
      메타 진행(기억)이 왜 남는지가 이 한 줄로 설명된다 — 남는 것은
      네 실력이 아니라 네 시체를 본 다음 놈의 학습이다. */
@@ -5126,7 +5337,17 @@ export function bindInput() {
   /* 밀도를 올리는 유일한 손잡이. 버튼 하나로 두는 이유는, 이것이
      실수로 눌리면 안 되는 결정이기 때문이다 — 자동 이동을 끊고
      한 번의 의식적인 누름으로만 나간다. */
-  $('btn-shout').onclick  = () => { stopAuto(); act(Game.shout); };
+  $('btn-shout').onclick  = () => {
+    /* 소리치기도 계율이 될 수 있다(침묵의 어머니). 같은 문으로 묻는다. */
+    const risk = Game.vowRisk('shout');
+    if (risk) {
+      ask(`${risk.n}이(가) 듣고 있다.`,
+          `${risk.vow}. 어기면 이 층에서 ${risk.boon.replace(/\.$/, '')} — 그것이 멎는다.`,
+          () => { stopAuto(); act(Game.shout); });
+      return;
+    }
+    stopAuto(); act(Game.shout);
+  };
   $('btn-here').onclick   = () => {
     stopAuto();
     /* 발밑의 것이 먼저다. 계단 위에는 다른 것이 놓이지 않으므로

@@ -425,8 +425,8 @@ function runBot(race, cls, clear, opt = {}) {
           && seenP.filter(m => m.hp < m.maxhp * 0.4).length >= 2)
         { useArtCounted('crusade'); continue; }
 
-      const storm = art('storm');
-      if (canSwear(storm) && adjA.length >= 2) { useArtCounted('storm'); continue; }
+      /* 성스러운 폭풍은 잘렸다 — 광역 회전이 이미 휩쓸기·칼부채·빗발로
+         셋이었고, 팔라딘만의 것은 「거리를 지우고 들이받는다」쪽이다. */
 
       const judgest = art('judgest');
       if (canSwear(judgest)
@@ -482,9 +482,8 @@ function runBot(race, cls, clear, opt = {}) {
 
       // The trap is only worth a turn if something is chasing and
       // the hero is about to leave the tile anyway.
-      const snare = art('snare');
-      if (can(snare) && adjA.length >= 1 && p.hp < p.maxhp * 0.45)
-        { useArtCounted('snare'); continue; }
+      /* 덫 놓기는 잘렸다 — 궁수의 단점 상쇄는 「지금 빠져나오는」
+         물러서며 쏘기이지 놓고 기다리는 덫이 아니다. */
 
       /* Priest. Faith is not stamina — it does not tick back, so
          the policy spends it only where the art is the whole answer.

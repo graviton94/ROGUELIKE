@@ -2444,29 +2444,6 @@ export function useArt(id) {
       hurtMonster(m, Math.max(3, heft), '심판의 일격', { pierce: true });
       break;
     }
-    case 'storm': {
-      /* The reason to walk into the middle of a crowd rather than
-         hold a doorway. Everything around him, and every kill
-         hands the oath back — three bodies down is three oath
-         returned, which is another storm or most of a 성전. This
-         is the engine: the class accelerates on a good swing
-         instead of running dry on one. */
-      if (!near.length) { say('휘두를 것이 없다.', 'warn'); break; }
-      fx({ t:'storm', x:p.x, y:p.y, n:near.length });
-      say(`둘러선 ${count(near.length)}을 한 바퀴에 쓸어버린다.`, 'level');
-      let felled = 0;
-      for (const m of [...near]) {
-        if (!G.monsters.includes(m)) continue;
-        swing(m, STORM_SHARE);
-        if (!G.monsters.includes(m)) felled++;
-      }
-      if (felled) {
-        poolGain(felled, 'storm');
-        fx({ t:'oathback', x:p.x, y:p.y, n:felled });
-        say(`쓰러진 만큼 맹세가 돌아온다. (+${felled})`, 'good');
-      }
-      break;
-    }
     case 'crusade': {
       /* The whole bar, and it only pays if the room is already
          nearly down — which is what 성스러운 폭풍 is for. Cut the
@@ -2608,48 +2585,6 @@ export function useArt(id) {
         if (!o || o.disguise) continue;
         loose(o, carry, { sure: true, quietFx: true });
         carry *= PIERCE_KEEP;
-      }
-      break;
-    }
-    case 'snare': {
-      /* Was: bury a trap under your own feet, which only paid off
-         if you were already leaving — so it fired eight times in
-         twelve measured runs and never at the moment it was
-         wanted. It is one action now: give ground and leave the
-         trap in the ground you gave. That answers the ranger's
-         actual way of dying, which is something standing in its
-         face with nowhere to go.
-
-         The snares get their own list rather than G.hazards —
-         that one is the telegraphed floor patterns, keyed on
-         PATTERNS and ticked by `left`, and a snare pushed into it
-         would tick NaN and take every telegraph on the floor
-         down with it. */
-      const from = near.sort((a, b) =>
-        Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
-      const ox = p.x, oy = p.y;
-      if (from) {
-        const bx = Math.sign(p.x - from.x), by = Math.sign(p.y - from.y);
-        /* Straight back first, then either shoulder — a ranger
-           against a wall still gets the trap, just not the step. */
-        for (const [dx, dy] of [[bx, by], [bx, 0], [0, by], [-by, bx], [by, -bx]]) {
-          if (!dx && !dy) continue;
-          const nx = p.x + dx, ny = p.y + dy;
-          if (!walkable(G.level, nx, ny)) continue;
-          if (G.monsters.some(o => o.x === nx && o.y === ny)) continue;
-          p.x = nx; p.y = ny;
-          break;
-        }
-      }
-      G.snares = G.snares || [];
-      if (!G.snares.some(s2 => s2.x === ox && s2.y === oy))
-        G.snares.push({ x:ox, y:oy });
-      fx({ t:'snare', x:ox, y:oy });
-      if (p.x !== ox || p.y !== oy) {
-        fx({ t:'roll', x:p.x, y:p.y, dx: Math.sign(p.x - ox), dy: Math.sign(p.y - oy), dist:1 });
-        say('한 걸음 물러서며 발자국 자리에 덫을 묻었다.', 'good');
-      } else {
-        say('발밑에 덫을 묻었다. 밟는 쪽이 손해다.', 'good');
       }
       break;
     }

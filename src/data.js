@@ -748,7 +748,7 @@ export const RESONANCE = [
     weak:'한 대만 맞아도 연격이 절반으로 꺾인다. 서서 맞는 빌드로는 켤 수 없다.',
     say:'멈추지 않는 동안에만 배가 부르다.' },
 
-  { id:'shadowstep', n:'그림자 걸음', spr:'dagger',
+  { id:'shadowstep', role:'basic', n:'그림자 걸음', spr:'dagger',
     need: (g, p) => !g.noStealth && g.stealth >= 0.20 && (g.crit > 0 || p?.cls === 'rogue'),
     want: '은신을 두르고 치명타를 얹어',
     t:'잠든 것을 잡아도 층이 깨지 않는다. 방 하나를 한 마리씩 지울 수 있다.',
@@ -1129,13 +1129,13 @@ export const ARTS = {
      makes the things around you lose you, which turns the next
      blow into an ambush, which pays a shade back. */
   rogue: [
-    { id:'shadowstep', name:'그림자 도약', short:'도약', lv:1,  stam:2,
+    { id:'shadowstep', role:'basic', name:'그림자 도약', short:'도약', lv:1,  stam:2,
       desc:'보이는 적의 등 뒤로 건너뛰어 친다. 그 한 대는 기습이다.' },
-    { id:'fan',        name:'칼부채',      short:'부채', lv:4,  stam:4,
+    { id:'fan', role:'signature',        name:'칼부채',      short:'부채', lv:4,  stam:4,
       desc:'부채꼴로 칼을 던진다. 그 안의 모든 것이 맞는다.' },
-    { id:'vanish',     name:'어둠 되감기',  short:'되감기', lv:8,  stam:3,
+    { id:'vanish', role:'cover',     name:'어둠 되감기',  short:'되감기', lv:8,  stam:3,
       desc:'붙어 있는 것을 전부 찌르고 두 칸씩 밀어낸 뒤 자취를 지운다. 그 한 대는 전부 기습이다.' },
-    { id:'vitals',     name:'급소',        short:'급소', lv:12, stam:5,
+    { id:'vitals', role:'ultimate',     name:'급소',        short:'급소', lv:12, stam:5,
       desc:'모은 것을 한 번에 태운다. 갑옷을 지나가는 한 방.' },
   ],
 
@@ -1154,15 +1154,15 @@ export const ARTS = {
   priest: [
     /* 넷 다 「맞은 것」을 값으로 바꾼다 — 그게 이 직업의 자원이 오는
        곳이고, 지금까지 그 자원이 사는 물건이 없었다. */
-    { id:'repay',    name:'되갚기', short:'되갚기', lv:1,  stam:3,
+    { id:'repay', role:'basic',    name:'되갚기', short:'되갚기', lv:1,  stam:3,
       desc:'이 층에서 받은 것을 눈앞의 하나에게 한 번에 돌려준다. 많이 맞았을수록 무겁다.' },
-    { id:'word',     name:'말씀',   short:'말씀', lv:4,  stam:4,
+    { id:'word', role:'signature',     name:'말씀',   short:'말씀', lv:4,  stam:4,
       desc:'네 칸 안의 모든 것이 두 턴 동안 얼어붙는다. 피해는 없다 — 시간을 산다.' },
-    { id:'stigma',   name:'성흔',   short:'성흔', lv:8,  stam:5,
+    { id:'stigma', role:'cover',   name:'성흔',   short:'성흔', lv:8,  stam:5,
       desc:'하나에 성흔을 새긴다. 그것이 맞을 때마다 곁의 것들도 같이 맞는다.' },
     /* 순교의 값은 피해가 아니라 「다섯 턴 뒤에 오는 빚」이다. 신앙 9는
        판당 한 번도 안 닿는 값이었다. */
-    { id:'martyr',   name:'순교',   short:'순교', lv:12, stam:6,
+    { id:'martyr', role:'ultimate',   name:'순교',   short:'순교', lv:12, stam:6,
       desc:'다섯 턴 동안 쓰러지지 않는다. 끝나면 피한 것이 한꺼번에 온다.' },
   ],
 
@@ -1173,16 +1173,14 @@ export const ARTS = {
      in the room is the worst one — and then how to get to it,
      through it, and on to the next. */
   paladin: [
-    { id:'charge',  name:'돌진',        short:'돌진', lv:1,  stam:2,
+    { id:'charge', role:'signature',  name:'돌진',        short:'돌진', lv:4,  stam:2,
       desc:'네 칸까지 직선으로 달려가 첫 번째 것을 들이받는다. 벽에 처박히면 두 턴을 잃는다.' },
-    { id:'judgest', name:'심판의 일격',  short:'일격', lv:4,  stam:3,
+    { id:'judgest', role:'basic', name:'심판의 일격',  short:'일격', lv:1,  stam:3,
       desc:'방어를 완전히 무시한다. 그리고 상대의 최대 체력이 클수록 더 아프다.' },
-    { id:'storm',   name:'성스러운 폭풍', short:'폭풍', lv:8,  stam:4,
-      desc:'주위 여덟 칸 전부. 여기서 죽은 것마다 맹세가 하나씩 돌아온다.' },
     /* 성전은 맹세 8을 쓰고 평타의 ×0.75였다 — 「방이 이미 무너져
        있어야 값을 한다」는 조건이 체력 40%로 깎아 놓아도 성립하지
        않았다(×0.76). 값을 5로 내리고 한 대를 무겁게 한다. */
-    { id:'crusade', name:'성전',        short:'성전', lv:12, stam:5,
+    { id:'crusade', role:'ultimate', name:'성전',        short:'성전', lv:12, stam:5,
       desc:'가장 가까운 것을 벤다. 죽으면 다음으로 걸어가 또 벤다. 죽지 않는 순간 끝난다.' },
     /* 팔라딘의 넷은 전부 「누구를 칠 것인가」다 — 물러설 방법이 하나도
        없었다. 그런데 이 직업은 앞으로 나가는 직업이라 위험한 순간이
@@ -1198,7 +1196,7 @@ export const ARTS = {
        「아무 때나 못 쓴다」는 성질은 그대로이고(층당 하나), 「지금
        써야 하는데 맹세가 없다」는 일은 사라진다. 순교(신앙 7 + 다섯
        턴 뒤의 빚)와도 이제 확실히 다른 물건이다. */
-    { id:'bulwark', name:'불굴',        short:'불굴', lv:6,  floorOnce:true,
+    { id:'bulwark', role:'cover', name:'불굴',        short:'불굴', lv:8,  floorOnce:true,
       desc:'세 턴 동안 쓰러지지 않는다 — 체력이 1 아래로 내려가지 않는다. 층에 한 번, 값은 없다.' },
   ],
 
@@ -1207,19 +1205,17 @@ export const ARTS = {
        넷이 평타보다 낫고 숨은 층마다 저절로 찬다. 손잡이는 위력이
        아니라 **빈도**에 건다 — 숨은 두 턴에 1이므로 +1은 층당 사용
        횟수를 25~30% 깎는다. */
-    { id:'aimed',   name:'조준 사격', short:'조준', lv:1,  stam:3,
+    { id:'aimed', role:'basic',   name:'조준 사격', short:'조준', lv:1,  stam:3,
       desc:'빗나가지 않는다. 그리고 멀수록 아프다 — 활의 감쇠가 뒤집힌다.' },
-    { id:'pierce',  name:'관통 사격', short:'관통', lv:4,  stam:4,
+    { id:'pierce', role:'signature',  name:'관통 사격', short:'관통', lv:4,  stam:4,
       desc:'화살이 일직선 위의 모든 것을 뚫고 지나간다.' },
-    { id:'snare',   name:'덫 놓기',   short:'덫',   lv:8,  stam:3,
-      desc:'발밑에 덫을 묻는다. 밟은 것은 두 턴을 잃는다.' },
-    { id:'volley',  name:'빗발',      short:'빗발', lv:12, stam:5,
+    { id:'volley', role:'ultimate',  name:'빗발',      short:'빗발', lv:12, stam:5,
       desc:'보이는 모든 것에게 한 발씩. 각각은 절반만 아프다.' },
     /* 궁수가 위험한 순간은 **붙었을 때**다. 활은 붙으면 막대기이고,
        이 직업의 축은 「나와 그것 사이의 거리」다. 그 거리를 한 번에
        되찾는 것 하나가 없었다 — 덫은 놓고 기다리는 것이지 지금
        빠져나오는 것이 아니다. */
-    { id:'kite',    name:'물러서며 쏘기', short:'물러', lv:9,  stam:4,
+    { id:'kite', role:'cover',    name:'물러서며 쏘기', short:'물러', lv:8,  stam:4,
       desc:'네 칸 뒤로 물러나면서, 지나온 자리에 있던 것 전부에게 한 발씩 박는다.' },
   ],
 };

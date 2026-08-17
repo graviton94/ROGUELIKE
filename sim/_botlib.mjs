@@ -128,8 +128,15 @@ function outfit() {
       ? ['potHeal','potMana','potCure'] : shop === 1
       ? ['torch','potHeal','scrMap','smoke'] : ['potHeal','potCure'] });
     for (const it of stock) {
-      if (it.use === 'heal') while (p.gold > (p.maxmana ? 150 : 70)) Game.buy(it);
-      if (it.use === 'mana' && p.maxmana) while (p.gold > 90) Game.buy(it);
+      /* ── 자가 아니라 직업을 물어야 한다 ──────────────────────
+         `p.maxmana ? 150 : 70` 였다. 「시전자인가」를 통의 유무로
+         물은 것이고, 통이 여섯 직업 전부에게 열린 순간 이 줄은
+         **세 직업의 물약 정책을 조용히 바꾼다** — 그러면 도달 층이
+         움직여도 그것이 새 치유 때문인지 물약을 덜 사서인지 못 가른다.
+         묻고 싶던 것을 그대로 묻는다. */
+      const caster = !!BOWDATA.CLASSES[p.cls]?.realm;
+      if (it.use === 'heal') while (p.gold > (caster ? 150 : 70)) Game.buy(it);
+      if (it.use === 'mana' && caster) while (p.gold > 90) Game.buy(it);
       if (it.use === 'torch') while (p.gold > 200) Game.buy(it);
       if (it.use === 'smoke') while (p.gold > 320) Game.buy(it);
     }
@@ -196,7 +203,8 @@ function runBot(race, cls, clear, opt = {}) {
     Game.recalc(G.player);
   }
   Game.descend();
-  const st = { crits: 0, sneaks: 0, kills: 0, misses: 0, camps: 0, elites: 0, named: 0, shops: 0, broke: 0, events: 0, rolls: 0, branch: {} };
+  const st = { crits: 0, sneaks: 0, kills: 0, misses: 0, camps: 0, elites: 0, named: 0, shops: 0, broke: 0, events: 0, rolls: 0, branch: {},
+               heals: 0, healMiss: 0, healDry: 0 };
   let path = null, guard = 0, depthAt = G.depth, lastShout = -99, holdUntil = -1;
   const hist = [];
   let traded = false;   // one visit per floor; the bot has no other reason to stop
@@ -612,15 +620,59 @@ function runBot(race, cls, clear, opt = {}) {
     }
 
     const spells = Game.spellList(p);
-    if (spells.length && p.mana > 0 && !calm) {
+    /* `p.mana > 0` 이 여기 있었다. 그 문이 닫혀 있으면 **통이 빈 턴을
+       셀 수가 없다** — 아래 healDry 와 DRY.dry 가 재려는 것이 정확히
+       그 턴이다. 낼 수 있는지는 afford() 가 이미 가지마다 묻고 있고,
+       값이 0인 자리(빈 성소 · 역설의 유물)에서는 마나 0으로도 나가야
+       하므로 이 문은 재는 것도 막고 규칙도 틀렸다. */
+    if (spells.length && !calm) {
       const has = id => spells.find(sp => sp.id === id);
-      const afford = sp => sp && p.mana >= Game.spellCost(p, sp);
+      /* ── 줄이 답하는 것과 같은 질문을 묻는다 ──────────────────
+         `afford` 는 마나만 봤다. 그런데 게임이 주문을 거절하는 이유는
+         마나 말고도 있다 — 침묵의 서약(hasRelic('vow'))은 통이 가득
+         찬 채로 혀를 막는다. 화면은 그 줄을 식혀서 이미 말하고 있는데
+         (spellSlots 의 `ready`) 봇만 그것을 안 읽었고, 그래서 서약을
+         든 판에서 봇은 매 턴 치유를 누르고 매 턴 거절당한다: 실측으로
+         도적 판당 **78.6회**가 그 헛손질이었다. 게임의 결함이 아니라
+         자의 결함이고, 그 자로는 「치유가 실제로 나갔는가」를 못 잰다.
+
+         마나 쪽 물음(payable)은 따로 남긴다 — 「마른 턴」은 통이 빈
+         것이지 혀가 막힌 것이 아니다. 둘을 한 이름으로 합치면 이번에는
+         마른 턴 표가 서약을 세게 된다. */
+      const lit = new Set(Game.spellSlots().filter(s => !s.art && s.ready).map(s => s.id));
+      const afford = sp => !!sp && lit.has(sp.id);
+      const payable = sp => !!sp && p.mana >= Game.spellCost(p, sp);
       const visible = G.monsters.filter(m => G.level.vis[idx(m.x, m.y)] && !m.disguise);
       const adj = visible.filter(m => Math.hypot(m.x - p.x, m.y - p.y) < 1.6);
       const far = visible.filter(m => Math.hypot(m.x - p.x, m.y - p.y) > 1.5);
 
-      const heal = has('heal') || has('cure');
-      if (afford(heal) && p.hp < p.maxhp * 0.55) { Game.cast(heal.id); continue; }
+      /* ── 큰 것부터 고르되, 못 내면 작은 것으로 ────────────────
+         `has('heal') || has('cure')` 였다. 강화 치유를 배우면 그
+         뒤로는 **경상 치유를 한 번도 안 쓴다** — 큰 것을 낼 수 없는
+         턴에는 아무것도 안 하고 지나간다. 시전자는 통이 커서 이
+         구멍이 안 보였는데, 비시전자의 통은 8레벨에 5이고 강화 치유는
+         6이다: 그 정책으로 재면 「치유가 한 번도 안 나가는 직업 셋」이
+         나오고, 그건 게임이 아니라 봇이 만든 결과다.
+         깊이 다쳤으면 큰 것, 아니면 작은 것, 낼 수 없으면 다른 것. */
+      const big = has('heal'), small = has('cure');
+      const wantBig = p.hp < p.maxhp * 0.35;
+      const pick = (wantBig && afford(big)) ? big
+                 : afford(small) ? small
+                 : afford(big) ? big : null;
+      if (pick && p.hp < p.maxhp * 0.55) {
+        /* 누른 것이 아니라 나간 것을 센다 — `p.casts` 는 cast 가 모든
+           검사를 지나 마나를 실제로 뺀 뒤에만 오른다. */
+        const was = p.casts || 0;
+        Game.cast(pick.id);
+        if ((G.player?.casts || 0) > was) st.heals++; else st.healMiss++;
+        continue;
+      }
+      /* 쓸 자리인데 **통이 비어 있던** 턴. 「통이 몇 번쯤 쓸 크기인가」는
+         쓴 횟수만으로는 못 읽는다 — 못 쓴 횟수가 있어야 작은 통과 안
+         쓰는 통이 갈린다. 마나로 물어야 한다(payable): 서약에 막힌
+         턴을 여기 섞으면 이 칸이 통 크기가 아니라 유물 보유율을 센다. */
+      if ((big || small) && p.hp < p.maxhp * 0.55
+          && !payable(small) && !payable(big)) st.healDry++;
 
       // Surrounded is what 서리 폭발 is for.
       const frost = has('frost');
@@ -650,7 +702,9 @@ function runBot(race, cls, clear, opt = {}) {
 
       const nuke = has('smite') || has('bolt');
       if (afford(nuke) && far.length) { DRY.cast++; Game.cast(nuke.id); continue; }
-      if (visible.length && nuke && !afford(nuke)) DRY.dry++;
+      // 마르는 것을 세는 자리이므로 마나로 묻는다 — 위의 `lit` 은
+      // 침묵도 「못 쓴다」로 세고, 침묵은 마름이 아니다.
+      if (visible.length && nuke && !payable(nuke)) DRY.dry++;
     }
     /* The quiver is the other half of a bow now, so the shop
        policy is an upgrade policy rather than a supply run: buy
@@ -737,7 +791,11 @@ function runBot(race, cls, clear, opt = {}) {
          construction. A caster with spare materials buys one
          property per unenchanted spell, which is what the anvil
          is there for. */
-      if ((G.player.maxmana || 0) > 0) {
+      /* 여기도 통이 아니라 직업을 묻는다. 공통 치유 둘이 열린 뒤로는
+         전사도 모루에 올릴 「주문」이 생겼는데, 주문 속성표는 거의
+         전부 피해 쪽이다 — 봇이 재료를 거기 태우면 무기에 갈 강화가
+         줄고, 그러면 재는 것이 치유가 아니라 재료 배분이 된다. */
+      if (BOWDATA.CLASSES[G.player.cls]?.realm) {
         for (let e = 0; e < 4; e++) {
           const sp = Game.campTargets().find(x =>
             x.kind === 'spell' && !G.player.spellAffix?.[x.key.slice(3)]);

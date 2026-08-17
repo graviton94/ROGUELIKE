@@ -4,6 +4,7 @@
 
 import {
   MAX_DEPTH, MAX_LEVEL, STATS, STAT_NAME, RACES, CLASSES, SPELLS, MONSTERS, BOSS, mimicFor,
+  SPELLS_COMMON, HEAL_BIG_SHARE, MANA_SCALE, MANA_FLOOR,
   WEAPONS, ARMOURS, CONSUMABLES, SHOPS, SHOP_LOADS, loadsFor, AILMENTS, IMMUNE, TRAPS,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, ELITES, affixName,
   MATS, salvageYield, worthOf, upgradeCost, ENCHANT_COST, REROLL_COST,
@@ -511,9 +512,12 @@ export function recalc(p, init) {
     + (p.lv - 1) * (cls.hd * 0.42 + 1.5)      // the trickle, cut by 40%
     + step3 * (cls.hd * 0.88 + 3.6)           // …and paid back in lumps
     + conB * p.lv * 1.05));
-  if (cls.realm) {
-    const key = cls.realm === 'arcane' ? 'int' : 'wis';
-    const b = statBonus(p.stats[key]);
+  {
+    /* 통은 이제 여섯 직업 전부에게 있다. 크기의 모양은 MANA_SCALE 이
+       정하고, 여기는 그 표를 읽는 한 자리다 — 갈라 두면 언젠가
+       한쪽만 고쳐진다. */
+    const sc = MANA_SCALE[p.cls] || { key:'wis', lift:3, per:0.6 };
+    const b = statBonus(p.stats[sc.key]);
     // Mana moves on the odd levels only, twice as far each time.
     /* 1.7 made the pool a number that goes up rather than a
        resource: a level-15 mage could cast 마력 화살 61 times in a
@@ -532,8 +536,21 @@ export function recalc(p, init) {
        and three levels, with the dry-turn count still zero at both
        settings. A change that buys nothing measurable and costs a
        floor is a change that was measuring its own instrument. */
-    p.maxmana = Math.max(0, Math.floor((b + 1) * Math.ceil(p.lv / 2) * 1.7));
-  } else p.maxmana = 0;
+    /* 위 두 문단이 다투던 그 1.7 은 이제 MANA_SCALE 의 `per` 이다 —
+       시전자 셋이 1.7, 비시전자 셋이 0.6. 값을 표로 옮겼을 뿐이므로
+       위의 실측은 그대로 유효하다. */
+    /* 그리고 **배운 것은 한 번은 쓸 수 있어야 한다.** 지혜를 최저로
+       굴린 전사(9→7)는 통이 20레벨까지 4에 머무는데 강화 치유는 6이다 —
+       8레벨에 칸이 열리고, 열린 채로 영원히 식어 있는다. 「최악의 선택은
+       완화하지 않는다」(§6-5)는 값이 나쁜 것을 말하는 규칙이고, 아예
+       못 누르는 버튼은 값이 아니라 고장이다(§0).
+       그래서 바닥이 **배운 공통 유틸 중 가장 비싼 것**까지 올라간다.
+       표를 안 베낀다 — SPELLS_COMMON 을 그대로 읽으므로 값을 고치면
+       바닥이 따라온다. */
+    const need = SPELLS_COMMON.reduce((m, s) => learned(p, s) ? Math.max(m, s.cost) : m, 0);
+    p.maxmana = Math.max(MANA_FLOOR, need,
+      Math.min(sc.cap ?? Infinity, Math.floor((b + sc.lift) * Math.ceil(p.lv / 2) * sc.per)));
+  }
   const g = gearBonus(p);
   /* 크랙이 부풀린 몫은 여기서 더한다. 처음에는 `p.maxhp += add`로
      직접 올렸는데, 천장은 **파생값**이라 다음 recalc 한 번에 지워진다 —
@@ -1457,10 +1474,17 @@ export function tookDraught() {
   if (G.gulped === 3) say('세 번째다. 몸이 아까만큼 답하지 않는다.', 'warn');
 }
 
-export const spellList = p => {
-  const realm = CLASSES[p.cls].realm;
-  return realm ? SPELLS[realm].filter(s => s.lv <= p.lv) : [];
-};
+/* 이 사람이 외울 수 있는 것 전부. 공통 둘이 앞에 오고 realm 의 것이
+   뒤에 붙는다 — 화면의 줄 순서가 곧 유틸 칸의 순서다.
+
+   `learned` 를 지난다. 여기는 `s.lv <= p.lv` 로 직접 세고 있었는데
+   기예 쪽(spellSlots)은 `learned` 를 쓴다. 갈린 값이 하프엘프다:
+   기예와 주문이 두 레벨 일찍 열리는 종족이라, 1레벨 하프엘프 마법사의
+   줄에 점멸이 **켜진 채로** 뜨고 눌러도 cast 가 조용히 되돌아왔다.
+   같은 질문에 답하는 자리는 하나여야 한다(§5-2). */
+export const spellList = p =>
+  SPELLS_COMMON.concat(CLASSES[p.cls].realm ? SPELLS[CLASSES[p.cls].realm] : [])
+    .filter(s => learned(p, s));
 
 /* The arts ride the same row, the same keys and the same tooltip
    as spells — they differ in what they spend and in that they are
@@ -1534,10 +1558,11 @@ export function spellSlots() {
              && p.stam >= artCost(p, a),
     };
   });
-  if (!realm) return arts;
-
+  /* 공통 둘 + realm 의 것. `realm` 이 줄의 유무를 정하던 자리다 —
+     이제 여섯 직업 전부에 주문 줄이 있으므로 여기서 되돌아가지 않는다. */
+  const book = SPELLS_COMMON.concat(realm ? SPELLS[realm] : []);
   const silent = hasRelic('vow');
-  return arts.concat(SPELLS[realm].map(s => {
+  return arts.concat(book.map(s => {
     const locked = !learned(p, s);
     const cost = spellCost(p, s);
     const noTarget = TARGETED.includes(s.id) && !seen;
@@ -2794,7 +2819,7 @@ export function cast(spellId) {
     }
     case 'heal': {
       const back = mendWound(BIG_HEAL_MEND);
-      const h = Math.min(p.maxhp - p.hp, Math.round((Math.floor(p.maxhp * 0.55) + roll(3, 8)) * pow * healScale()));
+      const h = Math.min(p.maxhp - p.hp, Math.round((Math.floor(p.maxhp * HEAL_BIG_SHARE) + roll(3, 8)) * pow * healScale()));
       p.hp += h; fx({ t:'heal', x:p.x, y:p.y, amt:h });
       say(back ? `빛이 몸을 훑고 지나간다. 체력 +${h}, 천장 +${back}.`
                : `빛이 몸을 훑고 지나간다. 체력 +${h}.`, 'good'); break;

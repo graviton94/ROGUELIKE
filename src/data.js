@@ -20,7 +20,7 @@
    단계가 없는 게임이다), **두 곳에 다른 숫자가 있는 상태**는 막을 수
    있다. 저장 형식을 같이 적는 이유는 그쪽이 호환을 끊는 유일한
    값이라, 판번호보다 그것이 먼저 궁금해지기 때문이다. */
-export const BUILD = 'v45';
+export const BUILD = 'v46';
 export const SAVE_FORMAT = 8;
 
 export const MAX_DEPTH = 15;
@@ -338,7 +338,10 @@ export const TRAITS = {
    Nothing has read it since, and it lied convincingly. What a
    class rolls lives in CLASS_BAND, and only there. */
 export const CLASSES = {
-  warrior: { name:'전사',     hd:9, bth:5.0, realm:null,     note:'주문 없이, 오직 무기로.' },
+  /* 「주문 없이, 오직 무기로.」였다. 공통 치유 둘이 열린 뒤로는
+     거짓말이다 — 전사도 상처를 닫는 것 둘은 외운다. 이 저장소에서
+     화면의 글이 규칙과 다투면 틀린 것은 언제나 글이다. */
+  warrior: { name:'전사',     hd:9, bth:5.0, realm:null,     note:'무기가 기예의 모양을 정한다. 외우는 것은 상처를 닫는 둘뿐.' },
   mage:    { name:'마법사',   hd:0, bth:2.0, realm:'arcane', note:'지능이 곧 힘. 맞으면 죽는다.' },
   priest:  { name:'사제',     hd:3, bth:3.4, realm:'divine', note:'맞을수록 강해진다. 신앙은 편할 때 차지 않는다.' },
   /* No realm, for the same reason the ranger lost one: casting
@@ -357,8 +360,36 @@ export const CLASSES = {
 };
 for (const [k, c] of Object.entries(CLASSES)) c.trait = TRAITS[k];
 
+/* ── 유틸 넷의 앞 둘 — 전 직업 공통 ────────────────────────
+   §4의 여덟 칸 표는 유틸 1·2를 「전 직업 공통 치유」로 못박아 두고
+   있다. 그런데 이 둘은 divine 목록 안에 있었으므로 사제와 팔라딘의
+   물건이었고, 나머지 넷에게는 **마나 통 자체가 없었다**(realm null →
+   maxmana 0). 표를 코드로 옮기는 일이 곧 통을 여는 일이다.
+
+   왜 「치유」가 공통인가: 이 게임에서 회복은 이미 하나의 깔때기를
+   지나고(healScale · mendWound), 계율이 그 깔때기를 막는다 — 「피를
+   세는 자」에게 서약하면 그 판은 물약이 봉인된 판이 된다. 그때 손에
+   남는 것이 이 둘이다. 여섯 직업 전부가 그 계율을 만나므로 여섯
+   직업 전부가 이 둘을 가져야 한다.
+
+   자리와 값:
+     · 경상 치유 — lv1, 2mp. 값이 1이었다. 통이 없던 시절의 값이고,
+       비시전자의 통(레벨 1에 4)에 1짜리 주문을 넣으면 네 번 연달아
+       누르는 버튼이 된다. 2로 올려 두 번으로 만든다
+     · 강화 치유 — 「중상 치유」였다. lv13 · 8mp 였고, 열세 레벨은
+       유틸 사다리(1·4·8·12)에 없는 칸이다. 8레벨 · 6mp 로 내리고
+       한 방의 크기를 0.55 → HEAL_BIG_SHARE 로 깎는다 — 자리가 앞으로
+       오면 값을 깎는 것이 이 저장소의 습관이다(성전이 그렇게 됐다)   */
+export const SPELLS_COMMON = [
+  { id:'cure',   name:'경상 치유',   short:'치유', lv:1, cost:2, desc:'상처를 닫는다. 어느 손이든 이것 하나는 안다.' },
+  { id:'heal',   name:'강화 치유',   short:'회복', lv:8, cost:6, desc:'깊은 상처까지 되돌린다 — 흉터를 3할 닫고 천장을 되돌린다.' },
+];
+/* 강화 치유 한 방이 최대 체력의 몇 할인가. 0.55였다(lv13 · 8mp). */
+export const HEAL_BIG_SHARE = 0.40;
+
 /* ── spells ───────────────────────────────────────────────
-   Unlocked by class level; cost mana.                       */
+   Unlocked by class level; cost mana. 공통 둘은 위에 있고, 여기
+   두 갈래는 그 위에 얹히는 **realm 의 것**만 남는다.            */
 export const SPELLS = {
   arcane: [
     { id:'bolt',   name:'마력 화살',   short:'화살', lv:1,  cost:2,  desc:'시야의 적 하나에게 마력을 쏜다. 마법사의 기본기 — 결승타는 서리가 맡는다.' },
@@ -368,11 +399,9 @@ export const SPELLS = {
     { id:'map',    name:'지형 파악',   short:'지도', lv:13, cost:8,  desc:'이 층의 지도를 기억해 낸다.' },
   ],
   divine: [
-    { id:'cure',   name:'경상 치유',   short:'치유', lv:1,  cost:1,  desc:'상처를 닫는다.' },
     { id:'bless',  name:'축복',        short:'축복', lv:3,  cost:2,  desc:'잠시 명중과 방어가 오른다.' },
     { id:'detect', name:'악 감지',     short:'감지', lv:5,  cost:3,  desc:'층의 모든 몬스터 위치를 읽는다.' },
     { id:'smite',  name:'응징의 빛',   short:'응징', lv:9,  cost:4,  desc:'시야의 적 하나를 빛으로 태운다.' },
-    { id:'heal',   name:'중상 치유',   short:'회복', lv:13, cost:8,  desc:'깊은 상처까지 되돌린다 — 흉터를 3할 닫고 천장을 되돌린다.' },
   ],
 };
 
@@ -1076,6 +1105,57 @@ export const staminaMax = p =>
   Math.max(3, 5 + Math.floor(p.lv / 4) + Math.max(0, statBonus(p.stats.dex))
     + (POOL[p.cls]?.more || 0) + (RACE_RULE[p.race]?.pool || 0));
 export const STAM_REGEN_EVERY = 2;
+
+/* ── 마나 — 여섯 직업 전부 ────────────────────────────────
+   `realm` 이 마나 통의 유무를 정하고 있었다. 세 직업(전사·도적·
+   레인저)은 realm 이 null 이라 `maxmana = 0` 이고, 그래서 유틸 넷
+   가운데 공통 치유 둘이 그 셋에게는 **누를 수 없는 칸**이었다.
+   §4의 표를 지키려면 통부터 열어야 한다.
+
+   통의 크기는 **지혜**가 정한다 — manaEvery 가 이미 지혜로 회복
+   속도를 정하고 있으므로, 크기까지 같은 능력치가 정하면 지혜 하나로
+   「얼마나 담기고 얼마나 빨리 차는가」가 다 읽힌다. 시전자만 예외로
+   자기 능력치를 쓴다(마법사는 지능).
+
+   시전자와 비시전자를 **같은 식**으로 잰다. 갈라 두면 언젠가 한쪽만
+   고쳐진다:
+       maxmana = max(MANA_FLOOR, (능력치 보정 + lift) × ⌈lv/2⌉ × per)
+
+   비시전자의 lift 가 3인 이유: 이 셋은 지혜를 버리는 직업이고
+   (CLASS_BAND 에서 weak·fair), 지혜 9면 보정이 −1이다. 시전자와 같은
+   lift 1을 쓰면 (b+1)=0 이 되어 통이 레벨과 무관하게 0으로 눕는다 —
+   「눌렀는데 아무 일도 안 일어나는 버튼」이 세 직업에 넷씩 생긴다.
+
+   재 보면(지혜 9 · lift 3 · per 0.6):
+       lv1 4 · lv4 4 · lv8 6 · lv12 7 · lv20 11
+   경상 치유(2mp) 기준으로 판 초반 두 번, 12레벨에 세 번이 통에 담긴다.
+   (8레벨의 6은 식이 아니라 바닥이다 — 아래 MANA_FLOOR 참조. 식은 거기서
+   4를 낸다.) 지혜 13인 레인저는 8레벨에 아홉이고 12레벨에 천장인 열하나 —
+   버린 능력치와 챙긴 능력치가 통 크기를 두 배 가까이 가른다.
+
+   그리고 비시전자에게는 **천장**이 있다(cap). 이것이 「유틸 전용 통」을
+   규칙으로 적는 자리다: 지혜 13인 레인저는 천장 없이 두면 12레벨에 14가
+   되어 **강화 치유를 두 번 연달아** 쓴다. 그러면 통이 「치유 둘을 담는
+   그릇」이 아니라 작은 주문 자원이 되고, 이미 가장 깊이 가는 직업이
+   회복까지 가져간다. 11은 강화 치유 한 번에 경상 치유 두 번 — 유틸
+   넷이 한 판에 다 들어가는 크기이고, 두 번은 안 되는 크기다.
+   마법사는 같은 식에서 lv12에 40이다(지능 16). 네 배 가까이 차이 난다 —
+   비시전자의 통은 **주문을 쓰는 통이 아니라 치유 둘을 담는 통**이다. */
+export const MANA_SCALE = {
+  mage:    { key:'int', lift:1, per:1.7 },
+  priest:  { key:'wis', lift:1, per:1.7 },
+  paladin: { key:'wis', lift:1, per:1.7 },
+  warrior: { key:'wis', lift:3, per:0.6, cap:11 },
+  rogue:   { key:'wis', lift:3, per:0.6, cap:11 },
+  ranger:  { key:'wis', lift:3, per:0.6, cap:11 },
+};
+/* 경상 치유 두 번. 지혜를 버려도 유틸 칸이 죽지는 않는다 — 「고르는
+   것의 값」과 「눌러도 안 되는 버튼」은 다르다. 장비와 유물은 이
+   아래로도 깎을 수 있다(눈알의 유물이 그것을 값으로 판다).
+   recalc 이 여기에 하나를 더 얹는다: **배운 공통 유틸 중 가장 비싼
+   것**만큼은 담긴다. 안 그러면 지혜를 최저로 굴린 전사에게 강화 치유는
+   8레벨에 열려서 30레벨까지 식어 있는 칸이다. */
+export const MANA_FLOOR = 4;
 
 /* ── the arts ─────────────────────────────────────────────
    What a class *does*, as opposed to what it rolls. Six classes

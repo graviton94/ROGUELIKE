@@ -14,7 +14,7 @@ import {
   RARITY, CURSED_TONE, rarityOf, isCursed,
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
   BUILD, SAVE_FORMAT,
-  MONSTERS, BRANCHES, SPELLS, boonById, FUSIONS, engraveById, ENGRAVE_AT, ENGRAVE_PENALTY, NAMED,
+  MONSTERS, BRANCHES, SPELLS, SPELLS_COMMON, boonById, FUSIONS, engraveById, ENGRAVE_AT, ENGRAVE_PENALTY, NAMED,
   BOSS, tellsOf, tellsNeeded, rulebook, hearsayFor, CONSUMABLES, RESONANCE,
   REGIONS, regionOf, MEMORIES, memoryEarned, SHACKLES, MAX_SHACKLE, josa,
   UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS, FUSE_ODDS, FUSE_COST,
@@ -1419,12 +1419,13 @@ export function refresh() {
      rolled poor wisdom has 0 mana at level 1 but still has a
      spellbook — showing the button without the bar told them
      nothing about why nothing worked. */
+  /* 그리고 이제 그 「직업」이 여섯이다. 유틸 넷의 앞 둘(공통 치유)이
+     마나를 먹으므로 전사도 볼 통이 있다. realm 으로 가리면 세 직업이
+     자기가 방금 쓴 자원을 화면에서 못 본다. */
   const mana = $('hud-mana-wrap');
-  if (CLASSES[p.cls].realm) {
-    mana.hidden = false;
-    $('hud-mana').textContent = `${p.mana}/${p.maxmana}`;
-    $('hud-manabar').style.width = p.maxmana ? `${(p.mana / p.maxmana) * 100}%` : '0%';
-  } else mana.hidden = true;
+  mana.hidden = false;
+  $('hud-mana').textContent = `${p.mana}/${p.maxmana}`;
+  $('hud-manabar').style.width = p.maxmana ? `${(p.mana / p.maxmana) * 100}%` : '0%';
 
   /* Always shown, town included. It toggled on depth at first,
      which moved the map by a gauge's height every time the
@@ -1733,9 +1734,25 @@ function renderSpellRow() {
   paintSlotRow($('spell-row'), all.filter(s => !s.art));
 }
 
+/* 한 줄에 여섯까지. 일곱째부터 아래로 접는다.
+   재 보니 320px에서 칸 하나의 폭은 (300 − 5×(n−1)) / n 이다:
+     다섯 56px · 여섯 46px · **일곱 39px** · 여덟 33px
+   손가락 하나가 44px이므로 일곱부터 옆 칸이 눌리고, 「치유2」가
+   「치유」로 잘린다(칸 벤치가 일곱 칸 전부를 잘림으로 잡았다).
+   공통 치유 둘이 붙으면서 마법사가 다섯에서 일곱이 됐고, 순서 3-②는
+   여덟으로 만든다 — 접는 자리를 지금 정한다.
+   접는 폭은 ⌈n/2⌉ 이지만 넷을 안 넘는다: 여덟 칸을 4+4로 놓으면
+   기예 넷과 유틸 넷이 위아래로 갈려서 §4의 표가 화면에 그대로
+   보인다. 여섯 이하는 한 줄에 남으므로 사제·팔라딘의 줄 수는
+   그대로다 — 줄이 늘면 지도가 줄고, 지도는 이미 320px에서 20%다. */
+function slotCols(n) {
+  return n <= 6 ? n : Math.min(4, Math.ceil(n / 2));
+}
+
 function paintSlotRow(row, slots) {
   row.hidden = !slots.length;
   if (!slots.length) return;
+  row.style.setProperty('--cols', slotCols(slots.length));
   if (row.children.length !== slots.length) {
     row.innerHTML = '';
     for (let i = 0; i < slots.length; i++) {
@@ -2152,8 +2169,9 @@ function renderLegend() {
   // 탐지 is one glyph shared by both realms under two names —
   // listed once, or the key reads like a rendering bug.
   const byId = new Map();
-  for (const realm of ['arcane', 'divine'])
-    for (const s of SPELLS[realm]) {
+  // 공통 둘이 먼저 — 여섯 직업이 다 갖는 것이 열쇠의 첫 줄이어야 한다.
+  for (const list of [SPELLS_COMMON, SPELLS.arcane, SPELLS.divine])
+    for (const s of list) {
       const had = byId.get(s.id);
       if (had) had.names.push(s.name);
       else byId.set(s.id, { ...s, names: [s.name] });
@@ -2966,7 +2984,10 @@ export function renderCreate() {
   for (const [key, c] of Object.entries(CLASSES)) {
     const b = el('button', 'pickbtn' + (pick.cls === key ? ' on' : ''));
     b.appendChild(el('span', 'pname', c.name));
-    b.appendChild(el('span', 'pmod', c.trait ? c.trait.n : (c.realm ? '주문' : '무주문')));
+    /* 「무주문」이라고 적던 갈래가 있었다. 여섯 직업 전부 공통 치유
+       둘을 갖게 된 뒤로는 거짓말이고, 그 전에도 여섯이 다 trait 을
+       가진 뒤로 한 번도 안 그려진 줄이었다. */
+    b.appendChild(el('span', 'pmod', c.trait.n));
     // A class changes the bands, so the roll has to be redrawn
     // — showing a warrior's numbers under 마법사 would be a lie.
     b.onclick = () => { pick.cls = key; pick.base = Game.rollStats(key); renderCreate(); };

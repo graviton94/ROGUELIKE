@@ -565,13 +565,21 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 #controls .spells.wide {
   grid-column: 1 / -1;
   display: flex; gap: 5px; min-width: 0;
+  /* 접힌다. 몇 칸까지 한 줄인지는 ui.js 의 slotCols() 가 정하고
+     (--cols), 여기서는 그 수만큼의 폭으로 자른다 — 일곱 칸을 한 줄에
+     밀어넣으면 칸이 39px가 되어 손가락보다 좁아진다.
+     늘어나지 않게 두는 이유(flex-grow 0): 둘째 줄이 세 칸일 때 늘리면
+     위아래 칸이 어긋나서, 같은 자리에 있던 기예가 매 레벨 옆으로
+     움직인다. 왼쪽에 맞춰 두면 열이 맞는다. */
+  flex-wrap: wrap;
 }
 /* 눕힌다. 폭을 넓히려던 것이지 높이를 두 배로 만들려던 게 아니었는데,
    아이콘 위에 이름을 쌓은 채로 폭만 넓히니 줄 하나가 55px가 되고 두
    줄이면 110px다 — 화면의 13%를 잠긴 칸(Lv4·Lv8·Lv12)이 먹는다.
    가로로 누이면 같은 폭에 높이는 절반이다. */
 #controls .spells.wide button {
-  flex: 1 1 0; display: flex; flex-direction: row; align-items: center;
+  flex: 0 0 calc((100% - (var(--cols, 4) - 1) * 5px) / var(--cols, 4));
+  display: flex; flex-direction: row; align-items: center;
   justify-content: center; gap: 4px; padding: 4px 3px;
   font-size: 8.5px; line-height: 1; text-align: center; overflow: hidden;
 }

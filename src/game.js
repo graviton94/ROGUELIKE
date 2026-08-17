@@ -483,6 +483,11 @@ export const WOUND_AT = 0.10;
 export const BLOW_CAP = 0.32;
 export const WOUND_SHARE = 0.50;      // 그 피해의 몇 할이 천장에서 깎이는가
 export const WOUND_CAP = 0.45;        // 천장은 절반 아래로는 안 내려간다
+/* 비싼 회복이 흉터에서 되돌리는 몫. 셋(불·물약·주문)이 같은 문을
+   지나되 값이 다르다: 불은 기름을 다 내면 전부, 이 둘은 3할씩.
+   3할이면 나쁜 층 하나는 물약 하나로 지워지고, 판 내내 깎인 채로
+   걷는 일은 없어진다 — 그런데 상처가 사라지지도 않는다. */
+export const BIG_HEAL_MEND = 0.30;
 
 export function recalc(p, init) {
   const race = RACES[p.race], cls = CLASSES[p.cls];
@@ -1167,6 +1172,33 @@ export function hurtPlayer(dmg, opt = {}) {
   return taken;
 }
 
+/* ── 천장을 되돌리는 단 하나의 문 ─────────────────────────
+   상처를 지우는 길이 하나뿐이었다: 모닥불에 앉아 기름 260과 살
+   8%를 내는 것. 모닥불은 층마다 서지 않으므로, 나쁜 층을 하나 겪으면
+   그 판의 나머지를 깎인 천장으로 걸어야 했다 — 플레이어가 「흉터가
+   지면 너무 플레이에 제약이 크다」고 한 자리가 여기다.
+
+   그렇다고 아무 물약이나 상처를 닫으면 상처가 상처가 아니게 된다.
+   그래서 **비싼 쪽만** 닫는다. 중상 치유 물약과 중상 치유 주문은
+   원래 「깊은 상처까지 되돌린다」고 써 있으면서 실제로는 기본 물약과
+   숫자만 다른 물건이었다 — 이제 그 문장이 규칙이 된다.
+
+   문은 하나다. 불도 물약도 주문도 여기를 지난다. */
+export function mendWound(share, why = '') {
+  const p = G.player;
+  const had = p.wound || 0;
+  if (had <= 0) return 0;
+  const mend = Math.max(1, Math.round(had * share));
+  p.wound = Math.max(0, had - mend);
+  recalc(p);
+  /* 천장이 올라가면 그만큼 담긴다. 안 그러면 「최대 체력이 늘었다」고
+     써 놓고 눈금은 그대로인 화면이 된다. */
+  p.hp = Math.min(p.maxhp, p.hp + mend);
+  fx({ t:'levelup', x:p.x, y:p.y });
+  if (why) say(`${why} 견딜 수 있는 몸이 ${mend} 돌아왔다.`, 'level');
+  return mend;
+}
+
 function tookHit(dmg = 0, over = 0) {
   const p = G.player;
   /* You cannot catch your breath while something is hitting you.
@@ -1775,9 +1807,15 @@ export function useItem(slotIdx) {
       if (h) fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(h ? `상처가 아문다. 체력 +${h}.` : '이미 멀쩡하다.', 'good'); break;
     }
     case 'bigHeal': {
+      /* 상처부터 닫고 체력을 채운다 — 순서가 중요하다. 천장을 먼저
+         올려야 그만큼 담을 자리가 생긴다. 거꾸로 하면 「가득 찼다」로
+         잘려서 비싼 물약이 싼 물약과 같은 숫자를 낸다. */
+      const back = mendWound(BIG_HEAL_MEND);
       const h = Math.round(Math.min(p.maxhp - p.hp, (Math.floor(p.maxhp * 0.6) + roll(3, 10)) * gulp * healScale()));
       p.hp += h; tookDraught();
-      fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(`깊은 상처까지 닫힌다. 체력 +${h}.`, 'good'); break;
+      fx({ t:'heal', x:p.x, y:p.y, amt:h });
+      say(back ? `깊은 상처까지 닫힌다. 체력 +${h}, 천장 +${back}.`
+               : `깊은 상처까지 닫힌다. 체력 +${h}.`, 'good'); break;
     }
     case 'mana': {
       if (!p.maxmana) { say('아무 일도 일어나지 않았다.'); break; }
@@ -2689,8 +2727,11 @@ export function cast(spellId) {
       p.hp += h; fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(`상처가 닫힌다. 체력 +${h}.`, 'good'); break;
     }
     case 'heal': {
+      const back = mendWound(BIG_HEAL_MEND);
       const h = Math.min(p.maxhp - p.hp, Math.round((Math.floor(p.maxhp * 0.55) + roll(3, 8)) * pow * healScale()));
-      p.hp += h; fx({ t:'heal', x:p.x, y:p.y, amt:h }); say(`빛이 몸을 훑고 지나간다. 체력 +${h}.`, 'good'); break;
+      p.hp += h; fx({ t:'heal', x:p.x, y:p.y, amt:h });
+      say(back ? `빛이 몸을 훑고 지나간다. 체력 +${h}, 천장 +${back}.`
+               : `빛이 몸을 훑고 지나간다. 체력 +${h}.`, 'good'); break;
     }
     case 'bless': p.blessed = 25 + p.lv; say('가벼워진 기분이다.', 'good'); break;
     case 'detect': {
@@ -7551,11 +7592,9 @@ export function campSear() {
   sitDown();
   const cost = Math.min(p.lightTurns, WOUND_OIL);
   const share = cost / WOUND_OIL;
-  const mend = Math.max(1, Math.round((p.wound || 0) * share));
   const burn = Math.max(1, Math.round(p.maxhp * CAMP_SEAR_HP));
-  p.wound = Math.max(0, (p.wound || 0) - mend);
+  const mend = mendWound(share);          // 천장을 되돌리는 문은 하나다
   p.lightTurns -= cost;
-  recalc(p);
   say(share >= 1 ? `불에 지졌다. 상처 ${mend}이(가) 닫혔다. (기름 −${cost})`
                  : `기름이 모자라 절반만 지졌다. 상처 ${mend}. (기름 −${cost})`, 'good');
   /* 지짐도 한 대다 — 그러니 단일 깔때기를 지난다. 여기서 죽을 수 있고,

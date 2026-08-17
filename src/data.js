@@ -372,7 +372,7 @@ export const SPELLS = {
     { id:'bless',  name:'축복',        short:'축복', lv:3,  cost:2,  desc:'잠시 명중과 방어가 오른다.' },
     { id:'detect', name:'악 감지',     short:'감지', lv:5,  cost:3,  desc:'층의 모든 몬스터 위치를 읽는다.' },
     { id:'smite',  name:'응징의 빛',   short:'응징', lv:9,  cost:4,  desc:'시야의 적 하나를 빛으로 태운다.' },
-    { id:'heal',   name:'중상 치유',   short:'회복', lv:13, cost:8,  desc:'깊은 상처까지 되돌린다.' },
+    { id:'heal',   name:'중상 치유',   short:'회복', lv:13, cost:8,  desc:'깊은 상처까지 되돌린다 — 흉터를 3할 닫고 천장을 되돌린다.' },
   ],
 };
 
@@ -1597,39 +1597,52 @@ export const UNDEAD = ['wraith', 'mummy', 'lich', 'vampire', 'ashheap', 'emberpr
    줄이었다: 강화가 곱이 된 지금 +8은 1.72배이고, 그것을 못 받는
    무기는 주우면 곧 뒤처진다. 이름이 붙었다고 자라지 못할 이유는 없다.
    ═══════════════════════════════════════════════════════ */
+/* ── 이름 있는 것은 곡선 **위**에 있어야 한다 ────────────────
+   플레이어: 「유일무기가 성능 쓰레기인 거 같고…」
+
+   맞았다. 같은 계열의 평범한 무기와 나란히 재니 일곱 중 넷이
+   **아래**에 있었다 — 그것도 깊을수록 더 나빠졌다:
+     화로에서 꺼낸 것 0.88배 · 못 박는 자 0.90배 · 두 번 우는 활 1.00배
+     마지막 등불은 별 박힌 홀보다 주사위도 마나도 주문력도 낮았다.
+   0.5%로 떨어지는 물건이 주워서 **갈아 끼울 이유가 없는** 상태였다.
+   로그라이크에서 운이 값을 하려면, 나왔을 때 판이 달라져야 한다.
+
+   이제 제 계열에서 같은 깊이 최고의 1.3~1.7배다. 규칙은 그 위에
+   얹히는 것이지 성능을 대신하는 것이 아니다 — 「대신 규칙이 좋잖아」는
+   주워서 안 끼우는 물건을 설명하는 말이지 정당화하는 말이 아니다. */
 export const UNIQUES = [
-  { id:'ashcount', n:'재를 세는 자',   spr:'u_ashcount', t:'dagger', dice:[2,6], d:4,  hands:1,
+  { id:'ashcount', n:'재를 세는 자',   spr:'u_ashcount', t:'dagger', dice:[2,7], d:4,  hands:1,
     rule:'재운 것 하나마다 피해 +1. 층을 내려가면 셈이 처음으로 돌아간다.',
     crack:'①', crackN:'셈이 끝나지 않는다',
     crackT:'층을 내려가도 셈이 안 지워진다. 그리고 여덟을 셀 때마다 **주사위가 한 면 커진다.**',
     lore:'자루에 금이 그어져 있다. 세는 쪽은 칼이지 당신이 아니다.' },
-  { id:'longhush', n:'긴 침묵',       spr:'u_longhush',    t:'bow',    dice:[2,6], d:6,  hands:2, rng:7,
+  { id:'longhush', n:'긴 침묵',       spr:'u_longhush',    t:'bow',    dice:[3,5], d:6,  hands:2, rng:7,
     rule:'맞은 것 말고는 아무것도 깨어나지 않는다.',
     crack:'②', crackN:'붙어도 활이다',
     crackT:'활은 붙으면 막대기다 — 이것은 아니다. **근접에서도 온전히 쏜다.**',
     lore:'시위를 당겨도 소리가 나지 않는다. 놓아도 마찬가지다.' },
-  { id:'emberpull', n:'화로에서 꺼낸 것', spr:'u_emberpull', t:'great', dice:[3,6], d:8, hands:2,
+  { id:'emberpull', n:'화로에서 꺼낸 것', spr:'u_emberpull', t:'great', dice:[4,7], d:8, hands:2,
     rule:'잃은 피가 많을수록 무거워진다 — 반쯤 죽었을 때 피해 +60%.',
     crack:'②', crackN:'빗맞지 않는다',
     crackT:'대검은 크게 휘두르는 만큼 빗나간다. 이것은 **한 번도 빗나가지 않는다.**',
     lore:'아직 식지 않았다. 몇 해가 지났는데도.' },
-  { id:'promise',  n:'약속',          spr:'u_promise',  t:'sword',  dice:[2,7], d:9,  hands:1,
+  { id:'promise',  n:'약속',          spr:'u_promise',  t:'sword',  dice:[3,8], d:9,  hands:1,
     rule:'넘치게 때린 만큼이 체력으로 돌아온다.',
     crack:'③', crackN:'천장이 올라간다',
     crackT:'이 게임에서 최대 체력은 내려가기만 한다. 이 검으로 넘치게 때리면 **천장이 올라간다** — 층마다 다섯까지.',
     lore:'누가 누구에게 한 약속인지는 적혀 있지 않다.' },
-  { id:'nailer',   n:'못 박는 자',     spr:'u_nailer',   t:'mace',   dice:[3,5], d:10, hands:1,
+  { id:'nailer',   n:'못 박는 자',     spr:'u_nailer',   t:'mace',   dice:[3,8], d:10, hands:1,
     rule:'맞은 것은 다음 턴에 움직이지 못한다.',
     crack:'③', crackN:'그 자리에 박힌다',
     crackT:'세 번 맞은 것은 **죽을 때까지 한 칸도 못 움직인다.** 쫓기는 쪽을 바꾼다.',
     lore:'대장장이의 물건이었다. 대장장이는 그것으로 못을 박지 않았다.' },
-  { id:'twicewept', n:'두 번 우는 활', spr:'u_twicewept',    t:'bow',    dice:[2,7], d:12, hands:2, rng:8,
+  { id:'twicewept', n:'두 번 우는 활', spr:'u_twicewept',    t:'bow',    dice:[3,6], d:12, hands:2, rng:8,
     rule:'한 번 쏠 때마다 두 발이 나간다. 두 번째는 절반. 화살은 하나만 든다.',
     crack:'①', crackN:'울음이 멎지 않는다',
     crackT:'두 번째가 **절반이 아니라 온전해지고**, 그 화살이 무언가를 죽이면 **세 번째가 나간다.**',
     lore:'첫 번째는 맞은 것을 위해, 두 번째는 쏜 것을 위해 운다고 한다.' },
-  { id:'lastlamp', n:'마지막 등불',    spr:'u_lastlamp',   t:'wand',   dice:[1,6], d:13, hands:1,
-    manaFlat:8, spellPow:0.25,
+  { id:'lastlamp', n:'마지막 등불',    spr:'u_lastlamp',   t:'wand',   dice:[2,6], d:13, hands:1,
+    manaFlat:20, spellPow:0.60,
     rule:'체력이 4분의 1 아래면 주문에 마나가 들지 않는다.',
     crack:'②', crackN:'마르지 않는다',
     crackT:'마나가 모자라도 주문이 나간다 — **모자란 만큼을 피로 낸다.** 지팡이는 더 이상 비지 않는다.',
@@ -1908,8 +1921,12 @@ export const SCROLL_LOOKS = [
 export const CONSUMABLES = [
   { id:'potHeal',  spr:'potion', n:'치유의 물약',     d:0,  cost:22,  rar:12, use:'heal',
     desc:'체력 20 + 2d8 + 레벨×2 회복' },
-  { id:'potCure',  spr:'potion', n:'중상 치유 물약',  d:5,  cost:90,  rar:7,  use:'bigHeal',
-    desc:'최대 체력의 60% + 3d10 회복' },
+  /* 「깊은 상처까지 되돌린다」고 써 놓고 실제로는 기본 물약과 숫자만
+     달랐다. 이제 그 문장이 규칙이다 — 상처를 3할 닫는다. 값을 90에서
+     150으로 올린다: 상처를 지우는 것은 이 게임에서 모닥불 + 기름
+     260이 하던 일이고, 그만한 값이 있어야 한다. */
+  { id:'potCure',  spr:'potion', n:'중상 치유 물약',  d:5,  cost:150, rar:7,  use:'bigHeal',
+    desc:'최대 체력의 60% + 3d10 회복. 그리고 흉터를 3할 닫는다 — 천장이 돌아온다.' },
   { id:'potMana',  spr:'potion', n:'정신의 물약',     d:2,  cost:60,  rar:8,  use:'mana',
     desc:'최대 마나의 50% + 1d6 회복' },
   /* Not a potion — a tool. It sits in the same pack line because

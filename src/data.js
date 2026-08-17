@@ -1091,12 +1091,14 @@ export const ARTS = {
      priest's four are the only things in the game that get easier
      the worse the fight is going. */
   priest: [
-    { id:'sanctum',  name:'성역',   short:'성역', lv:1,  faith:3,
-      desc:'선 자리를 축성한다. 그 안에서는 받는 피해가 절반 아래로 떨어지고, 죽지 않는 것은 붙지 못한다.' },
-    { id:'anathema', name:'파문',   short:'파문', lv:4,  faith:4,
-      desc:'하나를 지목한다. 그것은 더는 아물지 않고, 모두에게 더 아프다.' },
-    { id:'judge',    name:'심판',   short:'심판', lv:8,  faith:6,
-      desc:'보이는 죽지 않는 것 전부가 크게 다치고 달아난다.' },
+    /* 넷 다 「맞은 것」을 값으로 바꾼다 — 그게 이 직업의 자원이 오는
+       곳이고, 지금까지 그 자원이 사는 물건이 없었다. */
+    { id:'repay',    name:'되갚기', short:'되갚기', lv:1,  faith:3,
+      desc:'이 층에서 받은 것을 눈앞의 하나에게 한 번에 돌려준다. 많이 맞았을수록 무겁다.' },
+    { id:'word',     name:'말씀',   short:'말씀', lv:4,  faith:4,
+      desc:'네 칸 안의 모든 것이 두 턴 동안 얼어붙는다. 피해는 없다 — 시간을 산다.' },
+    { id:'stigma',   name:'성흔',   short:'성흔', lv:8,  faith:6,
+      desc:'하나에 성흔을 새긴다. 그것이 맞을 때마다 곁의 것들도 같이 맞는다.' },
     /* 순교의 값은 피해가 아니라 「다섯 턴 뒤에 오는 빚」이다. 신앙 9는
        판당 한 번도 안 닿는 값이었다. */
     { id:'martyr',   name:'순교',   short:'순교', lv:12, faith:7,
@@ -1191,6 +1193,31 @@ export const SANCTUM_CUT   = 0.55;  // damage taken inside, reduced by this shar
 export const ANATHEMA_MORE = 0.35;  // what a marked thing takes on top
 export const JUDGE_HURT    = 0.42;  // share of an undead's maximum, in one word
 export const MARTYR_TURNS  = 5;
+
+/* ── 사제를 다시 쓴다 ──────────────────────────────────────
+   플레이어: 「사제 스킬 셋 존나 재미없고 구림」.
+
+   맞는 말이고, 이유가 하나로 모인다. 이 직업의 정체성은 **맞을수록
+   강해진다**이고 자원(신앙)도 맞아야 찬다. 그런데 기예 넷 중 어느
+   것도 **맞은 것을 값으로 바꾸지 않았다**:
+
+     성역   — 원 안에 서서 덜 맞는다. 서 있는 동사다(전사의 옛
+              버티기를 이미 같은 이유로 죽였다)
+     파문   — 하나를 지목하면 그것이 안 아문다. 화면에서 아무 일도
+              안 일어난다
+     심판   — 언데드에게만. 봇 20판에 **0회**
+     순교   — 다섯 턴 뒤에 빚이 온다. 역시 20판에 **0회**
+
+   즉 「맞는다 → 신앙이 찬다 → ?」의 물음표가 비어 있었다. 넷을
+   전부 그 물음표에 답하는 것으로 바꾼다 — **받은 것을 무엇으로
+   바꿀 것인가**가 사제의 결정이 된다. */
+export const REPAY_SHARE   = 0.85;  // 이 층에서 받은 피해 중 되돌리는 몫
+export const REPAY_CAP     = 3.2;   // 한 방 상한 — 평타 몇 배까지
+export const AWE_RANGE     = 4;     // 말씀이 닿는 거리
+export const AWE_TURNS     = 2;     // 그동안 못 움직인다
+export const STIGMA_TURNS  = 6;
+export const STIGMA_SPLASH = 0.55;  // 성흔 붙은 것이 맞으면 주변이 받는 몫
+export const STIGMA_RANGE  = 2;
 
 /* ── 그림자 ───────────────────────────────────────────────
    Five is the cap because the most expensive art costs three: a

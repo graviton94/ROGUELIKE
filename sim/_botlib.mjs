@@ -466,29 +466,33 @@ function runBot(race, cls, clear, opt = {}) {
         && !p.ail?.paralyze && !(p.stuck > 0);
       const dead = seen.filter(m => BOWDATA.UNDEAD.includes(m.spr));
 
+      /* ── 사제의 넷 ─────────────────────────────────────
+         넷 다 「맞은 것을 무엇으로 바꿀까」다. 정책도 그렇게 쓴다:
+         많이 맞았으면 되갚고, 몰렸으면 멈춰 세우고, 붐비는 곳에
+         성흔을 새기고, 죽기 직전에 순교한다. 예전 정책은 성역을
+         315회 누르고 심판·순교를 0회 눌렀다 — 그건 정책이 아니라
+         한 버튼이었다. */
       const martyr = art('martyr');
       if (canPray(martyr) && !(p.martyr > 0)
-          && p.hp < p.maxhp * 0.3 && adjA.length >= 2)
+          && p.hp < p.maxhp * 0.3 && adjA.length >= 1)
         { useArtCounted('martyr'); continue; }
 
-      const judge = art('judge');
-      if (canPray(judge) && dead.length >= 2) { useArtCounted('judge'); continue; }
+      const repay = art('repay');
+      if (canPray(repay) && adjA.length && (p.tookPool || 0) >= p.maxhp * 0.35)
+        { useArtCounted('repay'); continue; }
 
-      const sanctum = art('sanctum');
-      const onHoly = G.sanctum && G.sanctum.left > 0
-        && G.sanctum.x === p.x && G.sanctum.y === p.y;
-      if (canPray(sanctum) && !onHoly
-          && (adjA.length >= 2 || dead.length >= 1 || p.hp < p.maxhp * 0.5))
-        { useArtCounted('sanctum'); continue; }
+      const word = art('word');
+      if (canPray(word) && adjA.length >= 2 && p.hp < p.maxhp * 0.6)
+        { useArtCounted('word'); continue; }
 
-      // Anathema pays for itself on the things that outlast a
-      // trade: healers, and anything with a big pool.
-      const anath = art('anathema');
-      if (canPray(anath)) {
-        const worth = seen.find(m => !m.cursed
-          && (m.regen > 0 || m.named || m.maxhp >= p.maxhp * 1.2));
-        if (worth) { useArtCounted('anathema'); continue; }
-      }
+      const stigma = art('stigma');
+      if (canPray(stigma) && seen.length >= 3
+          && !G.monsters.some(m => m.stigma > 0))
+        { useArtCounted('stigma'); continue; }
+
+      /* 성역·파문·심판이 여기 있었다. 셋 다 없어졌다 —
+         「원 안에 서기」와 「지목만 하기」는 사제의 자원(맞은 것)과
+         아무 관계가 없었고, 심판은 언데드 전용이라 20판에 0회였다. */
 
       /* Rogue. 그림자 is ammunition gathered by not being seen, and
          four arts burn it. Priority: get out from under a pack,

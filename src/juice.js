@@ -318,6 +318,48 @@ function auraWash(e) {
   }
 }
 
+
+/* ── 사제의 셋 ─────────────────────────────────────────────
+   전부 「받은 것을 돌려준다」의 다른 얼굴이라, 셋 다 **되돌아오는
+   방향**을 그린다: 되갚기는 나에게서 저쪽으로 한 줄, 말씀은 나를
+   중심으로 밖으로, 성흔은 표적에서 곁으로.
+
+   artFx·bigFx 와 같은 이유로 한 문 뒤에 둔다 — pump 는 이 저장소에서
+   가장 굵은 함수이고, 매듭 린트가 이 커밋에서 바로 잡았다. */
+function priestFx(e) {
+  if (e.t === 'repay') {
+    /* 모아 둔 것이 한 번에 나간다. 굵은 줄 하나 + 무게. */
+    beams.push({ fx: e.x + 0.5, fy: e.y + 0.5, tx: e.tx + 0.5, ty: e.ty + 0.5,
+                 color: PALETTE.W, age: 0, life: 260 });
+    ring(e.tx, e.ty, 1.7, PALETTE.y, 420);
+    burstShards(e.tx, e.ty, [PALETTE.W, PALETTE.y, PALETTE.R], 18, 1.6);
+    number(e.x, e.y - 0.8, e.capped ? '되갚기!' : '되갚기', PALETTE.y, 1.3);
+    freeze = Math.max(freeze, 80);
+    shake = Math.max(shake, 0.5);
+    buzz([50, 30, 60]); sfx.crit();
+    return;
+  }
+  if (e.t === 'word') {
+    /* 피해가 없는 유일한 기예라 파편도 없다 — 소리가 퍼지고 멈춘다. */
+    for (let i = 0; i < 3; i++)
+      ring(e.x, e.y, (e.r || 4) * (0.5 + i * 0.28), PALETTE.W, 380 + i * 140);
+    number(e.x, e.y - 0.8, '멈춰라', PALETTE.W, 1.25);
+    freeze = Math.max(freeze, 120);
+    buzz([30, 60, 30]); sfx.warn();
+    return;
+  }
+  if (e.t === 'stigma') {
+    ring(e.x, e.y, 1.3, PALETTE.R, 620, true);
+    ring(e.x, e.y, 0.7, PALETTE.W, 440, true);
+    number(e.x, e.y - 0.7, '성흔', PALETTE.R, 1.2);
+    buzz([26, 18, 26]); sfx.warn();
+    return;
+  }
+  ring(e.x, e.y, e.r || 2, PALETTE.R, 260);
+  burstShards(e.x, e.y, [PALETTE.R, PALETTE.r], 8, 1.1);
+  shake = Math.max(shake, 0.22);
+}
+
 function vanishBurst(e) {
   for (let i = 0; i < (e.n || 0); i++) {
     const a = (i / Math.max(1, e.n)) * Math.PI * 2;
@@ -930,39 +972,12 @@ export function pump(queue, player) {
          The mage throws things; the priest marks them. Three of
          these are lines drawn on something rather than objects
          travelling through the air. */
-      case 'sanctum':
-        ring(e.x, e.y, 1.6, PALETTE.W, 700);
-        ring(e.x, e.y, 1.0, PALETTE.y, 820);
-        number(e.x, e.y - 0.6, '성역', PALETTE.W, 1.15);
-        buzz([20, 40, 20]);
-        sfx.heal();
-        break;
-      case 'sanctumHit':
-        ring(e.x, e.y, 0.85, PALETTE.W, 220);
-        break;
-      case 'anathema':
-        ring(e.x, e.y, 2.0, PALETTE.p, 520, true);
-        burstShards(e.x, e.y, [PALETTE.p, PALETTE.P], 14, 1.2);
-        number(e.x, e.y - 0.7, '파문', PALETTE.P, 1.2);
-        shake = Math.max(shake, 0.3);
-        buzz([30, 20, 40]);
-        sfx.warn();
-        break;
-      case 'judge': {
-        for (let i = 0; i < 14 && shards.length < MAX_SHARDS; i++) {
-          const a2 = (i / 14) * Math.PI * 2;
-          shards.push({ x: e.x + 0.5, y: e.y + 0.5,
-                        vx: Math.cos(a2) * 6.5, vy: Math.sin(a2) * 6.5,
-                        life: 380, age: 0, size: 2, color: PALETTE.y });
-        }
-        ring(e.x, e.y, 7, PALETTE.y, 620);
-        flashScreen = Math.max(flashScreen, 0.4); flashHue = 'y';
-        freeze = Math.max(freeze, 90);
-        shake = Math.max(shake, 0.6);
-        buzz([60, 40, 80]);
-        sfx.levelup();
-        break;
-      }
+      /* ── 사제의 셋 ─────────────────────────────────────
+         전부 「받은 것을 돌려준다」의 다른 얼굴이라, 셋 다 **되돌아
+         오는 방향**을 그린다: 되갚기는 나에게서 저쪽으로 한 줄,
+         말씀은 나를 중심으로 밖으로, 성흔은 표적에서 곁으로. */
+      case 'repay': case 'word': case 'stigma': case 'stigmaBurst':
+        priestFx(e); break;
       case 'arcana': case 'deathZoom': case 'crack': case 'vanishOut':
       case 'brace': case 'kite': case 'bulwark':
       case 'martyr': case 'martyrHold': bigFx(e); break;

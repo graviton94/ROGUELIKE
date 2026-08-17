@@ -1044,9 +1044,12 @@ const SPELL_ICONS = {
   judgest:  [maul,                                    'W'],
   storm:    [bladering,                               'y'],
   crusade:  [march,                                   'W'],
-  sanctum:  [slab,                                    'W'],
-  anathema: [strikeOut,                               'p'],
-  judge:    [rays,                                    'y'],
+  /* 사제의 셋이 바뀌었다. 셋 다 「받은 것을 돌려준다」의 다른 얼굴이라
+     모양도 그 방향을 쓴다 — 되갚기는 돌려주는 손(palm), 말씀은
+     퍼지는 소리(rays), 성흔은 지워지지 않는 표(strikeOut). */
+  repay:    [palm,                                    'y'],
+  word:     [rays,                                    'W'],
+  stigma:   [strikeOut,                               'R'],
   martyr:   [kneel,                                   'R'],
   aimed:    [(c, x, y, r) => crosshair(c, x, y, r),   'E'],
   pierce:   [(c, x, y, r) => throughLine(c, x, y, r), 'B'],
@@ -4369,6 +4372,33 @@ export async function shareRun() {
     btn.textContent = ok ? '복사됐다' : '복사 실패';
     setTimeout(() => { btn.textContent = '자랑하기'; }, 1600);
   }
+}
+
+/* ── 판을 파일로 ──────────────────────────────────────────
+   규칙이 쌓아 둔 것(Game.traceDump)을 그대로 떨어뜨린다. 화면이 하는
+   일은 여기까지다 — 무엇을 적을지는 game.js 가 정하고, 이 함수는
+   그것을 파일로 만든다.
+
+   왜 JSON 인가: 읽는 쪽이 사람과 기계 둘 다다. 맨 앞에 사람이 읽을
+   머리말 몇 줄을 얹고 그 아래 원본을 통째로 둔다 — 붙여 넣으면
+   바로 읽히고, sim/replay.mjs 로 넣으면 표가 나온다. */
+export function dumpRun() {
+  const d = Game.traceDump();
+  const head = [
+    `깊은 곳 판 기록 · ${d.build} · 형식 v${d.v}`,
+    `${d.race}/${d.cls} Lv${d.lv} · ${d.deepest}층 · ${d.turns}턴`
+      + ` · ${d.ending ? (d.ending.win ? '클리어' : `${d.ending.by}에게`) : '진행 중'}`,
+    `유물 ${d.relics.length} · 아르카나 ${d.arcana.length} · 총 강화 +${d.plus}`
+      + ` · 처치 ${d.kills} · 최고 연격 ${d.bestCombo}`,
+    '', '── 아래는 원본. sim/replay.mjs 가 읽는다 ──', '',
+  ].join('\n');
+  const body = head + JSON.stringify(d, null, 1);
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([body], { type: 'application/json' }));
+  a.download = `deepdelve-${d.cls || 'run'}-${d.deepest}층-${stamp}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 
 /* ── the fork ─────────────────────────────────────────────

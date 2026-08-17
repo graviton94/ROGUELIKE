@@ -28,6 +28,10 @@ $('btn-again').onclick  = () => location.reload();
    door out of the ending was a page reload. */
 $('btn-totitle').onclick  = () => { G.running = false; UI.setScreen('title'); };
 $('btn-endcodex').onclick = () => { G.running = false; UI.setScreen('codex'); };
+/* 판을 파일로. 봇으로 사람을 흉내 내는 대신 사람의 판을 그대로 읽으려고
+   만든 문이라, 죽은 뒤에도 이긴 뒤에도 같은 자리에 있다. */
+$('btn-trace').onclick = () => UI.dumpRun();
+$('btn-trace2').onclick = () => UI.dumpRun();
 $('btn-share').onclick    = () => UI.shareRun();
 
 UI.setScreen('title');

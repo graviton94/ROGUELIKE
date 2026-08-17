@@ -363,7 +363,14 @@ function runBot(race, cls, clear, opt = {}) {
       const art = id => arts.find(a => a.id === id);
       // Never try an art the hero cannot actually take: a
       // refused art costs no turn, and the loop below would spin.
-      const can = a => a && p.stam >= a.stam && !p.ail?.paralyze && !(p.stuck > 0);
+      /* ── 값은 표가 아니라 깔때기에 묻는다 ────────────────────
+         `p.stam >= a.stam` 였다. 표의 숫자는 실제 값이 아니다 —
+         하프트롤은 기예마다 하나 더 내고(raceRule 'artUp'), 「층에 한
+         번」짜리는 값이 0이다. 게임이 쓰는 문이 artCost() 하나이므로
+         정책도 그것에 물어야 한다. 아니면 「지갑은 되는데 게임이
+         거절하는」 press 가 종족마다 생긴다. */
+      const canPay = a => a && p.stam >= Game.artCost(p, a);
+      const can = a => canPay(a) && !p.ail?.paralyze && !(p.stuck > 0);
       const adjA = Game.adjacent ? Game.adjacent(p) : G.monsters.filter(m =>
         !m.disguise && Math.abs(m.x - p.x) <= 1 && Math.abs(m.y - p.y) <= 1);
       const shooters = G.monsters.filter(m =>
@@ -414,8 +421,16 @@ function runBot(race, cls, clear, opt = {}) {
          (which pays itself back), march when the room is already
          down, drive the biggest thing, and close on anything that
          will not come to him. */
-      const canSwear = a => a && (p.oath || 0) >= (a.oath || 0)
-        && !p.ail?.paralyze && !(p.stuck > 0);
+      /* ── 지갑을 안 보고 있었다 ──────────────────────────────
+         `(p.oath || 0) >= (a.oath || 0)` 였다. 통을 하나로 합칠 때
+         맹세는 `p.stam` 의 팔라딘 이름이 되었고 값은 `a.stam` 으로
+         옮겨 갔는데, 이 줄은 없어진 두 필드를 읽는다 —
+         **0 >= 0 은 언제나 참이다.** 즉 팔라딘의 정책은 지갑을 아예
+         안 보고 눌렀고, 실측으로 열 판에 심판의 일격 1640회 · 돌진
+         697회가 **거절당한 press** 였다(86%). 이 자로 잰 팔라딘의
+         도달 층은 「빈 지갑으로 버튼을 두드리는 사람」의 숫자다.
+         can() 하나로 모은다 — 값을 묻는 자리는 하나여야 한다. */
+      const canSwear = can;
       const seenP = G.monsters.filter(m =>
         !m.disguise && m.awake && G.level.vis[idx(m.x, m.y)]);
 
@@ -496,8 +511,12 @@ function runBot(race, cls, clear, opt = {}) {
       /* Priest. Faith is not stamina — it does not tick back, so
          the policy spends it only where the art is the whole answer.
          A bot that never spends it measures the old priest. */
-      const canPray = a => a && (p.faith || 0) >= (a.faith || 0)
-        && !p.ail?.paralyze && !(p.stuck > 0);
+      /* 사제도 같다 — `p.faith` 와 `a.faith` 는 둘 다 없어진 필드이고,
+         그래서 이 줄도 언제나 참이었다. 열 판에 헛손질 574회(74%):
+         말씀 328 · 성흔 123 · 되갚기 123. 순교는 0회 — 지갑을 안 보는
+         정책이 앞의 셋으로 통을 다 비우므로 마지막 하나에는 영영
+         차례가 안 온다. */
+      const canPray = can;
       const dead = seen.filter(m => BOWDATA.UNDEAD.includes(m.spr));
 
       /* ── 사제의 넷 ─────────────────────────────────────
@@ -533,8 +552,11 @@ function runBot(race, cls, clear, opt = {}) {
          finish what is nearly done, delete an archer's distance,
          thin a crowd. */
       if (p.cls === 'rogue') {
-        const shade = p.shadow || 0;
-        const canHide = a => a && shade >= (a.shade || 0) && p.stam >= (a.stam || 0) && a.lv <= p.lv;
+        /* 도적 쪽은 그래도 `p.stam` 을 보고 있었다(그래서 헛손질이 0
+           이다). 그런데 `p.shadow` 와 `a.shade` 는 역시 없어진 필드고,
+           `a.stam` 은 종족 보정을 안 지난다 — 나머지 넷과 같은 문을
+           쓰게 한다. `a.lv <= p.lv` 는 artList 가 이미 걸렀다. */
+        const canHide = can;
         /* 어둠 되감기 refuses when nothing awake can actually see
            you, and a refusal costs no turn — so a policy that asks
            for it on the wrong reading of the room loops forever.

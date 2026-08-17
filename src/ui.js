@@ -4420,10 +4420,16 @@ export function dumpRun() {
     '', '── 아래는 원본. sim/replay.mjs 가 읽는다 ──', '',
   ].join('\n');
   const body = head + JSON.stringify(d, null, 1);
-  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '');
+  /* ── 파일 이름은 아스키만 ──────────────────────────────────
+     처음에 `…-15층-…json` 으로 지었더니 브라우저가 `download` 속성을
+     **통째로 무시하고** 확장자도 없는 `download` 라는 파일을 떨궜다
+     (실측: 같은 이름에서 「층」만 F 로 바꾸면 정상). 한글이 들어간
+     download 이름을 지원하지 않는 것이라, 여기서는 이름을 예쁘게
+     짓는 것보다 **구분되게 떨어지는 것**이 먼저다. */
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T-]/g, '');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([body], { type: 'application/json' }));
-  a.download = `deepdelve-${d.cls || 'run'}-${d.deepest}층-${stamp}.json`;
+  a.download = `deepdelve-${d.cls || 'run'}-d${d.deepest}-${stamp}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }

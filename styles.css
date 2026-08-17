@@ -1408,3 +1408,7 @@ table.keys td:first-child { width: 40%; color: var(--G); }
   min-height: 24px; color: var(--G); border: 1px solid var(--g);
 }
 .imid.open .idesc.unfold { color: var(--o); border-color: #5a3a10; }
+
+/* 판 기록 버튼은 조작법 시트 안에서도 손가락 크기여야 한다 —
+   실측 112×29 였다. */
+#btn-trace2 { min-height: 44px; padding: 0 14px; margin-bottom: 6px; }

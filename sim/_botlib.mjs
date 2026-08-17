@@ -276,9 +276,16 @@ function runBot(race, cls, clear, opt = {}) {
 
        무엇을 고르는지가 아니라 「고른다」가 중요하므로 셋 중 하나를
        무작위로 집는다. 편향된 정책은 나중에 A/B 로 따로 잰다. */
-    if (G.screen === 'arcana' && Game.arcanaDue(G.depth)) {
-      const off = Game.arcanaOffer();
-      if (off.length) { Game.takeArcana(off[Math.floor(Math.random() * off.length)].id); }
+    if (G.screen === 'arcana' && Game.pledgeDue(G.depth)) {
+      /* 서약. 아르카나가 여기 있었는데 신으로 바뀌었고, 봇이 그것을
+         모르는 채로 열 판을 굴렸더니 평균 5.7층이 나왔다 — 사실상
+         **전부 거절**하는 판을 굴리고 있었다(설계상 가장 어려운 길).
+         봇이 최악 루트만 굴리면 앞으로의 모든 측정이 거기서 잡힌다.
+
+         봇은 언제나 받는다. 「거절」은 사람의 선택이지 기본값이 아니고,
+         기본값으로 재야 다른 것들이 비교된다. */
+      const off = Game.godOffer();
+      if (off.length) Game.pledge(off[Math.floor(Math.random() * off.length)].id);
       G.screen = 'play'; screenAt = 'play'; screenFor = 0;
     }
     if (G.screen !== 'play') {

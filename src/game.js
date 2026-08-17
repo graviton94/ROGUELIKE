@@ -23,7 +23,7 @@ import {
   STIGMA_TURNS, STIGMA_SPLASH, STIGMA_RANGE,
   RELICS, RELIC_SLOTS, relicSlots, relicById, crackOf, crackSaid, crackNeed, CRACK_LEFT, BRANCHES,
   STRANGE, strangeById, STRANGE_FROM, STRANGE_BASE, STRANGE_CAP,
-  ARCANA, arcanaById, ARCANA_AT,
+  ARCANA, arcanaById, ARCANA_AT, GODS, godById, REFUSE,
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH, REGIONS, regionOf,
   MEMORIES, memoryEarned, SHACKLES, shacklesAt, SHACKLE_STAT, tellsNeeded,
   WEAPON_TYPES, PATTERNS, NAMED,
@@ -3284,7 +3284,7 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     fx({ t:'arcana', n: o.n });
   }
   if (depth > 0) traceOpenFloor(depth);
-  if (depth > 0 && arcanaDue(depth)) G.screen = 'arcana';
+  if (depth > 0 && pledgeDue(depth)) G.screen = 'arcana';
 }
 
 function findTile(L, t) {
@@ -6453,6 +6453,57 @@ export const heatAwake = () => (G.heat || 0) * 0.006;       // 0 ~ 60%
    순증이 하나라도 있으면 그 판부터 나머지는 안 고른다. */
 export const hasArcana = id => !!G.arcana?.includes(id);
 /* 이 층에서 고를 차례인가. 층에 들어서는 순간 화면이 뜬다. */
+/* ── 서약 ──────────────────────────────────────────────────
+   DESIGN.md §4. 아르카나가 쓰던 리듬(4·8·12층)을 그대로 쓴다. 다만
+   고르는 것이 셋이 아니라 **넷**이다 — 「거절한다」가 언제나 붙는다.
+
+   화면에는 신이 **말한 것**(say)만 간다. 실제로 일어나는 것(real)은
+   겪고 나서 기록에 남는다. 그것이 속는다는 것의 뜻이고, 그래서 이
+   함수는 real 을 안 내보낸다. */
+export function godOffer() {
+  if (G.godPick) return G.godPick;
+  const pool = GODS.filter(g => g.id !== G.god);
+  const out = [];
+  for (let i = 0; i < 3 && pool.length; i++)
+    out.push(pool.splice(rnd(pool.length), 1)[0]);
+  G.godPick = out;
+  return out;
+}
+/* 거절할 수 있는가. 심연 8단에서만 열린다 — 사다리는 오르는 것이지
+   고르는 것이 아니므로(setAbyss 가 cleared()+1 로 자른다) 여기 서려면
+   0단부터 차례로 이겨야 한다. */
+export const canRefuse = () => (G.abyss || 0) >= REFUSE.at;
+
+export function pledge(id) {
+  const g = godById(id);
+  if (!g) return;
+  G.god = id;
+  (G.gifts ||= []).push(id);
+  G.godPick = null;
+  say(`「${g.call}」`, 'level');
+  trace('pledge', { id, n: g.n, depth: G.depth });
+  fx({ t:'pledge', id, n: g.n, x: G.player?.x, y: G.player?.y });
+}
+
+/* 거절. 아무것도 안 준다 — 신앙심도 안 오른다. 그것이 전부이고,
+   그래서 이 게임의 유일한 난이도 선택이다. */
+export function refuse() {
+  if (!canRefuse()) return false;
+  G.refused = (G.refused || 0) + 1;
+  G.godPick = null;
+  say('아무 말도 하지 않았다.', 'warn');
+  trace('refuse', { depth: G.depth, n: G.refused });
+  fx({ t:'refuse', x: G.player?.x, y: G.player?.y });
+  return true;
+}
+
+/* 이 층에서 신이 말을 거는가. 아르카나가 쓰던 4·8·12를 그대로 쓴다.
+   받았든 거절했든 한 번 답하면 그 층은 끝난다. */
+export function pledgeDue(depth) {
+  const answered = (G.gifts || []).length + (G.refused || 0);
+  return ARCANA_AT.includes(depth) && answered < ARCANA_AT.indexOf(depth) + 1;
+}
+
 export function arcanaDue(depth) {
   return ARCANA_AT.includes(depth) && (G.arcana || []).length < ARCANA_AT.indexOf(depth) + 1;
 }
@@ -8288,6 +8339,7 @@ function eventApi() {
     /* state queries the gates use */
     hasRelic, cracked, crackHint, crackProgress, crackOf, crackLeft, nearestCrack, feedable,
     hasArcana, arcanaDue, arcanaOffer, takeArcana,
+    godOffer, pledge, refuse, canRefuse, pledgeDue,
     powerOf, expectedPower, heatFor, HEAT_WORD, HEAT_MAX,
     hasAffix: key => (gearBonus(p)[key] || 0) > 0,
     canCast: () => spellList(p).length > 0,
@@ -9397,6 +9449,7 @@ export function startGame(raceKey, classKey, base) {
   G.ledger = {}; G.cracks = {}; G.relicFloors = {}; G.chainGuard = 0; G.murmured = {};
   G.heat = 0; G.provoked = 0;
   G.arcana = []; G.arcanaPick = null;
+  G.god = null; G.godPick = null; G.gifts = []; G.refused = 0; G.piety = 0;
   G.martyred = 0;
   G.regionAt = null;
   G.broke = 0; G.forged = 0; G.transFound = 0; G.perfects = 0; G.fused = 0; G.catUsed = 0;

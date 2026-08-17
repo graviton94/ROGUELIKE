@@ -29,6 +29,7 @@ import {
   ROCK, FLOOR, DOWN, UP, DOOR, RUBBLE, SHOP,
   DOOR_OPEN, DOOR_LOCKED, DOOR_BROKEN, WEB, WATER, CAMP, ALTAR, EVENT, ANVIL, PROP, propAt,
 } from './world.js';
+import * as Data from './data.js';
 import * as Game from './game.js';
 import { G } from './game.js';
 import * as Juice from './juice.js';
@@ -1868,32 +1869,64 @@ function showHeat() {
    그래서 좋은 쪽과 값을 같은 크기로 적는다 — 한쪽만 크게 쓰면
    그건 광고지 결정이 아니다. */
 function renderArcana() {
+  /* ── 서약 화면 ────────────────────────────────────────────
+     DESIGN.md §4. 아르카나가 쓰던 화면을 그대로 쓴다 — 넷째 칸이
+     붙었을 뿐이다.
+
+     **신이 말한 것만 뜬다.** 실제로 일어나는 것(real)은 이 함수가
+     아예 안 읽는다 — 규칙 쪽(godOffer)이 안 내보내기도 하지만, 화면이
+     그것을 알면 언젠가 새 나간다.
+
+     그리고 이 화면도 뒤틀린다. 신앙심이 깊어질수록 신의 말이 흔들리고,
+     넷째 칸은 점점 멀어진다. */
   const list = $('arcana-list'); list.innerHTML = '';
-  const have = (G.arcana || []).length;
-  $('arcana-sub').textContent =
-    `${G.depth}층. 이 판의 ${have + 1}번째 — 고른 것은 판이 끝날 때까지 간다.`;
-  for (const a of Game.arcanaOffer()) {
+  const have = (G.gifts || []).length + (G.refused || 0);
+  const w = Juice.warpLens();
+  $('arcana-sub').textContent = G.god
+    ? `${G.depth}층. 그가 다시 말한다.`
+    : `${G.depth}층. 무언가 듣고 있다.`;
+
+  for (const g of Game.godOffer()) {
     const row = el('button', 'itemrow arcanarow');
     const mid = el('div', 'imid');
-    const nm = el('span', 'iname', a.n);
-    /* 자수정은 유물의 색이다. 아르카나는 몸이 아니라 **세계**에
-       붙는 것이라 다른 축을 쓴다 — 창백한 물빛. */
-    nm.style.color = 'var(--B)';
+    const nm = el('span', 'iname', g.n);
+    nm.style.color = 'var(--P)';
     nm.classList.add('transcend');
     mid.appendChild(nm);
-    mid.appendChild(el('span', 'idesc arcanacat', a.c));
-    /* 좋은 쪽과 값은 문장 안에서 「대신」으로 갈린다. 그 경계를 색으로
-       한 번 더 긋는다 — 읽지 않고 고르는 손을 막는 유일한 장치다. */
-    const parts = a.t.split('대신');
-    const good = el('span', 'idesc arcanagood', parts[0].replace(/\*\*/g, '').trim());
-    mid.appendChild(good);
-    if (parts[1]) mid.appendChild(el('span', 'idesc arcanacost',
-      '대신 ' + parts[1].replace(/\*\*/g, '').trim()));
-    mid.appendChild(el('span', 'idesc arcanalore', a.lore));
+    mid.appendChild(el('span', 'idesc arcanacat', g.face));
+    /* 부름은 명령형이다(§2) — 짧고, 이유를 안 댄다. */
+    mid.appendChild(el('span', 'idesc arcanagood', `「${g.call}」`));
+    /* 신이 말한 것. 이게 전부다 */
+    mid.appendChild(el('span', 'idesc arcanacost', g.say));
+    mid.appendChild(el('span', 'idesc arcanalore', g.lore));
     row.appendChild(mid);
-    row.onclick = () => { if (!armed()) return; Game.takeArcana(a.id); setScreen('play'); refresh(); };
+    if (w) row.style.transform = `translateX(${(w.split || 0) * (Math.random() < 0.5 ? -1 : 1)}px)`;
+    row.onclick = () => { if (!armed()) return; Game.pledge(g.id); setScreen('play'); refresh(); };
     list.appendChild(row);
   }
+
+  /* ── 넷째 칸 ──────────────────────────────────────────────
+     언제나 있고, 심연 8단에서만 열린다. 숨기지 않고 **잠근다** —
+     위키도 공략도 없는 게임이라 완전히 감추면 아무도 못 찾고, 못 찾는
+     진 엔딩은 없는 진 엔딩이다. 잠긴 채로 보이면 왜 잠겼는지 알고
+     싶어진다. */
+  const can = Game.canRefuse();
+  const row = el('button', 'itemrow arcanarow' + (can ? '' : ' poor'));
+  const mid = el('div', 'imid');
+  const nm = el('span', 'iname', Data.REFUSE.n);
+  nm.style.color = can ? 'var(--w)' : 'var(--g)';
+  mid.appendChild(nm);
+  mid.appendChild(el('span', 'idesc arcanacost',
+    can ? Data.REFUSE.say : Data.REFUSE.locked));
+  if (can) mid.appendChild(el('span', 'idesc arcanalore', Data.REFUSE.lore));
+  row.appendChild(mid);
+  row.disabled = !can;
+  /* 뒤틀리면 이 칸이 **멀어진다.** 신이 원하지 않는 쪽이라는 것을
+     문장이 아니라 손가락이 알게 된다(§4). */
+  if (can && w) row.style.transform = `translateX(${w.split * 3}px)`;
+  row.onclick = () => { if (!armed()) return; if (Game.refuse()) { setScreen('play'); refresh(); } };
+  list.appendChild(row);
+  void have;
 }
 
 function showRelicList() {
@@ -2038,7 +2071,7 @@ export function setScreen(name) {
   if (name === 'play') {
     /* 아르카나가 밀린 채로 판에 돌아오면 안 된다 — 4층에 들어선 순간
        고르는 화면이 떠야 그 층부터 그 판이 된다. */
-    if (Game.arcanaDue(G.depth)) { setScreen('arcana'); return; }
+    if (Game.pledgeDue(G.depth)) { setScreen('arcana'); return; }
     resize(); refresh();
     // Back on the map: whatever was waiting can be read now.
     if (loreQueue.length && $('lorecard').hidden) showLore();

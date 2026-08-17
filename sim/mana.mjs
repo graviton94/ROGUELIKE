@@ -129,8 +129,9 @@ ok(!missing.length, '여섯 직업 전부가 경상 치유와 강화 치유를 �
 
 /* 그리고 realm 목록에는 더 이상 없다 — 두 곳에 있으면 사제의 줄에
    경상 치유가 두 번 뜬다. */
-const dup = ['arcane', 'divine'].filter(r => D.SPELLS[r].some(s => s.id === 'cure' || s.id === 'heal'));
-ok(!dup.length, '치유 둘은 공통 목록에만 있다 — realm 에 남으면 시전자의 줄에 같은 칸이 두 번 뜬다',
+const dup = Object.keys(D.SPELLS_CLASS)
+  .filter(c => D.SPELLS_CLASS[c].some(s => s.id === 'cure' || s.id === 'heal'));
+ok(!dup.length, '치유 둘은 공통 목록에만 있다 — 직업 목록에 남으면 그 직업의 줄에 같은 칸이 두 번 뜬다',
    dup.length ? `${dup.join(', ')} 에 남아 있다` : '공통 하나뿐');
 {
   const p = hero('priest', 20);

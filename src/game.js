@@ -3,8 +3,8 @@
    ═══════════════════════════════════════════════════════════ */
 
 import {
-  MAX_DEPTH, MAX_LEVEL, STATS, STAT_NAME, RACES, CLASSES, SPELLS, MONSTERS, BOSS, mimicFor,
-  SPELLS_COMMON, HEAL_BIG_SHARE, MANA_SCALE, MANA_FLOOR,
+  MAX_DEPTH, MAX_LEVEL, STATS, STAT_NAME, RACES, CLASSES, MONSTERS, BOSS, mimicFor,
+  SPELLS_COMMON, SPELLS_CLASS, HEAL_BIG_SHARE, MANA_SCALE, MANA_FLOOR, GUARD_CUT,
   WEAPONS, ARMOURS, CONSUMABLES, SHOPS, SHOP_LOADS, loadsFor, AILMENTS, IMMUNE, TRAPS,
   PREFIXES, SUFFIXES, SPELL_AFFIXES, ELITES, affixName,
   MATS, salvageYield, worthOf, upgradeCost, ENCHANT_COST, REROLL_COST,
@@ -439,7 +439,6 @@ export function createHero(raceKey, classKey, base) {
     hp: 0, maxhp: 0, mana: 0, maxmana: 0,
     gold: 250,
     lightTurns: 700, wound: 0,
-    blessed: 0,
     ail: {},          // ailment -> turns remaining
     stuck: 0,         // turns still caught in a web
     keys: 0,
@@ -826,7 +825,7 @@ export const armourClass = p => {
   const g = gearBonus(p);
   return Math.round(g.ac * (1 + g.acPct))
     + statB(p, 'dex') + Math.floor(p.lv / 4)
-    + (p.blessed > 0 ? 4 : 0) + (p.iron > 0 ? 10 : 0)
+    + (p.iron > 0 ? 10 : 0)
     /* ── 맹세는 지갑이 아니라 서약이다 ──────────────────────
        이 줄이 예전에는 `p.oath / 2`였다. 맹세는 기예에만 쓰였으므로
        늘 높게 차 있었고, 그래서 팔라딘의 갑옷은 두꺼웠다.
@@ -861,7 +860,7 @@ export function strainOf(p) {
 export const toHit = p => {
   const strain = strainOf(p);
   const base = CLASSES[p.cls].bth * p.lv / 3 + statB(p, 'dex') * 2
-    + statB(p, 'str') + (p.blessed > 0 ? 5 : 0) + gearBonus(p).hit
+    + statB(p, 'str') + gearBonus(p).hit
     - (strain ? strain.short * 3 : 0);
   // Proportional, not flat: a flat penalty would cripple level 1
   // and barely register at level 20.
@@ -1087,7 +1086,11 @@ function unseenByAll() {
 function markTarget(m) {
   const p = G.player;
   if (p.cls !== 'ranger') return;
-  p.markN = p.markOn === m ? Math.min(MARK_MAX, (p.markN || 0) + 1) : 0;
+  /* 바람 읽기(유틸3)가 켜져 있는 동안은 대상을 바꿔도 셈이 안 지워진다.
+     읽는 자리가 여기 하나이므로 규칙도 여기 한 줄이다 — 「셈이 언제
+     지워지는가」를 두 곳에서 정하면 그 둘이 갈린다. */
+  const hold = (p.markHold || 0) >= G.turn;
+  p.markN = (p.markOn === m || hold) ? Math.min(MARK_MAX, (p.markN || 0) + 1) : 0;
   p.markOn = m;
 }
 const markMult = () => {
@@ -1172,6 +1175,11 @@ export function hurtPlayer(dmg, opt = {}) {
      상쇄되는데, 그것이 이 직업의 조합이다 — 폭주하면서 버틴다. */
   if (p.frenzy > 0) dmg *= 1 + FRENZY_TAKE;
   if (p.taunt > 0) dmg *= 1 - TAUNT_CUT;
+  /* 방패 걸음(팔라딘 유틸4). 같은 줄에 둔다 — 받는 피해를 바꾸는
+     것들이 한 자리에 있어야 서로 곱해지는 방식이 보인다. 그리고 이것이
+     켜져 있는 동안 맹세가 덜 차는 이유도 여기서 온다: 맹세는 **맞은
+     몫**으로 차는데(poolOnHurt), 그 몫이 줄어든 뒤의 값이 넘어간다. */
+  if (p.guard > 0) dmg *= GUARD_CUT;
   let taken = Math.max(1, Math.round(dmg));
   let over = 0;
   const cap = Math.max(1, Math.round(p.maxhp * BLOW_CAP));
@@ -1544,7 +1552,7 @@ export function tookDraught() {
    줄에 점멸이 **켜진 채로** 뜨고 눌러도 cast 가 조용히 되돌아왔다.
    같은 질문에 답하는 자리는 하나여야 한다(§5-2). */
 export const spellList = p =>
-  SPELLS_COMMON.concat(CLASSES[p.cls].realm ? SPELLS[CLASSES[p.cls].realm] : [])
+  SPELLS_COMMON.concat(SPELLS_CLASS[p.cls] || [])
     .filter(s => learned(p, s));
 
 /* The arts ride the same row, the same keys and the same tooltip
@@ -1557,7 +1565,7 @@ export const artById = (p, id) => artList(p).find(a => a.id === id);
 /* Spells that do nothing at all without something in sight.
    폭주도 여기 있다 — 태울 것은 있는데 맞을 것이 없으면, 통을 비우고
    열 턴을 그을리고 아무 일도 안 일어난다. */
-const TARGETED = ['bolt', 'smite', 'surge'];
+const TARGETED = ['bolt', 'surge'];
 
 /* The whole book at once — always the same five, always in the
    same order, with what is not yet learned shown as a locked
@@ -1621,9 +1629,9 @@ export function spellSlots() {
              && p.stam >= artCost(p, a),
     };
   });
-  /* 공통 둘 + realm 의 것. `realm` 이 줄의 유무를 정하던 자리다 —
-     이제 여섯 직업 전부에 주문 줄이 있으므로 여기서 되돌아가지 않는다. */
-  const book = SPELLS_COMMON.concat(realm ? SPELLS[realm] : []);
+  /* 공통 둘 + 직업의 것. `realm` 이 줄의 유무를 정하던 자리다 —
+     이제 여섯 직업 전부에 주문 줄이 있고, 그 내용도 직업이 정한다. */
+  const book = SPELLS_COMMON.concat(SPELLS_CLASS[p.cls] || []);
   const silent = hasRelic('vow');
   return arts.concat(book.map(s => {
     const locked = !learned(p, s);
@@ -2837,10 +2845,8 @@ export function cast(spellId) {
        echo: echo?.id || null, affix: aff?.id || null });
 
   switch (sp.id) {
-    case 'bolt':
-    case 'smite': {
+    case 'bolt': {
       if (!nearest) { say('시야에 적이 없다.'); break; }
-      const holy = sp.id === 'smite';
       /* ── 화살 하나로 판이 끝나고 있었다 ────────────────────
          실측: 마력 화살 한 방이 평타의 **20배**인데 값이 1이라 한 층에
          예순여덟 번 쏜다. 층 총량으로 ×33.5 — 마법사는 평타를 칠 이유가
@@ -2856,15 +2862,16 @@ export function cast(spellId) {
          응징의 빛은 반대로 값에 비해 약했다(×1.8). 주사위는 그대로
          두고 값을 5 → 4로 내린다 — 팔라딘의 마나는 맹세와 나눠 쓰는
          자원이라 한 번 더 쏘는 것이 실제로 크다. */
-      const raw = holy
-        ? roll(3 + Math.min(5, Math.floor(p.lv / 3)), 6) + statB(p, 'wis') * 2
-        : roll(2 + Math.min(3, Math.floor(p.lv / 5)), 5) + statB(p, 'int') * 2;
+      /* 응징의 빛이 이 case 를 같이 쓰고 있었다(holy 갈래). 사제·팔라딘의
+         유틸 넷이 §4의 표대로 채워지면서 잘려 나갔으므로 갈래도 지운다 —
+         안 지우면 아무도 안 지나는 길이 이 함수의 복잡도로 남는다. */
+      const raw = roll(2 + Math.min(3, Math.floor(p.lv / 5)), 5) + statB(p, 'int') * 2;
       const dmg = Math.max(1, Math.round(raw * pow));
-      fx({ t:'beam', fx:p.x, fy:p.y, tx:nearest.x, ty:nearest.y, color: holy ? 'y' : 'P' });
-      hurtMonster(nearest, dmg, holy ? '응징의 빛' : '마력 화살', { weapon: 'spell' });
+      fx({ t:'beam', fx:p.x, fy:p.y, tx:nearest.x, ty:nearest.y, color:'P' });
+      hurtMonster(nearest, dmg, '마력 화살', { weapon: 'spell' });
       spellDrain(aff, dmg);
       rime(nearest);
-      splash(nearest, dmg, holy ? '응징의 빛' : '마력 화살');
+      splash(nearest, dmg, '마력 화살');
       // 메아리치는: half of it carries to a second target.
       // 울림의 은총 does the same thing without needing the affix,
       // so a caster who finds one has it on every spell at once.
@@ -2886,7 +2893,7 @@ export function cast(spellId) {
             p.mana -= toll;
           }
           carry = Math.max(1, Math.round(carry * (room ? ECHO_ROOM_KEEP : 0.5)));
-          fx({ t:'beam', fx:from.x, fy:from.y, tx:next.x, ty:next.y, color: holy ? 'y' : 'P' });
+          fx({ t:'beam', fx:from.x, fy:from.y, tx:next.x, ty:next.y, color:'P' });
           hurtMonster(next, carry, '메아리', { weapon: 'spell' });
           spellDrain(aff, carry);
           hit.add(next); from = next;
@@ -2894,12 +2901,70 @@ export function cast(spellId) {
       }
       break;
     }
+    /* ── 유틸 4 — 회피·이동 (직업별) ─────────────────────────
+       여섯 직업이 같은 id 를 쓰고 표가 갈래를 정한다(SPELLS_CLASS).
+       여섯 벌의 비슷한 case 를 쓰지 않는 이유는 §5-2 하나다 — 「자리를
+       옮긴다」는 질문에 답하는 곳이 여섯 군데면 언젠가 다섯 곳만
+       고쳐진다. 옮기는 일은 여기 한 번, 어디로 갈지는 표가 말한다. */
     case 'blink': {
-      for (let t = 0; t < 60; t++) {
-        const x = p.x + rnd(15) - 7, y = p.y + rnd(15) - 7;
-        if (!G.level.solid(x, y) && !monsterAt(x, y)) { p.x = x; p.y = y; break; }
+      const from = { x: p.x, y: p.y };
+      const near = visibleMonsters()
+        .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
+      const free = (x, y) => !G.level.solid(x, y) && !monsterAt(x, y);
+      let moved = 0;
+      if (sp.hop === 'warp' || !sp.hop) {
+        /* 마법사. 어디로 갈지 고를 수 없는 것이 이 주문의 값이다. */
+        for (let t = 0; t < 60; t++) {
+          const x = p.x + rnd(15) - 7, y = p.y + rnd(15) - 7;
+          if (free(x, y)) { p.x = x; p.y = y; moved = 1; break; }
+        }
+      } else if (sp.hop === 'dark') {
+        /* 도적. 보이는 칸 중 가장 어두운 자리로 — 어둠이 곧 재장전이다. */
+        let best = null, dim = 99;
+        for (let dy = -sp.dist; dy <= sp.dist; dy++) for (let dx = -sp.dist; dx <= sp.dist; dx++) {
+          const x = p.x + dx, y = p.y + dy;
+          if (!free(x, y) || (!dx && !dy)) continue;
+          const lit = G.level.vis[idx(x, y)] ? 1 : 0;
+          const d = lit * 10 - Math.hypot(dx, dy) * 0.1;
+          if (d < dim) { dim = d; best = [x, y]; }
+        }
+        if (best) { p.x = best[0]; p.y = best[1]; moved = 1; }
+      } else {
+        /* 밀고 나가거나(전사), 멀어지거나(궁수·사제·팔라딘). 방향이
+           반대일 뿐 같은 걸음이라 한 자리에서 센다. */
+        const away = sp.hop === 'away';
+        let dx = 0, dy = 0;
+        if (near) {
+          dx = Math.sign(near.x - p.x) * (away ? -1 : 1);
+          dy = Math.sign(near.y - p.y) * (away ? -1 : 1);
+        }
+        if (!dx && !dy) { dx = p.fx || 1; dy = p.fy || 0; }
+        for (let i = 0; i < (sp.dist || 2); i++) {
+          const nx = p.x + dx, ny = p.y + dy;
+          if (G.level.solid(nx, ny)) break;
+          /* 전사는 막는 것을 밀어내고 지나간다 — 이미 있는 문(shoveBack)을
+             쓴다. 나머지는 막히면 거기서 멈춘다. */
+          const on = monsterAt(nx, ny);
+          if (on) {
+            if (sp.hop !== 'push') break;
+            shoveBack(on, dx, dy, 1);
+            if (monsterAt(nx, ny)) break;
+          }
+          p.x = nx; p.y = ny; moved++;
+        }
       }
-      say('한 걸음 옆이 아닌 곳에 서 있다.', 'good'); break;
+      if (!moved) { say('갈 자리가 없다.', 'warn'); break; }
+      refreshFov();
+      fx({ t:'stepIn', x:p.x, y:p.y, from, tx:from.x, ty:from.y });
+      /* 표가 붙여 둔 것들. 전부 이미 있는 깔때기를 지난다. */
+      if (sp.pool) poolGain(sp.pool * moved, 'slip');
+      if (sp.guard) p.guard = Math.max(p.guard || 0, sp.guard);
+      if (p.cls === 'rogue') { G.hushUntil = G.turn + 1; gainShadow(1, 'slip'); }
+      say(sp.hop === 'push' ? `${count(moved)} 칸을 밀고 나갔다.`
+        : sp.hop === 'dark' ? '어둠이 한 겹 덮였다.'
+        : sp.hop === 'away' ? `${count(moved)} 칸 물러섰다.`
+        : '한 걸음 옆이 아닌 곳에 서 있다.', 'good');
+      break;
     }
     case 'cure': {
       const h = Math.min(p.maxhp - p.hp, Math.round((12 + roll(2, 6) + statB(p, 'wis') * 3) * pow * healScale()));
@@ -2912,17 +2977,31 @@ export function cast(spellId) {
       say(back ? `빛이 몸을 훑고 지나간다. 체력 +${h}, 천장 +${back}.`
                : `빛이 몸을 훑고 지나간다. 체력 +${h}.`, 'good'); break;
     }
-    case 'bless': p.blessed = 25 + p.lv; say('가벼워진 기분이다.', 'good'); break;
+    /* ── 유틸 3 — 감지 (직업별) ──────────────────────────────
+       읽는 일은 여섯 직업이 같고, **읽으면서 무엇이 더 일어나는가**가
+       다르다. 전사는 울려서 읽으므로 읽힌 것이 깨어나고, 도적은 바닥
+       까지 읽고, 궁수는 겨누던 것을 안 놓친다. */
     case 'detect': {
-      let unmasked = 0;
+      let unmasked = 0, woke = 0, sprung = 0;
       for (const m of G.monsters) {
         G.level.seen[idx(m.x, m.y)] = 1;
-        // Life detection sees straight through a lid.
-        if (m.disguise) { m.disguise = false; m.spr = 'mimic'; unmasked++; fx({ t:'reveal', x:m.x, y:m.y }); }
+        if (sp.mimic && m.disguise) { m.disguise = false; m.spr = 'mimic'; unmasked++; fx({ t:'reveal', x:m.x, y:m.y }); }
+        /* 땅울림 — 읽은 것이 전부 일어선다. 이 직업의 감지에 붙은 값이다. */
+        if (sp.wake && !m.awake) { m.awake = true; woke++; }
       }
+      if (sp.traps) {
+        /* 숨소리 — 바닥에 놓인 것까지. 덫은 이미 「본 것」 표시를 갖고
+           있으므로 그 표시를 켜 준다(새 배관 없음). */
+        for (const t of G.hazards || []) { t.seen = true; sprung++; }
+        for (const m of G.monsters) if (m.disguise) { m.disguise = false; m.spr = 'mimic'; unmasked++; fx({ t:'reveal', x:m.x, y:m.y }); }
+      }
+      /* 바람 읽기 — 겨누던 셈이 대상을 바꿔도 안 지워진다. 몇 턴 동안. */
+      if (sp.keepMark) p.markHold = G.turn + 12;
       G.detectPulse = 30;
-      say(unmasked ? `숨소리가 어디에서 나는지 알겠다. 상자 하나가 숨을 쉬고 있다.`
-                   : '숨소리가 어디에서 나는지 알겠다.', 'good');
+      const extra = woke ? ` **${count(woke)}이 일어섰다.**`
+                  : sprung ? ` 바닥에 놓인 것 ${count(sprung)}도 같이.`
+                  : unmasked ? ' 상자 하나가 숨을 쉬고 있다.' : '';
+      say(`숨소리가 어디에서 나는지 알겠다.${extra}`, woke ? 'warn' : 'good');
       break;
     }
     case 'frost': {
@@ -5195,8 +5274,7 @@ function loose(m, scale = 1, opt = {}) {
   if (!opt.quietFx) fx({ t:'loose', fx:p.x, fy:p.y, tx:m.x, ty:m.y, ammo:a.id });
 
   if (!opt.sure) {
-    const hit = 12 + statB(p, 'dex') * 3 + Math.floor(p.lv * 0.8) + g.hit + (a.hit || 0)
-              + (p.blessed > 0 ? 6 : 0);
+    const hit = 12 + statB(p, 'dex') * 3 + Math.floor(p.lv * 0.8) + g.hit + (a.hit || 0);
     const land = clamp(0.32 + (hit - (m.ac || 0) * 1.6) / 46, 0.15, 0.95);
     if (Math.random() > land) {
       say(`${pickLine(MISS_AT, m.n, nextLine())}`);
@@ -6328,7 +6406,7 @@ export function endTurn(skipMonsters = false) {
   else p.stillFor = 0;
   p._wasX = p.x; p._wasY = p.y;
 
-  if (p.blessed > 0) p.blessed--;
+  if (p.guard > 0 && --p.guard === 0) say('방패를 내린다.');
   if (p.might > 0 && --p.might === 0) say('끓던 피가 식는다.');
   if (p.iron > 0 && --p.iron === 0) say('굳었던 살갗이 풀린다.');
   if (p.brace > 0 && --p.brace === 0) say('발을 뗀다. 다시 움직일 수 있다.');

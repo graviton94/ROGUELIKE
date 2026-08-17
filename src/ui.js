@@ -14,7 +14,7 @@ import {
   RARITY, CURSED_TONE, rarityOf, isCursed,
   RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
   BUILD, SAVE_FORMAT,
-  MONSTERS, BRANCHES, SPELLS, SPELLS_COMMON, boonById, FUSIONS, engraveById, ENGRAVE_AT, ENGRAVE_PENALTY, NAMED,
+  MONSTERS, BRANCHES, SPELLS_CLASS, SPELLS_COMMON, boonById, FUSIONS, engraveById, ENGRAVE_AT, ENGRAVE_PENALTY, NAMED,
   BOSS, tellsOf, tellsNeeded, rulebook, hearsayFor, CONSUMABLES, RESONANCE,
   REGIONS, regionOf, MEMORIES, memoryEarned, SHACKLES, MAX_SHACKLE, josa,
   UPGRADE_CRIT, CAREFUL_MULT, CAREFUL_BONUS, FUSE_ODDS, FUSE_COST,
@@ -1139,8 +1139,6 @@ const SPELL_ICONS = {
   surge:  [starburst,                                 'p'],
   cure:   [(c, x, y, r) => plus(c, x, y, r * 0.82),   'W'],
   heal:   [plus,                                      'W'],
-  bless:  [(c, x, y, r) => star4(c, x, y, r * 0.95),  'y'],
-  smite:  [beamDown,                                  'y'],
 };
 
 export function drawSpellInto(c, id, cx, cy, size) {
@@ -1530,7 +1528,6 @@ export function refresh() {
   if (G.depth > 0 && p.lightTurns <= 0) flags.push('암흑');
   else if (G.depth > 0 && p.lightTurns < 80) flags.push('불빛 희미');
   else if (G.depth > 0 && p.lightTurns < 300) flags.push('기름 부족');
-  if (p.blessed > 0) flags.push('축복');
   $('hud-flags').textContent = flags.join(' · ');
   $('hud-flags').className = flags.length ? 'flags on' : 'flags';
 
@@ -2240,7 +2237,7 @@ function renderLegend() {
   // listed once, or the key reads like a rendering bug.
   const byId = new Map();
   // 공통 둘이 먼저 — 여섯 직업이 다 갖는 것이 열쇠의 첫 줄이어야 한다.
-  for (const list of [SPELLS_COMMON, SPELLS.arcane, SPELLS.divine])
+  for (const list of [SPELLS_COMMON, ...Object.values(SPELLS_CLASS)])
     for (const s of list) {
       const had = byId.get(s.id);
       if (had) had.names.push(s.name);
@@ -5507,13 +5504,19 @@ export function bindInput() {
     else if (e.key === 'c') { stopAuto(); act(Game.closeDoor); }
     else if (e.key === 'y') { stopAuto(); act(Game.shout); }
     else if (e.key === 'Tab') { e.preventDefault(); cycleMini(); }
-    // 1–5 cast, q/w/e drink — the same order as the two rows read
-    else if (e.key >= '1' && e.key <= '5') {
+    /* 1–8 시전 · q w e r 마시기 — 두 줄이 읽히는 순서 그대로.
+       숫자는 5까지였고 빠른 칸은 'qwe'까지였다. 둘 다 표가 자란 뒤에
+       안 자란 자리다: §4의 여덟 칸이 서면서 6·7·8이 키보드에서
+       사라졌고(도적의 급소, 마법사의 폭주가 그 자리다), 불이 제 칸을
+       가지면서 네 번째 빠른 칸이 생겼는데 'r'이 안 붙었다 —
+       조작법은 이미 「q w e r」이라고 적혀 있었으므로 문서가 약속한
+       버튼이 아무것도 안 하는 상태였다(§0). */
+    else if (e.key >= '1' && e.key <= '8') {
       const s = Game.spellSlots()[+e.key - 1];
       if (s?.ready) { stopAuto(); act(() => Game.cast(s.id)); }
     }
-    else if ('qwe'.includes(e.key)) {
-      const s = Game.quickSlots()['qwe'.indexOf(e.key)];
+    else if ('qwer'.includes(e.key)) {
+      const s = Game.quickSlots()['qwer'.indexOf(e.key)];
       if (s) { stopAuto(); act(() => Game.useItem(s.idx)); }
     }
   });

@@ -204,13 +204,14 @@ function runBot(race, cls, clear, opt = {}) {
   }
   Game.descend();
   const st = { crits: 0, sneaks: 0, kills: 0, misses: 0, camps: 0, elites: 0, named: 0, shops: 0, broke: 0, events: 0, rolls: 0, branch: {},
-               heals: 0, healMiss: 0, healDry: 0, surges: 0 };
+               heals: 0, healMiss: 0, healDry: 0, surges: 0, slips: 0, senses: 0 };
   let path = null, guard = 0, depthAt = G.depth, lastShout = -99, holdUntil = -1;
   const hist = [];
   let traded = false;   // one visit per floor; the bot has no other reason to stop
   /* 이번 층의 모루에서 아무것도 못 샀는가. 못 샀는데 계속 후보로
      두면 봇은 모루와 그 옆칸 사이를 영원히 오간다. */
   let anvilDry = false;
+  let sensedAt = -1;          // 감지를 읽은 층 — 층마다 한 번이면 된다
   let screenAt = 'play', screenFor = 0;
 
   /* ── 제자리걸음 감시 ──────────────────────────────────────
@@ -665,8 +666,20 @@ function runBot(race, cls, clear, opt = {}) {
          한 발 물러나므로, 그것이 이 직업이 거리를 **만드는** 유일한
          수다. 규칙에 붙여 놓고 봇 정책을 안 고치면, 재는 것은
          새 규칙이 아니라 옛 습관이다 — 처음 재고 「4.8 → 4.7,
-         효과 없음」이라고 적을 뻔했다. */
-      if (t && p.cls === 'ranger') { Game.shoot(); continue; }
+         효과 없음」이라고 적을 뻔했다.
+
+         **하나일 때만.** 이 가지가 `continue` 로 끝나므로, 조건이
+         「붙었다」이면 아래 주문 표는 붙은 턴에 영영 안 읽힌다 —
+         자리 바꾸기(유틸 3)가 8판에 0회로 찍힌 이유가 그것이었고,
+         그건 「아무도 안 쓰는 주문」이 아니라 **아무도 못 누르는
+         주문**이다. 규칙으로 봐도 하나일 때만 맞다: 한 발 물러나는
+         것은 붙은 것이 하나일 때 거리를 만들고, 둘이면 물러선 자리에
+         다른 하나가 이미 서 있다. 그 순간이 네 칸짜리 걸음의 자리다. */
+      if (t && p.cls === 'ranger'
+          && G.monsters.filter(m => G.level.vis[idx(m.x, m.y)] && !m.disguise
+               && Math.hypot(m.x - p.x, m.y - p.y) < 1.6).length < 2) {
+        Game.shoot(); continue;
+      }
     }
 
     const spells = Game.spellList(p);
@@ -738,13 +751,46 @@ function runBot(race, cls, clear, opt = {}) {
       const frost = has('frost');
       if (afford(frost) && adj.length >= 2) { Game.cast(frost.id); continue; }
 
-      // Cornered and hurt: leave.
-      const blink = has('blink');
-      if (afford(blink) && adj.length >= 2 && p.hp < p.maxhp * 0.35) { Game.cast(blink.id); continue; }
+      /* 「몰렸고 다쳤으면 나간다」가 여기 있었다(마법사의 점멸 전용).
+         유틸 4가 여섯 직업 공통이 되면서 아래 한 벌로 합쳤다 — 같은
+         버튼을 두 곳에서 누르면 위쪽이 먼저 먹고, 그러면 아래 표에
+         **판당 0회**로 찍힌다. 실제로 그렇게 찍혔다(마법사 이동 0). */
 
-      // Buff before committing to something big.
-      const bless = has('bless');
-      if (afford(bless) && !p.blessed && (adj.length || far.length >= 2)) { Game.cast(bless.id); continue; }
+      /* 축복이 있던 자리. 사제·팔라딘의 유틸 넷을 §4의 표대로 채우면서
+         잘려 나갔다(여덟 칸에 버프 칸이 없다). 대신 그 자리에 유틸 3·4가
+         온다 — 여섯 직업이 같은 id 를 쓰고 표가 갈래를 정하므로, 정책도
+         한 벌이면 된다.
+
+         **회피·이동**은 규칙이 「멀어진다/뚫는다/스민다」이므로 정책도
+         위험할 때만 쓴다: 붙은 것이 둘 이상이고 피가 절반 아래.
+         마법사의 점멸이 원래 그 조건이었고, 나머지 다섯도 같은 순간에
+         값을 한다 — 다만 전사의 것은 **앞으로** 간다(그게 이 직업의
+         빠져나가는 방법이다). */
+      const slip = has('blink');
+      /* 궁수만 문턱이 다르다. 규칙이 「화살은 나가지 않는다 — 거리만
+         되찾는다」이고 이 직업의 축이 **거리**이므로, 값을 하는 순간을
+         「죽게 생겼을 때」로 물으면 안 된다 — 다친 정도로 물으면 이
+         칸은 판당 0회로 찍힌다. 다만 「붙었을 때」도 아니다: 붙은 것이
+         하나면 활 자체가 한 발 물러나게 해 주고(위의 근접 사격), 그건
+         공짜다. 둘이면 그 수가 안 통한다 — 물러설 자리에 이미 다른
+         하나가 서 있으므로. 그때가 네 칸을 사는 자리다.
+         다친 정도를 안 묻는 것이 나머지 다섯과 다른 점이고, 그것이
+         이 직업의 축이 피가 아니라 거리라는 뜻이다. */
+      const wantSlip = p.cls === 'ranger'
+        ? adj.length >= 2
+        : adj.length >= 2 && p.hp < p.maxhp * 0.5;
+      if (afford(slip) && wantSlip) {
+        castCounted('주문:이동', slip.id); st.slips++; continue;
+      }
+      /* **감지**는 층에 한 번쯤이면 된다. 「보이는 것이 없고 이 층에서
+         아직 안 읽었을 때」 — 읽는 값이 정보이므로 싸움 중에 누르는
+         것은 낭비다. 전사의 땅울림은 읽은 것을 깨우므로 더더욱. */
+      const sense = has('detect');
+      if (afford(sense) && !visible.length && sensedAt !== G.depth
+          && p.mana >= p.maxmana * 0.6) {
+        sensedAt = G.depth;
+        castCounted('주문:감지', sense.id); st.senses++; continue;
+      }
 
       /* ── 비전 폭주 (마법사의 궁극기) ────────────────────────
          정책이 없으면 그 칸은 「아무도 안 누르는 칸」으로 측정된다
@@ -774,11 +820,11 @@ function runBot(race, cls, clear, opt = {}) {
         if (echo.id === 'reach' && afford(fr)) { castCounted('주문:서리+지형', fr.id); continue; }
         if (afford(bolt)) { DRY.cast++; castCounted(`주문:화살+${echo.n}`, bolt.id); continue; }
       }
-      const detect = has('detect');
-      if (p.cls === 'mage' && !echo && afford(detect) && visible.length >= 3
-          && p.mana > (detect.cost || 3) * 2) { castCounted('주문:탐지', detect.id); continue; }
+      /* 마법사 전용 탐지 정책이 여기 있었다(보이는 것 셋 이상일 때).
+         유틸 3이 여섯 직업 공통이 되면서 위의 한 벌로 합쳤다 — 두 곳에서
+         같은 버튼을 누르면 어느 쪽이 눌렀는지 표에서 안 갈린다. */
 
-      const nuke = has('smite') || has('bolt');
+      const nuke = has('bolt');
       if (afford(nuke) && far.length) { DRY.cast++; Game.cast(nuke.id); continue; }
       // 마르는 것을 세는 자리이므로 마나로 묻는다 — 위의 `lit` 은
       // 침묵도 「못 쓴다」로 세고, 침묵은 마름이 아니다.

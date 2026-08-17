@@ -38,6 +38,66 @@ const CLS = ['warrior', 'rogue', 'priest', 'paladin', 'ranger'];
 const ROLES = ['basic', 'signature', 'cover', 'ultimate'];
 const LADDER = [1, 4, 8, 12];
 
+/* ═══ 0. 여덟 칸 ══════════════════════════════════════════
+   §4의 표는 「기예 넷 + 유틸 넷」이고 마법사만 예외(주문 여덟)다.
+   그 표가 실제로 서 있는지는 아무도 안 재고 있었고, 실제로 안 서
+   있었다 — 사제와 팔라딘이 **아홉 칸**이었다(축복과 응징의 빛이
+   남아 있었다). 아홉 칸은 화면 문제이기 전에 §4 위반이다.
+
+   그리고 유틸 3·4는 여섯 직업이 **같은 id**(blink · detect)를 쓰되
+   표가 갈래를 정한다. id 가 같아야 저장이 살고(주문 연마·접사가 id
+   로 묶여 있다), 갈래가 표에 있어야 규칙이 한 자리에 남는다(§5).
+   여기서 무는 것은 셋이다: 여덟인가 · 둘 다 있는가 · 갈래가 직업마다
+   다른가. 셋째가 없으면 「여섯 직업이 똑같은 유틸 둘을 받았다」가
+   되고, 그건 칸을 채운 것이지 직업을 지은 것이 아니다.        */
+console.log('\n── 여덟 칸 (기예 넷 + 주문 넷 · 마법사는 주문 여덟)');
+{
+  const ALL = ['warrior', 'rogue', 'ranger', 'mage', 'priest', 'paladin'];
+  const seenHop = new Map(), seenSense = new Map();
+  for (const cls of ALL) {
+    Meta.forget();
+    Game.startGame('human', cls, Game.rollStats(cls));
+    const p = G.player;
+    /* 사다리 꼭대기(12레벨)를 넘겨서 묻는다 — 표가 다 열린 뒤의
+       칸 수가 §4가 말하는 여덟이다. */
+    p.lv = 20; Game.recalc(p);
+    const slots = Game.spellSlots();
+    const arts = slots.filter(s => s.art), sp = slots.filter(s => !s.art);
+    console.log(`   ${cls.padEnd(8)} 기예 ${arts.length} ${arts.map(a => a.short).join('·') || '—'}`
+      + ` | 주문 ${sp.length} ${sp.map(a => a.short).join('·')} => ${slots.length}`);
+    ok(slots.length === 8, `${cls} — 여덟 칸이다`, `${slots.length}칸`);
+    ok(arts.length === (cls === 'mage' ? 0 : 4),
+       `${cls} — 기예가 ${cls === 'mage' ? '없다 (여덟이 다 주문)' : '넷이다'}`, `${arts.length}`);
+    /* 공통 둘은 여섯 직업이 다 갖는다 — 전사도 마나 통이 있다. */
+    const ids = new Set(Game.spellList(p).map(x => x.id));
+    ok(ids.has('cure') && ids.has('heal'), `${cls} — 공통 치유 둘을 외운다`,
+       [...ids].join(','));
+    ok(ids.has('blink') && ids.has('detect'), `${cls} — 유틸 3·4가 둘 다 있다`,
+       `${ids.has('blink') ? '있음' : '없음'}·${ids.has('detect') ? '있음' : '없음'}`);
+    const blink = Game.spellList(p).find(x => x.id === 'blink');
+    const det = Game.spellList(p).find(x => x.id === 'detect');
+    /* 갈래는 표의 필드로 읽는다. 이름이 아니라 **동작이 갈리는가**를
+       묻는 것이라, 설명문을 바꿔도 이 줄은 안 움직인다. */
+    const hopKey = `${blink.hop || 'warp'}/${blink.dist || 0}/${blink.pool || 0}/${blink.guard || 0}`;
+    const senseKey = `${det.mimic ? 'm' : ''}${det.wake ? 'w' : ''}${det.traps ? 't' : ''}${det.keepMark ? 'k' : ''}`;
+    seenHop.set(cls, hopKey); seenSense.set(cls, senseKey);
+    ok(blink.lv === 3 && blink.cost === 2 && det.lv === 5 && det.cost === 3,
+       `${cls} — 유틸 3·4가 같은 레벨·같은 값에 앉아 있다`,
+       `이동 lv${blink.lv}/${blink.cost}마나 · 감지 lv${det.lv}/${det.cost}마나`);
+  }
+  /* 갈래가 몇 종인가. 여섯이 전부 같으면 1이고, 그건 실패다. */
+  const hops = new Set(seenHop.values()), senses = new Set(seenSense.values());
+  ok(hops.size >= 5, '이동의 갈래가 다섯 종 이상이다 — 같은 id, 다른 동사',
+     [...seenHop].map(([c, k]) => `${c}:${k}`).join(' '));
+  ok(senses.size >= 4, '감지의 갈래가 네 종 이상이다',
+     [...seenSense].map(([c, k]) => `${c}:${k}`).join(' '));
+  /* 잘려 나간 둘이 되살아나지 않는가. */
+  const gone = ['bless', 'smite'].filter(id =>
+    Object.values(D.SPELLS_CLASS).some(l => l.some(x => x.id === id)));
+  ok(!gone.length, '축복·응징의 빛은 표에서 없어졌다 — 여덟 칸에 버프 칸은 없다',
+     gone.length ? gone.join(',') : '둘 다 없다');
+}
+
 /* ═══ 1. 골격 ═════════════════════════════════════════════ */
 console.log('\n── 골격 (역할 넷 · 사다리 1·4·8·12)');
 for (const cls of CLS) {
@@ -207,16 +267,37 @@ for (const cls of CLS) {
   for (const k of Object.keys(ARTUSE)) delete ARTUSE[k];
   for (const k of Object.keys(ARTMISS)) delete ARTMISS[k];
   let depth = 0;
-  for (let i = 0; i < N; i++) { Meta.forget(); depth += runBot('human', cls, i % 2 === 0).depth; }
+  /* 판마다 **몇 레벨까지 갔는가**를 같이 센다. 없으면 이 절이 물을 수
+     없는 것을 묻게 된다 — 순교는 12레벨이고 사제는 24판에 7판만 12에
+     닿는다. 여섯 판으로 「순교가 안 나간다」를 물으면 절반쯤은 0이
+     나오고, 그 0은 죽은 버튼이 아니라 **표본이 그 레벨에 못 간 것**
+     이다. 간헐적으로 우는 벤치는 안 우는 것만 못하다(§6-6).
+     그래서 갈라서 묻는다: 레벨에 닿은 판이 있었으면 「나가는가」를,
+     하나도 없었으면 「그 직업이 제 궁극기까지 살지 못한다」를. 둘은
+     다른 결함이고 고칠 자리도 다르다. */
+  const topLv = [];
+  for (let i = 0; i < N; i++) {
+    Meta.forget(); depth += runBot('human', cls, i % 2 === 0).depth;
+    topLv.push(G.player?.lv || 1);
+  }
   const ids = (D.ARTS[cls] || []).map(a => a.id);
+  const lvOf = Object.fromEntries((D.ARTS[cls] || []).map(a => [a.id, a.lv]));
+  const reached = id => topLv.filter(lv => lv >= lvOf[id]).length;
   const used = ids.map(id => [id, ARTUSE[id] || 0]);
   const miss = ids.reduce((s, id) => s + (ARTMISS[id] || 0), 0);
   const total = used.reduce((s, [, n]) => s + n, 0);
-  console.log(`   ${cls.padEnd(8)} ${(depth / N).toFixed(1)}층 · `
+  console.log(`   ${cls.padEnd(8)} ${(depth / N).toFixed(1)}층 · 최고 ${Math.max(...topLv)}레벨 · `
     + used.map(([id, n]) => `${id} ${n}`).join(' · ')
     + (miss ? `  ⚠ 헛손질 ${miss} (${Math.round(miss / (total + miss) * 100)}%)` : ''));
-  const dead = used.filter(([, n]) => n === 0).map(([id]) => id);
-  ok(!dead.length, `${cls} — 넷이 다 나간다`, dead.length ? `판당 0회: ${dead.join(',')}` : `${total}회`);
+  const dead = used.filter(([id, n]) => n === 0 && reached(id) >= 3).map(([id]) => id);
+  ok(!dead.length, `${cls} — 배운 판이 셋 이상인 기예는 다 나간다`,
+     dead.length ? `판당 0회: ${dead.join(',')}` : `${total}회`);
+  /* 궁극기(12레벨)에 닿은 판이 몇이었는가. 셋 미만이면 위 줄은 아무
+     것도 안 물은 것이므로, 그 사실을 표에 적는다 — 조용히 넘어가면
+     「초록이니 괜찮다」로 읽힌다(§6). */
+  const ult = ids.find(id => lvOf[id] === 12);
+  if (ult) console.log(`      ${ult}(12레벨)를 배운 판 ${reached(ult)}/${N}`
+    + (reached(ult) < 3 ? ' — 표본이 거기까지 못 갔다. 위 줄은 이 칸을 안 물었다.' : ''));
   /* 헛손질은 정책과 규칙이 어긋난 만큼이다. 10%를 넘으면 그 표로는
      아무 판단도 하면 안 된다 — 실제로 86%였던 적이 있다. */
   ok(miss / Math.max(1, total + miss) < 0.10, `${cls} — 헛손질이 10% 아래다`,

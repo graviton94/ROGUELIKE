@@ -36,7 +36,7 @@ const ok = (cond, msg, got) => {
   console.log(`   ${cond ? '·' : '✗'} ${msg}${got !== undefined ? ` — ${got}` : ''}`);
   if (!cond) bad++;
 };
-const SURGE = D.SPELLS.arcane.find(s => s.id === 'surge');
+const SURGE = D.SPELLS_CLASS.mage.find(s => s.id === 'surge');
 
 /* ═══ 1. 여덟 칸 ══════════════════════════════════════════ */
 console.log('\n── 마법사의 여덟 칸');
@@ -210,7 +210,7 @@ console.log('\n── 저울');
      **낮아야** 하고, 값은 「한 턴에 시야 전체」로 치른다. */
   const p = G.player;
   p.lv = 12; Game.recalc(p);
-  const frost = D.SPELLS.arcane.find(s => s.id === 'frost');
+  const frost = D.SPELLS_CLASS.mage.find(s => s.id === 'frost');
   const frostEach = 3 * 4.5 + p.lv;                 // roll(3,8) 기대값 + lv
   const perMana = { 폭주: D.SURGE_MULT, 서리: frostEach / frost.cost };
   console.log(`   마나당 피해 — 폭주 ${perMana.폭주.toFixed(1)} · 서리 폭발 ${perMana.서리.toFixed(1)} (대상마다)`);

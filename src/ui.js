@@ -1982,6 +1982,13 @@ function renderArcana() {
   const list = $('arcana-list'); list.innerHTML = '';
   const have = (G.gifts || []).length + (G.refused || 0);
   const w = Juice.warpLens();
+  /* 사자는 신앙심만큼 또렷해진다. 처음엔 배경에 밴 얼룩이고, 광신에
+     이르면 화면 앞에 서 있다 — 값은 규칙 쪽 warpOf 하나에서 온다. */
+  const idol = $('arcana-idol');
+  if (idol) {
+    Juice.drawHerald(idol, Game.warpOf());
+    idol.style.transform = w ? `translateX(${(w.split || 0) * -1}px)` : '';
+  }
   $('arcana-sub').textContent = G.god
     ? `${G.depth}층. 그가 다시 말한다.`
     : `${G.depth}층. 무언가 듣고 있다.`;

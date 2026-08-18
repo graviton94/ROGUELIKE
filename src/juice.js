@@ -7,7 +7,7 @@
    ═══════════════════════════════════════════════════════════ */
 
 import { PALETTE, spriteColors } from './pixels.js';
-import { EYE_TEX, FLESH_TEX, VEIN_TEX, HAND_TEX, FACE_TEX, LIMBS, SIGIL_TEX } from './horror.js';
+import { EYE_TEX, FLESH_TEX, VEIN_TEX, HAND_TEX, FACE_TEX, LIMBS, SIGIL_TEX, HERALD_TEX } from './horror.js';
 import { MW as MAP_W } from './world.js';
 import { sfx, from as earFrom } from './audio.js';
 
@@ -1869,6 +1869,27 @@ const EYE_TRACK = (px, py, ex, ey, r) => {
   const dx = px - ex, dy = py - ey, d = Math.hypot(dx, dy) || 1;
   return [ex + dx / d * r, ey + dy / d * r];
 };
+/* ── 신의 사자 ────────────────────────────────────────────
+   서약 화면의 「무언가 듣고 있다」에 얼굴을 준다. 이 게임의 다른
+   그림은 전부 8×8 도트인데 이것만 실사 격자다 — 이물의 층과 같은
+   이유다(§3): 신은 이 세계의 물건이 아니다.
+
+   신앙심이 깊어질수록 **또렷해진다.** 처음 만날 때는 배경에 밴 얼룩
+   이고, 광신에 이르면 화면 앞에 서 있다. 값은 규칙 쪽 warpOf 하나에서
+   오므로 화면과 규칙이 갈릴 수 없다(§5-2).
+
+   캔버스 뒷면은 격자 크기 그대로 두고 CSS 로 늘린다. 여기서 키워
+   구우면 폰마다 다른 배율로 뭉개진다 — 늘리는 것은 브라우저에
+   맡기고(image-rendering: pixelated) 우리는 한 칸을 한 픽셀로 굽는다. */
+export function drawHerald(cv, deep = 0) {
+  const w = HERALD_TEX[0].length, h = HERALD_TEX.length;
+  if (cv.width !== w) { cv.width = w; cv.height = h; }
+  const x = cv.getContext('2d');
+  x.clearRect(0, 0, w, h);
+  x.globalAlpha = 0.42 + Math.min(1, Math.max(0, deep)) * 0.58;
+  x.drawImage(texCanvas(HERALD_TEX, RAMP.corpse, 'herald'), 0, 0);
+  x.globalAlpha = 1;
+}
 /* 발밑에 구멍을 뚫는다. 이 겹들은 빈 버퍼에 그려 화면 위에 얹는
    것이므로, 지워 낸 자리로는 방이 그대로(원래 해상도로) 보인다.
    화면을 꽉 채우는 겹은 안 뚫으면 **플레이어가 그림 밑으로 사라진다**

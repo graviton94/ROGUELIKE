@@ -1869,6 +1869,20 @@ const EYE_TRACK = (px, py, ex, ey, r) => {
   const dx = px - ex, dy = py - ey, d = Math.hypot(dx, dy) || 1;
   return [ex + dx / d * r, ey + dy / d * r];
 };
+/* 발밑에 구멍을 뚫는다. 이 겹들은 빈 버퍼에 그려 화면 위에 얹는
+   것이므로, 지워 낸 자리로는 방이 그대로(원래 해상도로) 보인다.
+   화면을 꽉 채우는 겹은 안 뚫으면 **플레이어가 그림 밑으로 사라진다**
+   — §0. 완전히 지우지는 않는다: 그것이 너를 피해 갈라지는 것으로 남는다. */
+function punchPlayer(ctx, w, h, px, py, rad) {
+  const hole = ctx.createRadialGradient(px, py, 0, px, py, rad);
+  hole.addColorStop(0, 'rgba(0,0,0,0.94)');
+  hole.addColorStop(0.5, 'rgba(0,0,0,0.72)');
+  hole.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.fillStyle = hole; ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
 /* 눈 하나. 렌즈 모양 흰자 + 쫓는 눈동자. 깜빡임은 세로로 감긴다. */
 function oneEye(ctx, ex, ey, r, px, py, blink) {
   if (blink <= 0.02) {                     // 감긴 눈 — 젖은 이음선 하나
@@ -1883,11 +1897,13 @@ function oneEye(ctx, ex, ey, r, px, py, blink) {
      눈동자를 따로 그리지 않는다 — 사진에 이미 있다. 대신 **공 전체를**
      너 쪽으로 밀어 눈알이 눈구멍 안에서 돌게 한다. 그게 눈이 하는
      짓이고, 그린 눈동자를 사진 위에 겹치면 홍채가 둘이 된다.
-     타원(눈꺼풀 틈)보다 공을 크게 깔아야 굴려도 가장자리가 안 빈다. */
+     구멍은 **정원**이다. 눈꺼풀 틈처럼 눌러 놨더니 눈알이 아니라
+     아몬드로 읽혔다 — 벽에 박힌 것은 눈꺼풀이 아니라 공이다.
+     굴린 만큼 공이 구멍보다 커야 가장자리가 안 빈다: gr − roll > r. */
   const globe = texCanvas(EYE_TEX, RAMP.eyeball, 'eye');
-  const roll = r * 0.24, gr = r * 1.22;
+  const roll = r * 0.24, gr = r * 1.34;
   const [gx, gy] = EYE_TRACK(px, py, ex, ey, roll);
-  ctx.beginPath(); ctx.ellipse(ex, ey, r, r * 0.72, 0, 0, Math.PI * 2);
+  ctx.beginPath(); ctx.arc(ex, ey, r, 0, Math.PI * 2);
   ctx.save(); ctx.clip();
   hardBlit(ctx, globe, gx - gr, gy - gr, gr * 2, gr * 2);
   ctx.restore();
@@ -1895,16 +1911,16 @@ function oneEye(ctx, ex, ey, r, px, py, blink) {
      가 되고 홍채가 지워졌다. 이 사진에는 흰자에 실핏줄이 이미 있다 —
      겹치는 것은 아래쪽 삼분의 일, 그것도 얇게. */
   ctx.save(); ctx.beginPath();
-  ctx.ellipse(ex, ey, r, r * 0.72, 0, 0, Math.PI * 2); ctx.clip();
+  ctx.arc(ex, ey, r, 0, Math.PI * 2); ctx.clip();
   ctx.globalAlpha = 0.16;
   hardBlit(ctx, texCanvas(VEIN_TEX, RAMP.flesh, 'vein'), ex - r, ey + r * 0.1, r * 2, r * 0.9);
   ctx.restore();
   // 눈꺼풀 그늘 — 위아래로 어둡게 눌러 구멍에 박힌 눈으로 만든다
-  const lid = ctx.createLinearGradient(0, ey - r * 0.72, 0, ey + r * 0.72);
+  const lid = ctx.createLinearGradient(0, ey - r, 0, ey + r);
   lid.addColorStop(0, 'rgba(8,4,6,0.75)'); lid.addColorStop(0.38, 'rgba(8,4,6,0)');
   lid.addColorStop(0.7, 'rgba(8,4,6,0)'); lid.addColorStop(1, 'rgba(8,4,6,0.6)');
   ctx.save(); ctx.beginPath();
-  ctx.ellipse(ex, ey, r, r * 0.72, 0, 0, Math.PI * 2); ctx.clip();
+  ctx.arc(ex, ey, r, 0, Math.PI * 2); ctx.clip();
   ctx.fillStyle = lid; ctx.fillRect(ex - r, ey - r, r * 2, r * 2);
   ctx.restore();
   ctx.restore();
@@ -1929,11 +1945,12 @@ function veilEyes(ctx, w, h, px, py, tt) {
       const gs = ctx.createRadialGradient(ex, ey, r * 0.5, ex, ey, r * 1.5);
       gs.addColorStop(0, 'rgba(18,3,6,0.95)'); gs.addColorStop(1, 'rgba(18,3,6,0)');
       ctx.fillStyle = gs;
-      ctx.beginPath(); ctx.ellipse(ex, ey, r * 1.5, r * 1.15, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(ex, ey, r * 1.5, 0, Math.PI * 2); ctx.fill();
       oneEye(ctx, ex, ey, r, px, py, Math.min(1, blink));
       void col;
     }
   ctx.globalAlpha = 1;
+  punchPlayer(ctx, w, h, px, py, step * 0.62);   // 눈 아홉이 방을 통째로 덮는다
 }
 /* 팔의 벽 — 네 변에서 팔이 들어온다. 팔은 **사진**이다(ARM_TEX):
    격자 안에서 어깨가 왼쪽 위, 손이 오른쪽 아래이므로, 어깨를 변에 대고
@@ -2063,18 +2080,7 @@ function veilSigil(ctx, w, h, px, py, tt) {
     }
   }
   ctx.globalAlpha = 1;
-  /* 발밑에 구멍을 뚫는다. 이 판화는 삼각형 안쪽이 점묘로 꽉 차 있어서
-     그냥 얹으면 **네가 잉크 밑으로 사라진다**(§0). 이 겹은 빈 버퍼에
-     그려 화면 위에 얹는 것이므로, 지워 낸 자리로는 방이 그대로 보인다.
-     완전히 지우지는 않는다 — 표가 너를 피해 갈라지는 것으로 남는다. */
-  const hole = ctx.createRadialGradient(px, py, 0, px, py, Math.min(w, h) * 0.20);
-  hole.addColorStop(0, 'rgba(0,0,0,0.94)');
-  hole.addColorStop(0.5, 'rgba(0,0,0,0.72)');
-  hole.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.save();
-  ctx.globalCompositeOperation = 'destination-out';
-  ctx.fillStyle = hole; ctx.fillRect(0, 0, w, h);
-  ctx.restore();
+  punchPlayer(ctx, w, h, px, py, Math.min(w, h) * 0.20);   // 삼각형 안쪽이 꽉 차 있다
 }
 /* 고대의 천사 — 화면만 한 눈 하나가 뒤에서 보고 있고, 네 변에 깃이
    돋아 있다. 눈동자는 세로로 갈라져 있고 너를 쫓는다. */

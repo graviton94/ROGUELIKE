@@ -20,7 +20,7 @@ import {
   ALTAR_OFFERS, rarityOf, isCursed, RARITY, TEMPLE_SHARE, JACKPOT,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   BUILD, SAVE_FORMAT,
-  REPAY_SHARE, REPAY_CAP, AWE_RANGE, AWE_TURNS,
+  REPAY_SHARE, REPAY_CAP, REPAY_FLOOR, AWE_RANGE, AWE_TURNS,
   STIGMA_TURNS, STIGMA_SPLASH, STIGMA_RANGE,
   RELICS, RELIC_SLOTS, relicSlots, relicById, crackOf, crackSaid, crackNeed, CRACK_LEFT, BRANCHES,
   STRANGE, strangeById, STRANGE_FROM, STRANGE_BASE, STRANGE_CAP,
@@ -2603,13 +2603,18 @@ export function useArt(id) {
          맞아야 차는 자원이 맞은 만큼의 위력이 되는 자리 — 사제가
          왜 앞에 서는지가 여기서 처음으로 설명된다. */
       const m = near.sort((x, y) => y.hp - x.hp)[0];
+      const swing = baseSwing(p);
       const pool = Math.round((p.tookPool || 0) * REPAY_SHARE);
-      const cap = Math.round(baseSwing(p) * REPAY_CAP);
-      const blow = Math.max(2, Math.min(pool, cap));
+      const cap = Math.round(swing * REPAY_CAP);
+      /* 바닥은 평타, 천장은 평타 3.2배. 받은 것이 그 사이를 정한다 —
+         이 칸이 §4의 「기본 공격」이므로 아무것도 안 받았을 때도
+         누를 값은 해야 한다(REPAY_FLOOR 의 주석 참조). */
+      const blow = Math.max(2, Math.round(swing * REPAY_FLOOR), Math.min(pool, cap));
       p.tookPool = 0;
       fx({ t:'repay', x:p.x, y:p.y, tx:m.x, ty:m.y, n:blow, capped: pool > cap });
       say(pool > cap ? `받은 것을 다 돌려주지는 못했다. ${blow}만큼.`
-                     : `받은 것을 그대로 돌려준다 — ${blow}.`, 'level');
+        : pool <= swing * REPAY_FLOOR ? `아직 돌려줄 것이 적다 — ${blow}.`
+        : `받은 것을 그대로 돌려준다 — ${blow}.`, 'level');
       m.awake = true;
       hurtMonster(m, blow, '되갚기', { pierce: true });
       break;

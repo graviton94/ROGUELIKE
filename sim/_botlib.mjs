@@ -327,7 +327,24 @@ function runBot(race, cls, clear, opt = {}) {
        health for the last twenty turns. */
     hist.push(p.hp / Math.max(1, p.maxhp));
     if (hist.length > 12) hist.shift();
-    if (p.hp < p.maxhp * 0.4) {
+    /* ── 물약보다 먼저 물어야 하는 것 하나 ──────────────────
+       이 가지가 40% 아래에서 `continue` 로 끝난다. 사제의 순교는
+       창이 **30% 아래**이므로 그 창은 언제나 이 가지 **안쪽**에 있고,
+       그래서 물약이 하나라도 있으면 순교에는 영영 차례가 안 온다 —
+       실측으로 창이 33번 열리고 통까지 되는 순간이 6번이었는데
+       나간 것은 0회였다. 자가 「아무도 안 쓰는 궁극기」라고 말하고
+       있었지만 실제로는 **아무도 물어보지 않는 궁극기**였다.
+
+       순교는 회복이 아니라 **물약의 대체재**다(다섯 턴 동안 무릎을
+       안 꿇는다). 대체재를 원본 뒤에 두면 잴 수가 없다. 창이 열려
+       있고 줄이 켜져 있으면 물약을 아낀다 — 아래 기예 절이 곧
+       그것을 누른다. */
+    const dying = p.cls === 'priest' && p.hp < p.maxhp * 0.3
+      && !(p.martyr > 0)
+      && Game.spellSlots().some(s => s.id === 'martyr' && s.ready)
+      && G.monsters.some(m => !m.disguise
+           && Math.abs(m.x - p.x) <= 1 && Math.abs(m.y - p.y) <= 1);
+    if (p.hp < p.maxhp * 0.4 && !dying) {
       const i = p.pack.findIndex(s => s.item.use === 'heal' || s.item.use === 'bigHeal');
       if (i >= 0) { Game.useItem(i); continue; }
     }
@@ -545,10 +562,6 @@ function runBot(race, cls, clear, opt = {}) {
           && p.hp < p.maxhp * 0.3 && adjA.length >= 1)
         { useArtCounted('martyr'); continue; }
 
-      const repay = art('repay');
-      if (canPray(repay) && adjA.length && (p.tookPool || 0) >= p.maxhp * 0.35)
-        { useArtCounted('repay'); continue; }
-
       const word = art('word');
       if (canPray(word) && adjA.length >= 2 && p.hp < p.maxhp * 0.6)
         { useArtCounted('word'); continue; }
@@ -557,6 +570,29 @@ function runBot(race, cls, clear, opt = {}) {
       if (canPray(stigma) && seen.length >= 3
           && !G.monsters.some(m => m.stigma > 0))
         { useArtCounted('stigma'); continue; }
+
+      /* ── 기본 공격은 **맨 아래**다 ────────────────────────
+         문턱이 「최대 체력의 35%를 맞은 뒤」였고 자리는 위였다.
+         그때는 둘 다 맞았다 — 받은 것이 없으면 되갚기가 2였으니까.
+         바닥이 평타가 된 지금은 그 잠금이 §4의 기본 공격 칸을 계속
+         잠가 두는 일이 되므로 문턱을 뗐는데, 자리를 그대로 두었더니
+         이번에는 되갚기가 통을 다 먹어서 성흔이 12판에 **9회**,
+         말씀과 순교가 0회가 됐다(되갚기 1104회).
+         상황 기예가 먼저다 — 창이 좁은 쪽이 먼저 물어야 하고,
+         매 턴 누를 수 있는 것은 남는 것으로 눌러야 한다. 통을 안
+         보는 정책이 앞의 것으로 통을 비우면 뒤의 칸은 영영 차례가
+         안 온다는 것은 이 파일이 이미 한 번 배운 것이다. */
+      /* 그리고 **아껴 둔다.** 순교는 6이고 되갚기는 3이라, 매 턴
+         되갚으면 통이 3 근처에 머물러 순교의 창이 열려도 낼 수가
+         없다 — 12레벨에 닿은 판 셋에서 순교가 0회로 찍혔다.
+         사람이라면 「곧 순교할 것 같으면 아낀다」고 할 것이고, 그게
+         이 직업이 통을 쓰는 방식이다. 죽음이 가까울 때(45% 아래)만
+         남겨 둔다 — 늘 아끼면 이번에는 되갚기가 안 나간다. */
+      const repay = art('repay');
+      const save = (martyr && p.hp < p.maxhp * 0.45) ? Game.artCost(p, martyr) : 0;
+      if (canPray(repay) && adjA.length
+          && p.stam - Game.artCost(p, repay) >= save)
+        { useArtCounted('repay'); continue; }
 
       /* 성역·파문·심판이 여기 있었다. 셋 다 없어졌다 —
          「원 안에 서기」와 「지목만 하기」는 사제의 자원(맞은 것)과

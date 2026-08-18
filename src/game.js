@@ -434,13 +434,18 @@ function lore(kind, name, text, spr) {
    글자도 안 바뀐다 — 이건 전적으로 화면의 일이다. 그리고 색은 여기서
    안 고른다. 규칙은 **무엇을 들었는지**만 말하고, 그걸 무슨 색으로
    그릴지는 juice 쪽이 정한다.                                   */
-const ART_FX = new Set([
-  'shove', 'cleave', 'flurry', 'finisher', 'brace',
-  'stepIn', 'hushCut', 'vanishOut', 'vitals',
-  'charge', 'judgest', 'storm', 'crusade', 'bulwark',
-  'sanctum', 'anathema', 'judge', 'martyr',
-  'aimed', 'pierceShot', 'snare', 'volley', 'kite',
-]);
+/* ── 손으로 적은 목록을 지웠다 ────────────────────────────
+   여기 fx 이름 스물셋을 손으로 적어 두고 「기예 사건이면 얹는다」를
+   판정하고 있었다. 그런데 그중 **일곱이 이미 죽은 이름**이었다 —
+   shove · storm · crusade · sanctum · anathema · judge · snare 는
+   어느 것도 fx 로 안 나간다(기예 id 이거나 옛 이름이다). 반대로 새로
+   생긴 기예의 프레임은 이 목록에 없어서 얹히지 않았다.
+
+   이 저장소가 여러 곳에 「손으로 적은 목록은 언젠가 반드시 어긋난다」고
+   적어 두고 정확히 여기서 어긋났다. 목록을 지운다: 기예가 나가는 자리는
+   useArt 한 곳뿐이므로, 거기서 **그 기예가 뿜은 첫 fx** 에 얹는다.
+   기예는 제 서명 프레임을 먼저 뿜는다(cleave → lunge → hit). 전부에
+   얹으면 고리가 한 기예에 네 번 그려지고, 그건 정보가 아니라 물감이다. */
 export function auraOf(p = G.player) {
   if (!p) return null;
   const w = p.equip?.weapon;
@@ -458,9 +463,6 @@ export function auraOf(p = G.player) {
 }
 
 export function fx(ev) {
-  /* 한 곳. 스물세 군데의 fx 호출을 고치는 대신 깔때기에서 얹는다 —
-     기예가 하나 늘 때 목록에 한 줄만 더하면 된다. */
-  if (ART_FX.has(ev.t)) ev.aura = auraOf();
   G.fx.push(ev);
   if (G.fx.length > 300) G.fx.shift();
 }
@@ -2349,6 +2351,14 @@ export function useArt(id) {
     p.stam -= artCost(p, a);
   }
 
+  /* 손에 든 것을 이 기예의 **첫 프레임**에 얹는다. 여기서 자리를 표시해
+     두고 아래 switch 가 끝난 뒤에 얹으므로, switch 안에서 그냥 돌아가는
+     오타(「손이 닿는 곳에 아무것도 없다」)는 아무 데도 안 얹는다 —
+     플래그를 들고 다니면 그 오타 뒤에 오는 남의 fx 가 얹어 간다.
+     (G.fx 는 300에서 밀리지만 기예 한 번이 뿜는 프레임은 가장 넓은
+     빗발도 보이는 것 수만큼이므로 여기 자리가 밀릴 일은 없다.) */
+  const auraAt = G.fx.length, auraNow = auraOf(p);
+
   switch (id) {
     /* ── 전사의 넷 — 광전사 ────────────────────────────── */
     case 'combo': {
@@ -2858,6 +2868,8 @@ export function useArt(id) {
       break;
     }
   }
+  /* 얹는 자리. switch 가 실제로 무언가를 뿜었을 때만 얹힌다. */
+  if (auraNow && G.fx.length > auraAt) G.fx[auraAt].aura = auraNow;
   if (G.running) endTurn();
 }
 

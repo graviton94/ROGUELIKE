@@ -27,6 +27,7 @@ globalThis.localStorage = { getItem:k=>store.has(k)?store.get(k):null,
 const Meta = await import('../src/meta.js');
 const Game = await import('../src/game.js');
 const D    = await import('../src/data.js');
+const W    = await import('../src/world.js');
 const G = Game.G;
 let bad = 0;
 const ok = (c, m, g) => { console.log(`  ${c?'·':'✗'} ${m}${g!==undefined?` — ${g}`:''}`); if (!c) bad++; };
@@ -107,22 +108,43 @@ for (const [id, f] of faces)
 /* ── 2. 손에 든 것이 실리는가 ──────────────────────────── */
 console.log('');
 {
+  /* ── 이 절이 세 판 내내 빨갛게 울고 있었고, 게임은 멀쩡했다 ──
+     `Game.useArt('cleave')` 를 부르고 있었다. **'cleave' 는 기예 id 가
+     아니라 fx 이름이다** — 전사의 평타 기예 id 는 'combo' 이고 그것이
+     뿜는 프레임이 'cleave' 다. 그래서 기예가 아예 안 나갔고, 강화·
+     인챈트·유물 셋이 「안 실린다」로 찍혔다.
+
+     그리고 그걸 대조군이 덮고 있었다: `sweep()` 이 `?.aura || null` 로
+     돌려주므로 **기예가 안 나간 것과 아우라가 없는 것이 똑같이 null**
+     이었고, 첫 단언 `bare === null` 은 그래서 통과했다. 고장을 재는 자가
+     고장을 「정상」이라고 말한 것이다.
+
+     그래서 셋을 고친다: (1) 기예 id 를 표에서 가져온다 — 이름이 바뀌면
+     여기가 아니라 표가 틀린 것이 된다, (2) sweep 이 「기예가 안 나갔다」를
+     null 로 뭉개지 않는다, (3) 프레임 이름도 손으로 안 적는다 — 그 기예가
+     뿜은 **첫 프레임**이 얹는 자리라는 것이 규칙이므로 그걸 그대로 본다. */
   Game.startGame('human', 'warrior', Game.rollStats('warrior'));
   const p = G.player;
   p.lv = 12; p.stam = 99;
   Game.descend(); Game.enterDepth(8);
   G.monsters.length = 0;
-  G.monsters.push({ n:'표적', spr:'rat', x:p.x+1, y:p.y, hp:9999, maxhp:9999,
-                    dmg:1, ac:0, awake:true, energy:0, spd:1 });
+  for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0]])
+    G.monsters.push({ n:'표적', spr:'rat', x:p.x+dx, y:p.y+dy, hp:9999, maxhp:9999,
+                      dmg:1, ac:0, awake:true, energy:0, spd:1 });
   Game.refreshFov();
 
-  const sweep = () => { G.fx.length = 0; p.stam = 99; Game.useArt('cleave');
-                        return G.fx.find(e => e.t === 'cleave')?.aura || null; };
+  const BASIC = D.ARTS.warrior.find(a => a.role === 'basic').id;
+  /* 「기예가 안 나갔다」와 「아우라가 없다」를 갈라서 돌려준다. */
+  const sweep = () => { G.fx.length = 0; p.stam = 99; Game.useArt(BASIC);
+    if (!G.fx.length) return 'noart';
+    return G.fx[0].aura || null; };
 
   const w = p.equip?.weapon;
-  ok(!!w, '전사가 무기를 들고 있다', w?.name);
+  ok(!!w, '전사가 무기를 들고 있다', w?.n || w?.name);
   w.plus = 0; w.engrave = []; p.relics = [];
   const bare = sweep();
+  ok(bare !== 'noart', `기예가 실제로 나간다 (${BASIC})`,
+     bare === 'noart' ? '프레임이 하나도 안 나왔다' : `프레임 ${G.fx.map(e => e.t)[0]}`);
   ok(bare === null, '아무것도 안 붙은 손에는 아무것도 안 실린다 — 소음이 되지 않는다',
      bare === null ? '없음' : JSON.stringify(bare));
 
@@ -139,6 +161,49 @@ console.log('');
   const rel = sweep();
   ok(rel?.relics?.length === 2 && rel.relics.includes('vow'),
      '유물이 실린다', (rel?.relics || []).join(' · '));
+
+  /* ── 그리고 기예 **전부**를 한 번씩 내 본다 ────────────────
+     옛 판정은 fx 이름 스물셋을 손으로 적은 목록이었고, 그 목록에 없는
+     프레임은 아우라를 못 받았다. 실측해 보니 **스무 기예 중 일곱**이
+     그랬다: 전사의 광폭·도발·소용돌이, 사제의 넷 전부, 팔라딘의 성전.
+     목록을 지우고 「그 기예가 뿜은 첫 프레임」으로 바꿨으므로, 여기서는
+     **모든 기예가 한 장씩 받는가**를 표에서 뽑아 센다. 목록이 없으면
+     어긋날 목록도 없다. */
+  const misses = [], twice = [];
+  for (const cls of Object.keys(D.ARTS)) {
+    for (const a of D.ARTS[cls]) {
+      Meta.forget();
+      Game.startGame('human', cls, Game.rollStats(cls));
+      Game.descend(); Game.enterDepth(8);
+      const q = G.player;
+      q.lv = 14; q.lightTurns = 900; Game.recalc(q);
+      q.hp = Math.round(q.maxhp * 0.5); q.stam = 99; q.mp = 99;
+      /* 궁수의 넷은 활이 없으면 「활이 없다」로 돌아간다 — 손을 안
+         맞춰 주면 이 표가 재는 것은 아우라가 아니라 무기다. */
+      const want = cls === 'ranger' ? 'bow' : 'sword';
+      const it = D.WEAPONS.find(x => x.t === want) || D.WEAPONS[0];
+      q.equip.weapon = { ...it, kind:'weapon', plus: 6, engrave: ['pierce'] };
+      q.relics = ['vow']; Game.recalc(q);
+      G.monsters.length = 0;
+      for (const [dx, dy] of [[1,0],[0,1],[-1,0],[0,-1],[3,0]]) {
+        const x = q.x + dx, y = q.y + dy;
+        if (G.level.tiles[W.idx(x, y)] === W.FLOOR)
+          G.monsters.push({ n:'표적', spr:'rat', x, y, hp:9999, maxhp:9999,
+                            dmg:1, ac:0, awake:true, energy:0, spd:1, ai:'hunt' });
+      }
+      Game.refreshFov();
+      G.fx.length = 0;
+      Game.useArt(a.id);
+      const on = G.fx.filter(e => e.aura);
+      if (!on.length) misses.push(`${cls}/${a.id}`);
+      if (on.length > 1) twice.push(`${cls}/${a.id}×${on.length}`);
+    }
+  }
+  const total = Object.values(D.ARTS).reduce((n, l) => n + l.length, 0);
+  ok(!misses.length, `기예 ${total}개가 전부 손에 든 것을 한 장에 얹는다`,
+     misses.length ? misses.join(' ') : `${total}개`);
+  ok(!twice.length, '한 기예에 두 번 얹히지 않는다 — 같은 고리 둘은 정보가 아니라 물감이다',
+     twice.length ? twice.join(' ') : '전부 한 장');
 
   /* 평타에는 안 실린다. 이 층은 기예의 값을 그리는 것이지 매 턴
      칠하는 물감이 아니다 — 매 대마다 불꽃이 터지면 그건 정보가

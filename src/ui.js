@@ -12,7 +12,7 @@ import {
   REFINE_COST, ATTUNE_COST, ATTUNE_MAX,
   ENCHANT_CURSE, ENCHANT_CURSE_STEP,
   RARITY, CURSED_TONE, rarityOf, isCursed,
-  RELIC_SLOTS, RELICS, relicById, WEAPON_TYPES, PATTERNS,
+  RELIC_SLOTS, RELICS, relicById, BONDS, WEAPON_TYPES, PATTERNS,
   BUILD, SAVE_FORMAT,
   MONSTERS, BRANCHES, SPELLS_CLASS, SPELLS_COMMON, boonById, FUSIONS, engraveById, ENGRAVE_AT, ENGRAVE_PENALTY, NAMED,
   BOSS, tellsOf, tellsNeeded, rulebook, hearsayFor, CONSUMABLES, RESONANCE,
@@ -2046,10 +2046,31 @@ function showRelicList() {
     box.appendChild(el('div', 'iname', r.n));
     box.appendChild(el('div', 'idesc', r.t || ''));
     const ck = crackRow(r.id); if (ck) box.appendChild(ck);
+    const bd = bondRow(r, held); if (bd) box.appendChild(bd);
     row.appendChild(box);
     rows.appendChild(row);
   }
   $('look').hidden = false;
+}
+
+/* ── 손이 말을 거는 줄 ──────────────────────────────────────
+   유물 둘이 서로 말을 거는 방식 셋(겹침·갚음·겹친 대가)이 표에서
+   나오는데, 화면이 그것을 안 말하면 플레이어는 문법을 쓸 수가 없다 —
+   그러면 손은 퍼즐이 아니라 스탯 창이다. 그리고 짝 끌림(FUSE_PULL)이
+   조용히 짝을 데려오는 동안 왜 그러는지도 알 수 없다.
+
+   융합 표에 있는 쌍은 **따로 말한다.** 결속이 있다는 것과 실제로
+   합칠 수 있다는 것은 다른 사실이고, 뒤쪽이 모닥불로 가는 이유다. */
+function bondRow(r, held) {
+  const mine = [];
+  for (const o of held) {
+    const b = Game.bond ? Game.bond(r, o) : null;
+    if (!b) continue;
+    const fuse = Game.fusionOf && Game.fusionOf(r.id, o.id);
+    mine.push(`${o.n} — ${BONDS[b].n}${fuse ? ' · 합칠 수 있다' : ''}`);
+  }
+  if (!mine.length) return null;
+  return el('div', 'bondrow', `⌘ ${mine.join(' / ')}`);
 }
 
 /* ── screens ────────────────────────────────────────────── */

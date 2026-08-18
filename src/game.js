@@ -15,7 +15,7 @@ import {
   UPGRADE_SURGE, UPGRADE_SURGE_FROM, UPGRADE_HEX_FROM, UPGRADE_HEX_PCT,
   ENCHANT_CURSE, ENCHANT_CURSE_STEP, ENCHANT_TWIN,
   BOONS, boonById, transChance,
-  FUSIONS, fusionOf, FUSE_ODDS, FUSE_COST, FUSE_PULL,
+  FUSIONS, fusionOf, FUSE_ODDS, FUSE_COST, FUSE_PULL, BOND_PULL, bond,
   TASKS, TASK_PATIENCE, TASK_ODDS,
   ALTAR_OFFERS, rarityOf, isCursed, RARITY, TEMPLE_SHARE, JACKPOT,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
@@ -118,6 +118,9 @@ export const relicVal = id => {
 export const relicList = () => (G.player?.relics || []).map(relicById).filter(Boolean);
 
 export const slotCount = () => relicSlots(G.deepest || G.depth || 0);
+/* 화면은 표를 직접 안 읽는다 — 규칙 파일이 문 하나다(§5-1). 손이
+   말을 거는 줄이 이 둘을 쓴다. */
+export { bond, fusionOf };
 
 /* ── 크랙 ─────────────────────────────────────────────────
    유물 하나에 붙은 두 번째 줄. 그 유물이 하는 일과 같은 것을 세다가
@@ -6308,6 +6311,31 @@ export function unownedRelic() {
       if (held.has(f.b) && !held.has(f.a) && pool.some(r => r.id === f.a)) wanted.push(f.a);
     }
     if (wanted.length && Math.random() < FUSE_PULL) return wanted[rnd(wanted.length)];
+  }
+  /* ── 그리고 결속도 끌어당긴다 ──────────────────────────────
+     위의 끌림은 **융합 여섯 쌍**만 본다. 그런데 손이 말을 거는 방식은
+     셋이고 마흔 개의 780쌍 중 42%가 그 셋 중 하나로 통한다 — 융합
+     표에 없는 쌍도 「같은 것을 준다 / 서로의 빚을 갚는다」로 손을
+     짓는 재료다. 그쪽을 하나도 안 끌어당기면 손 짓기는 여섯 쌍짜리
+     복권이고, 나머지 서른네 개는 그냥 스탯이다.
+
+     **갚음에만 건다.** 처음에 결속 셋 전부에 걸었다가 되돌렸다 —
+     손 13개가 서로 겹치므로(twin) 그쪽으로 끌면 손이 한 어휘로
+     단조로워지고, 그건 조합이 아니라 같은 것을 세 개 든 것이다.
+     갚음은 서로의 빚을 지우는 관계다.
+
+     그리고 확률로 건다. 처음에 「있으면 그것을 준다」로 썼는데 그건
+     100% 끌림이고, 주석에는 「순서만 바꾼다」고 적어 놨었다 — 코드가
+     주석과 다른 말을 하고 있었다. 실측으로 판당 말을 거는 짝이 2.05쌍
+     이었다(우연이면 1.0쌍). 문법을 화면이 말하기 시작했으므로
+     (bondRow) 이 끌림은 플레이어가 읽을 수 있는 끌림이 된다. */
+  /* 벤치가 이 끌림을 켜고/끄고 나란히 재려면 문이 하나 필요하다.
+     헤드리스에서만 쓰이고, 없으면 표의 값을 그대로 쓴다. */
+  const bondPull = globalThis.__bondPull ?? BOND_PULL;
+  if (held.size && Math.random() < bondPull) {
+    const mine = [...held].map(id => relicById(id)).filter(Boolean);
+    const kin = pool.filter(r => mine.some(o => bond(r, o) === 'mend'));
+    if (kin.length) return kin[rnd(kin.length)].id;
   }
   for (let guard = 0; guard < 12; guard++) {
     const r = pool[rnd(pool.length)];

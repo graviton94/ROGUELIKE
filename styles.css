@@ -742,6 +742,13 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   #acts { gap: 3px; }
 }
 
+/* 손이 말을 거는 줄. 크랙 줄과 같은 무게로 두되 색이 다르다 —
+   크랙은 「이 유물 혼자 자란다」이고 이쪽은 「이 둘이 서로를 본다」다. */
+.bondrow {
+  margin-top: 3px; font-size: 9.5px; line-height: 1.4;
+  color: var(--B); letter-spacing: -.01em;
+}
+
 /* ── the ending ── */
 .endrow { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 12px; }
 .endlabel { flex: 0 0 92px; color: var(--G); font-size: 10.5px; text-align: left; }

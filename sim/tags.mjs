@@ -120,6 +120,54 @@ console.log('\n── 격자 (주는 것 × 가져가는 것)');
      `${at.foe || 0}개`);
 }
 
+/* ═══ 4. 손의 문법 ════════════════════════════════════════
+   유물 둘이 말을 거는 방식 셋(겹침·갚음·겹친 대가)은 새로 만든 규칙이
+   아니라 **이미 있던 것을 적은 것**이다. 손으로 정해 둔 융합 여섯 쌍을
+   태그로 읽어 보니 여섯이 전부 그 셋 중 하나였다.
+
+   그리고 그 과정에서 **태그의 오기를 하나 잡았다**: 폭식의 위장을
+   「주머니를 준다」로 적었는데, 이 유물이 주는 것은 물약이 아니라
+   물약이 하는 일 — 회복이다. 몸으로 고치니 굶주린 칼날과 짝이 맞았고,
+   그 쌍이 실제로 융합 표에 있다. 문법이 태그를 검사한 자리다. */
+console.log('\n── 손의 문법 (겹침 · 갚음 · 겹친 대가)');
+{
+  const by = Object.fromEntries(D.RELICS.map(r => [r.id, r]));
+  const noBond = [];
+  for (const f of D.FUSIONS) {
+    const b = D.bond(by[f.a], by[f.b]);
+    console.log(`     ${(by[f.a].n + ' + ' + by[f.b].n).padEnd(26)} ${b ? D.BONDS[b].n : '없음'}`);
+    if (!b) noBond.push(`${by[f.a].n}+${by[f.b].n}`);
+  }
+  /* 손으로 정한 쌍에 결속이 없으면 둘 중 하나다 — 문법이 그 쌍을
+     설명하지 못하거나, **태그가 틀렸다.** 어느 쪽이든 봐야 한다. */
+  ok(!noBond.length,
+     '융합 여섯 쌍이 전부 문법으로 설명된다 — 안 되면 문법이 틀렸거나 태그가 틀렸다',
+     noBond.length ? noBond.join(' · ') : `${D.FUSIONS.length}쌍`);
+
+  const cnt = { twin: 0, mend: 0, ache: 0, none: 0 };
+  const per = {};
+  for (let i = 0; i < D.RELICS.length; i++) for (let j = i + 1; j < D.RELICS.length; j++) {
+    const b = D.bond(D.RELICS[i], D.RELICS[j]);
+    cnt[b || 'none']++;
+    if (b) { per[D.RELICS[i].id] = (per[D.RELICS[i].id] || 0) + 1;
+             per[D.RELICS[j].id] = (per[D.RELICS[j].id] || 0) + 1; }
+  }
+  const pairs = D.RELICS.length * (D.RELICS.length - 1) / 2;
+  console.log(`     모든 쌍 ${pairs} — 겹침 ${cnt.twin} · 갚음 ${cnt.mend} · 겹친 대가 ${cnt.ache}`
+    + ` · 안 통함 ${cnt.none} (${Math.round((pairs - cnt.none) / pairs * 100)}%가 말을 건다)`);
+  /* 짝이 없는 유물은 어떤 손에도 못 들어간다 — 그건 유물이 아니라
+     스탯 하나다. 셋을 문턱으로 두는 이유: 자리가 4~7칸이므로 셋이면
+     한 손 안에서 만날 수 있다. */
+  const lonely = D.RELICS.filter(r => (per[r.id] || 0) < 3);
+  ok(!lonely.length, '유물마다 말을 거는 짝이 셋은 있다 — 하나도 없으면 어떤 손에도 못 들어간다',
+     lonely.length ? lonely.map(r => `${r.n}(${per[r.id] || 0})`).join(' · ')
+                   : `가장 적은 것 ${Math.min(...D.RELICS.map(r => per[r.id] || 0))}개`);
+  /* 셋 중 하나가 통째로 비면 그 관계는 설계가 아니라 장식이다. */
+  const deadBond = Object.keys(D.BONDS).filter(k => cnt[k] === 0);
+  ok(!deadBond.length, '결속 셋이 전부 실제로 일어난다',
+     deadBond.length ? deadBond.join(' ') : Object.keys(D.BONDS).map(k => `${D.BONDS[k].n} ${cnt[k]}`).join(' · '));
+}
+
 console.log(bad ? `\n태그 벤치: ${bad}건 실패\n`
-                : '\n태그 벤치: 값이 그대로다 · 문법이 선다 · 격자가 보인다\n');
+                : '\n태그 벤치: 값이 그대로다 · 문법이 선다 · 격자가 보인다 · 손이 말을 건다\n');
 process.exit(bad ? 1 : 0);

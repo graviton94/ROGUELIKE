@@ -159,7 +159,7 @@ function build(p, spec, depth) {
    나왔다. 그건 층이 아니라 표본을 비교한 값이었다. */
 function stand(depth, spec) {
   const out = { runs:0, turns:0, kills:0, taken:0, healed:0, maxhpSum:0,
-                died:0, diedHere:0, reached:[], killers:new Map(), met:new Map(),
+                died:0, diedHere:0, won:0, stuck:0, reached:[], killers:new Map(), met:new Map(),
                 fightTurns:0, hardest:0, pots:0 };
   for (let i = 0; i < N; i++) {
     const cls = CLASSES[i % CLASSES.length];
@@ -200,7 +200,9 @@ function stand(depth, spec) {
     if (!placed) continue;
     out.runs++;
     out.reached.push(r.depth);
-    if (!r.win && !r.stuck) {
+    if (r.win) out.won++;
+    else if (r.stuck) out.stuck++;
+    else {
       out.died++;
       if (r.depth === depth) out.diedHere++;
       out.killers.set(r.killer, (out.killers.get(r.killer)||0)+1);
@@ -221,13 +223,15 @@ function report(label, depth, o) {
     + `  ·  한 마리 잡을 때마다 ${o.kills ? (o.taken/o.kills*100/mh).toFixed(1) : '—'}%`);
   console.log(`     되찾은 체력    ${perRun(o.healed).toFixed(0)}/판 (받은 것의 ${Math.round(o.healed*100/Math.max(1,o.taken))}%)`);
   console.log(`     가장 아픈 한 방 최대체력의 ${(o.hardest*100).toFixed(0)}%`);
-  console.log(`     끝난 층        중앙 ${med(o.reached)} · 죽음 ${o.died}/${o.runs} (그중 ${depth}층에서 ${o.diedHere})`);
+  console.log(`     끝난 층        중앙 ${med(o.reached)} · 죽음 ${o.died}/${o.runs} `
+    + `(그중 ${depth}층에서 ${o.diedHere}) · 이김 ${o.won} · 막힘 ${o.stuck}`);
   const top = [...o.killers].sort((a,b)=>b[1]-a[1]).slice(0,6);
   console.log(`     죽인 것        ${top.map(([k,v])=>`${k} ${v}`).join(' · ') || '—'}`);
   return o;
 }
 
-const deep = report('곡선대로 선 영웅', 10, stand(10, spec10));
+const DEPTH = 10;
+const deep = report('곡선대로 선 영웅', DEPTH, stand(DEPTH, spec10));
 const ctrl = report('대조군', 5, stand(5, spec5));
 
 /* ── 3단계: 적혀만 있고 안 밟힌 것 ──────────────────── */
@@ -265,15 +269,43 @@ if (N >= COST_N) {
   console.log(`  (표본 ${N} < ${COST_N} — 마리당 비용 배수 `
     + `${(deepCost/Math.max(0.01,ctrlCost)).toFixed(2)}는 인쇄만 하고 판정하지 않는다)`);
 }
-/* 문턱 0.75. 처음에 0.5로 걸려 있었는데, 몬스터 공격력을 **5%로**
-   낮춰도 17/24(71%)가 죽어서 통과했다 — 잡으라고 만든 상황에서 안
-   울리면 그건 단언이 아니다. 보통은 23/24(96%)이므로 0.75가 두 상태
-   사이에 있다.
-   (그리고 이 실험이 알려 준 것 하나: 10층에서 죽는 것의 상당수는
-   몬스터의 손이 아니다. 시계·파도·굶주림 쪽을 따로 재야 한다.) */
+/* ── 이 단언의 이름이 재는 것과 달랐다 ────────────────────
+   「10층에서 거의 다 죽는다」라고 적어 놓고 `deep.died` 를 봤는데,
+   그건 **언젠가 죽었나**다. 10층에서 죽은 수는 `deep.diedHere` 이고
+   같은 코드로 일곱 판을 재니 **0·1·2·2·2·3·4 / 24 (중앙 2, 8%)** 다.
+   즉 곡선대로 선 영웅은 10층을 대체로 지나가고 중앙 13~15층에서
+   끝난다 — 그리고 그게 맞다. 96%가 10층에서 죽으면 11~15층과 보스는
+   아무도 못 본다. 옛 주석의 「보통은 23/24(96%)」는 영웅이 8~10층에서
+   죽던 시절의 숫자다.
+
+   그래서 이름을 재는 것에 맞춘다. 지키는 것은 여전히 **곡선이 층보다
+   빠르지 않다** 이고, 그 질문의 답은 「언젠가 죽나」다. 문턱 0.75는
+   그대로 둔다: 몬스터 공격력을 5%로 낮춘 실험에서 17/24(71%)였으므로
+   0.75가 두 상태 사이에 있고, 실측은 17·18·19·19·21·21·21 이다.
+
+   10층 자체의 치사율은 **인쇄만 하고 판정하지 않는다** — 24판에서
+   0~4 로 흔들려서 문턱을 세울 수가 없다. 그 숫자를 움직이려면 표본을
+   올려야 하고, 그건 이 파일의 90초를 몇 배로 만든다. */
 ok(deep.died / Math.max(1, deep.runs) > 0.75,
-   '곡선대로 선 영웅도 10층에서 거의 다 죽는다 — 안 죽으면 곡선이 층보다 빠르다는 뜻이다',
-   `${deep.died}/${deep.runs}`);
+   '곡선대로 선 영웅도 **언젠가는** 죽는다 — 안 죽으면 곡선이 층보다 빠르다는 뜻이다',
+   `${deep.died}/${deep.runs} (중앙 ${med(deep.reached)}층에서 끝난다)`);
+console.log(`  (${DEPTH}층 그 자체에서 끝난 판 ${deep.diedHere}/${deep.runs} `
+  + `— 같은 코드로 일곱 판을 재니 0~4 로 흔들려서 판정하지 않는다)`);
+
+/* ── 그리고 이 파일에서 정말 볼 것은 이 줄이었다 ────────────
+   「곡선이 층보다 빠르다」의 뜻은 결국 **이긴다**다. 그걸 여태 아무도
+   세지 않았고, 세 보니 곡선대로 선 봇이 **넷 중 하나꼴로 이긴다**
+   (10층에 세운 판 5·6·9/24 · 5층 3·4·6/24). 봇은 사람보다 못 노는
+   기계이므로, 봇이 25%로 이기는 판은 사람에게는 그보다 쉽다.
+
+   문턱이 느슨한 것을 그대로 적어 둔다: 같은 코드에서 3~9/24 로
+   흔들리므로 한 판으로 판정하려면 9 위에 세워야 하고, 그러면 「전부
+   이긴다」만 잡는 자가 된다. 이 숫자를 **내리는 것**이 다음 일이고,
+   내리고 나면 문턱도 같이 내려 적으면 된다. 표본을 올리는 쪽이
+   정공법이지만 이 파일은 이미 90초를 쓴다. */
+ok(deep.won / Math.max(1, deep.runs) <= 0.45,
+   '곡선대로 선 영웅이 판을 쓸어버리지 않는다 — 이기는 것이 흔하면 그건 곡선이 이긴 것이다',
+   `이김 ${deep.won}/${deep.runs} (${Math.round(deep.won * 100 / Math.max(1, deep.runs))}%) · 문턱 45%`);
 ok(never.length <= deepSpec.length * 0.3,
    'd10~ 몬스터의 70% 이상이 실제로 눈에 든다 — 적혀만 있는 종은 설계가 아니다',
    `못 본 것 ${never.length}/${deepSpec.length}`);

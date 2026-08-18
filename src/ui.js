@@ -652,6 +652,12 @@ export function draw() {
   /* 0 above a quarter health, rising to 1 at death's door. One
      number so the pulse and its speed can never disagree. */
   const low = p.maxhp ? Math.max(0, 1 - p.hp / (p.maxhp * 0.25)) : 0;
+  /* 이물의 층은 화면 전체를 덮는다 — 타일 위, 연출 위. 눈알 벽·팔·
+     얼굴가죽·프랙탈 도형은 타일만으로는 「방 하나」로 읽히고, 이 층들이
+     주는 것은 방이 아니라 **여기 있으면 안 된다는 감각**이다. 던전의
+     규칙(바닥은 조용히·배경은 배우를 안 덮는다)을 여기서만 어긴다. */
+  Juice.drawStrange(ctx, viewW, viewH, G.strange,
+                    (p.x - cx) * t + t / 2, (p.y - cy) * t + t / 2);
   Juice.drawScreenFlash(ctx, viewW, viewH, G.running ? low : 0);
   /* 죽음의 렌즈가 `dim` 을 계산해 놓고 **아무도 안 읽고 있었다.**
      그래서 죽는 순간 화면이 어두워지는 게 아니라 오히려 밝아졌다 —

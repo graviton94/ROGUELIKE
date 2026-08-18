@@ -116,7 +116,11 @@ ok(brightestFloor < 0.12,
    대비(길이 보이는가)는 똑같이 물리되, 깊이 색조는 안 묻는다.
    빼는 이유를 안 적으면 다음 사람이 이걸 「봐준 것」으로 읽는다. */
 console.log('');
-const LADDER_OFF = new Set(['sanctum', 'void', 'eyes', 'gullet', 'static']);
+/* 이물이 다섯에서 아홉이 됐다(팔의 벽·얼굴들·고대의 천사·새겨진 표).
+   빼는 이유는 위와 같다 — 사다리 밖의 층이다. 벽:바닥 대비는 아홉도
+   똑같이 물린다. */
+const LADDER_OFF = new Set(['sanctum', 'void', 'eyes', 'gullet', 'static',
+                            'limbs', 'faces', 'angel', 'sigil']);
 const ladder = themes.filter(t => !LADDER_OFF.has(t));
 let readable = 0;
 for (const t of ladder) {
@@ -126,7 +130,7 @@ for (const t of ladder) {
   if (dw > 0.25) readable++;
 }
 ok(readable >= ladder.length - 1,
-   '지형을 고정해도 가장 얕은 곳과 가장 깊은 곳의 벽이 다르다 — 깊이가 화면에 있어야 한다 (이물 다섯 제외)',
+   '지형을 고정해도 가장 얕은 곳과 가장 깊은 곳의 벽이 다르다 — 깊이가 화면에 있어야 한다 (이물 아홉 제외)',
    `${readable}/${ladder.length} 지형`);
 
 console.log(bad ? `\n무대 벤치: ${bad}건 실패\n` : '\n무대 벤치: 무대가 배우 아래에 있다\n');

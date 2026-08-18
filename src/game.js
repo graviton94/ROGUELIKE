@@ -1626,6 +1626,9 @@ export function walkOffTolerance() {
 
 export const healScale = () => {
   const p = G.player;
+  /* 고대의 천사: 그 앞에서는 아무것도 아물지 않는다. 회복이 전부 이 문을
+     지나므로 물약도 주문도 불도 한 줄에 같이 멎는다. */
+  if (strangeIs('angel')) return 0;
   const priest = (p?.cls === 'priest' && p.hp < p.maxhp * 0.5) ? 1.6 : 1;
   const drunk = G.gulped || 0;
   const dulled = Math.max(TOLERANCE_FLOOR, 1 - TOLERANCE_STEP * drunk);
@@ -2972,6 +2975,10 @@ function hopAway(p, sp, near, dry = false) {
 
 /* 갈 자리가 있는가. 줄(spellSlots)과 시전이 **같은 함수**에 묻는다. */
 export function canHop(p, sp) {
+  /* 팔의 벽: 팔들이 붙잡아서 자리를 뜰 수가 없다. 누르면 값을 안 내고
+     「팔이 붙잡는다」로 돌아간다 — §0, 눌렀는데 아무 일도 안 나는 것이
+     제일 나쁘다. */
+  if (strangeIs('limbs')) return false;
   /* 층이 없을 때도 불린다 — 인물 만들기 화면이 주문 줄을 미리 그린다.
      거기서 `G.level.solid` 를 부르면 판이 시작되기도 전에 죽는다
      (마나 벤치가 그 자리에서 잡았다). 층이 없으면 「갈 수 있다」로
@@ -3377,6 +3384,14 @@ const STRANGE_PULL = {
                    return p ? Math.max(0, 1 - p.hp / Math.max(1, p.maxhp)) : 0; },
   /* 지지직: 같은 것을 여러 번 본 판. 반복이 화면을 상하게 한다. */
   static:  () => Math.min(1, (G.eventsSeen || 0) / 8),
+  /* 팔의 벽: 많이 맞은 판. 붙잡힌 적이 많으면 붙잡는 것이 부른다. */
+  limbs:   () => Math.min(1, ledgerOf('hit') / 60),
+  /* 얼굴들: 파도를 맞은 판. 시끄럽게 놀았으면 시끄러운 층이 부른다. */
+  faces:   () => Math.min(1, (G.waves || 0) / 6),
+  /* 고대의 천사: 물약을 많이 마신 판. 아무는 데 기대는 쪽을 부른다. */
+  angel:   () => Math.min(1, ledgerOf('gulp') / 22),
+  /* 새겨진 표: 유물을 많이 든 판. 모으는 쪽이 모으는 것을 부른다. */
+  sigil:   () => Math.min(1, (G.player?.relics || []).length / 6),
 };
 /* 이 층에서 이물이 뜰 확률과, 떴다면 어느 것인가. 화면(도움말·
    기록)도 이 함수를 읽으므로 「미리 다 적혀 있다」가 유지된다. */
@@ -3458,6 +3473,23 @@ const STRANGE_PAY = {
     p.mats.scrap += 40 + depth * 6;
     p.mats.dust += 14 + depth * 2;
     p.mats.essence += 3 + Math.floor(depth / 4);
+  },
+  /* 팔의 벽: 팔들이 쥐고 있던 것. 물러날 수 없는 대가다. */
+  limbs: (depth) => { dropRelic(); dropAt(pickItem(depth + 6)); },
+  /* 얼굴들: 얼굴이 본 것을 너도 본다. 시끄러운 대가다. */
+  faces: (depth) => { revealMap(); dropAt({ kind:'gold', amount: 300 + depth * 40, spr:'gold' }); },
+  /* 고대의 천사: 그것이 쥐고 있던 것. 아무것도 안 아무는 대가다. */
+  angel: (depth) => {
+    const p = G.player;
+    p.mats = p.mats || { scrap: 0, dust: 0, essence: 0 };
+    p.mats.essence += 6 + Math.floor(depth / 3);
+    dropRelic();
+  },
+  /* 새겨진 표: 표가 부른 것. 배우는 것이 세 배인 대가로 두 배가 서 있다. */
+  sigil: (depth) => {
+    const it = pickItem(depth + 6);
+    it.odd = ODDITIES[rnd(ODDITIES.length)].id;
+    dropAt(it);
   },
   /* 지지직: 잘못 그려진 물건이라 지나치게 잘 벼려져 있다. */
   static: (depth) => {
@@ -6484,7 +6516,8 @@ function dropElite(m) {
 
 function gainXp(n) {
   const p = G.player;
-  p.xp += Math.round(n / RACES[p.race].xp);
+  // 새겨진 표: 표 안에서 배우는 것은 세 배다.
+  p.xp += Math.round(n * (strangeIs('sigil') ? 3 : 1) / RACES[p.race].xp);
   while (p.lv < MAX_LEVEL && p.xp >= xpToLevel(p.lv)) {
     p.lv++;
     const before = p.maxhp;
@@ -7419,7 +7452,8 @@ function monsterTurn(m) {
     const quiet = wading ? stealth(p) * 0.25 : stealth(p);
     // 전쟁 북 is loud: it hears you two tiles sooner.
     const reach = dist - (hasRelic('march') ? 3 : hasRelic('drum') ? 2 : 0)
-                       - (hasRelic('horn') && !cracked('horn') ? 2 : 0);
+                       - (hasRelic('horn') && !cracked('horn') ? 2 : 0)
+                       - (strangeIs('faces') ? 4 : 0);   // 얼굴들이 대신 지른다
     /* 열기가 각성에 거는 자리. 곱이 아니라 **거리를 당긴다** —
        확률에 곱하면 멀리 있는 것은 여전히 못 보고 붙은 것만 더 잘
        보게 되는데, 이 시스템이 만들려는 것은 「멀리서부터 온다」다. */

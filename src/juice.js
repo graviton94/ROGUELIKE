@@ -7,6 +7,7 @@
    ═══════════════════════════════════════════════════════════ */
 
 import { PALETTE, spriteColors } from './pixels.js';
+import { EYE_TEX, FLESH_TEX, VEIN_TEX, HAND_TEX } from './horror.js';
 import { MW as MAP_W } from './world.js';
 import { sfx, from as earFrom } from './audio.js';
 
@@ -1743,4 +1744,414 @@ export function reset() {
      다음 층이 느리게 시작한다. */
   slowLeft = 0; slowRate = 1; snapLeft = 0; punchT = 0; punchAt = null;
   warp = 0;
+}
+
+/* ═══ 이물의 층 — 화면 전체 ═══════════════════════════════
+   플레이어: 「진짜로 그냥 개 불쾌해야함. 벽에 다 눈알을 박고, 벽에
+   팔다리가 박혀있고, 갑자기 손이 화면을 뒤덮고(깜짝 놀래키기), 바닥에
+   얼굴가죽이 널려있고… 갑자기 일루미나티같은 도형과 눈알이 배경에
+   프랙탈 반복되고. 니가 말한 바닥은 이래서 안되고 배경은 이래서
+   안되고… 그런 상식 다 좆 까버리라고 하고 디자인하란 말이야.」
+
+   맞다. 이 게임의 다른 모든 곳에서 지키는 규칙 — 「바닥은 조용해야
+   한다」, 「배경이 배우를 덮으면 안 된다」, 「매 턴 칠하는 물감이 되면
+   안 된다」 — 은 **던전**의 규칙이다. 이물은 던전이 아니다. 열 판에
+   한 번 볼까 말까 한 사고이고, 봤다는 사실이 그 판의 이야기가 되어야
+   하므로, 여기서는 그 규칙 전부를 일부러 어긴다: 화면을 덮고, 배우를
+   가리고, 매 프레임 움직이고, 예고 없이 놀래킨다.
+
+   타일 쪽은 pixels.js 의 STRANGE_ART 가 맡는다(팔로 쌓은 벽 · 얼굴가죽
+   바닥 · 젖은 눈알). 여기는 **타일이 못 하는 것**만 한다 — 화면 전체를
+   덮는 것, 플레이어를 쫓는 것, 갑자기 튀어나오는 것, 프랙탈로 겹치는 것.
+
+   비용은 프리미티브만 쓴다(호·경로·사각형). 폰에서 매 프레임 도는
+   자리이므로 픽셀 루프는 지지직 한 곳뿐이고 그것도 슬라이스 복사다. */
+const now = () => performance.now();
+let strangeId = null, scareAt = 0, scareTill = 0, strangeT0 = 0;
+/* 층에 들어설 때 한 번. 여기서 시계를 리셋해야 「전 층의 놀램」이
+   새 층 첫 프레임에 터지지 않는다. */
+export function strangeEnter(id) {
+  strangeId = id || null;
+  strangeT0 = now();
+  scareTill = id ? now() + 900 : 0;       // 들어서는 순간 한 번 덮는다
+  scareAt = id ? now() + 6000 + Math.random() * 9000 : 0;
+}
+/* ── 8비트 규칙을 여기서만 깬다 ────────────────────────────
+   플레이어: 「실사 3d그래픽을 격자화 한 도트 그래픽으로, 8비트 룰을
+   어기고 만들어주는게 더 극적인 호러 이펙트를 가져올 수 있겠다.」
+
+   그렇다. 이 게임의 그림은 스물여섯 색 팔레트와 8×8 격자로 서 있고,
+   그 규칙이 만드는 것은 「오래된 게임」이라는 안심이다. 호러는 그
+   안심을 깨야 한다 — 그래서 이물의 레이어만 **팔레트 밖의 연속 계조**로
+   그린다: 살의 표면산란, 젖은 하이라이트, 안구의 각막 반사, 사진처럼
+   부드러운 음영. 팔레트에 없는 색이고, 이 게임 어디에도 없는 계조다.
+
+   그리고 그것을 **격자에 가둔다.** 132칸 버퍼에 그려서 보간 없이
+   확대하면 공간이 격자화되고, 아래 `digitise()` 가 계조를 열두 단으로
+   눌러 색까지 격자화한다. 실사를 스캔해서 도트로 옮긴 것 —
+   매끈한 벡터도 아니고 순수한 8비트도 아닌, 그 사이의 불쾌한 자리다.
+
+   비용: 132×285 ≈ 3.8만 픽셀 한 번. 이물 층에서만 돈다. */
+const LEVELS = 12;
+function digitise(cx, lw, lh) {
+  const img = cx.getImageData(0, 0, lw, lh), d = img.data;
+  const q = 255 / (LEVELS - 1);
+  for (let i = 0; i < d.length; i += 4) {
+    if (!d[i + 3]) continue;
+    /* 흩뿌리기 — 순수 계단으로 누르면 띠가 보이고, 띠는 「저해상도」가
+       아니라 「망가진 그라디언트」로 읽힌다. 스캔한 것처럼 만든다. */
+    const n = ((i * 2654435761) >>> 13) % 7 - 3;
+    for (let k = 0; k < 3; k++)
+      d[i + k] = Math.max(0, Math.min(255, Math.round((d[i + k] + n) / q) * q));
+    d[i + 3] = d[i + 3] > 210 ? 255 : Math.round(d[i + 3] / 64) * 64;
+  }
+  cx.putImageData(img, 0, 0);
+}
+/* ── 사진 격자를 색 램프에 태워 한 번만 굽는다 ─────────────
+   격자 한 칸씩 fillRect 하면 눈 아홉 개에 2만 번이 된다. 그래서 격자를
+   **제 크기 캔버스에 한 번 굽고**, 그린 뒤에는 보간을 끈 drawImage 한
+   번으로 쓴다 — 확대해도 칸이 각지게 남는다.
+   램프는 팔레트 밖이다(§ 여기서만 스물여섯 색을 깬다). */
+const RAMP = {
+  flesh: ['#17070a','#260c10','#3a1216','#4f1a1c','#6a2a26','#853a30','#9e4d3c',
+          '#b3654c','#c48160','#d29a78','#dcb192','#e6c4a8','#eed4bc','#f4e0cd','#faebdc','#fff6ee'],
+  eye:   ['#1b0305','#340708','#520e0c','#6f1810','#8c2a16','#a63f1e','#bd5a2c',
+          '#cf7440','#dd8f58','#e8a973','#f0c190','#f5d5ac','#f9e4c6','#fcefdc','#fef7ec','#fffdf8'],
+};
+const texCache = new Map();
+function texCanvas(tex, ramp, key) {
+  const hit = texCache.get(key); if (hit) return hit;
+  const w = tex[0].length, h = tex.length;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d');
+  for (let r = 0; r < h; r++) for (let q = 0; q < w; q++) {
+    const ch = tex[r][q]; if (ch === '.') continue;
+    x.fillStyle = ramp[parseInt(ch, 16)]; x.fillRect(q, r, 1, 1);
+  }
+  texCache.set(key, c); return c;
+}
+const hardBlit = (ctx, cv, x, y, w, h) => {
+  const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(cv, 0, 0, cv.width, cv.height, x, y, w, h);
+  ctx.imageSmoothingEnabled = sm;
+};
+/* 팔레트 밖의 살색. 이 게임 어디에도 없는 색이라 이물로 읽힌다. */
+const FLESH = { deep:'#2a0a0d', mid:'#7d3a34', skin:'#c99a86', hi:'#f0d6c4', wet:'#fff6ee' };
+const SCLERA = { edge:'#8f5a55', mid:'#d8bfb4', hi:'#fffaf4' };
+const EYE_TRACK = (px, py, ex, ey, r) => {
+  const dx = px - ex, dy = py - ey, d = Math.hypot(dx, dy) || 1;
+  return [ex + dx / d * r, ey + dy / d * r];
+};
+/* 눈 하나. 렌즈 모양 흰자 + 쫓는 눈동자. 깜빡임은 세로로 감긴다. */
+function oneEye(ctx, ex, ey, r, px, py, blink) {
+  if (blink <= 0.02) {                     // 감긴 눈 — 젖은 이음선 하나
+    ctx.strokeStyle = FLESH.deep; ctx.lineWidth = Math.max(1, r * 0.22);
+    ctx.beginPath(); ctx.moveTo(ex - r, ey); ctx.lineTo(ex + r, ey); ctx.stroke();
+    return;
+  }
+  ctx.save();
+  ctx.translate(ex, ey); ctx.scale(1, blink); ctx.translate(-ex, -ey);
+  /* 안구는 **사람 망막 안저 사진**이다(CC0). 도트로 그린 눈은 「그린
+     눈」이지만, 줄여서 격자에 가둔 사진은 무엇인지 알기 전에 먼저
+     불쾌하다. 원형이라 그대로 안구로 앉는다. */
+  const globe = texCanvas(EYE_TEX, RAMP.eye, 'eye');
+  ctx.beginPath(); ctx.ellipse(ex, ey, r, r * 0.72, 0, 0, Math.PI * 2);
+  ctx.save(); ctx.clip();
+  hardBlit(ctx, globe, ex - r, ey - r, r * 2, r * 2);
+  ctx.restore();
+  // 핏줄 사진을 얇게 겹친다 — 같은 눈에서 뜬 것이라 결이 맞는다
+  ctx.save(); ctx.beginPath();
+  ctx.ellipse(ex, ey, r, r * 0.72, 0, 0, Math.PI * 2); ctx.clip();
+  ctx.globalAlpha = 0.45;
+  hardBlit(ctx, texCanvas(VEIN_TEX, RAMP.flesh, 'vein'), ex - r, ey - r * 0.9, r * 2, r * 1.8);
+  ctx.restore();
+  // 눈동자 — 너를 쫓는다. 사진 위에 얹으므로 이것만 그린 것이다.
+  const [ix, iy] = EYE_TRACK(px, py, ex, ey, r * 0.30);
+  const ir = r * 0.40;
+  const gi = ctx.createRadialGradient(ix, iy, ir * 0.2, ix, iy, ir);
+  gi.addColorStop(0, '#000'); gi.addColorStop(0.62, '#120a06'); gi.addColorStop(1, 'rgba(10,4,2,0)');
+  ctx.fillStyle = gi;
+  ctx.beginPath(); ctx.arc(ix, iy, ir, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fffdf8';               // 각막 반사 한 점
+  ctx.beginPath(); ctx.arc(ix - ir * 0.34, iy - ir * 0.38, Math.max(1, ir * 0.20), 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+/* 눈의 방 — 화면 전체가 눈이다. 격자로 박고, 파도처럼 깜빡이고,
+   전부 같은 곳(너)을 본다. */
+function veilEyes(ctx, w, h, px, py, tt) {
+  /* 처음에 일곱 개씩 깔았더니 저해상도에서 눈 하나가 반지름 6칸이 되고,
+     계조를 누른 뒤에는 **회색 얼룩**으로 읽혔다. 작은 눈 마흔 개보다
+     큰 눈 아홉 개가 무섭다 — 세 줄로 줄이고 안구를 키운다. */
+  const step = Math.max(24, Math.min(w, h) / 3.1);
+  ctx.globalAlpha = 0.72;
+  for (let ey = step * 0.5, row = 0; ey < h + step; ey += step, row++)
+    for (let ex = step * 0.5 + (row % 2 ? step * 0.5 : 0), col = 0; ex < w + step; ex += step, col++) {
+      /* 파도처럼 감긴다 — 전부 같이 깜빡이면 그건 조명이고, 제각각이면
+         잡음이다. 대각선으로 흐르는 물결이 「보고 있다」로 읽힌다. */
+      const ph = (tt / 900) - (ex + ey) / (step * 5);
+      const blink = Math.max(0, Math.sin(ph) * 1.4);
+      const r = step * 0.42;
+      /* 눈구멍부터 그린다 — 안구가 배경 위에 떠 있으면 스티커가 되고,
+         구멍에 박혀 있으면 벽에서 나온 것이 된다. */
+      const gs = ctx.createRadialGradient(ex, ey, r * 0.5, ex, ey, r * 1.5);
+      gs.addColorStop(0, 'rgba(18,3,6,0.95)'); gs.addColorStop(1, 'rgba(18,3,6,0)');
+      ctx.fillStyle = gs;
+      ctx.beginPath(); ctx.ellipse(ex, ey, r * 1.5, r * 1.15, 0, 0, Math.PI * 2); ctx.fill();
+      oneEye(ctx, ex, ey, r, px, py, Math.min(1, blink));
+      void col;
+    }
+  ctx.globalAlpha = 1;
+}
+/* 팔의 벽 — 네 변에서 팔이 들어온다. 그리고 예고 없이 손이 화면을 덮는다. */
+function oneArm(ctx, x0, y0, ang, len, wid) {
+  ctx.save();
+  ctx.translate(x0, y0); ctx.rotate(ang);
+  /* 원통으로 읽히게 — 위가 밝고 가운데가 살색이고 아래가 잠긴다.
+     팔레트 밖의 계조라 이 게임의 어떤 물건과도 안 닮는다. */
+  /* 팔의 표면도 세포 사진이다. 길이가 매번 다르므로 늘려 붙인다 —
+     늘어난 결이 오히려 「살아 있는 것을 잡아 늘인」 것으로 읽힌다. */
+  hardBlit(ctx, texCanvas(FLESH_TEX, RAMP.flesh, 'flesh'), 0, -wid * 0.5, len, wid);
+  // 손: 손바닥 하나에 손가락 넷
+  ctx.save();
+  ctx.beginPath(); ctx.arc(len, 0, wid * 0.78, 0, Math.PI * 2); ctx.clip();
+  hardBlit(ctx, texCanvas(FLESH_TEX, RAMP.flesh, 'flesh'),
+           len - wid * 0.8, -wid * 0.8, wid * 1.6, wid * 1.6);
+  ctx.restore();
+  ctx.fillStyle = FLESH.mid;
+  for (let f = 0; f < 4; f++) {
+    const a = -0.7 + f * 0.47;
+    ctx.save(); ctx.translate(len, 0); ctx.rotate(a);
+    ctx.fillRect(0, -wid * 0.14, wid * 1.5, wid * 0.28);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+function veilLimbs(ctx, w, h, px, py, tt) {
+  const reach = 0.5 + Math.sin(tt / 1100) * 0.28;
+  const wid = Math.max(4, Math.min(w, h) / 16);
+  ctx.globalAlpha = 0.9;
+  for (let i = 0; i < 5; i++) {
+    const f = (i + 1) / 6;
+    const grow = reach * (0.6 + ((i * 37) % 40) / 100);
+    oneArm(ctx, -wid, h * f, 0.15 - f * 0.3, w * 0.42 * grow, wid);
+    oneArm(ctx, w + wid, h * (1 - f), Math.PI - 0.15 + f * 0.3, w * 0.42 * grow, wid);
+  }
+  for (let i = 0; i < 3; i++) {
+    const f = (i + 1) / 4;
+    oneArm(ctx, w * f, -wid, Math.PI / 2 - 0.2 + f * 0.4, h * 0.38 * reach, wid);
+    oneArm(ctx, w * (1 - f), h + wid, -Math.PI / 2 + 0.2 - f * 0.4, h * 0.38 * reach, wid);
+  }
+  ctx.globalAlpha = 1;
+  void px; void py;
+}
+/* 깜짝. 손 하나가 화면을 통째로 덮는다 — 0.42초, 붉은 섬광과 함께.
+   이것이 이 층에서 가장 중요한 그림이고, 그래서 예고가 없다. */
+/* ── 손이 화면을 다 덮으면 그건 손이 아니라 검은 화면이다 ──────
+   처음에 1.7배까지 키웠더니 순검정이 화면을 통째로 먹었다. 실루엣이
+   읽히려면 **뒤가 밝아야** 하고 손은 화면을 다 덮으면 안 된다. 그래서
+   붉은 섬광을 세게(0.78) 깔고 손은 0.95배까지만 키우고, 손가락 끝에
+   창백한 테를 한 줄 남긴다 — 그 한 줄이 「살」이라고 말한다. */
+function slam(ctx, w, h, k) {
+  const ease = k < 0.22 ? k / 0.22 : 1 - (k - 0.22) / 0.78;
+  ctx.save();
+  ctx.fillStyle = `rgba(214,58,44,${(ease * 0.88).toFixed(3)})`;
+  ctx.fillRect(0, 0, w, h);
+  /* 손도 격자다 — 실루엣은 해부학적으로 래스터라이즈했고 표면은 세포
+     사진(CC0)을 입혔다. 타원 몇 개를 겹쳐 놓은 것이 아니다.
+     유리에 눌린 자리(지문 패드·손가락 밑동·손바닥 두덩)가 창백하게
+     떠 있는 것이 이 그림의 전부다. */
+  const hand = texCanvas(HAND_TEX, RAMP.flesh, 'hand');
+  /* 손이 화면보다 커지면 손바닥 한가운데만 보이고, 그건 살덩이지
+     손이 아니다. 최대에서 화면 높이의 0.98배 — 손목이 아래로 걸치고
+     다섯 손가락이 전부 보이는 크기다. */
+  const scale = (0.52 + ease * 0.46) * h / hand.height;
+  const hw = hand.width * scale, hh = hand.height * scale;
+  ctx.globalAlpha = Math.min(1, ease * 2.2);
+  hardBlit(ctx, hand, (w - hw) / 2, h - hh * 0.94, hw, hh);
+  ctx.restore();
+}
+/* 얼굴들 — 어둠에서 얼굴가죽이 떠오른다. 입이 열리고, 다시 잠긴다. */
+function oneFace(ctx, fx, fy, r, open) {
+  const gf = ctx.createRadialGradient(fx - r * 0.25, fy - r * 0.35, r * 0.15, fx, fy, r);
+  gf.addColorStop(0, FLESH.hi); gf.addColorStop(0.62, FLESH.skin); gf.addColorStop(1, FLESH.mid);
+  ctx.fillStyle = gf;
+  ctx.beginPath(); ctx.ellipse(fx, fy, r * 0.78, r, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = FLESH.deep;
+  ctx.beginPath(); ctx.ellipse(fx - r * 0.34, fy - r * 0.28, r * 0.19, r * 0.24, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(fx + r * 0.34, fy - r * 0.28, r * 0.19, r * 0.24, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(fx, fy + r * 0.42, r * 0.36, r * (0.10 + open * 0.38), 0, 0, Math.PI * 2); ctx.fill();
+  if (open > 0.5) {                       // 이 — 입이 크게 열릴 때만
+    ctx.fillStyle = FLESH.wet;
+    for (let i = -2; i <= 2; i++)
+      ctx.fillRect(fx + i * r * 0.13 - r * 0.04, fy + r * 0.30, r * 0.08, r * 0.10);
+  }
+}
+function veilFaces(ctx, w, h, px, py, tt) {
+  for (let i = 0; i < 9; i++) {
+    const sx = ((i * 3711) % 977) / 977, sy = ((i * 8317) % 613) / 613;
+    const ph = (tt / 1700) + i * 0.7;
+    const up = Math.max(0, Math.sin(ph));
+    if (up < 0.04) continue;
+    ctx.globalAlpha = Math.min(0.9, up * 1.1);
+    oneFace(ctx, sx * w, sy * h, Math.min(w, h) * (0.07 + (i % 3) * 0.03), up);
+  }
+  ctx.globalAlpha = 1;
+  void px; void py;
+}
+/* 새겨진 표 — 원과 삼각형이 겹겹이, 스스로 도는 프랙탈. 각 겹의
+   가운데에 눈이 하나씩 박혀 있다. */
+function glyphRing(ctx, cxx, cyy, r, rot, sides) {
+  ctx.beginPath(); ctx.arc(cxx, cyy, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath();
+  for (let i = 0; i <= sides; i++) {
+    const a = rot + i * Math.PI * 2 / sides;
+    const x = cxx + Math.cos(a) * r, y = cyy + Math.sin(a) * r;
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  }
+  ctx.closePath(); ctx.stroke();
+}
+function veilSigil(ctx, w, h, px, py, tt) {
+  const cxx = w / 2, cyy = h / 2, big = Math.hypot(w, h) * 0.52;
+  ctx.save();
+  ctx.strokeStyle = PALETTE.y;
+  ctx.globalAlpha = 0.42;
+  for (let k = 0; k < 5; k++) {
+    const r = big * Math.pow(0.62, k);
+    const rot = tt / (1400 + k * 900) * (k % 2 ? -1 : 1);
+    ctx.lineWidth = 1;
+    glyphRing(ctx, cxx, cyy, r, rot, 3 + (k % 2));
+    ctx.globalAlpha = 0.42 - k * 0.05;
+  }
+  ctx.restore();
+  /* 그리고 그 겹마다 눈. 프랙탈이 「도형」이 아니라 「보는 것」이 된다. */
+  ctx.globalAlpha = 0.8;
+  for (let k = 0; k < 4; k++) {
+    const r = big * Math.pow(0.62, k), rot = tt / (1400 + k * 900) * (k % 2 ? -1 : 1);
+    for (let i = 0; i < 3; i++) {
+      const a = rot + i * Math.PI * 2 / 3;
+      oneEye(ctx, cxx + Math.cos(a) * r, cyy + Math.sin(a) * r,
+             Math.max(3, big * 0.055 * Math.pow(0.8, k)), px, py, 1);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+/* 고대의 천사 — 화면만 한 눈 하나가 뒤에서 보고 있고, 네 변에 깃이
+   돋아 있다. 눈동자는 세로로 갈라져 있고 너를 쫓는다. */
+function veilAngel(ctx, w, h, px, py, tt) {
+  const cxx = w / 2, cyy = h / 2, R = Math.min(w, h) * 0.46;
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = PALETTE.W;
+  ctx.beginPath(); ctx.ellipse(cxx, cyy, R * 1.25, R, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = PALETTE.P; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(cxx, cyy, R * 1.25, R, 0, 0, Math.PI * 2); ctx.stroke();
+  const [ix, iy] = EYE_TRACK(px, py, cxx, cyy, R * 0.42);
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = PALETTE.P;
+  ctx.beginPath(); ctx.arc(ix, iy, R * 0.34, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = PALETTE.k;                     // 세로로 갈라진 눈동자
+  ctx.beginPath(); ctx.ellipse(ix, iy, R * 0.10, R * 0.30, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 0.55;
+  ctx.strokeStyle = PALETTE.P; ctx.lineWidth = 1;
+  for (let i = 0; i < 14; i++) {           // 깃 — 네 변에서 안쪽으로
+    const f = i / 14, sw = Math.sin(tt / 1300 + i) * 2;
+    ctx.beginPath();
+    ctx.moveTo(0, h * f); ctx.lineTo(w * 0.10 + sw, h * f - 10); ctx.lineTo(0, h * f - 20);
+    ctx.moveTo(w, h * f); ctx.lineTo(w * 0.90 - sw, h * f - 10); ctx.lineTo(w, h * f - 20);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+/* 지지직 — 이미 그린 화면을 잘라 옆으로 밀고, 잘못된 색 블록을 얹는다.
+   이 층에서만 픽셀을 만진다(슬라이스 복사라 폰에서도 싸다). */
+function veilStatic(ctx, w, h, tt) {
+  const cv = ctx.canvas;
+  for (let i = 0; i < 7; i++) {
+    const seed = (i * 7919 + Math.floor(tt / 90) * 104729) % 100000;
+    const y = (seed % 97) / 97 * h;
+    const hh = 4 + (seed % 11);
+    const dx = (((seed >> 3) % 41) - 20) * 1.6;
+    ctx.drawImage(cv, 0, y, w, hh, dx, y, w, hh);
+  }
+  ctx.globalAlpha = 0.45;
+  for (let i = 0; i < 5; i++) {
+    const seed = (i * 6151 + Math.floor(tt / 140) * 92831) % 100000;
+    ctx.fillStyle = (seed % 3) ? PALETTE.s : PALETTE.W;
+    ctx.fillRect((seed % 89) / 89 * w, (seed % 71) / 71 * h,
+                 10 + (seed % 23), 3 + (seed % 5));
+  }
+  ctx.globalAlpha = 1;
+}
+/* 뱃속 — 화면이 숨을 쉰다. 조리개가 조여들고, 변에서 융모가 흔들린다. */
+function veilGullet(ctx, w, h, tt) {
+  const beat = 0.5 + Math.sin(tt / 780) * 0.5;
+  const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * (0.20 + beat * 0.10),
+                                     w / 2, h / 2, Math.hypot(w, h) * 0.62);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(1, `rgba(37,74,42,${(0.55 + beat * 0.25).toFixed(3)})`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = PALETTE.E; ctx.lineWidth = 1; ctx.globalAlpha = 0.7;
+  for (let i = 0; i < 22; i++) {           // 융모
+    const f = i / 22, sw = Math.sin(tt / 420 + i) * 3, len = 5 + (i % 4) * 3;
+    ctx.beginPath(); ctx.moveTo(w * f, 0); ctx.lineTo(w * f + sw, len); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w * f, h); ctx.lineTo(w * f - sw, h - len); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, h * f); ctx.lineTo(len, h * f + sw); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w, h * f); ctx.lineTo(w - len, h * f - sw); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+const VEIL = {
+  eyes:   (c, w, h, px, py, tt) => veilEyes(c, w, h, px, py, tt),
+  limbs:  (c, w, h, px, py, tt) => veilLimbs(c, w, h, px, py, tt),
+  faces:  (c, w, h, px, py, tt) => veilFaces(c, w, h, px, py, tt),
+  sigil:  (c, w, h, px, py, tt) => veilSigil(c, w, h, px, py, tt),
+  angel:  (c, w, h, px, py, tt) => veilAngel(c, w, h, px, py, tt),
+  static: (c, w, h, px, py, tt) => veilStatic(c, w, h, tt),
+  gullet: (c, w, h, px, py, tt) => veilGullet(c, w, h, tt),
+};
+/* 놀램이 있는 층. 없는 층은 덮개만 돈다 — 전부 놀래키면 놀램이
+   아니라 박자가 된다. */
+const SCARE = { limbs: slam, faces: slam, angel: slam };
+
+/* ── 그리고 이 전부를 저해상도에서 그린다 ──────────────────
+   처음에 화면 해상도에 바로 그렸더니 **부드러운 벡터 그림**이 나왔다 —
+   매끈한 타원과 매끈한 호. 이 게임은 8×8 도트로 그린 게임이고, 그 위에
+   안티에일리어싱된 곡선이 뜨면 그건 기괴한 것이 아니라 **다른 게임의
+   레이어**다. 불쾌함은 매끄러움에서 오지 않는다.
+
+   그래서 가로 132칸짜리 버퍼에 그리고, 보간을 끈 채로 확대해 붙인다.
+   같은 코드가 그린 같은 눈알이 계단처럼 각지고, 그때 비로소 이 게임의
+   그림이 된다. 덤으로 비용도 내려간다 — 폰에서 매 프레임 도는 자리라
+   실제로 그쪽이 더 중요하다. */
+const LOW_W = 132;
+let lowCv = null, lowCx = null;
+function lowBuf(w, h) {
+  const lw = LOW_W, lh = Math.max(8, Math.round(h * lw / w));
+  if (!lowCv) { lowCv = document.createElement('canvas'); lowCx = lowCv.getContext('2d'); }
+  if (lowCv.width !== lw || lowCv.height !== lh) { lowCv.width = lw; lowCv.height = lh; }
+  lowCx.clearRect(0, 0, lw, lh);
+  return { lw, lh, k: lw / w };
+}
+export function drawStrange(ctx, w, h, id, px, py) {
+  if (!id) { if (strangeId) strangeEnter(null); return; }
+  if (id !== strangeId) strangeEnter(id);
+  const tt = now() - strangeT0;
+  /* 지지직만 예외다 — 이미 그려진 화면을 잘라 미는 것이므로 저해상도
+     버퍼에 그릴 대상이 없다. 그쪽은 화면 위에서 직접 자른다. */
+  if (id === 'static') { ctx.save(); veilStatic(ctx, w, h, tt); ctx.restore(); return; }
+  const { lw, lh, k } = lowBuf(w, h);
+  lowCx.save();
+  VEIL[id]?.(lowCx, lw, lh, px * k, py * k, tt);
+  const scare = SCARE[id];
+  if (scare) {
+    if (now() > scareAt) { scareTill = now() + 420; scareAt = now() + 7000 + Math.random() * 11000; }
+    if (now() < scareTill) scare(lowCx, lw, lh, 1 - (scareTill - now()) / 420);
+  }
+  lowCx.restore();
+  digitise(lowCx, lw, lh);
+  const smooth = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(lowCv, 0, 0, lw, lh, 0, 0, w, h);
+  ctx.imageSmoothingEnabled = smooth;
 }

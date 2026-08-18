@@ -2258,6 +2258,291 @@ const terrainCache = new Map();
 
    `base`/`grain`/`mortar` are the three colours the generator
    uses; `style` decides how the courses are cut.            */
+/* ── 이물의 층 그림 ────────────────────────────────────────
+   여기 있으면 안 되는 층은 **이음매 무늬에 색만 바꿔 낀 벽돌**이면
+   안 된다. 그건 설명만 기괴하고 그림은 평범한 것이고, 그러면 말장난이다.
+   그래서 일곱 층은 벽과 바닥을 직접 그린다 — 팔로 쌓은 벽, 비명 지르는
+   얼굴가죽, 눈알과 손바닥과 날개, 새겨진 원과 삼각형, 젖은 눈알 벽,
+   융모와 조리개, 잘못 그려진 주사선. `.` 은 바탕을 그대로 두는 칸이다.
+
+   ── 바닥은 어둡게, 밝은 것은 덮개가 맡는다 ────────────────
+   얼굴가죽 바닥을 창백한 살색으로 깔았다가 무대 벤치에 걸렸다: 바닥
+   휘도 0.65(상한 0.12) · 벽:바닥 0.47:1. 새겨진 표도 금으로 깔아서
+   0.72:1 이었다. 그러면 그 위에 선 몬스터가 배경에 잠긴다.
+   그래서 **타일은 어둡게**(마른 피 위의 어두운 가죽, 돌에 파인 새김)
+   두고, **창백한 얼굴과 빛나는 금은 juice 의 덮개**가 맡는다. 덮개는
+   떠올랐다 잠기므로 배우를 영구히 가리지 않는다 — 규칙을 깨는 것은
+   이물의 그림이고, 깨도 되는 것은 영구적이지 않은 층이다.
+   변종으로 좌우가 뒤집히므로 한 줄에 이어 붙어도 벽지가 안 된다.  */
+export const STRANGE_ART = {
+  limbs: {
+    wall: [[
+      '..n..n..n..n....',
+      '.nN.nN.nN.nN.n..',
+      '.nN.nN.nN.nN.nN.',
+      '.nNnNnNnNnNn.nN.',
+      '.nNNNNNNNNNn.nN.',
+      '.nNNNNNNNNNnnNN.',
+      '..nNNNNNNNNNNNn.',
+      '...nnNNNNNNNnn..',
+      '....rnNNNNNnr...',
+      '.....nNNNNn.....',
+      '..n..nNNNNn..n..',
+      '.nN..nNNNNn.nN..',
+      '.nN..rnNNnr.nN..',
+      '.nNn..nNNn..nNn.',
+      '..nN..nNNn..nN..',
+      '..nn..rnnr..nn..',
+    ]],
+    floor: [[
+      '................',
+      '...N............',
+      '..NNn......nN...',
+      '..nNn.....nNNn..',
+      '...r......nNn...',
+      '..........r.....',
+      '......nN........',
+      '.....nNNn.......',
+      '.....nNn...N....',
+      '......r...NNn...',
+      '..........nNn...',
+      '....N.....r.....',
+      '...NNn..........',
+      '...nNn.....nN...',
+      '....r.....nNNn..',
+      '...........r....',
+    ]],
+  },
+  faces: {
+    wall: [[
+      '................',
+      '..NNNNNNNNNNNN..',
+      '.NNNNNNNNNNNNNN.',
+      '.NNkkkNNNNkkkNN.',
+      '.NNkkkNNNNkkkNN.',
+      '.NNNNNNNNNNNNNN.',
+      '..NNNNNNNNNNNN..',
+      '...NNNNNNNNNN...',
+      '....kkkkkkkk....',
+      '...kkNkNkNkkk...',
+      '...kkNkNkNkkk...',
+      '....kkkkkkkk....',
+      '.....NNNNNN.....',
+      '................',
+      '..r..........r..',
+      '................',
+    ]],
+    floor: [[
+      '....nnnnnnnn....',
+      '..nnnnnnnnnnnn..',
+      '.nnnnnnnnnnnnnn.',
+      '.nnkknnnnnnkknn.',
+      '.nnkknnnnnnkknn.',
+      '.nnnnnnnnnnnnnn.',
+      '.nnnnnnkknnnnnn.',
+      '.nnnnnnkknnnnnn.',
+      '..nnnnnnnnnnnn..',
+      '..nnnkkkkkknnn..',
+      '..nnkkkkkkkknn..',
+      '..nnkkkkkkkknn..',
+      '..nnnkkkkkknnn..',
+      '...nnnnnnnnnn...',
+      '....nnnnnnnn....',
+      '.....r....r.....',
+    ]],
+  },
+  angel: {
+    wall: [[
+      '................',
+      '....wwwwwwww....',
+      '..wwWWWWWWWWww..',
+      '.wWWWWWWWWWWWWw.',
+      '.wWWWWPPPPWWWWw.',
+      'wWWWWPPkkPPWWWWw',
+      'wWWWWPPkkPPWWWWw',
+      '.wWWWWPPPPWWWWw.',
+      '.wWWWWWWWWWWWWw.',
+      '..wwWWWWWWWWww..',
+      '....wwwwwwww....',
+      '................',
+      '..P..P..P..P..P.',
+      '.PP..PP..PP..PP.',
+      '..P..P..P..P..P.',
+      '................',
+    ]],
+    floor: [[
+      '...g..g..g......',
+      '..gGg.gGg.gGg...',
+      '..gGgggGgggGg...',
+      '..gGGGGGGGGGg...',
+      '...gGGGGGGGg....',
+      '....ggGGGgg.....',
+      '......gGg.......',
+      '................',
+      '.........g..g...',
+      '........gGg.gGg.',
+      '........gGgggGg.',
+      '........gGGGGGg.',
+      '.........gGGGg..',
+      '..........gGg...',
+      '................',
+      '..p.p..p.p..p.p.',
+    ]],
+  },
+  sigil: {
+    wall: [[
+      '................',
+      '.......y........',
+      '......y.y.......',
+      '.....y...y......',
+      '....y.....y.....',
+      '...y..www..y....',
+      '..y..wWkWw..y...',
+      '.y....www....y..',
+      '.y...........y..',
+      'yyyyyyyyyyyyyyy.',
+      '................',
+      '....y.y.y.y.....',
+      '................',
+      '...y.y.y.y.y....',
+      '................',
+      '................',
+    ]],
+    floor: [[
+      '................',
+      '....nnnnnnnn....',
+      '..nn........nn..',
+      '.n....nnnn....n.',
+      '.n...nn..nn...n.',
+      'n...nn....nn...n',
+      'n..nn......nn..n',
+      'n.nn........nn.n',
+      'n.n..........n.n',
+      'n.nnnnnnnnnnnn.n',
+      'n..............n',
+      '.n............n.',
+      '..nn........nn..',
+      '....nnnnnnnn....',
+      '................',
+      '................',
+    ]],
+  },
+  eyes: {
+    wall: [[
+      '..RR....RR..RR..',
+      '.RwwR..RwwR.RwwR',
+      '.RwkR..RwkR.RwkR',
+      '..RR....RR..RR..',
+      '................',
+      '....RR....RR....',
+      '...RwwR..RwwR...',
+      '...RwkR..RwkR...',
+      '....RR....RR....',
+      '................',
+      '..RR....RR..RR..',
+      '.RwwR..RwwR.RwwR',
+      '.RwkR..RwkR.RwkR',
+      '..RR....RR..RR..',
+      '................',
+      '....r......r....',
+    ]],
+    floor: [[
+      '................',
+      '....RRRR........',
+      '...RwwwwR.......',
+      '...RwkwwR.......',
+      '....RRRR........',
+      '................',
+      '..........RRRR..',
+      '.........RwwwwR.',
+      '.........RwwkwR.',
+      '..........RRRR..',
+      '................',
+      '.....RRRR.......',
+      '....RwwwwR......',
+      '....RwwkwR......',
+      '.....RRRR.......',
+      '................',
+    ]],
+  },
+  gullet: {
+    wall: [[
+      '.E..E..E..E..E..',
+      'EEE.EEE.EEE.EEE.',
+      '.E..E..E..E..E..',
+      '................',
+      'eeeeeeeeeeeeeeee',
+      '................',
+      '..E..E..E..E..E.',
+      '.EEE.EEE.EEE.EEE',
+      '..E..E..E..E..E.',
+      '................',
+      'eeeeeeeeeeeeeeee',
+      '................',
+      '.E..E..E..E..E..',
+      'EEE.EEE.EEE.EEE.',
+      '.E..E..E..E..E..',
+      '................',
+    ]],
+    floor: [[
+      '................',
+      '..eeeeeeeeeee...',
+      '.e...........e..',
+      '................',
+      '....w...........',
+      '...wkw..........',
+      '....w......w....',
+      '..........wkw...',
+      '...........w....',
+      '................',
+      '..eeeeeeeeeee...',
+      '.e...........e..',
+      '................',
+      '.....w..........',
+      '....wkw.........',
+      '.....w..........',
+    ]],
+  },
+  static: {
+    wall: [[
+      'ssss....ssss....',
+      '................',
+      '..WWWW......WWWW',
+      '................',
+      'ssssssss........',
+      '....ssss....ssss',
+      '................',
+      'WW......WWWW....',
+      '................',
+      '....ssssssss....',
+      'ssss............',
+      '................',
+      '..WW....WW..WW..',
+      '................',
+      'ssssssss....ssss',
+      '................',
+    ]],
+    floor: [[
+      '................',
+      '..ss....ss......',
+      '................',
+      '......WW........',
+      '................',
+      'ss..........ss..',
+      '................',
+      '....ss....ss....',
+      '................',
+      '..........WW....',
+      '................',
+      'ss....ss........',
+      '................',
+      '......ss....ss..',
+      '................',
+      '................',
+    ]],
+  },
+};
+
 export const TERRAIN = {
   plain:   { base:'g', grain:'G', mortar:'d', floor:'d', dust:'A',  style:'brick' },
   // 좁은 굴: hacked out rather than built. No courses at all.
@@ -2285,11 +2570,33 @@ export const TERRAIN = {
      벽과 바닥에 같은 r 을 줬더니 대비가 0.99:1 — 벽과 바닥이 한
      덩어리라 어디가 길인지 안 보였다. 벽을 R(상처의 붉은색)로
      올리고 바닥은 마른 피로 내린다. */
-  eyes:    { base:'R', grain:'o', mortar:'r', floor:'r', dust:'r',  style:'rough' },
+  eyes:    { base:'R', grain:'o', mortar:'r', floor:'r', dust:'r',  style:'rough',
+             art: STRANGE_ART.eyes },
   // 뱃속: 삭아 가는 살과 위액. 벽이 이끼빛, 바닥은 마른 피.
-  gullet:  { base:'E', grain:'e', mortar:'r', floor:'r', dust:'e',  style:'streak' },
+  gullet:  { base:'E', grain:'e', mortar:'r', floor:'r', dust:'e',  style:'streak',
+             art: STRANGE_ART.gullet },
   // 지지직: 잘못 그려진 층. 강철빛 잡음이 켜를 끊어 놓는다.
-  static:  { base:'g', grain:'s', mortar:'k', floor:'k', dust:'s',  style:'brick' },
+  static:  { base:'g', grain:'s', mortar:'k', floor:'k', dust:'s',  style:'brick',
+             art: STRANGE_ART.static },
+  /* 팔의 벽: 살과 마른 피. 켜가 없다 — 쌓은 것이 돌이 아니니까. */
+  limbs:   { base:'n', grain:'N', mortar:'r', floor:'r', dust:'D',  style:'rough',
+             art: STRANGE_ART.limbs },
+  /* 얼굴들: 벗겨진 가죽 색. 바닥이 벽보다 밝다 — 널린 쪽이 바닥이다. */
+  /* 얼굴들: 바닥을 살색으로 깔았다가 무대 벤치에 걸렸다 — 바닥 휘도
+     0.65(상한 0.12)이고 벽:바닥이 0.47:1 이라 벽과 바닥이 뒤집혔다.
+     그러면 그 위에 선 몬스터가 배경에 잠긴다(§ 무대는 배우 아래에 있다).
+     바닥은 마른 피로 어둡게 두고, **얼굴가죽은 그림이 그린다** — 규칙을
+     깨는 것은 이물의 그림이지 무대의 명도가 아니다. */
+  faces:   { base:'n', grain:'N', mortar:'k', floor:'r', dust:'N',  style:'rough',
+             art: STRANGE_ART.faces },
+  /* 고대의 천사: 표백된 흰 것에 시든 난초. 켜가 지나치게 반듯하다. */
+  /* 고대의 천사: 벽은 표백된 흰 것으로 두고 바닥은 어둡게 — 그것이
+     눈부시고 그 밑이 그늘이다. 흰 바닥은 배우를 잠기게 한다. */
+  angel:   { base:'W', grain:'P', mortar:'w', floor:'d', dust:'g',  style:'ashlar',
+             art: STRANGE_ART.angel },
+  /* 새겨진 표: 낡은 금이 그어진 검은 돌. 그은 자리만 밝다. */
+  sigil:   { base:'d', grain:'y', mortar:'k', floor:'k', dust:'y',  style:'streak',
+             art: STRANGE_ART.sigil },
 };
 
 /* ── 구역의 열 ────────────────────────────────────────────
@@ -2366,7 +2673,35 @@ function bakeTerrain(kind, variant) {
   const grit = n => { for (let i = 0; i < n; i++)
     x.fillRect((rr() * CELL) | 0, (rr() * CELL) | 0, 1, 1); };
 
-  if (kind === 'wall') {
+  /* ── 이물의 층은 무늬가 아니라 그림이다 ────────────────────
+     플레이어: 「설명만 특이하고 그래픽이 평범하면 그건 그냥 말장난임.
+     실제로 그래픽이 불쾌하고, 구역질나는 디자인이어야 함.」
+
+     맞다. 이음매 무늬(brick·ashlar·streak·rough)에 색만 바꿔 끼우면
+     「팔로 쌓은 벽」이 그냥 갈색 벽돌이다. 그래서 이물의 층은 `art` 에
+     16×16 격자를 직접 들고 있고, 절차적 무늬 대신 그것을 찍는다.
+     `.` 는 바탕을 그대로 두는 칸이다.
+
+     변종(variant)으로 좌우를 뒤집는다 — 같은 그림이 한 줄에 여섯 번
+     이어 붙으면 그건 벽지가 되고, 벽지는 불쾌하지 않다. */
+  const stamp = grid => {
+    for (let row = 0; row < CELL; row++) {
+      const line = grid[Math.min(grid.length - 1, row)] || '';
+      for (let col = 0; col < CELL; col++) {
+        const src = (variant % 2) ? CELL - 1 - col : col;
+        const ch = line[src] || '.';
+        if (ch === '.' || !PALETTE[ch]) continue;
+        x.fillStyle = PALETTE[ch];
+        x.fillRect(col, row, 1, 1);
+      }
+    }
+  };
+  const art = T.art && T.art[kind];
+  if (art) {
+    x.fillStyle = PALETTE[kind === 'wall' ? T.base : T.floor];
+    x.fillRect(0, 0, CELL, CELL);
+    stamp(art[(variant >> 1) % art.length]);
+  } else if (kind === 'wall') {
     x.fillStyle = PALETTE[T.base]; x.fillRect(0, 0, CELL, CELL);
     /* 결은 드물어야 결이다. 일곱 점은 무늬가 아니라 잡음이었다.
        그리고 **묽어야** 결이다 — 확대해서 보니 좁은 굴의 결(#c8955c)이

@@ -4830,7 +4830,30 @@ export function renderRelicSwap() {
   if (!want) { setScreen('play'); return; }
 
   $('relic-lead').textContent = `${want.n} — ${want.t}`;
-  $('relic-sub').textContent = `자리가 다 찼다. 무엇을 버릴까?`;
+  /* ── 한 화면, 두 모양 ────────────────────────────────────
+     바닥에서 밟은 것이고 자리가 남았으면 묻는 것은 「받겠는가」
+     하나다. 자리가 찼으면 아래 목록이 「무엇을 버릴까」로 이어진다.
+     화면을 새로 만들지 않는 이유: 둘은 같은 질문의 두 단계이고,
+     따로 만들면 유물 카드를 그리는 자리가 둘이 된다(§5-2). */
+  const full = (G.player.relics || []).length >= Game.slotCount();
+  $('relic-sub').textContent = full
+    ? '자리가 다 찼다. 무엇을 버릴까?'
+    : '발밑에 있다. 걸겠는가?';
+  const skip = $('relic-skip');
+  if (skip) skip.textContent = G.relicOnFloor ? '두고 간다' : '그대로 둔다';
+  if (!full) {
+    const take = el('button', 'itemrow');
+    const ic = el('canvas', 'icon'); paintIcon(ic, want.spr); take.appendChild(ic);
+    const mid = el('div', 'imid');
+    mid.appendChild(el('span', 'iname magic', want.n));
+    mid.appendChild(el('span', 'idesc', want.t));
+    const ck = crackRow(want.id); if (ck) mid.appendChild(ck);
+    take.appendChild(mid);
+    take.appendChild(el('span', 'iact', '건다'));
+    take.onclick = () => { Game.acceptRelic(); setScreen('play'); refresh(); };
+    list.appendChild(take);
+    return;
+  }
 
   (G.player.relics || []).forEach((id, i) => {
     const r = relicById(id);
@@ -4947,7 +4970,7 @@ export function renderAltar() {
 }
 
 $('altar-leave').onclick = () => { setScreen('play'); refresh(); };
-$('relic-skip').onclick  = () => { Game.swapRelic(-1); setScreen('play'); refresh(); };
+$('relic-skip').onclick  = () => { Game.leaveRelic(); setScreen('play'); refresh(); };
 
 /* ending */
 /* The end of a run should read like an account of it, not like

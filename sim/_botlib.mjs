@@ -1043,7 +1043,18 @@ function runBot(race, cls, clear, opt = {}) {
     }
 
     // A full hand: drop the oldest rather than refuse the new.
-    if (G.screen === 'relic') { Game.swapRelic(0); continue; }
+    /* ── 유물 화면이 두 모양이 됐다 ──────────────────────────
+       유물은 이제 밟는다고 안 먹힌다 — 발밑 버튼이 화면을 띄우고
+       거기서 「건다 / 두고 간다」를 고른다. 자리가 차 있을 때만
+       옛 모양(무엇을 버릴까)이 이어진다.
+       봇은 **받는다.** 「어떤 유물을 고르는가」는 사람의 결정이고
+       봇이 그것을 흉내 내면 재는 것이 게임이 아니라 그 흉내다 —
+       여기서는 「유물이 손에 들어오는 길이 살아 있는가」만 지킨다.
+       안 받게 만들면 유물 벤치 전부가 유물 없는 판을 재게 된다. */
+    if (G.screen === 'relic') {
+      if (Game.acceptRelic && Game.acceptRelic()) continue;
+      Game.swapRelic(0); continue;
+    }
 
     /* The ? room. The bot takes the first affordable option,
        which is a deliberately dumb policy — it means the event

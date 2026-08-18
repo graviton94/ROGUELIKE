@@ -308,6 +308,40 @@ export function takeRelic(id) {
 
 /* Swapping is the whole point of a slot limit: taking the new
    thing has to cost the old thing. */
+/* ── 발밑의 유물을 받는다 ──────────────────────────────────
+   자리가 남았으면 그대로 걸고, 찼으면 무엇을 버릴지 묻는 화면이
+   그대로 이어진다(takeRelic 이 이미 그 문을 갖고 있다).
+   바닥에서 집어 든 것만 바닥에서 지운다 — 사건·제단이 준 것은
+   바닥에 없으므로 지울 것도 없다. */
+export function acceptRelic() {
+  const p = G.player, id = G.pendingRelic;
+  if (!id) return false;
+  const onFloor = G.relicOnFloor;
+  G.relicOnFloor = false;
+  const took = takeRelic(id);
+  if (took && onFloor) {
+    const i = G.items.findIndex(o => o.kind === 'relic' && o.id === id
+      && o.x === p.x && o.y === p.y);
+    if (i >= 0) G.items.splice(i, 1);
+  }
+  /* 자리가 차서 교체 화면이 열렸으면 그쪽이 이어서 묻는다. */
+  if (!took) { G.relicOnFloor = onFloor; return false; }
+  G.pendingRelic = null;
+  return true;
+}
+
+/* 두고 간다. 바닥의 것은 **그대로 둔다** — 되돌아올 수 있어야 결정이다. */
+export function leaveRelic() {
+  const id = G.pendingRelic;
+  if (!id) return;
+  if (G.relicOnFloor) {
+    G.relicOnFloor = false; G.pendingRelic = null;
+    say(`${relicById(id).n}을(를) 두고 간다. 그 자리에 그대로 있다.`, '');
+    return;
+  }
+  swapRelic(-1);
+}
+
 export function swapRelic(dropIdx) {
   const p = G.player, id = G.pendingRelic;
   if (!id) return;
@@ -318,9 +352,27 @@ export function swapRelic(dropIdx) {
        90판 배치에서 한 번 실제로 터졌다. 재현률이 낮다는 것은
        사람 세션에서 먼저 만난다는 뜻이다. */
     if (!gone) { G.pendingRelic = null; G.screen = 'play'; return; }
+    /* ── 버린 것은 발치에 떨어진다 ────────────────────────
+       여태 그냥 사라졌다. 그런데 이 함수의 아래쪽 가지가 이미 그
+       판단을 적어 놨다 — 「거절했을 때 유물이 증발하면 그 화면은
+       선택지가 아니라 함정이 된다」. 버리는 쪽도 똑같다: A를 버리고
+       B를 걸었는데 B가 틀렸으면 A는 영영 없다. 자리 제한의 요점은
+       **결정이 열려 있는 것**이므로 버린 것도 바닥에 남긴다.
+       두고 가기(leaveRelic)와 같은 자리에 떨어지고, 같은 발밑 버튼이
+       다시 묻는다. */
+    const dropped = relicById(p.relics[dropIdx]);
     forgetRelic(p.relics[dropIdx]);
+    G.items.push({ kind:'relic', id: dropped.id, spr: dropped.spr, n: dropped.n,
+                   x: p.x, y: p.y });
     p.relics[dropIdx] = id;
-    say(`${gone.n}을(를) 버리고 ${relicById(id).n}을(를) 걸었다.`, 'level');
+    /* 바닥에서 집어 든 것이면 바닥에서 지운다. 안 지우면 버린 것과
+       집은 것이 같은 칸에 둘 다 놓인다. */
+    if (G.relicOnFloor) {
+      const k = G.items.findIndex(o => o.kind === 'relic' && o.id === id
+        && o.x === p.x && o.y === p.y);
+      if (k >= 0) G.items.splice(k, 1);
+    }
+    say(`${gone.n}을(를) 버리고 ${relicById(id).n}을(를) 걸었다. 버린 것은 발치에 있다.`, 'level');
   } else {
     /* Refused. Put it back on the ground rather than destroying
        it — the whole point of a slot limit is that the decision
@@ -332,6 +384,7 @@ export function swapRelic(dropIdx) {
     say(`${r.n}을(를) 발치에 두었다. 마음이 바뀌면 다시 밟으시오.`);
   }
   G.pendingRelic = null;
+  G.relicOnFloor = false;
   G.screen = 'play';
   recalc(p);
 }
@@ -4600,12 +4653,18 @@ export function hereOffer() {
     const shop = SHOPS.find(s => s.id === shopId);
     if (shop) return { screen:'shop', n: shop.n, shop };
   }
-  /* 전리품 더미도 발밑의 것이다. 타일이 아니라 바닥에 놓인 물건이라
-     따로 묻는다 — 수레와 같은 이유다. */
-  const pile = G.items.find(o => o.kind === 'spoils' && o.x === p.x && o.y === p.y);
+  /* 바닥에 놓인 것 셋도 발밑의 것이다 — 타일이 아니라 물건이라 따로
+     묻는다(수레와 같은 이유). 셋이 같은 모양이므로 찾는 일은 한 줄이다:
+     세 번 쓰면 언젠가 하나만 고쳐진다(§5-2). */
+  const under = k => G.items.find(o => o.kind === k && o.x === p.x && o.y === p.y);
+  const pile = under('spoils');
   if (pile) return { screen:'event', n:'전리품 더미', spoils: pile };
-  const body = G.items.find(o => o.kind === 'fallen' && o.x === p.x && o.y === p.y);
+  const body = under('fallen');
   if (body) return { screen:'event', n:`${body.rec.sent}번째`, fallen: body.rec };
+  /* 유물도 밟는다고 안 먹힌다. 화면은 이미 있는 것을 쓴다(sc-relic) —
+     자리가 남았으면 「건다/두고 간다」, 찼으면 무엇을 버릴지. */
+  const relic = under('relic');
+  if (relic) return { screen:'relic', n: relic.n, relic };
   const t = L.tiles[here];
   if (t === EVENT && !L.eventAt?.has(here)) return null;         // already taken
   const screen = OFFER_SCREEN[t];
@@ -4620,6 +4679,7 @@ export function openHere() {
   if (o.shop) G.shop = o.shop;
   if (o.spoils) G.spoils = { picks: o.spoils.picks };
   if (o.fallen) G.fallen = fallenOffer(o.fallen);
+  if (o.relic) { G.pendingRelic = o.relic.id; G.relicOnFloor = true; }
   G.screen = o.screen;
   return true;
 }
@@ -4905,11 +4965,19 @@ function pickUp() {
     say(`${it.rec.sent}번째 위에 섰다.`, 'warn');
     return;
   }
+  /* ── 유물은 밟는다고 먹지 않는다 ────────────────────────
+     플레이어: 「유물을 아이템이랑 다르게 자동획득이 아닌 획득할것인지
+     묻는 창이 나와야하는거임. 지금은 타일 밟으면 바로 먹어버림.」
+
+     맞고, 이 파일이 이미 그 이유를 바로 위에 적어 놨다 — 전리품
+     더미와 시신은 밟으면 로그만 남기고 **발밑 버튼이 기다린다**.
+     유물만 예외였고, 하필 이 게임에서 가장 무거운 선택이다(자리가
+     4~7칸이고 규칙을 바꾸는 유일한 물건이다).
+
+     두고 간 것은 **그 자리에 남는다.** 되돌아올 수 있어야 결정이고,
+     되돌아오는 값이 기름과 턴이다. */
   if (it.kind === 'relic') {
-    // Leave it lying there if the swap screen is refused, so the
-    // choice can be walked away from and come back to.
-    if (!takeRelic(it.id) && G.screen !== 'relic') return;
-    G.items.splice(i, 1);
+    say(`${it.n} 위에 섰다.`, 'good');
     return;
   }
   /* Gold and keys go nowhere near the pack, so they are always

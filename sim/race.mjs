@@ -44,14 +44,19 @@ const fitOf = (race, cls) =>
 
 /* 3배치 복제. 한 배치로 읽으면 ±1.5층이 그냥 흔들린다 — 실제로 같은
    설정에서 하프트롤이 5.98과 8.36으로 나온 적이 있다. */
+const seen = new Map();
 const depth = (race, cls) => {
+  const key = `${race}/${cls}`;
+  if (seen.has(key)) return seen.get(key);
   const bat = [];
   for (let b = 0; b < B; b++) {
     let s = 0;
     for (let i = 0; i < N; i++) s += runBot(race, cls, i % 2 === 0).depth;
     bat.push(s / N);
   }
-  return { m: bat.reduce((a, x) => a + x, 0) / B, w: Math.max(...bat) - Math.min(...bat) };
+  const out = { m: bat.reduce((a, x) => a + x, 0) / B, w: Math.max(...bat) - Math.min(...bat) };
+  seen.set(key, out);
+  return out;
 };
 
 console.log(`\n종족 벤치 — 고를 만한가 (${B}배치 × ${N}판)\n`);
@@ -68,20 +73,48 @@ for (const r of Object.keys(RACES)) {
     + `${wc} ${wd.m.toFixed(2)}층 (±${wd.w.toFixed(1)})`);
 }
 
-/* ── 판정은 최상 궁합에만 ────────────────────────────────
-   종족을 제대로 고른 판은 서로 비슷해야 한다. 한 종족만 유독 낮으면
-   그건 「어려운 종족」이 아니라 **아무도 안 고를 종족**이다. */
+/* ── 이 자가 종족을 재고 있지 않았다 ─────────────────────
+   최상 궁합끼리의 도달 층을 그냥 빼고 있었다. 그런데 종족마다 최상
+   궁합이 **다른 직업**이고, 직업들끼리 이미 3.4층 벌어져 있다
+   (sim/cls.mjs, 3배치×24판). 하프트롤의 최상은 전사이고 전사가 여섯 중
+   다섯째이므로, 「하프트롤이 낮다」의 절반쯤은 하프트롤이 아니라 전사다.
+   즉 이 뺄셈은 **직업 폭 + 종족 폭**을 재 놓고 종족 폭이라고 불렀다.
+
+   그리고 문턱이 그 위에서 흔들렸다. `max(3.0, 배치폭×1.5)` 였는데
+   배치 폭이 판마다 2.0~3.9로 움직여서 문턱이 3.0~5.85를 오갔다 —
+   같은 나무에서 잰 차이는 4.42 · 4.97 · 5.60으로 거의 안 움직이는데
+   **표본이 조용한 판에서만 벤치가 울었다.** 게임이 아니라 자가 흔들린
+   것이고, 간헐적으로 우는 벤치는 안 우는 것만 못하다(§6-6).
+
+   둘 다 고친다. **인간을 같은 직업으로 같이 굴려서 빼면** 직업이
+   지워진다(인간의 보정은 전부 0이라 그 값이 곧 그 직업의 바닥이다).
+   남는 것이 종족의 몫이고, 문턱은 그 몫에만 건다. 그리고 문턱은
+   표본이 아니라 **배치 폭의 중앙값**에서 뽑는다 — 최댓값 하나는
+   그 자체가 한 번 뽑은 값이라 문턱을 그것에 매달면 문턱도 같이 뛴다. */
 console.log('');
-const ms = best.map(([, , d]) => d.m);
-const lo = Math.min(...ms), hi = Math.max(...ms);
-const worst = best.find(([, , d]) => d.m === lo), top = best.find(([, , d]) => d.m === hi);
-/* 문턱은 배치 폭에서 나온다 — 노이즈보다 작은 차이를 잡으면 벤치가
-   제 그림자를 쫓는다. */
-const noise = Math.max(...best.map(([, , d]) => d.w));
-ok(hi - lo <= Math.max(3.0, noise * 1.5),
-   '제대로 고른 판끼리는 비슷하다 — 최상 궁합으로도 뒤처지는 종족은 아무도 안 고른다',
-   `${top[0]}(${top[1]}) ${hi.toFixed(2)} ↔ ${worst[0]}(${worst[1]}) ${lo.toFixed(2)} · 차 ${(hi - lo).toFixed(2)} · 배치 폭 ${noise.toFixed(1)}`);
-ok(lo >= 5.0, '최상 궁합이면 어느 종족이든 중반까지는 간다', `가장 낮은 ${worst[0]} ${lo.toFixed(2)}층`);
+console.log('  종족        최상 궁합 − 같은 직업의 인간');
+const resid = best.map(([r, c, d]) => {
+  const base = r === 'human' ? d : depth('human', c);
+  return [r, c, d.m - base.m, d.w];
+});
+for (const [r, c, e] of resid)
+  console.log('  ' + r.padEnd(11) + `${c} ${e >= 0 ? '+' : ''}${e.toFixed(2)}층`);
+console.log('');
+const es = resid.map(([, , e]) => e);
+const lo = Math.min(...es), hi = Math.max(...es);
+const worst = resid.find(([, , e]) => e === lo), top = resid.find(([, , e]) => e === hi);
+const ws = best.map(([, , d]) => d.w).sort((a, b) => a - b);
+const noise = ws[ws.length >> 1];
+/* 문턱: 배치 폭 중앙값의 두 배, 최소 3.0. 두 배인 것은 뺄셈에 배치가
+   둘 들어가기 때문이다(종족 하나와 인간 하나). */
+const bar = Math.max(3.0, noise * 2);
+ok(hi - lo <= bar,
+   '직업을 지우고 나면 종족끼리는 비슷하다 — 최상 궁합으로도 뒤처지는 종족은 아무도 안 고른다',
+   `${top[0]} ${hi >= 0 ? '+' : ''}${hi.toFixed(2)} ↔ ${worst[0]} ${lo.toFixed(2)} · 차 ${(hi - lo).toFixed(2)} · 문턱 ${bar.toFixed(1)} (배치 폭 중앙값 ${noise.toFixed(1)})`);
+const lowest = Math.min(...best.map(([, , d]) => d.m));
+const lowestR = best.find(([, , d]) => d.m === lowest);
+ok(lowest >= 5.0, '최상 궁합이면 어느 종족이든 중반까지는 간다',
+   `가장 낮은 ${lowestR[0]}(${lowestR[1]}) ${lowest.toFixed(2)}층`);
 
 console.log(bad ? `\n종족 벤치: ${bad}건 실패\n` : '\n종족 벤치: 여덟 다 고를 만하다\n');
 process.exit(bad ? 1 : 0);

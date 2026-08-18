@@ -448,9 +448,15 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
    items default to min-width:auto) and the d-pad ended up drawn
    over it on narrow or zoomed screens. A grid with an explicit
    first track and min-width:0 on the second cannot overlap. */
+/* ── 한 칸이 됐다 ────────────────────────────────────────
+   방향판이 지도 위로 올라가면서 왼쪽 칸이 비었다. 두 칸을 그대로
+   두면 오른쪽 칸이 여전히 좁고(320px에서 160px), 그 좁은 칸 때문에
+   빠른 슬롯 넷이 2×2로 접혀 91px을 먹는다 — 방향판을 꺼내고도 높이가
+   안 줄어드는 이유가 그것이었다. 한 칸으로 펴면 넷이 한 줄에 들어가고
+   (320px에서 칸마다 70px), 배낭이 아래 네 칸 옆에 붙는다. */
 #controls {
   flex: 0 0 auto;
-  display: grid; grid-template-columns: min(150px, 40vw) minmax(0, 1fr);
+  display: grid; grid-template-columns: minmax(0, 1fr);
   gap: 12px; align-items: start;
   grid-auto-rows: min-content;
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
@@ -462,15 +468,42 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
    column happened to be — so showing "문 닫기" made the buttons
    taller than wide and the arrows, sized in percent, grew with
    them. Its size must not depend on its neighbour at all. */
+/* ── 그리고 이제 격자 밖, 지도 위에 뜬다 ─────────────────────
+   320×568에서 지도가 다섯 줄이었다(390px에서는 열네 줄이다). 조작
+   높이를 전부 재 보니 손가락(44px)보다 작아도 되는 칸이 하나도
+   없었고, 그러면 남은 방법은 **덩어리 하나를 격자에서 꺼내는 것**
+   뿐이다. 방향판이 가장 크다(320px에서 128px, 390px에서 150px).
+
+   겹치는 값을 치르지만 셈이 남는다 — 겹치기 전 지도가 320×116이고
+   겹친 뒤가 320×215에서 왼쪽 아래 132×132를 잃은 것이라, 보이는
+   넓이가 37,120 → 51,376이다. 줄 수는 5 → 10.
+
+   그리고 물러나 있는다: 평소 0.5, 손을 대면 1. 미니맵이 오른쪽 위에서
+   이미 같은 약속을 하고 있으므로 새 규칙이 아니다. 반대쪽 아래 귀퉁이에
+   두는 것은 오른손 엄지가 거기 있기 때문이다. */
 #dpad {
+  position: absolute; left: 8px; bottom: 8px; z-index: 3;
+  /* 3×44 + 사이 둘. 44px은 손가락이고 협상 대상이 아니다 — 폭을
+     132로 잡았더니 칸이 41px였다(사이 4px을 빼는 것을 잊었다.
+     격자에 있을 때가 40px였으니 나빠진 것은 아니지만, 옮기면서
+     고칠 수 있는 것을 안 고친 것이다). 사이를 2로 좁혀서 덮는
+     넓이를 도로 줄인다 — 지도의 27%다. */
+  width: min(136px, 43vw);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
   aspect-ratio: 1;
-  gap: 4px;
-  width: 100%; min-width: 0;
-  align-self: start;
+  gap: 2px;
+  min-width: 0;
+  opacity: .5; transition: opacity .14s linear;
 }
+/* 손이 오면 진해진다. `:active` 하나로는 안 된다 — 누르는 순간에만
+   보이면 「어디를 누를지」를 못 고른다. 포인터가 안에 있는 동안,
+   그리고 키보드 초점이 안에 있는 동안 전부. */
+#dpad:hover, #dpad:active, #dpad:focus-within { opacity: 1; }
+/* 지도가 비쳐야 겹친 값이 절반으로 준다. 칸의 배경만 반투명하게
+   하고 테두리와 화살표는 그대로 둔다 — 흐린 것과 없는 것은 다르다. */
+#dpad button { background: rgba(10, 10, 14, .62); }
 /* No aspect-ratio here: the grid above already hands every cell a
    square, and a second constraint would just fight it. */
 #dpad button { color: var(--G); display: grid; place-items: center;
@@ -489,7 +522,17 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 #dpad button:active { background: var(--g); color: var(--W); }
 #dpad button.wait { color: var(--g); }
 
-#acts { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+/* 줄바꿈하는 가로줄이다. 세로 줄이었을 때는 배낭 한 줄(29px)이
+   통째로 제 줄을 썼는데, 폭이 두 배가 된 지금은 아래 네 칸 옆에
+   붙는다 — 같은 것을 세로로 쌓으면 화면이 두 배로 든다. */
+#acts { min-width: 0; display: flex; flex-flow: row wrap; gap: 5px; align-items: stretch; }
+#acts > .quick { flex: 1 1 100%; }
+/* 배낭 칸의 글자는 「배낭 · 장비」가 아니다 — 무게가 붙으면
+   「배낭 무게 2/20」 열한 자가 된다. 27%로 잡았더니 320px에서
+   84px가 되어 15px 잘렸다. 가장 긴 글자로 잡는다. */
+#acts > button.slim { flex: 0 0 clamp(104px, 35%, 140px); }
+#acts > .pair:not(.quick) { flex: 1 1 0; min-width: 0; }
+#acts > button.offer { flex: 1 1 100%; }
 #acts button { padding: 9px 8px; font-size: 11px; text-align: left;
                min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #acts .pair { display: flex; gap: 5px; }
@@ -668,6 +711,17 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
   #acts .quick canvas { width: 14px; height: 14px; }
   #log { height: 3.6em; padding: 4px 12px; }
   #hud .hudbot { display: none; }
+  /* 계기 셋 사이의 여백. 4px씩 세 번과 위아래 패딩이 12px인데, 그
+     12px이 320px에서 지도 한 줄의 절반이다 — 짧은 화면에서는 줄이
+     여백보다 값이 크다. 계기 자체(15px)와 글자 크기는 안 건드린다. */
+  #hud { padding: 6px 12px 4px; }
+  .hudtop { margin-bottom: 4px; }
+  .gauge { margin-bottom: 2px; }
+  /* 조작줄 안쪽도 같은 이유로 한 칸씩 줄인다. 글자 크기와 44px은
+     안 건드린다 — 줄어드는 것은 여백뿐이다. */
+  #acts { gap: 4px; }
+  #acts > button.offer { padding: 6px 8px; }
+  #controls .spells.wide { gap: 4px; }
   #controls { padding: 7px 10px calc(7px + env(safe-area-inset-bottom)); gap: 8px; }
   #acts { gap: 4px; }
 }
@@ -1133,8 +1187,13 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 
    Sits on the map's bottom edge so it costs no layout height, and
    fades on its own once the turn is old. */
+/* 방향판이 지도 위로 올라오면서 왼쪽 아래가 그쪽 자리가 됐다.
+   이 줄은 z-index 12라 방향판(3) 위에 그려지고 pointer-events 도
+   없으므로 **누르는 것은 멀쩡한데 화살표가 안 보인다** — 가장 나쁜
+   종류의 겹침이다(눌리는데 안 보이면 사람은 안 누른다).
+   방향판 폭만큼 비켜선다. 폭 식은 #dpad 와 같은 것을 쓴다. */
 #tally {
-  position: absolute; left: 0; right: 0; bottom: 0; z-index: 12;
+  position: absolute; left: calc(min(136px, 43vw) + 14px); right: 0; bottom: 0; z-index: 12;
   display: flex; flex-wrap: wrap; gap: 4px; justify-content: center;
   padding: 5px 8px; pointer-events: none;
   background: linear-gradient(to top, rgba(0,0,0,.92), rgba(0,0,0,0));
@@ -1237,17 +1296,22 @@ table.keys td:first-child { width: 40%; color: var(--G); }
    `#acts .pair button { flex: 1 1 0 }`이 같은 우선순위로 덮어써서
    아무것도 안 변했다 — 미디어 쿼리는 우선순위를 올려 주지 않는다. */
 @media (max-width: 360px) {
-  #acts .quick { flex-wrap: wrap; gap: 3px; }
-  /* 그리고 높이를 깎는다. 접기만 했더니 줄이 하나 늘어 320px에서
-     지도가 43%→35%로 내려갔고(칸 벤치 문턱 36%), 손가락을 얻자고
-     무대를 판 셈이 됐다. 두 줄이 한 줄 반쯤 되게 눌러서 둘 다 가진다. */
-  /* ── 그리고 그 「눌러서」가 17px 이 됐다 ────────────────
+  /* ── 2×2였다 ──────────────────────────────────────────
+     좁은 화면에서 이 줄은 오른쪽 칸(160px)에 갇혀 있었고, 넷을
+     한 줄에 놓으면 칸이 40px라 손가락보다 좁았다. 그래서 접었고,
+     접은 값이 91px였다 — 방향판(128px)보다 큰 덩어리가 그 칸에
+     들어앉아 조작줄 높이를 혼자 정하고 있었다.
+     방향판이 지도 위로 올라가면서 이 줄의 폭이 296px가 됐다.
+     넷이 한 줄에 들어가고 칸마다 70px다. 접을 이유가 없어졌다. */
+  #acts .quick { flex-wrap: nowrap; gap: 4px; }
+  /* ── 접었을 때 그 「눌러서」가 17px 이 됐던 자리 ────────────
      주석은 「2×2면 한 칸이 다시 70px대」라고 적었는데, 70px대가 된
      것은 **폭**(92.5)뿐이고 높이는 padding 1px + font 8.5px 때문에
      17px 로 주저앉았다. 바로 옆 방향 버튼이 45.3px 인데, 그 옆에서
      체력 1일 때 눌러야 하는 회복 물약이 17px 였다. 폭만 재고 높이를
-     안 잰 것이다. 44px 은 협상 대상이 아니다. */
-  #acts .quick button { flex: 1 1 44%; min-height: 44px; padding: 6px 4px; font-size: 10px; }
+     안 잰 것이다. 44px 은 협상 대상이 아니다 — 한 줄이 된 뒤에도
+     그대로 건다. */
+  #acts .quick button { flex: 1 1 0; min-height: 44px; padding: 6px 4px; font-size: 10px; }
   #acts .quick canvas { width: 16px; height: 16px; }
   /* 기예 줄은 #acts 밖(격자 위)에 있다 — `#acts .spells` 로 잡으면
      아무것도 안 걸린다. 실제로 그렇게 써 놓고 19px 을 그대로 뒀다. */

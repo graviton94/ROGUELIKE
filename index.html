@@ -220,6 +220,31 @@
          never going to fit in the same channel. Inside the map so
          it costs no layout height. -->
     <div id="tally" hidden></div>
+    <!-- ── 방향판은 지도 위에 뜬다 ────────────────────────────
+         320×568에서 지도가 화면의 20%, **다섯 줄**이었다. 위아래로
+         두 칸씩 보이는 로그라이크는 앞을 못 본다(390px에서는 열네
+         줄이다 — 같은 게임이 아니다). 높이를 다 재 보니 남는 자리가
+         없었다: HUD 103 · 로그 40 · 조작 309 중에 손가락보다 작아도
+         되는 것이 하나도 없다.
+
+         그래서 가장 큰 덩어리를 격자에서 꺼내 지도 위에 얹는다.
+         겹치는 것은 값이지만, 겹치기 전의 지도(320×116)보다 겹친
+         뒤의 지도가 **보이는 넓이로도 더 크다** — 116×320=37,120 →
+         215×320−132×132=51,376. 줄 수는 5 → 10.
+         가려지는 것이 왼쪽 아래 한 귀퉁이이고, 미니맵이 이미 오른쪽
+         위에서 같은 약속을 하고 있다. 손을 대면 진해지고 떼면
+         물러난다. -->
+    <div id="dpad">
+      <button data-dir="-1,-1" aria-label="북서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.9 5.9 L21.9 14.3 L14.1 14.1 L14.3 21.9 Z"/></svg></button>
+      <button data-dir="0,-1" aria-label="북"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4 L17.4 20.6 L12 14.9 L6.6 20.6 Z"/></svg></button>
+      <button data-dir="1,-1" aria-label="북동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.1 5.9 L9.7 21.9 L9.9 14.1 L2.1 14.3 Z"/></svg></button>
+      <button data-dir="-1,0" aria-label="서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 12 L20.6 6.6 L14.9 12 L20.6 17.4 Z"/></svg></button>
+      <button data-dir="0,0" class="wait" aria-label="대기"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.4"/></svg></button>
+      <button data-dir="1,0" aria-label="동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 12 L3.4 17.4 L9.1 12 L3.4 6.6 Z"/></svg></button>
+      <button data-dir="-1,1" aria-label="남서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.9 18.1 L14.3 2.1 L14.1 9.9 L21.9 9.7 Z"/></svg></button>
+      <button data-dir="0,1" aria-label="남"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.6 L6.6 3.4 L12 9.1 L17.4 3.4 Z"/></svg></button>
+      <button data-dir="1,1" aria-label="남동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.1 18.1 L2.1 9.7 L9.9 9.9 L9.7 2.1 Z"/></svg></button>
+    </div>
   </div>
 
   <div id="log" aria-live="polite"></div>
@@ -232,17 +257,6 @@
          아니라 줄을 격자에서 꺼내는 것뿐이다. -->
     <div class="pair spells wide" id="art-row" hidden></div>
     <div class="pair spells wide" id="spell-row" hidden></div>
-    <div id="dpad">
-      <button data-dir="-1,-1" aria-label="북서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.9 5.9 L21.9 14.3 L14.1 14.1 L14.3 21.9 Z"/></svg></button>
-      <button data-dir="0,-1" aria-label="북"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4 L17.4 20.6 L12 14.9 L6.6 20.6 Z"/></svg></button>
-      <button data-dir="1,-1" aria-label="북동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.1 5.9 L9.7 21.9 L9.9 14.1 L2.1 14.3 Z"/></svg></button>
-      <button data-dir="-1,0" aria-label="서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 12 L20.6 6.6 L14.9 12 L20.6 17.4 Z"/></svg></button>
-      <button data-dir="0,0" class="wait" aria-label="대기"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.4"/></svg></button>
-      <button data-dir="1,0" aria-label="동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 12 L3.4 17.4 L9.1 12 L3.4 6.6 Z"/></svg></button>
-      <button data-dir="-1,1" aria-label="남서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.9 18.1 L14.3 2.1 L14.1 9.9 L21.9 9.7 Z"/></svg></button>
-      <button data-dir="0,1" aria-label="남"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.6 L6.6 3.4 L12 9.1 L17.4 3.4 Z"/></svg></button>
-      <button data-dir="1,1" aria-label="남동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.1 18.1 L2.1 9.7 L9.9 9.9 L9.7 2.1 Z"/></svg></button>
-    </div>
     <div id="acts">
       <div class="pair quick" id="quick-row"></div>
       <!-- 기술과 주문을 갈랐다. 한 줄에 몰아넣었더니 팔라딘처럼 둘 다
@@ -595,10 +609,14 @@
       <tr><td>아이템</td><td>밟으면 자동으로 주움</td></tr>
       <tr><td>몬스터</td><td>부딪치면 공격</td></tr>
       <tr><td>키보드</td><td>방향키 · hjkl · yubn (누르고 있으면 연속 이동)</td></tr>
-      <tr><td>빠른 칸 4개</td><td>d-pad 오른쪽 맨 윗줄. <b>회복 · 강화 · 탈출 · 불</b> 역할이 배낭에서 자동으로 채워집니다.
+      <tr><td>방향판</td><td><b>지도 위에 떠 있습니다</b> — 왼쪽 아래 귀퉁이. 손을 대면 진해지고 떼면 물러납니다.
+        지도가 화면의 20%(<b>다섯 줄</b>)까지 줄어 있었고, 방향판을 지도 위로 올려서 <b>열 줄</b>이 됐습니다.<br>
+        지도 자체도 조작판입니다 — <b>밀면</b> 그 방향으로 계속 걷고, <b>먼 곳을 누르면</b> 길을 찾아가고,
+        <b>꾹 누르면</b> 그 칸에 무엇이 있는지 읽습니다. 방향판은 한 칸씩 정확히 밟고 싶을 때 씁니다.</td></tr>
+      <tr><td>빠른 칸 4개</td><td>기술·주문 줄 아래 한 줄. <b>회복 · 강화 · 탈출 · 불</b> 역할이 배낭에서 자동으로 채워집니다.
         기름이 120 아래로 내려가면 <b>불</b> 칸에 주황 테두리가 켜집니다.
         한 번 누르면 바로 씁니다. 미확인 물건은 자동으로 올라오지 않습니다 — 도박은 당신이 해야 합니다.</td></tr>
-      <tr><td>기술·주문 줄</td><td>빠른 칸 바로 아래. 기예 줄과 주문 줄이 갈라져 있고,
+      <tr><td>기술·주문 줄</td><td>조작줄 맨 위. 기예 줄과 주문 줄이 갈라져 있고,
         둘을 합쳐 <b>여덟 칸이 늘 같은 자리</b>에 있습니다(아래 「여덟 칸」). 아직 못 배운 것은 레벨만 적힌 빈 칸으로 남습니다.
         한 번 누르면 바로 시전합니다. 어두우면 마나가 모자라거나 <b>쏠 대상이 없다</b>는 뜻입니다 —
         대상이 없을 때는 눌러도 마나가 나가지 않습니다.</td></tr>

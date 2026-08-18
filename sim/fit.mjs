@@ -172,11 +172,29 @@ for (const s of SIZES) {
   /* 넘침만 재고 「지도가 얼마나 남았는가」는 안 쟀다. 320px에서
      지도가 화면의 29%였는데도 이 벤치는 초록이었다 — 넘치지는
      않았으니까. 넘치지 않는 것과 놀 수 있는 것은 다르다. */
+  /* ── 몫이 아니라 줄로 묻는다 ────────────────────────────
+     0.42를 네 기기에 똑같이 걸고 있었다. 그런데 조작 화면의 높이는
+     **화면 크기와 거의 무관하게 고정**이다 — 계기 셋, 로그, 기예 넷,
+     주문 넷, 빠른 칸 넷, 행동 다섯. 320×568에서 실측한 값이
+     HUD 91 + 로그 40 + 조작 221 = 352px이고, 그중 손가락(44px)보다
+     작아도 되는 칸이 하나도 없다. 그러면 남는 것은 216px = 38%이고,
+     42%(239px)를 만들려면 **줄 하나를 지워야** 한다.
+     즉 이 자는 배치가 아니라 화면 크기를 재고 있었다.
+
+     사람이 실제로 겪는 것은 몫이 아니라 **몇 줄이 보이는가**다.
+     다섯 줄이면 위아래로 두 칸이라 붙기 전에 못 보고(고치기 전이
+     그랬다), 아홉 줄이면 네 칸 밖에서 본다. 그래서 줄로 건다.
+     몫은 그대로 찍되, 문턱은 화면이 그 몫을 담을 수 있을 때만
+     — 640px 이상 — 건다. */
   if (out.stage) {
     const pct = Math.round(out.stage.share * 100);
-    const okShare = out.stage.share >= 0.42;
-    console.log(`  ${okShare ? '·' : '✗'} 지도가 화면의 ${pct}% · 보이는 칸 ${out.stage.cols}×${out.stage.rows}`);
-    if (!okShare) bad++;
+    const wantShare = s.h >= 640 ? 0.42 : 0;
+    const okRows = out.stage.rows >= 9;
+    const okShare = out.stage.share >= wantShare;
+    console.log(`  ${okRows && okShare ? '·' : '✗'} 지도가 화면의 ${pct}%`
+      + `${wantShare ? ` (문턱 ${Math.round(wantShare * 100)}%)` : ' (문턱 없음 — 줄로 본다)'}`
+      + ` · 보이는 칸 ${out.stage.cols}×${out.stage.rows}줄`);
+    if (!okRows || !okShare) bad++;
   }
   for (const h of [...new Set(out.holes || [])].slice(0, 3)) {
     console.log(`  ✗ 글에 구멍 — 「${h}」`); bad++;

@@ -96,7 +96,25 @@ const BASE = {
      걸린 장수가 정확히 47이면 기존 그림은 한 장도 안 나빠진 것이다. */
   fillOver:      84,     // 채움 > 140 인 스프라이트 수 (아이콘 47장 포함)
   fillWorst:    254,     // 칸을 통째로 채운 것 — 실루엣이 없다는 뜻
-  /* 122 → 128. 유물 여섯을 새로 그려서다. 그림이 나빠져서가 아니라는
+  /* ── 이 칸을 두 번 올려 적고 나서 자를 고쳤다 ────────────────
+     122 → 128(유물 여섯) → 132(유물 넷). 두 번 다 모양을 재는 세 값이
+     한 칸도 안 움직였고, 두 번 다 「그림을 더 그렸다」는 이유였다.
+     세 번째로 올려 적을 자리가 오면 그건 이 칸이 재는 것이 잘못된
+     것이다 — 아이콘을 한 장 그릴 때마다 회귀로 찍히는 자는 「아이콘을
+     그리지 마라」고 말하고 있다.
+
+     그래서 아이콘을 따로 센다. 아이콘 가족은 **전부 8줄이고**, 지켜야
+     하는 것은 개수가 아니라 **가족이 섞이지 않는 것**이다: 절반만
+     16줄로 다시 그려 두면 배낭 안에서 획 굵기가 두 종류로 보인다.
+     그러니 아이콘 쪽은 「전부 8줄이거나 전부 16줄」을 단언하고
+     (fauxIconsUniform), 아래 fauxEight 는 **아이콘을 뺀** 나머지를
+     센다. 그러면 이 칸은 다시 몬스터·사물의 빚만 말한다.
+
+     아이콘을 뺀 값은 **75**다(132 − 아이콘 57). 처음에 82로 적었는데,
+     은총 여섯(`b_`)이 아이콘 정규식(`^[ru]_`)에 안 걸려서 나머지 쪽에
+     남는다는 것을 빼먹었다. 값은 세어서 적는다. */
+  fauxEight:     75,     // 아이콘을 뺀 「실질 8×8」 — 몬스터·사물의 빚
+  /* 옛 기록. 122 → 128 → 132 로 오른 것은 전부 아이콘을 더 그려서였다. 그림이 나빠져서가 아니라는
      것은 이 파일이 스스로 정한 방법으로 판정했다 — 모양을 재는 세 값이
      한 칸도 안 움직였다 (iconPairsOver 46=46 · fillOver 84=84 ·
      fillWorst 254=254). 즉 새 여섯은 기존 실루엣과 더 닮지도, 더 뚱뚱하지도
@@ -111,8 +129,7 @@ const BASE = {
      다시 그리면 쉰셋이 한꺼번에 이 목록에서 빠진다(122 → 69). 여섯만
      16줄로 그리면 이 칸은 안 오르지만 획 굵기가 이웃과 달라져 배낭 안에서
      여섯만 유독 가늘게 보인다 — 그건 자를 맞추려고 그림을 어긋내는 것이다.
-     그래서 가족을 맞추고 이 칸을 올린다. 되갚을 자리는 NEXT.md 에 적었다. */
-  fauxEight:    128,     // 16줄 주소를 쓰면서 2×2 덩어리뿐인 「실질 8×8」
+     그래서 가족을 맞추고 이 칸을 올렸다. 되갚을 자리는 NEXT.md 에 적었다. */
 };
 
 const port = process.env.PORT || 8199;
@@ -214,8 +231,9 @@ const r = await pg.evaluate(async ({ NEAR }) => {
       }
     if (blocky) faux.push(n);
   }
-  return { CELL, monPairs, propPairs, iconPairs, fills, faux,
-           mon: mon.length, props: props.length, icons: icons.length };
+  const fauxIcon = faux.filter(n => icons.includes(n));
+  return { CELL, monPairs, propPairs, iconPairs, fills, faux, fauxIcon,
+           mon: mon.length, props: props.length, icons: icons.length, iconNames: icons };
 }, { NEAR });
 
 const f3 = v => v.toFixed(3);
@@ -248,9 +266,15 @@ for (const f of fillOver.slice(0, 20))
   console.log(`   ✘ ${f.n.padEnd(12)} ${String(f.v).padStart(3)}/256  ${(f.v * 100 / 256).toFixed(0)}%`);
 if (fillOver.length > 20) console.log(`   … 그리고 ${fillOver.length - 20}장 더`);
 
+const fauxRest = r.faux.filter(n => !r.iconNames.includes(n));
 console.log(`\n━━ 참고  16줄 주소를 쓰는 실질 8×8 ━━`);
-console.log(`   ${r.faux.length}장  (기준선 ${BASE.fauxEight})`);
-console.log(`   ${r.faux.join(' ')}`);
+console.log(`   아이콘을 뺀 ${fauxRest.length}장  (기준선 ${BASE.fauxEight})`);
+console.log(`   ${fauxRest.join(' ')}`);
+/* 아이콘 가족은 개수가 아니라 **섞이지 않는가**를 본다. 전부 8줄이거나
+   전부 16줄이어야 하고, 절반만 다시 그려 두면 배낭에서 획 굵기가 두
+   종류로 보인다. 그래서 이쪽은 기준선이 아니라 등식이다. */
+console.log(`   아이콘 ${r.icons}장 중 8줄 ${r.fauxIcon.length}장`
+  + (r.fauxIcon.length === r.icons || r.fauxIcon.length === 0 ? '  — 가족이 안 섞였다' : '  ✘ 섞였다'));
 
 const now = {
   iconPairsOver: iconOver.length,
@@ -260,7 +284,7 @@ const now = {
   propWorst: +f3(r.propPairs[0]?.v || 0),
   fillOver: fillOver.length,
   fillWorst: r.fills[0]?.v || 0,
-  fauxEight: r.faux.length,
+  fauxEight: fauxRest.length,
 };
 
 if (process.argv.includes('--print')) {
@@ -270,6 +294,9 @@ if (process.argv.includes('--print')) {
 
 /* ── 단언: 기준선보다 나빠지지 않는다 ─────────────────────── */
 const bad = [];
+if (r.fauxIcon.length !== r.icons && r.fauxIcon.length !== 0)
+  bad.push(`아이콘 가족이 섞였다 — ${r.icons}장 중 ${r.fauxIcon.length}장만 8줄이다`
+    + ` (${r.iconNames.filter(n => !r.fauxIcon.includes(n)).join(' ')} 가 16줄)`);
 for (const k of Object.keys(BASE))
   if (now[k] > BASE[k]) bad.push(`${k}  ${BASE[k]} → ${now[k]}  (나빠졌다)`);
 const better = Object.keys(BASE).filter(k => now[k] < BASE[k]);

@@ -47,7 +47,7 @@ import {
   SURGE_MULT, SURGE_DRY, SURGE_MIN, WARD_TURNS, ECHO_PUSH,
   FLURRY_MAX, FLURRY_STEP, FLURRY_STAM, MARK_STEP, MARK_MAX,
   AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE, VOLLEY_MARKED, SMOKE_RADIUS, SMOKE_TURNS,
-  QUIVERS, quiverById, BOW_MELEE, BOW_FALLOFF, GEAR_SLOTS,
+  QUIVERS, quiverById, BOW_MELEE, BOW_FALLOFF, FAR_SHOT, GEAR_SLOTS,
   FORCE_STAM, FORCE_HURT, FORCE_NOISE, PICK_USES, CHEST_RUIN, RANGER_FOOTING,
   SANCTUM_TURNS, SANCTUM_CUT,
   ANATHEMA_MORE, JUDGE_HURT, MARTYR_TURNS,
@@ -1058,6 +1058,15 @@ export function poolGain(n = 1, why = '') {
     fx({ t:'poolGain', x:p.x, y:p.y, at:p.stam, why, cls:p.cls });
     if (p.stam === p.maxStam && was < p.maxStam)
       say(`${poolName(p.cls)}이(가) 가득 찼다.`, 'good');
+    /* 신앙과 맹세를 센다. 통은 하나지만 **이름이 직업마다 다르고**,
+       장부가 세는 것은 통이 아니라 그 이름이다.
+
+       처음에 신앙만 `faithGain` 에서 셌다가 물렸다: 사제의 통은 그
+       문으로만 차는 게 아니라 `POOL.priest` 의 onHurt·onHard·시계로도
+       차므로, 판당 6밖에 안 세어졌고(맹세는 229) 배치 폭이 그 6보다
+       컸다. 두 이름 다 통이 차는 **한 자리**에서 센다. */
+    if (p.cls === 'priest')  ledger('faith', got);
+    if (p.cls === 'paladin') ledger('oath', got);
     crusadeAnswer(got);
   }
   return got;
@@ -5540,6 +5549,10 @@ function loose(m, scale = 1, opt = {}) {
   // hurtMonster narrates off opt.weapon; saying it here too printed
   // every shot twice, once as an arrow and once as a shove.
   hurtMonster(m, dmg, null, { weapon:'arrow', shot:true, burst: a.burst || 0 });
+  /* 거리를 센다. 활은 누구나 들 수 있으므로 이 동사는 궁수 전용이 아니고,
+     궁수가 **압도**할 뿐이다 — 배타적인 동사와 압도하는 동사를 섞어 두는
+     편이 낫다. 셋을 문턱으로 잡은 것은 두 칸이 「곁」의 연장이기 때문이다. */
+  if (dist >= FAR_SHOT) ledger('far');
   if (a.on && G.monsters.includes(m) && Math.random() < 0.6) poisonMonster(m, a.on);
   /* 미늘 화살촉. Not poison and not damage — the head stays in,
      and the thing wearing it arrives a turn later than it meant
@@ -5722,7 +5735,8 @@ function swing(m, scale, opt = {}) {
     if (c && p.hp < p.maxhp * 0.25) scale = (scale ?? 1) * (1 + c);
   }
   const forced = (p.cls === 'warrior' && (m.chain || 0) >= 3) || !!opt.forceCrit;
-  if (forced && !opt.forceCrit) { m.chain = 0; say('세 번째 손 — 급소가 열렸다.', 'level'); }
+  if (forced && !opt.forceCrit) { m.chain = 0; say('세 번째 손 — 급소가 열렸다.', 'level');
+    ledger('third'); }         // 전사만 지나가는 문 — 장부에 그 이름이 없었다
   const crit = asleep || forced
     || Math.random() < critChance(p) + (kind === 'dagger' ? 0.08 : 0);
   if (crit) {

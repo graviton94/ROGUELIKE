@@ -151,11 +151,28 @@ console.log('\n── 축');
    하나다(위 §골격이 사다리를 보고, 이 줄이 역할과 내용이 맞는지 본다). */
 {
   const byId = Object.fromEntries(D.ARTS.priest.map(a => [a.id, a]));
-  ok(byId.stigma.role === 'signature' && byId.word.role === 'cover',
-     '사제 — 공격 칸에 공격이, 상쇄 칸에 시간을 사는 것이 앉아 있다',
-     `성흔 ${byId.stigma.role}(lv${byId.stigma.lv}) · 말씀 ${byId.word.role}(lv${byId.word.lv})`);
-  ok(/피해는 없다/.test(byId.word.desc) && !/피해는 없다/.test(byId.stigma.desc),
-     '사제 — 그 판단의 근거가 설명문에 그대로 있다', '말씀만 피해가 없다');
+  ok(byId.stigma.role === 'signature' && byId.penance.role === 'cover',
+     '사제 — 공격 칸에 공격이, 상쇄 칸에 둘러싸였을 때의 답이 앉아 있다',
+     `성흔 ${byId.stigma.role}(lv${byId.stigma.lv}) · 참회 ${byId.penance.role}(lv${byId.penance.lv})`);
+  /* ── 넷 중 몇이 피해를 내는가 ────────────────────────────
+     「피해는 없다」가 말씀의 설계였고 이 줄이 그것을 지켰다. 그런데
+     그 설계 때문에 이 직업은 피해를 내는 기예가 **되갚기 하나**였다 —
+     §4의 1번과 2번이 둘 다 공격이므로 그건 표를 어긴 것이었다.
+     성흔이 새기면서 때리게 되고 말씀이 참회로 바뀌면서 셋이 됐다.
+     지금 무는 것은 그 수다: 넷 중 셋이 피해를 내고, 하나(순교)는
+     안 낸다. 넷이 다 공격이면 그건 상쇄 칸이 없는 것이고, 하나뿐이면
+     이 회차 이전으로 돌아간 것이다. */
+  const hits = ['repay', 'stigma', 'penance'].filter(id => byId[id]);
+  ok(hits.length === 3 && !byId.martyr.desc.includes('피해'),
+     '사제 — 넷 중 셋이 피해를 낸다 (되갚기 · 성흔 · 참회), 궁극기는 버틴다',
+     hits.map(id => byId[id].name).join(' · '));
+  /* 참회가 상쇄인 근거: 곁을 때린다. 이 직업이 죽는 모양이
+     「둘러싸여」이므로 상쇄가 곁에 있어야 한다. */
+  ok(/곁에 있는 모든 것/.test(byId.penance.desc),
+     '사제 — 상쇄가 **곁**을 본다 (이 직업이 죽는 자리다)', byId.penance.desc.slice(0, 22) + '…');
+  ok(!D.ARTS.priest.some(a => a.id === 'word'),
+     '말씀은 없어졌다 — 네 칸짜리 원거리 통제는 둘러싸인 뒤에는 늦는다',
+     D.ARTS.priest.map(a => a.short).join(' '));
 }
 
 /* ── 팔라딘 — 「맞아서 시작하고, 죽여서 굴러간다」 ───────────
@@ -285,7 +302,8 @@ console.log('\n── 조작법 화면');
   /* 잘려 나간 것들. 이름을 목록으로 박아 두는 이유: 「지금 표에 없는
      모든 한국어」를 검사할 수는 없고, 이 저장소가 실제로 죽인 것들이
      되살아나는 것만 막으면 된다. 새로 죽일 때 한 줄 더한다. */
-  const ghosts = ['성역', '파문', '심판(', '성스러운 폭풍', '칼부채', '버티기', '휩쓸기', '이중 시전'];
+  const ghosts = ['성역', '파문', '심판(', '성스러운 폭풍', '칼부채', '버티기', '휩쓸기', '이중 시전',
+                  '지형 파악', '말씀'];
   const found = ghosts.filter(n => html.includes(n));
   ok(!found.length, '잘려 나간 기예의 이름이 화면에 없다 — 없는 버튼을 소개하는 설명은 버그다',
      found.length ? `유령: ${found.join(', ')}` : `${ghosts.length}개 다 없다`);

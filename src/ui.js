@@ -1110,10 +1110,13 @@ const SPELL_ICONS = {
   storm:    [bladering,                               'y'],
   crusade:  [march,                                   'W'],
   /* 사제의 셋이 바뀌었다. 셋 다 「받은 것을 돌려준다」의 다른 얼굴이라
-     모양도 그 방향을 쓴다 — 되갚기는 돌려주는 손(palm), 말씀은
-     퍼지는 소리(rays), 성흔은 지워지지 않는 표(strikeOut). */
+     모양도 그 방향을 쓴다 — 되갚기는 돌려주는 손(palm), 참회는
+     퍼지는 것(rays), 성흔은 지워지지 않는 표(strikeOut). */
   repay:    [palm,                                    'y'],
-  word:     [rays,                                    'W'],
+  /* 말씀(rays)이 있던 자리. 참회도 나를 중심으로 밖으로 가는 것이라
+     같은 모양을 쓴다 — 다른 것은 닿는 거리이고, 그건 아이콘이 아니라
+     값이 말한다. */
+  penance:  [rays,                                    'W'],
   stigma:   [strikeOut,                               'R'],
   martyr:   [kneel,                                   'R'],
   aimed:    [(c, x, y, r) => crosshair(c, x, y, r),   'E'],
@@ -1135,7 +1138,10 @@ const SPELL_ICONS = {
   blink:  [zigzag,                                    'B'],
   detect: [eye,                                       'y'],
   frost:  [flake,                                     'B'],
-  map:    [(c, x, y, r) => grid(c, x, y, r * 0.86),   'G'],
+  /* 지도(grid)가 있던 자리. 장벽은 **닫힌 고리** 하나다 — 이 주문이
+     하는 일이 「둘레를 봉한다」이고, 안이 비어 있는 것은 갇힌 쪽이
+     계속 쏠 수 있다는 뜻이다. */
+  ward:   [ring,                                      'B'],
   surge:  [starburst,                                 'p'],
   cure:   [(c, x, y, r) => plus(c, x, y, r * 0.82),   'W'],
   heal:   [plus,                                      'W'],

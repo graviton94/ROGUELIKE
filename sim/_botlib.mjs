@@ -204,7 +204,7 @@ function runBot(race, cls, clear, opt = {}) {
   }
   Game.descend();
   const st = { crits: 0, sneaks: 0, kills: 0, misses: 0, camps: 0, elites: 0, named: 0, shops: 0, broke: 0, events: 0, rolls: 0, branch: {},
-               heals: 0, healMiss: 0, healDry: 0, surges: 0, slips: 0, senses: 0 };
+               heals: 0, healMiss: 0, healDry: 0, surges: 0, slips: 0, senses: 0, wards: 0 };
   let path = null, guard = 0, depthAt = G.depth, lastShout = -99, holdUntil = -1;
   const hist = [];
   let traded = false;   // one visit per floor; the bot has no other reason to stop
@@ -562,9 +562,13 @@ function runBot(race, cls, clear, opt = {}) {
           && p.hp < p.maxhp * 0.3 && adjA.length >= 1)
         { useArtCounted('martyr'); continue; }
 
-      const word = art('word');
-      if (canPray(word) && adjA.length >= 2 && p.hp < p.maxhp * 0.6)
-        { useArtCounted('word'); continue; }
+      /* 말씀이 있던 자리. 저것은 네 칸 안을 두 턴 멈추는 것이라 문턱이
+         「몰렸고 다쳤을 때」였는데, 참회는 **곁을 때리고 한 턴 꿇린다**.
+         피해가 붙었으므로 다친 정도를 물을 이유가 없어졌다 — 둘 이상이
+         붙어 있으면 그 자체로 값을 한다. 규칙이 바뀌었는데 정책을 안
+         고치면 재는 것은 새 규칙이 아니라 옛 습관이다. */
+      const penance = art('penance');
+      if (canPray(penance) && adjA.length >= 2) { useArtCounted('penance'); continue; }
 
       /* 문턱이 「셋 이상 보일 때」였다. 그때 이 기예는 표식만 붙였으므로
          값이 전부 번짐에 있었고, 번지려면 여럿이어야 했다. 이제 새기는
@@ -846,6 +850,24 @@ function runBot(race, cls, clear, opt = {}) {
          걷는다. 실측으로 마력 화살이 24판에 한 번도 안 나갔다(주문
          프레임 벤치가 그걸 잡았다: 판에서 나간 주문이 「치유」뿐).
          폭주는 방을 지우는 주문이므로 **방이 있을 때** 쓴다. */
+      /* ── 마력 장벽 (마법사) ─────────────────────────────────
+         지형 파악이 있던 자리이고, 그 주문에는 정책이 없었다(정보를
+         읽는 주문이라 봇에게 값이 없었으니까). 이쪽은 값이 있으므로
+         정책이 없으면 「아무도 안 누르는 칸」으로 측정된다.
+
+         규칙과 같은 술어로 쓴다: 고리를 봉하는 것이므로 **아직 안
+         붙었을 때**만 값을 한다 — 이미 둘러싸인 뒤에 누르면 그 둘은
+         안에 갇힌 채로 계속 때린다. 그리고 다가오는 것이 있어야
+         막을 것이 있다. 즉 「붙은 것은 하나 이하인데 오는 것이 여럿」
+         일 때다. 그 판단이 이 주문의 전부이므로 봇도 그 판단을 해야
+         재는 것이 주문이 된다. */
+      const ward = has('ward');
+      if (afford(ward) && !(p.ward >= G.turn)
+          && adj.length <= 1 && visible.length >= 2
+          && visible.filter(m => m.awake && m.door !== 'smash').length >= 2) {
+        castCounted('주문:장벽', ward.id); st.wards++; continue;
+      }
+
       const surge = has('surge');
       if (afford(surge) && visible.length >= 3 && p.hp > p.maxhp * 0.55
           && p.mana >= p.maxmana * 0.9) {

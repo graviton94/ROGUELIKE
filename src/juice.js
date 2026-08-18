@@ -336,6 +336,27 @@ function stepInFx(e) {
    갈래 하나로 얹으면서 기준선 네 줄을 다 넘겼다. 얹은 것보다 조금 더
    뺀다: 기준선을 올리려면 이유를 적어야 하고, 여기서 댈 이유는 「기예를
    하나 더했다」뿐이라 그건 이유가 아니다. */
+/* 마력 장벽. 고리 하나가 서고 **머문다** — 다섯 턴짜리 상태이므로
+   한 번 번쩍이고 마는 그림이면 「지금 서 있는가」를 화면이 말하지
+   않는다. 그래서 고리를 겹으로 세 개 깔아 남기고, 이미 안에 갇힌
+   것이 있으면 그 수를 적는다(늦게 누른 판에서 이 주문이 안 통했다고
+   읽히면 안 된다). 깨질 때는 붉게 한 번. */
+function wardFx(e) {
+  for (let i = 0; i < 3; i++)
+    ring(e.x, e.y, 1.5 + i * 0.22, PALETTE.B, 900 + i * 260);
+  number(e.x, e.y - 1.0, e.n ? `봉했다 · 안에 ${e.n}` : '봉했다', PALETTE.B, 1.2);
+  freeze = Math.max(freeze, 90);
+  buzz([20, 40, 20]); sfx.warn();
+}
+function wardBreakFx(e) {
+  ring(e.x, e.y, 1.6, PALETTE.R, 380);
+  burstShards(e.x, e.y, [PALETTE.B, PALETTE.R, PALETTE.W], 22, 1.5);
+  number(e.x, e.y - 1.0, '깨졌다', PALETTE.R, 1.3);
+  flashScreen = Math.max(flashScreen, 0.26); flashHue = 'R';
+  shake = Math.max(shake, 0.46);
+  buzz([44, 20, 44]); sfx.crit();
+}
+
 /* 십자. 고리가 아니라 **네 개의 선**이다 — 고리를 하나 더 그리면
    서리 폭발·말씀·연막과 같은 그림이 되고, 이 기예가 방을 상대하는
    방식이 원이 아니라 십자라는 것이 화면에서 사라진다. 팔이 멀수록
@@ -596,12 +617,16 @@ function priestFx(e) {
     buzz([50, 30, 60]); sfx.crit();
     return;
   }
-  if (e.t === 'word') {
-    /* 피해가 없는 유일한 기예라 파편도 없다 — 소리가 퍼지고 멈춘다. */
-    for (let i = 0; i < 3; i++)
-      ring(e.x, e.y, (e.r || 4) * (0.5 + i * 0.28), PALETTE.W, 380 + i * 140);
-    number(e.x, e.y - 0.8, '멈춰라', PALETTE.W, 1.25);
-    freeze = Math.max(freeze, 120);
+  if (e.t === 'penance') {
+    /* 말씀이 있던 자리. 저것은 소리가 퍼지고 멈추는 그림이라 파편이
+       없었는데, 이쪽은 곁을 때리므로 파편이 있다 — 그리고 고리는
+       한 칸까지만 간다. 보이는 것이 곧 닿는 곳이어야 한다. */
+    for (let i = 0; i < 2; i++)
+      ring(e.x, e.y, 1.0 + i * 0.5, PALETTE.W, 340 + i * 140);
+    burstShards(e.x, e.y, [PALETTE.W, PALETTE.y, PALETTE.R], 16, 1.2);
+    number(e.x, e.y - 0.8, e.n ? `무릎 ${e.n}` : '무릎', PALETTE.W, 1.25);
+    freeze = Math.max(freeze, 110);
+    shake = Math.max(shake, 0.34);
     buzz([30, 60, 30]); sfx.warn();
     return;
   }
@@ -1239,8 +1264,8 @@ export function pump(queue, player) {
       /* ── 사제의 셋 ─────────────────────────────────────
          전부 「받은 것을 돌려준다」의 다른 얼굴이라, 셋 다 **되돌아
          오는 방향**을 그린다: 되갚기는 나에게서 저쪽으로 한 줄,
-         말씀은 나를 중심으로 밖으로, 성흔은 표적에서 곁으로. */
-      case 'repay': case 'word': case 'stigma': case 'stigmaBurst':
+         참회는 나를 중심으로 곁으로, 성흔은 표적에서 곁으로. */
+      case 'repay': case 'penance': case 'stigma': case 'stigmaBurst':
         priestFx(e); break;
       case 'arcana': case 'deathZoom': case 'crack': case 'vanishOut':
       case 'brace': case 'kite': case 'bulwark':
@@ -1332,14 +1357,11 @@ export function pump(queue, player) {
         ring(e.x, e.y, 0.9, PALETTE.y, 260);
         break;
 
-      case 'crusade':
-        ring(e.x, e.y, 2.2, PALETTE.W, 460);
-        flashScreen = Math.max(flashScreen, 0.24); flashHue = 'W';
-        break;
-
       /* crusadeCut 이 있던 자리. 행진하며 베던 기예가 상태가 됐고,
          그다음 십자가 됐다 — 그림은 crusadeCrossFx 에 있다. */
       case 'crusadeCross': crusadeCrossFx(e); break;
+      case 'ward': wardFx(e); break;
+      case 'wardBreak': wardBreakFx(e); break;
 
       /* 신전에서 떨어져 나가는 것. Upward and pale — the one
          effect in the game that is a subtraction. */

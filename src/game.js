@@ -20,7 +20,8 @@ import {
   ALTAR_OFFERS, rarityOf, isCursed, RARITY, TEMPLE_SHARE, JACKPOT,
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   BUILD, SAVE_FORMAT,
-  REPAY_SHARE, REPAY_CAP, REPAY_FLOOR, AWE_RANGE, AWE_TURNS,
+  REPAY_SHARE, REPAY_CAP, REPAY_FLOOR,
+  PENANCE_SHARE, PENANCE_FLOOR, PENANCE_CAP, PENANCE_KNEEL,
   CRUSADE_ARM, CRUSADE_FALL,
   STIGMA_TURNS, STIGMA_SPLASH, STIGMA_RANGE, STIGMA_HIT,
   RELICS, RELIC_SLOTS, relicSlots, relicById, crackOf, crackSaid, crackNeed, CRACK_LEFT, BRANCHES,
@@ -43,7 +44,7 @@ import {
   POOL, poolName, HARD_HIT, POOL_UNDEAD,
   VANISH_MULT, VANISH_PUSH,
   ECHOES, ECHO_TURNS, ECHO_POWER, ECHO_SPLASH,
-  SURGE_MULT, SURGE_DRY, SURGE_MIN,
+  SURGE_MULT, SURGE_DRY, SURGE_MIN, WARD_TURNS, ECHO_PUSH,
   FLURRY_MAX, FLURRY_STEP, FLURRY_STAM, MARK_STEP, MARK_MAX,
   AIMED_GAIN, PIERCE_KEEP, SNARE_TURNS, VOLLEY_SHARE, VOLLEY_MARKED, SMOKE_RADIUS, SMOKE_TURNS,
   QUIVERS, quiverById, BOW_MELEE, BOW_FALLOFF, GEAR_SLOTS,
@@ -2142,7 +2143,10 @@ function teleport() {
 /* 숨 끊기는 붙은 것을 찌른다 — 손이 닿는 곳에 아무것도 없으면 줄이
    식어 있어야 한다. 새 기예를 여기 안 넣으면 「눌리는데 안 나가는
    버튼」이 하나 늘고, 봇은 거기서 돈다. */
-const ART_NEEDS_BODY = ['shove', 'cleave', 'finisher', 'vitals', 'judgest', 'storm', 'repay', 'hush'];
+const ART_NEEDS_BODY = ['shove', 'cleave', 'finisher', 'vitals', 'judgest', 'storm', 'repay', 'hush',
+                        /* 참회도 곁을 때린다 — 말씀은 네 칸이라 여기
+                           없었지만 이쪽은 붙어 있어야 나간다. */
+                        'penance'];
 
 /* 궁수의 물러서기. 뒤로 갈 수 있는 만큼 가고, 지나온 칸에 붙어 있던
    것을 돌려준다 — 「물러나는 일이 곧 공격」이라는 이 기예의 전부다. */
@@ -2612,7 +2616,10 @@ export function useArt(id) {
          손이 사는 것이다. */
       p.crusade = CRUSADE_TURNS;
       p.crusadeLeft = CRUSADE_HITS;
-      fx({ t:'crusade', x:p.x, y:p.y });
+      /* 별도의 `crusade` 프레임이 여기 있었다. 십자가 제 프레임을
+         갖게 되면서 한 번 누르는 데 그림이 둘이 됐고, 둘은 같은
+         자리에 같은 흰 고리를 그렸다 — 겹쳐 그리면 무게가 두 배로
+         읽히지 선명해지지 않는다. 십자 하나로 남긴다. */
       say('한 번 시작한 것은 끝날 때까지 멈추지 않는다.', 'level');
       crusadeCross('성전');
       break;
@@ -2651,23 +2658,34 @@ export function useArt(id) {
       hurtMonster(m, blow, '되갚기', { pierce: true });
       break;
     }
-    case 'word': {
-      /* 피해가 없는 유일한 공격 기예. 사제가 몰렸을 때 필요한 것은
-         한 대 더가 아니라 **한 턴**이다 — 물약을 마시거나, 되갚기를
-         모으거나, 문을 닫을 한 턴. */
-      const heard = G.monsters.filter(o => !o.disguise
-        && Math.hypot(o.x - p.x, o.y - p.y) <= AWE_RANGE
-        && G.level.vis[idx(o.x, o.y)]);
-      if (!heard.length) { say('들을 것이 없다.', 'warn'); break; }
-      for (const o of heard) {
-        /* 보스는 안 멈춘다 — 멈추면 그 싸움이 없어진다. */
-        if (o.boss) continue;
-        o.energy = -AWE_TURNS;
+    case 'penance': {
+      /* 말씀이 있던 자리(네 칸 안을 두 턴 멈추는, 피해 없는 기예).
+         이 직업이 죽는 모양이 「둘러싸여」이므로 상쇄를 **곁에서** 한다.
+         멈추는 일은 남았고(한 턴), 거기에 피해가 붙었다.
+
+         위력은 되갚기와 **같은 통**을 읽되 비우지 않는다 — 비우면 둘이
+         하나가 되고, 그러면 둘 중 하나는 영영 안 눌린다. 몫이 작은
+         대신(0.30) 여럿에게 가고 상한도 낮다(평타 1.6배). */
+      const near2 = adjacentMonsters(p);
+      if (!near2.length) { say('곁에 아무것도 없다.', 'warn'); break; }
+      const swing = baseSwing(p);
+      const each = Math.max(2, Math.min(
+        Math.round(swing * PENANCE_CAP),
+        Math.max(Math.round(swing * PENANCE_FLOOR),
+                 Math.round((p.tookPool || 0) * PENANCE_SHARE))));
+      fx({ t:'penance', x:p.x, y:p.y, n:near2.length, each });
+      for (const o of [...near2]) {
         o.awake = true;
-        o.awed = AWE_TURNS;
+        hurtMonster(o, each, '참회', { pierce: true });
+        /* 무릎. 밀치기·서리와 같은 지렛대(음수 에너지)를 쓴다 —
+           새 「멈춤」을 발명하면 이 게임에 멈춤이 두 종류가 된다.
+           보스는 안 꿇는다: 꿇리면 그 싸움이 없어진다. */
+        if (!o.boss && G.monsters.includes(o)) {
+          o.energy = -PENANCE_KNEEL;
+          o.awed = PENANCE_KNEEL;
+        }
       }
-      fx({ t:'word', x:p.x, y:p.y, r:AWE_RANGE, n:heard.length });
-      say(`말이 떨어지자 ${count(heard.length)}이 멈춰 섰다.`, 'level');
+      say(`${count(near2.length)}이 무릎을 꿇었다 — 하나하나에게 ${each}.`, 'level');
       break;
     }
     case 'stigma': {
@@ -2817,11 +2835,13 @@ export function cast(spellId) {
      what counts as a target and 자취 changes whether this cast
      ends the turn — both of which the guards below depend on. */
   const echo = p.cls === 'mage' ? liveEcho(p) : null;
-  const reach = echo?.id === 'reach';
 
-  /* 지형 makes the floor the room: a spell may reach what you know
-     is down there rather than only what you can see from here. */
-  const visible = G.monsters.filter(m => reach || G.level.vis[idx(m.x, m.y)]);
+  /* 지형(reach)이 여기 있었다 — 층 전체를 방으로 삼는 잔향. 지형 파악이
+     장벽으로 바뀌면서 그 잔향을 남기는 주문이 하나도 없어졌고, 그러면
+     이 가지는 「있는데 절대 참이 되지 않는 조건」이 된다. 그런 가지는
+     읽는 사람에게 거짓말을 하고, 언젠가 그 거짓말 위에서 값이 정해진다.
+     지웠다. 보이는 것이 곧 사정거리다. */
+  const visible = G.monsters.filter(m => G.level.vis[idx(m.x, m.y)]);
   const nearest = visible.sort((a, b) =>
     Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
 
@@ -2857,6 +2877,13 @@ export function cast(spellId) {
      move. Negative energy is the same lever 밀쳐내기 uses, so a new
      trait cannot invent a second kind of "stunned". */
   const rime = m => { if (echo?.id === 'rime' && G.monsters.includes(m)) m.energy = -1; };
+  /* 벽's afterimage: 맞은 것이 뒤로 밀린다. 이미 있는 밀치기를 쓴다 —
+     새 「밀림」을 발명하면 벽에 처박히는 처리와 문 처리가 두 벌이 된다.
+     서리(rime)와 같은 모양의 닫힘이라, 부르는 자리도 같다. */
+  const shove = m => {
+    if (echo?.id !== 'push' || !G.monsters.includes(m)) return;
+    shoveBack(m, Math.sign(m.x - p.x), Math.sign(m.y - p.y), ECHO_PUSH);
+  };
   /* 눈's afterimage: everything else in the room takes half, rolled
      off the damage the spell actually dealt. */
   const splash = (from, dmg, label) => {
@@ -2867,7 +2894,7 @@ export function cast(spellId) {
       const d = Math.max(1, Math.round(dmg * ECHO_SPLASH));
       fx({ t:'beam', fx:p.x, fy:p.y, tx:o.x, ty:o.y, color:'W' });
       hurtMonster(o, d, label, { weapon: 'spell' });
-      rime(o); n++;
+      rime(o); shove(o); n++;
     }
     if (n) say(`눈이 열려 있다 — ${n}에게도 닿았다.`, 'level');
   };
@@ -2914,7 +2941,7 @@ export function cast(spellId) {
       fx({ t:'beam', fx:p.x, fy:p.y, tx:nearest.x, ty:nearest.y, color:'P' });
       hurtMonster(nearest, dmg, '마력 화살', { weapon: 'spell' });
       spellDrain(aff, dmg);
-      rime(nearest);
+      rime(nearest); shove(nearest);
       splash(nearest, dmg, '마력 화살');
       // 메아리치는: half of it carries to a second target.
       // 울림의 은총 does the same thing without needing the affix,
@@ -3049,22 +3076,27 @@ export function cast(spellId) {
       break;
     }
     case 'frost': {
-      /* 지형's afterimage turns the burst into the floor. Frost is
-         the only spell whose reach is a radius, so it is the one
-         that feels the difference. */
       let n = 0;
-      const r = reach ? 999 : 5;
-      fx({ t:'burst', x:p.x, y:p.y, r: reach ? 10 : 5, color:'B' });
+      fx({ t:'burst', x:p.x, y:p.y, r: 5, color:'B' });
       for (const m of [...visible])
-        if (Math.hypot(m.x - p.x, m.y - p.y) <= r) {
+        if (Math.hypot(m.x - p.x, m.y - p.y) <= 5) {
           const d = Math.max(1, Math.round((roll(3, 8) + p.lv) * pow));
           hurtMonster(m, d, '서리', { weapon: 'spell' }); spellDrain(aff, d);
-          rime(m); n++;
+          rime(m); shove(m); n++;
         }
-      say(n ? (reach ? '층 전체의 공기가 얼어붙는다.' : '주변 공기가 얼어붙는다.')
-            : '얼릴 것이 없다.', n ? 'good' : ''); break;
+      say(n ? '주변 공기가 얼어붙는다.' : '얼릴 것이 없다.', n ? 'good' : ''); break;
     }
-    case 'map': revealMap(); say('층의 구조가 머릿속에 그려진다.', 'good'); break;
+    case 'ward': {
+      p.ward = G.turn + WARD_TURNS;
+      /* 지금 안에 있는 것을 세어서 말한다. 「봉했다」만 적으면 늦게
+         누른 판에서 플레이어는 이 주문이 안 통했다고 읽는다 — 안에
+         셋이 있으면 그 셋은 그대로 때린다는 것이 이 주문의 값이다. */
+      const inside = adjacentMonsters(p).length;
+      fx({ t:'ward', x:p.x, y:p.y, turns:WARD_TURNS, n:inside });
+      say(inside ? `주위가 봉해졌다 — 다만 ${count(inside)}은(는) 이미 안에 있다.`
+                 : '주위가 봉해졌다. 다섯 턴 동안 아무것도 들어오지 못한다.', 'level');
+      break;
+    }
     /* 태운 것이 그대로 피해다. `cost` 는 위에서 통 전체였고 이미
        빠져나갔으므로, 여기서 다시 읽으면 0이다 — 뺀 값을 들고 온다. */
     case 'surge': {
@@ -3078,12 +3110,12 @@ export function cast(spellId) {
          실측으로 마나 36으로 쏘고 41로 끝났다 — 값을 안 치른 궁극기.
          그을음을 먼저 붙이면 그 문이 닫힌 채로 레벨업이 지나간다. */
       p.seared = G.turn + SURGE_DRY;
-      fx({ t:'burst', x:p.x, y:p.y, r: reach ? 12 : 7, color:'P' });
+      fx({ t:'burst', x:p.x, y:p.y, r: 7, color:'P' });
       for (const m of [...visible]) {
         if (!G.monsters.includes(m) || m.disguise) continue;
         hurtMonster(m, each, '비전 폭주', { weapon: 'spell' });
         spellDrain(aff, each);
-        rime(m); n++;
+        rime(m); shove(m); n++;
       }
       say(n ? `마나 ${cost}가 전부 탔다 — ${count(n)}에게 ${each}씩. 그리고 통이 그을렸다.`
             : `마나 ${cost}가 전부 탔다. 그리고 통이 그을렸다.`, 'level');
@@ -7519,6 +7551,35 @@ function wardedOff(m) {
   return Math.hypot(m.x - s2.x, m.y - s2.y) <= 1.5;
 }
 
+/* ── 마력 장벽 ─────────────────────────────────────────────
+   성역(위)과 같은 모양이다: 벽이 아니라 결계이고, 걷는 자리 하나에서만
+   묻는다. 다른 곳에 같은 검사를 두면 언젠가 갈린다(§5-2).
+
+   봉하는 것은 **고리**다 — 마법사의 곁 여덟 칸으로 들어오는 걸음만
+   막는다. 그래서 이미 안에 있는 것은 그대로 있고 그대로 때린다. 늦게
+   누르면 값을 못 한다는 뜻이고, 그 판단이 이 주문의 전부다.
+
+   부수는 것들(door:'smash' — 오우거·트롤·용·거인)은 지나가고, 지나가면
+   **장벽이 깨진다.** 문과 같은 약속이다: 이 게임은 「오우거와 트롤은
+   부순다」를 이미 가르쳤으므로 여기서 새로 배울 것이 없다. */
+export const wardUp = (p = G.player) => (p?.ward || 0) >= G.turn;
+function wardBars(m, nx, ny) {
+  const p = G.player;
+  if (!wardUp(p)) return false;
+  /* 들어오는 걸음만 본다. 나가는 걸음도 막으면 그건 감옥이고, 안에
+     갇힌 것이 물러설 수도 없게 되면 이 주문이 순수한 이득이 된다. */
+  const into = Math.max(Math.abs(nx - p.x), Math.abs(ny - p.y)) <= 1;
+  const already = Math.max(Math.abs(m.x - p.x), Math.abs(m.y - p.y)) <= 1;
+  if (!into || already) return false;
+  if (m.door === 'smash') {
+    p.ward = 0;
+    say(`${m.n}이(가) 장벽을 부수고 들어왔다.`, 'bad');
+    fx({ t:'wardBreak', x:p.x, y:p.y });
+    return false;
+  }
+  return true;
+}
+
 function advance(m, sx, sy) {
   const p = G.player, L = G.level;
   /* 박힌 것은 걷지 않는다. 여기 한 줄로 막는다 — 몬스터가 걷는
@@ -7531,6 +7592,7 @@ function advance(m, sx, sy) {
     const nx = m.x + a, ny = m.y + b;
     if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) return false;
     if (monsterAt(nx, ny) || (nx === p.x && ny === p.y)) return false;
+    if (wardBars(m, nx, ny)) return false;
 
     const t = L.tiles[idx(nx, ny)];
     if (isShut(t)) {

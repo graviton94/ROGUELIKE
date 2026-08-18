@@ -59,7 +59,7 @@ const BASE = {
   over30: 24,      // 복잡도 30 초과 — 「유지보수 불가」 구간 (94afede 실측)
   over15: 67,      // 복잡도 15 초과 — 「버그가 숨는」 구간 (94afede 실측)
   worst: 167,      // 최악값 (juice.js의 pump — 사제 셋을 한 문 뒤로 밀어 169에서)
-  longest: 835,    // 가장 긴 함수의 줄 수 (같은 pump — 십자 그림을 crusadeCrossFx 로 빼내 837에서)
+  longest: 832,    // 가장 긴 함수의 줄 수 (같은 pump — 겹쳐 그리던 crusade 프레임을 지워 835에서)
 };
 
 const FILES = ['src/game.js', 'src/ui.js', 'src/world.js', 'src/juice.js'];

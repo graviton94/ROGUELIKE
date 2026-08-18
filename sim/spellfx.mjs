@@ -34,7 +34,9 @@ console.log('\n주문 프레임 벤치 — 열이 다르게 보이는가\n');
 /* ── ① 규칙 쪽: 시전이 프레임을 띄우는가 ────────────────── */
 const Game = await import('../src/game.js');
 const CAST = {
-  mage:   ['blink', 'detect', 'frost', 'map'],
+  /* 지도가 여기 있었다. 정보를 읽는 칸이 둘일 이유가 없어서 장벽으로
+     바뀌었고(sim/mage.mjs 가 그 규칙을 문다), 그림도 새로 생겼다. */
+  mage:   ['blink', 'detect', 'frost', 'ward'],
   /* 축복이 여기 있었다. §4의 여덟 칸을 채우면서 잘려 나갔고(사제는
      아홉 칸이었다), 그 자리에 물러서는 기도가 왔다 — 이동 갈래가
      직업마다 다르므로 사제 것도 따로 본다. */
@@ -100,7 +102,7 @@ const thrown = await pg.evaluate(async () => {
   const p = G.player, out = [];
   /* 없는 id 와 없는 realm 도 넣는다 — 주문을 하나 새로 만드는 사람이
      프레임을 안 붙였을 때 화면이 멈추면 안 된다. */
-  const ids = ['bolt', 'smite', 'frost', 'blink', 'detect', 'map',
+  const ids = ['bolt', 'smite', 'frost', 'blink', 'detect', 'map', 'ward',
                'cure', 'heal', 'surge', '아직없는주문'];
   for (const id of ids) for (const realm of ['arcane', 'divine', null]) {
     for (const aura of [null, { plus: 5, marks: ['venom'], relics: ['grudge'],

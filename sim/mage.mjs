@@ -54,6 +54,106 @@ console.log('\n── 마법사의 여덟 칸');
      맨 위가 가운데 있으면 손이 그것을 못 찾는다. */
   ok(list[list.length - 1].id === 'surge', '궁극기가 줄의 마지막이다 — 사다리의 맨 위는 끝에 있어야 손이 찾는다',
      list.map(s => s.short).join(' '));
+  /* ── 줄의 순서와 **사다리**는 다르다 ──────────────────────
+     위 줄은 목록의 순서만 봤다(선언 순서). 그래서 지형 파악이 13레벨,
+     비전 폭주가 12레벨이던 동안에도 이 절은 초록이었다 — 손이 마지막에
+     배우는 것은 궁극기가 아니라 지도였는데. 「마지막에 있다」와
+     「마지막에 배운다」는 다른 문장이고, 사람이 겪는 것은 뒤쪽이다.
+     레벨로도 묻는다. */
+  const top = Math.max(...list.map(s => s.lv));
+  ok(list.find(s => s.id === 'surge').lv === top,
+     '궁극기를 **가장 늦게** 배운다 — 사다리의 마지막 칸이 편의 주문이면 여덟이 무엇을 향해 오르는지가 흐려진다',
+     list.slice().sort((a, b) => a.lv - b.lv).map(s => `${s.short}${s.lv}`).join(' '));
+  /* 정보를 읽는 칸이 둘이면 하나는 남는 칸이다. 감지는 §4의 유틸 4라
+     고정이므로, 여기서 무는 것은 「그 옆에 또 층을 읽는 것이 있는가」다. */
+  const readers = list.filter(s => s.mimic || s.wake || s.traps || s.keepMark || s.id === 'map');
+  ok(readers.length === 1, '층을 읽는 칸이 하나다 — 둘이면 하나는 남는 칸이다',
+     readers.map(s => s.name).join(' · ') || '없음');
+}
+
+/* ═══ 1.5 마력 장벽 ═══════════════════════════════════════
+   지형 파악이 있던 자리. 정보를 읽는 칸이 둘일 이유가 없어서 바꿨고,
+   바꾼 것이 규칙이므로 **규칙으로 잰다.** 무는 것은 셋이다:
+
+   ① 바깥의 것이 못 들어온다
+   ② **이미 안에 있는 것은 그대로다** — 이게 이 주문의 값이고, 늦게
+      누르면 값을 못 한다는 뜻이다. 안 걸면 「누르면 안전해진다」로
+      슬며시 바뀌어도 아무도 안 운다
+   ③ 부수는 것(door:'smash')은 지나가고, 지나가면 **깨진다** —
+      문과 같은 약속이다
+
+   마을에서 못 잰다(몬스터가 없다). 실제 층에서, 손으로 세워 놓고
+   `advance` 를 직접 돌린다 — 규칙 한 자리를 무는 것이므로 판 전체를
+   굴릴 이유가 없다. */
+console.log('\n── 마력 장벽');
+{
+  Meta.forget();
+  runBot('human', 'mage', false);           // 층 하나를 만들어 둔다
+  Game.startGame('human', 'mage', Game.rollStats('mage'));
+  Game.descend();
+  const p = G.player;
+  p.lv = 12; Game.recalc(p); p.mana = p.maxmana;
+
+  /* 손으로 셋을 세운다: 바깥의 평범한 것 · 안에 이미 있는 것 ·
+     바깥의 부수는 것. 자리는 마법사 기준으로 잡는다. */
+  const free = (x, y) => !G.level.solid(x, y) && !G.monsters.some(m => m.x === x && m.y === y)
+                         && !(x === p.x && y === p.y);
+  /* 자리를 손으로 박지 않는다. 층은 매번 다르게 생기고, 「위로 두 칸」이
+     벽인 판에서 이 벤치는 게임이 아니라 지형을 잰다 — 처음에 그렇게
+     써서 「벽에 막혀 못 세웠다」로 실패했다. 고리 안팎에서 **비어 있는
+     칸을 찾아서** 세운다. */
+  const findAt = (cheb) => {
+    for (let dy = -cheb; dy <= cheb; dy++) for (let dx = -cheb; dx <= cheb; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== cheb) continue;
+      if (free(p.x + dx, p.y + dy)) return { x: p.x + dx, y: p.y + dy };
+    }
+    return null;
+  };
+  const mk = (cheb, door) => {
+    const at = findAt(cheb);
+    if (!at) return null;
+    const m = { n:'시험체', spr:'rat', x:at.x, y:at.y, hp:99, maxhp:99, atk:1, ac:1, xp:1,
+                awake:true, energy:0, ai:'hunt', spd:1, door };
+    G.monsters.push(m);
+    return m;
+  };
+  /* 셋을 **한꺼번에** 세우고 한 번에 재려 했더니, 시전이 턴을 끝내므로
+     그 턴에 부수는 것이 걸어 들어와 장벽을 깨 버렸다 — 그리고 「누르면
+     선다」가 실패로 찍혔다. 규칙은 멀쩡했고 벤치가 세 가지를 같은 턴에
+     물은 것이다. 하나씩 세운다. */
+  const inside = mk(1);
+  ok(!!inside, '장벽을 잴 자리를 만들었다 — 고리 안에 하나',
+     inside ? `(${inside.x},${inside.y})` : '벽에 막혀 못 세웠다');
+  if (inside) {
+    Game.cast('ward');
+    ok(Game.wardUp(p), '누르면 장벽이 선다', `${p.ward - G.turn + 1}턴 남음`);
+    ok(Math.max(Math.abs(inside.x - p.x), Math.abs(inside.y - p.y)) <= 1,
+       '**안에 있던 것은 그대로 안에 있다** — 늦게 누르면 값을 못 한다는 뜻이다',
+       `(${inside.x},${inside.y})`);
+
+    /* 이제 바깥에 하나. 마법사는 안 죽어야 한다(안에 하나가 있으므로) —
+       재는 것은 걸음이지 생존이 아니다. */
+    p.maxhp = 99999; p.hp = 99999;
+    const outside = mk(2);
+    ok(!!outside, '   바깥에도 하나 세웠다', outside ? `(${outside.x},${outside.y})` : '못 세웠다');
+    if (outside) {
+      const was = `${outside.x},${outside.y}`;
+      for (let i = 0; i < 4 && G.running && Game.wardUp(p); i++) { p.hp = 99999; Game.step(0, 0); }
+      ok(Math.max(Math.abs(outside.x - p.x), Math.abs(outside.y - p.y)) > 1,
+         '바깥의 것이 못 들어온다',
+         `(${was}) → (${outside.x},${outside.y}) · 마법사 (${p.x},${p.y})`);
+    }
+
+    /* 그리고 부수는 것. 장벽이 아직 서 있어야 이 줄이 무언가를 잰다. */
+    p.ward = G.turn + D.WARD_TURNS;
+    const smasher = mk(2, 'smash');
+    ok(!!smasher, '   부수는 것도 세웠다', smasher ? `(${smasher.x},${smasher.y})` : '못 세웠다');
+    if (smasher) {
+      for (let i = 0; i < 8 && G.running && Game.wardUp(p); i++) { p.hp = 99999; Game.step(0, 0); }
+      ok(!Game.wardUp(p), '부수는 것이 지나가면 장벽이 깨진다 — 문과 같은 약속이다',
+         Game.wardUp(p) ? '아직 서 있다' : '깨졌다');
+    }
+  }
 }
 
 /* ═══ 2. 소스 — 마나가 들어오는 문이 하나인가 ══════════════ */

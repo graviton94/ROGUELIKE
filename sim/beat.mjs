@@ -92,9 +92,9 @@ const r = await pg.evaluate(async () => {
                             하나만 틀려도 판 중에 화면이 멈추고, 규칙 벤치는
                             그것을 영영 못 본다. 새 프레임을 하나 만들면
                             여기 이름을 한 줄 더한다. */
-                         for (const t of ['crusadeCross', 'crusade', 'judgest', 'stigma',
-                                          'stigmaBurst', 'martyr', 'word', 'repay',
-                                          '아직없는프레임'])
+                         for (const t of ['crusadeCross', 'ward', 'wardBreak', 'judgest',
+                                          'stigma', 'stigmaBurst', 'martyr', 'penance',
+                                          'repay', '아직없는프레임'])
                            for (const e of [{ t, x: 3, y: 3, tx: 6, ty: 4, r: 4, n: 2, turns: 5 },
                                             { t, x: 3, y: 3 },
                                             { t, x: NaN, y: 3, r: 0, n: 0 }])

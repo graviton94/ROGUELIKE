@@ -168,6 +168,82 @@ console.log('\n── 손의 문법 (겹침 · 갚음 · 겹친 대가)');
      deadBond.length ? deadBond.join(' ') : Object.keys(D.BONDS).map(k => `${D.BONDS[k].n} ${cnt[k]}`).join(' · '));
 }
 
+/* ═══ 5. 무조건 좋은 유물은 없다 ══════════════════════════
+   플레이어: 「특정 직업한테는 완전 무가치라서 버리는 것도 직업별,
+   종족별로 다 다른거임. 무조건 좋은게 아니야.」
+
+   240칸(유물 40 × 직업 6)을 손으로 적지 않는다. `give`/`take` 어휘의
+   **무게**만 알면 값이 나오고, 그 무게는 66칸이다
+   (`sim/_words.json` — 3배치×20판, 몫으로 정규화해서 여섯이 똑같으면
+   1.00, 한 직업이 다 가져가면 6.00).
+
+       값(직업) = give 무게 − take 무게
+
+   그리고 「무조건 좋은 게 아니다」는 **그 값이 직업마다 달라야 한다**로
+   적힌다. 폭이 0이면 여섯이 같은 유물을 든 것이다.
+
+   ── 사분면으로 걸었다가 0/40이 나왔다 ────────────────────
+   처음에 「도박(선물도 크고 대가도 아프다)인 직업 하나, 버린다인
+   직업 하나」로 걸었더니 **0/40**이었다. 문턱이 틀린 것이 아니라
+   조건이 두 어휘에 **동시에** 높기를 요구했는데, 어휘들은 서로
+   반대로 가는 편이다(손이 높은 직업은 몸이 낮다). 피의 계약은
+   전사의 도박이 맞는데 몸 1.14가 문턱 1.15에 0.01 모자랐다.
+   폭으로 묻는다 — 같은 것을 재면서 자가 흔들리지 않는다.
+
+   ── 그리고 아홉 개는 구조적으로 폭이 0이다 ────────────────
+   주는 어휘와 가져가는 어휘가 **같으면** 값이 모든 직업에서 정확히
+   0이다(쌍둥이 룬 혀/혀 · 무모함의 인장 손/손 · 매듭 밧줄 발/발 …).
+   그건 자의 결함이 아니라 그 유물의 성질이다: 혀를 주고 혀를 가져가는
+   거래는 마법사에게도 전사에게도 같은 거래다. **유물을 직업별로
+   만들려면 주는 어휘와 가져가는 어휘가 달라야 한다** — 이 아홉이
+   순서 4에서 손볼 목록이고, 이 절이 그 목록을 인쇄한다. */
+console.log('\n── 무조건 좋은 유물은 없는가');
+{
+  const W = JSON.parse(readFileSync(new URL('./_words.json', import.meta.url), 'utf8'));
+  const KOC = { warrior:'전사', rogue:'도적', ranger:'궁수', mage:'마법사', priest:'사제', paladin:'팔라딘' };
+  /* 와일드카드는 여섯 어휘의 평균이다 — 전부를 건드리므로. */
+  const wt = (word, cls) => {
+    if (!word) return { m: 0, w: 0 };
+    if (word === '*') {
+      const all = W.word.map(w => W.per[w][cls]);
+      return { m: all.reduce((a, v) => a + v.m, 0) / all.length,
+               w: all.reduce((a, v) => a + v.w, 0) / all.length };
+    }
+    return W.per[word][cls];
+  };
+  const rows = D.RELICS.map(r => {
+    const val = W.cls.map(c => wt(r.give, c).m - wt(r.take, c).m);
+    const noise = W.cls.reduce((a, c) => a + wt(r.give, c).w + wt(r.take, c).w, 0) / W.cls.length;
+    const hi2 = Math.max(...val), lo2 = Math.min(...val);
+    return { r, val, spread: hi2 - lo2, noise,
+             best: W.cls[val.indexOf(hi2)], worst: W.cls[val.indexOf(lo2)],
+             same: !!r.take && r.give === r.take };
+  }).sort((a, b) => a.spread - b.spread);
+
+  const flat = rows.filter(x => x.spread <= x.noise);
+  const sharp = rows.filter(x => x.spread > x.noise);
+  console.log(`     직업마다 값이 다른 유물 ${sharp.length}/${D.RELICS.length}`);
+  for (const x of rows.slice(-5).reverse())
+    console.log(`       ${x.r.n.padEnd(12)} ${(x.r.give + '/' + (x.r.take || '없음')).padEnd(11)}`
+      + ` 폭 ${x.spread.toFixed(2)}  ${KOC[x.best]} 쪽 > ${KOC[x.worst]} 쪽`);
+  const same = rows.filter(x => x.same);
+  console.log(`     **주는 것과 가져가는 것이 같아서** 폭이 0인 것 ${same.length}개 —`);
+  console.log(`       ${same.map(x => x.r.n).join(' · ')}`);
+  const free = rows.filter(x => !x.r.take);
+  console.log(`     대가가 없어서 폭이 give 하나로 정해지는 것 ${free.length}개`);
+
+  /* 문턱 둘. 위는 「적어도 이만큼은 실제로 직업별이다」, 아래는
+     「같은 어휘를 주고받는 유물이 늘지 않는다」. 위만 걸면 새 유물이
+     전부 미지근해도 초록이고, 아래만 걸면 이미 있는 것을 안 고쳐도
+     초록이다. */
+  ok(sharp.length >= 24,
+     '유물의 값이 직업마다 다르다 — 배치 폭을 넘겨서 갈리는 것이 스물넷은 된다',
+     `${sharp.length}개 (미지근 ${flat.length})`);
+  ok(same.length <= 9,
+     '주는 어휘와 가져가는 어휘가 같은 유물이 늘지 않는다 — 그 거래는 여섯 직업에게 똑같다',
+     `${same.length}개 (기준선 9)`);
+}
+
 console.log(bad ? `\n태그 벤치: ${bad}건 실패\n`
                 : '\n태그 벤치: 값이 그대로다 · 문법이 선다 · 격자가 보인다 · 손이 말을 건다\n');
 process.exit(bad ? 1 : 0);

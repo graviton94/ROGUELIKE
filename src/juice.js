@@ -1770,10 +1770,15 @@ const now = () => performance.now();
 let strangeId = null, scareAt = 0, scareTill = 0, strangeT0 = 0;
 /* 층에 들어설 때 한 번. 여기서 시계를 리셋해야 「전 층의 놀램」이
    새 층 첫 프레임에 터지지 않는다. */
+/* 놀램 한 번의 길이. **한 곳에서만 적는다** — 들어설 때는 900,
+   그 뒤로는 420으로 서로 다르게 적어 두었더니 들어서는 순간의 놀램이
+   `1 - (남은시간/420)` 에서 음수가 되어 **아예 안 그려졌다.** 화면에
+   나와야 할 것이 안 나오는데 아무도 안 울었다. */
+const SCARE_MS = 520;
 export function strangeEnter(id) {
   strangeId = id || null;
   strangeT0 = now();
-  scareTill = id ? now() + 900 : 0;       // 들어서는 순간 한 번 덮는다
+  scareTill = id ? now() + SCARE_MS : 0;   // 들어서는 순간 한 번 덮는다
   scareAt = id ? now() + 6000 + Math.random() * 9000 : 0;
 }
 /* ── 8비트 규칙을 여기서만 깬다 ────────────────────────────
@@ -1817,6 +1822,11 @@ const RAMP = {
           '#b3654c','#c48160','#d29a78','#dcb192','#e6c4a8','#eed4bc','#f4e0cd','#faebdc','#fff6ee'],
   eye:   ['#1b0305','#340708','#520e0c','#6f1810','#8c2a16','#a63f1e','#bd5a2c',
           '#cf7440','#dd8f58','#e8a973','#f0c190','#f5d5ac','#f9e4c6','#fcefdc','#fef7ec','#fffdf8'],
+  /* 손은 사진이라 밝은 쪽 값이 많다. 살 램프를 그대로 태우면 위쪽이
+     인쇄용지처럼 하얘진다 — 죽은 살이지 종이가 아니므로 윗단을 눌러
+     회색 도는 창백함에서 멈춘다. */
+  hand:  ['#0d0406','#170709','#220c0d','#320f10','#451614','#5b201b','#742e24',
+          '#8c4030','#a4553f','#b96b50','#c88062','#d29175','#daa188','#e0ae98','#e5b9a6','#ead2c2'],
 };
 const texCache = new Map();
 function texCanvas(tex, ramp, key) {
@@ -1960,7 +1970,7 @@ function slam(ctx, w, h, k) {
      사진(CC0)을 입혔다. 타원 몇 개를 겹쳐 놓은 것이 아니다.
      유리에 눌린 자리(지문 패드·손가락 밑동·손바닥 두덩)가 창백하게
      떠 있는 것이 이 그림의 전부다. */
-  const hand = texCanvas(HAND_TEX, RAMP.flesh, 'hand');
+  const hand = texCanvas(HAND_TEX, RAMP.hand, 'hand');
   /* 손이 화면보다 커지면 손바닥 한가운데만 보이고, 그건 살덩이지
      손이 아니다. 최대에서 화면 높이의 0.98배 — 손목이 아래로 걸치고
      다섯 손가락이 전부 보이는 크기다. */
@@ -2145,8 +2155,8 @@ export function drawStrange(ctx, w, h, id, px, py) {
   VEIL[id]?.(lowCx, lw, lh, px * k, py * k, tt);
   const scare = SCARE[id];
   if (scare) {
-    if (now() > scareAt) { scareTill = now() + 420; scareAt = now() + 7000 + Math.random() * 11000; }
-    if (now() < scareTill) scare(lowCx, lw, lh, 1 - (scareTill - now()) / 420);
+    if (now() > scareAt) { scareTill = now() + SCARE_MS; scareAt = now() + 7000 + Math.random() * 11000; }
+    if (now() < scareTill) scare(lowCx, lw, lh, 1 - (scareTill - now()) / SCARE_MS);
   }
   lowCx.restore();
   digitise(lowCx, lw, lh);

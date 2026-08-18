@@ -1716,7 +1716,11 @@ export function spellSlots() {
   return arts.concat(book.map(s => {
     const locked = !learned(p, s);
     const cost = spellCost(p, s);
-    const noTarget = TARGETED.includes(s.id) && !seen;
+    /* 갈 자리가 없는 걸음도 식어 있어야 한다 — cast() 가 같은 함수에
+       묻는다. 두 곳이 갈리면 「눌리는데 안 나가는 버튼」이 하나 더
+       생기고, 이 파일은 그 문장을 이미 세 번 적었다. */
+    const noTarget = (TARGETED.includes(s.id) && !seen)
+      || (!locked && !!s.hop && !canHop(p, s));
     return {
       id: s.id, name: s.name, short: s.short || s.name.slice(0, 3),
       lv: s.lv, cost, locked, silent, noTarget,
@@ -2858,6 +2862,91 @@ export function baseSwing(p) {
        + Math.floor(p.lv / 3) + gearBonus(p).dmg;
 }
 
+/* ── 물러서는 걸음이 한 방향만 봤다 ────────────────────────
+   가장 가까운 것의 정반대로 한 줄 걷고, 첫 칸이 벽이면 그 자리에서
+   끝났다 — 마나와 턴은 이미 나간 뒤에. 그런데 이 주문의 정책은
+   **몰렸을 때** 누르는 것이고, 몰렸을 때는 등 뒤가 벽인 경우가 많다.
+   실측: 궁수가 판당 13번 눌러서 걸음이 된 것은 4.5번, **65%가
+   헛손질**이었다. 눌렀는데 값만 나가고 아무 일도 안 일어나는 것은
+   §0이 이름을 붙인 결함이다.
+
+   사람이라면 옆으로 빠진다. 멀어지는 쪽 세 방향(정반대와 그 양옆)을
+   차례로 재 보고 **실제로 한 칸이라도 가지는 쪽**을 고른다. 그래도
+   없으면 그때는 진짜로 갈 자리가 없는 것이고, 그건 위쪽 가지가
+   말한다. 전사의 밀기는 방향이 하나다 — 뚫는 것이 그 기예이고,
+   옆으로 빠지면 뚫은 것이 아니다. */
+/* 한 방향으로 몇 칸 가는가. `dry` 면 아무것도 안 옮기고 답만 한다 —
+   묻는 쪽(줄)과 하는 쪽(시전)이 같은 함수를 써야 「켜져 있는데 안
+   나가는 버튼」이 안 생긴다(§5-2).
+   hopAway 에서 따로 뺀 것은 매듭 린트다: 방향을 고르는 일과 걷는 일이
+   한 함수에 있으면 복잡도가 22가 된다. */
+function stepRun(p, sp, dx, dy, dry) {
+  let n = 0, cx = p.x, cy = p.y;
+  for (let i = 0; i < (sp.dist || 2); i++) {
+    const nx = cx + dx, ny = cy + dy;
+    if (G.level.solid(nx, ny)) break;
+    /* 전사는 막는 것을 밀어내고 지나간다 — 이미 있는 문(shoveBack)을
+       쓴다. 나머지는 막히면 거기서 멈춘다. */
+    const on = monsterAt(nx, ny);
+    if (on) {
+      if (sp.hop !== 'push') break;
+      /* 미는 것이 되는지도 마른 채로 묻는다 — 「밀 수 있다고 본다」로
+         두었더니 전사의 뚫기가 75%만 걸음이 됐다. 그것 너머가 비어
+         있어야 밀린다. */
+      const bx = nx + dx, by = ny + dy;
+      if (G.level.solid(bx, by) || monsterAt(bx, by)) break;
+      if (!dry) { shoveBack(on, dx, dy, 1); if (monsterAt(nx, ny)) break; }
+    }
+    cx = nx; cy = ny; n++;
+    if (!dry) { p.x = nx; p.y = ny; }
+  }
+  return n;
+}
+
+/* ── 물러서는 걸음이 한 방향만 봤다 ────────────────────────
+   가장 가까운 것의 정반대로 한 줄 걷고, 첫 칸이 벽이면 그 자리에서
+   끝났다 — 마나와 턴은 이미 나간 뒤에. 그런데 이 주문의 정책은
+   **몰렸을 때** 누르는 것이고, 몰렸을 때는 등 뒤가 벽인 경우가 많다.
+   실측: 궁수가 판당 13번 눌러서 걸음이 된 것은 4.5번, **65%가
+   헛손질**이었다.
+
+   사람이라면 옆으로 빠진다. 멀어지는 쪽 세 방향(정반대와 그 양옆)을
+   차례로 재 보고 실제로 가지는 쪽을 고른다. 그래도 없으면 그때는
+   진짜로 갈 자리가 없는 것이고, 그러면 **값이 나가기 전에** 거절한다
+   (cast 의 canHop 문). 전사의 밀기는 방향이 하나다 — 뚫는 것이 그
+   기예이고, 옆으로 빠지면 뚫은 것이 아니다. */
+function hopAway(p, sp, near, dry = false) {
+  const away = sp.hop === 'away';
+  const base = near
+    ? [Math.sign(near.x - p.x) * (away ? -1 : 1), Math.sign(near.y - p.y) * (away ? -1 : 1)]
+    : [p.fx || 1, p.fy || 0];
+  if (!away) return stepRun(p, sp, base[0], base[1], dry);
+  /* 멀어지는 쪽 셋. 정반대를 먼저 보고, 막히면 그 양옆. */
+  const [bx, by] = base;
+  const dirs = [base];
+  if (bx && by) dirs.push([bx, 0], [0, by]);
+  else if (bx) dirs.push([bx, 1], [bx, -1]);
+  else dirs.push([1, by], [-1, by]);
+  for (const [dx, dy] of dirs) {
+    const n = stepRun(p, sp, dx, dy, dry);
+    if (n) return n;
+  }
+  return 0;
+}
+
+/* 갈 자리가 있는가. 줄(spellSlots)과 시전이 **같은 함수**에 묻는다. */
+export function canHop(p, sp) {
+  /* 층이 없을 때도 불린다 — 인물 만들기 화면이 주문 줄을 미리 그린다.
+     거기서 `G.level.solid` 를 부르면 판이 시작되기도 전에 죽는다
+     (마나 벤치가 그 자리에서 잡았다). 층이 없으면 「갈 수 있다」로
+     둔다: 식은 줄을 보여 줄 이유가 없고, 실제로 눌릴 일도 없다. */
+  if (!p || !G.level) return true;
+  if (!sp?.hop || sp.hop === 'warp' || sp.hop === 'dark') return true;
+  const near = visibleMonsters()
+    .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
+  return hopAway(p, sp, near, true) > 0;
+}
+
 export function cast(spellId) {
   const p = G.player;
   // One entry point for the row, the keys and the tooltip: an art
@@ -2903,6 +2992,13 @@ export function cast(spellId) {
      one-tap casting would have turned that from a rare slip into
      a routine one. */
   if (TARGETED.includes(sp.id) && !nearest) { say('시야에 적이 없다.', 'warn'); return; }
+  /* ── 걸음도 **값이 나가기 전에** 묻는다 ──────────────────
+     여태 마나와 턴을 먼저 내고 나서 「갈 자리가 없다」를 말했다.
+     그런데 이 주문의 정책은 몰렸을 때 누르는 것이고, 몰렸을 때는
+     등 뒤가 막혀 있다 — 실측으로 궁수가 판당 13번 눌러 4.3번만
+     걸음이 됐다. 눌렀는데 값만 나가고 아무 일도 안 일어나는 것은
+     §0이 이름을 붙인 결함이고, 조준 주문은 이미 이 문을 갖고 있다. */
+  if (sp.hop && !canHop(p, sp)) { say('갈 자리가 없다.', 'warn'); return; }
 
   p.mana = Math.max(0, p.mana - cost);
   if (bled) {
@@ -3056,28 +3152,15 @@ export function cast(spellId) {
       } else {
         /* 밀고 나가거나(전사), 멀어지거나(궁수·사제·팔라딘). 방향이
            반대일 뿐 같은 걸음이라 한 자리에서 센다. */
-        const away = sp.hop === 'away';
-        let dx = 0, dy = 0;
-        if (near) {
-          dx = Math.sign(near.x - p.x) * (away ? -1 : 1);
-          dy = Math.sign(near.y - p.y) * (away ? -1 : 1);
-        }
-        if (!dx && !dy) { dx = p.fx || 1; dy = p.fy || 0; }
-        for (let i = 0; i < (sp.dist || 2); i++) {
-          const nx = p.x + dx, ny = p.y + dy;
-          if (G.level.solid(nx, ny)) break;
-          /* 전사는 막는 것을 밀어내고 지나간다 — 이미 있는 문(shoveBack)을
-             쓴다. 나머지는 막히면 거기서 멈춘다. */
-          const on = monsterAt(nx, ny);
-          if (on) {
-            if (sp.hop !== 'push') break;
-            shoveBack(on, dx, dy, 1);
-            if (monsterAt(nx, ny)) break;
-          }
-          p.x = nx; p.y = ny; moved++;
-        }
+        moved = hopAway(p, sp, near);
       }
       if (!moved) { say('갈 자리가 없다.', 'warn'); break; }
+      /* 유틸 3도 발이다. 기습·구르기만 세니 **도적만 있는 어휘**가
+         됐다(도적 3.86 · 나머지 0.0~0.24). 그런데 사슬 갑주가 지우는
+         것은 도적의 은신만이 아니고, 여섯 직업이 전부 걸음 주문을
+         하나씩 갖고 있다 — 뚫기·스밈·자리·물러·걸음·점멸. 그게 이
+         어휘가 여섯 직업의 값을 매길 수 있게 되는 자리다. */
+      ledger('slip');
       refreshFov();
       fx({ t:'stepIn', x:p.x, y:p.y, from, tx:from.x, ty:from.y });
       /* 표가 붙여 둔 것들. 전부 이미 있는 깔때기를 지난다. */
@@ -5694,7 +5777,7 @@ function swing(m, scale, opt = {}) {
     if (perfect) fx({ t:'perfect', x:m.x, y:m.y });
     /* 「들키지 않고 걸었나」. 눈의 방을 부르는 값 — 기습이 나가는
        유일한 자리에서 센다. */
-    if (asleep) G.sneaked = (G.sneaked || 0) + 1;
+    if (asleep) { G.sneaked = (G.sneaked || 0) + 1; ledger('slip'); }
     hurtMonster(m, dmg, null, { crit, sneak: asleep, weapon: kind, perfect, ...opt });
     // 모르고 휘두른 것: the stick answers.
     if (oddAwake('blindswing') && G.monsters.includes(m)) {
@@ -6715,6 +6798,38 @@ export function endTurn(skipMonsters = false) {
      존재하는 이유다. 이제 통이 하나라 이 한 줄이 곧 재장전이다. */
   const hush = POOL[p.cls]?.unseenEvery;
   if (hush && G.turn % hush === 0 && unseenByAll()) poolGain(raceRule(p, 'quiet') || 1, 'quiet');
+
+  /* ── 발이 세어지는 자리 ──────────────────────────────────
+     장부에 동사가 여덟 있었다 — 맞음·처치·치명타·연격·주문·함정·
+     물약·금화·정예. **은신과 이동을 세는 것이 하나도 없었다.**
+     그래서 유물의 어휘에서 「발」만 무게를 가질 수 없었고(sim/synergy.mjs
+     의 표에서 그 줄만 비어 있다), 발을 주거나 가져가는 유물은 크랙
+     조건도 태그에서 뽑을 수가 없다. 자리가 하나 비어 있으면 그 자리에
+     들어올 유물은 태어날 때부터 잴 수 없는 물건이 된다.
+
+     무엇을 셀 것인가. 「아무도 안 볼 때」로 두면 안 된다 — 층에 처음
+     들어서면 전부 자고 있으므로 그 값은 판 길이와 거의 같아지고,
+     그러면 이 동사는 발이 아니라 생존을 센다(유물 벤치가 floor 갈래에서
+     이미 그 함정에 빠졌다). 세는 것은 **깨어 있는 것이 곁에 있는데
+     그것들이 나를 못 보는 턴**이다. 그게 이 게임에서 「발이 가볍다」가
+     실제로 하는 일이고, 도적·하플링·궁수와 팔라딘을 가른다.
+
+     도적의 그림자 시계(바로 위)와 조건이 다른 것은 의도다: 저쪽은
+     「아무도 안 볼 때 찬다」는 재장전이라 빈 복도에서도 돌아야 하고,
+     이쪽은 「위험 곁을 지났는가」다. 같게 만들면 이 장부가 도적의
+     회복 시계를 다시 재는 것이 된다. */
+  /* 턴을 세다가 두 번 틀렸다. 적어 둔다 — 반경 9로 세니 **전사가
+     1등**이었고(100턴당 7.99, 마법사 2.22), 4로 좁히니 여전히 전사가
+     1등인데 이번엔 판당 3~19회로 너무 드물어져서 문턱을 걸 수가
+     없었다. 아홉 칸은 「많이 깨웠다」를 세고 있었고, 네 칸은 「모퉁이가
+     하나 있었다」를 센다. 둘 다 발이 한 일이 아니다.
+
+     **턴을 세는 것이 틀렸다.** 발이 값을 하는 것은 시간이 아니라
+     순간이고, 이 게임에는 그 순간이 이미 둘 있다 — **기습**(안 보이는
+     것을 찌른다)과 **구르기**(자리를 판다). 그 둘이 정확히 `take:'발'`
+     유물(사슬 갑주 · 매듭 밧줄)이 지우는 것이기도 하다.
+     세는 자리는 그 둘이 일어나는 자리로 옮겼다(아래 두 줄이 아니라
+     playerAttack 과 rollTo 안이다). */
 
   refreshFov();
   if (G.depth > 0) scanForTraps();
@@ -7984,6 +8099,7 @@ export function dodgeRoll(dx, dy) {
   say(`몸을 던져 ${moved}칸 굴렀다. (기력 −${rollCost()})`, 'good');
   // …and a roll is one of the three things that earns a shade.
   gainShadow(1, 'roll');
+  ledger('slip');            // 자리를 파는 것도 발이 한 일이다
   fx({ t:'roll', x:p.x, y:p.y, dx, dy, dist:moved });
   refreshFov();
   // A roll passes over ground rather than stopping on it: no

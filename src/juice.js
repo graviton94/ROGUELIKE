@@ -7,7 +7,7 @@
    ═══════════════════════════════════════════════════════════ */
 
 import { PALETTE, spriteColors } from './pixels.js';
-import { EYE_TEX, FLESH_TEX, VEIN_TEX, HAND_TEX } from './horror.js';
+import { EYE_TEX, FLESH_TEX, VEIN_TEX, HAND_TEX, FACE_TEX } from './horror.js';
 import { MW as MAP_W } from './world.js';
 import { sfx, from as earFrom } from './audio.js';
 
@@ -1822,6 +1822,12 @@ const RAMP = {
           '#b3654c','#c48160','#d29a78','#dcb192','#e6c4a8','#eed4bc','#f4e0cd','#faebdc','#fff6ee'],
   eye:   ['#1b0305','#340708','#520e0c','#6f1810','#8c2a16','#a63f1e','#bd5a2c',
           '#cf7440','#dd8f58','#e8a973','#f0c190','#f5d5ac','#f9e4c6','#fcefdc','#fef7ec','#fffdf8'],
+  /* 얼굴은 채도가 거의 없는 사진이다 — 살 램프에 태우면 분홍 덩어리가
+     되고, 이 사진의 힘은 **창백한 피부와 새까만 눈구멍의 대비**다.
+     그래서 차가운 시체 램프로 태운다: 검정에서 뼈 흰색까지, 붉은기 없이.
+     아래끝을 거의 검게 두어야 눈구멍과 벌린 입이 구멍으로 읽힌다. */
+  corpse:['#000000','#050507','#0b0b0e','#131316','#1d1d21','#2a2a2f','#3a3a40',
+          '#4d4d53','#616168','#76767d','#8c8c93','#a2a2a8','#b7b7bc','#cacace','#dcdcdf','#ececed'],
   /* 손은 사진이라 밝은 쪽 값이 많다. 살 램프를 그대로 태우면 위쪽이
      인쇄용지처럼 하얘진다 — 죽은 살이지 종이가 아니므로 윗단을 눌러
      회색 도는 창백함에서 멈춘다. */
@@ -1981,24 +1987,19 @@ function slam(ctx, w, h, k) {
   ctx.restore();
 }
 /* 얼굴들 — 어둠에서 얼굴가죽이 떠오른다. 입이 열리고, 다시 잠긴다. */
+/* 얼굴도 사진이다. 눈구멍과 벌린 입은 그린 것이 아니라 거기 있던
+   구멍이고, 검은 배경이 그대로 알파라 어둠에서 **떠오르는** 것이 된다.
+   `open` 은 얼마나 떠올랐는가다 — 아래에서 위로 드러난다. */
 function oneFace(ctx, fx, fy, r, open) {
-  const gf = ctx.createRadialGradient(fx - r * 0.25, fy - r * 0.35, r * 0.15, fx, fy, r);
-  gf.addColorStop(0, FLESH.hi); gf.addColorStop(0.62, FLESH.skin); gf.addColorStop(1, FLESH.mid);
-  ctx.fillStyle = gf;
-  ctx.beginPath(); ctx.ellipse(fx, fy, r * 0.78, r, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = FLESH.deep;
-  ctx.beginPath(); ctx.ellipse(fx - r * 0.34, fy - r * 0.28, r * 0.19, r * 0.24, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(fx + r * 0.34, fy - r * 0.28, r * 0.19, r * 0.24, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(fx, fy + r * 0.42, r * 0.36, r * (0.10 + open * 0.38), 0, 0, Math.PI * 2); ctx.fill();
-  if (open > 0.5) {                       // 이 — 입이 크게 열릴 때만
-    ctx.fillStyle = FLESH.wet;
-    for (let i = -2; i <= 2; i++)
-      ctx.fillRect(fx + i * r * 0.13 - r * 0.04, fy + r * 0.30, r * 0.08, r * 0.10);
-  }
+  const cv = texCanvas(FACE_TEX, RAMP.corpse, 'face');
+  const w = r * 1.9, h = w * cv.height / cv.width;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, open * 1.25) * (ctx.globalAlpha || 1);
+  hardBlit(ctx, cv, fx - w / 2, fy - h / 2, w, h);
+  ctx.restore();
 }
 function veilFaces(ctx, w, h, px, py, tt) {
-  for (let i = 0; i < 9; i++) {
+  for (let i = 0; i < 6; i++) {
     const sx = ((i * 3711) % 977) / 977, sy = ((i * 8317) % 613) / 613;
     const ph = (tt / 1700) + i * 0.7;
     const up = Math.max(0, Math.sin(ph));

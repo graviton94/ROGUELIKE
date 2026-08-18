@@ -21,7 +21,8 @@ import {
   POTION_LOOKS, SCROLL_LOOKS, UNKNOWABLE,
   BUILD, SAVE_FORMAT,
   REPAY_SHARE, REPAY_CAP, REPAY_FLOOR, AWE_RANGE, AWE_TURNS,
-  STIGMA_TURNS, STIGMA_SPLASH, STIGMA_RANGE,
+  CRUSADE_ARM, CRUSADE_FALL,
+  STIGMA_TURNS, STIGMA_SPLASH, STIGMA_RANGE, STIGMA_HIT,
   RELICS, RELIC_SLOTS, relicSlots, relicById, crackOf, crackSaid, crackNeed, CRACK_LEFT, BRANCHES,
   STRANGE, strangeById, STRANGE_FROM, STRANGE_BASE, STRANGE_CAP,
   ARCANA, arcanaById, ARCANA_AT, GODS, godById, REFUSE,
@@ -1006,23 +1007,48 @@ export function poolGain(n = 1, why = '') {
    채우고 다시 여기로 들어온다. 남은 횟수를 **먼저** 깎고 문을 닫아
    두면, 그 안쪽 호출은 카운터가 0이거나 문이 잠긴 것을 보고 돌아간다. */
 let inCrusade = false;
+/* ── 십자 ─────────────────────────────────────────────────
+   발밑에서 네 방향으로 네 칸씩. 벽에서 멈추고, 멀수록 얇아진다.
+   부르는 곳이 둘이므로(누를 때 · 맹세가 찰 때) 함수가 하나여야 한다 —
+   두 곳에 같은 기하를 쓰면 언젠가 한쪽만 고쳐진다(§5-2).
+   맞은 수를 돌려준다: 아무것도 없는 방에서 부른 것과 셋을 친 것이
+   부르는 쪽에서 갈려야 한다. */
+export function crusadeCross(why = '성전') {
+  const p = G.player;
+  if (!p) return 0;
+  const hits = [];
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    for (let i = 1; i <= CRUSADE_ARM; i++) {
+      const x = p.x + dx * i, y = p.y + dy * i;
+      if (G.level.solid(x, y)) break;
+      const m = monsterAt(x, y);
+      if (m && !m.disguise) hits.push([m, Math.pow(CRUSADE_FALL, i - 1)]);
+    }
+  }
+  fx({ t:'crusadeCross', x:p.x, y:p.y, r:CRUSADE_ARM, n:hits.length });
+  for (const [m, share] of hits) {
+    /* 심판의 일격과 **같은 셈**을 쓴다. 여기서 따로 굴리면 같은 이름의
+       두 번째 계산 경로가 생기고, 언젠가 한쪽만 고쳐진다(§5-2). */
+    const heft = Math.round((baseSwing(p) + (m.maxhp || 10) * JUDGE_STRIKE) * share);
+    m.awake = true;
+    hurtMonster(m, Math.max(2, heft), why, { pierce: true });
+  }
+  return hits.length;
+}
 function crusadeAnswer(got) {
   const p = G.player;
   if (!p || p.cls !== 'paladin' || inCrusade) return;
   if (!(p.crusade > 0) || !(p.crusadeLeft > 0)) return;
-  const near = visibleMonsters()
-    .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
-  if (!near) return;
-  p.crusadeLeft--;
+  /* 빈 방에서는 횟수를 안 깎는다 — 맞을 것이 없는데 판결이 소모되면
+     「방이 나쁠 때 값을 한다」가 거꾸로 된다. 그래서 셈을 먼저 해 보고
+     맞은 것이 있을 때만 깎는다. 재귀는 그 전에 막는다: 나간 십자가
+     무언가를 죽이면 그것이 또 맹세를 채우고 다시 여기로 들어온다. */
   inCrusade = true;
   try {
-    /* 심판의 일격과 **같은 셈**을 쓴다. 여기서 따로 굴리면 같은 이름의
-       두 번째 계산 경로가 생기고, 언젠가 한쪽만 고쳐진다(§5-2). */
-    const heft = Math.round(baseSwing(p) + (near.maxhp || 10) * JUDGE_STRIKE);
-    fx({ t:'judgest', x:p.x, y:p.y, tx:near.x, ty:near.y, crusade:true });
-    near.awake = true;
-    hurtMonster(near, Math.max(3, heft), '성전', { pierce: true });
-    say(`맹세가 판결로 돌아온다 — 남은 것 ${p.crusadeLeft}.`, 'level');
+    const n = crusadeCross('성전');
+    if (!n) return;
+    p.crusadeLeft--;
+    say(`맹세가 판결로 돌아온다 — ${count(n)}이 십자에 걸렸다. 남은 것 ${p.crusadeLeft}.`, 'level');
   } finally { inCrusade = false; }
 }
 /* 직업이 맞을 때 통이 차는가. 사제와 팔라딘만 참이고, 그 둘이
@@ -2579,10 +2605,16 @@ export function useArt(id) {
          되고(crusadeAnswer), 맹세는 맞을 때와 죽일 때 차므로 값이
          「방이 나쁠 때」로 옮겨 간다 — 팔라딘이 스스로 걸어 들어가
          빠져나올 수 없는 그 순간이다. */
+      /* 누른 그 턴에 십자가 한 번 나간다. 상태만 켜면 맹세가 찰 때까지
+         **아무 일도 안 일어나고**, 그건 §0이 가장 자주 잡아 온 모양이다
+         (눌렀는데 아무것도 안 하면 고장으로 읽힌다). 이 한 번은
+         crusadeLeft 에서 안 깎는다 — 맹세가 사는 것이 넷이고, 이건
+         손이 사는 것이다. */
       p.crusade = CRUSADE_TURNS;
       p.crusadeLeft = CRUSADE_HITS;
       fx({ t:'crusade', x:p.x, y:p.y });
-      say('한 번 시작한 것은 끝날 때까지 멈추지 않는다. 맹세가 판결로 돌아온다.', 'level');
+      say('한 번 시작한 것은 끝날 때까지 멈추지 않는다.', 'level');
+      crusadeCross('성전');
       break;
     }
 
@@ -2649,6 +2681,13 @@ export function useArt(id) {
       m.awake = true;
       fx({ t:'stigma', x:m.x, y:m.y, turns:STIGMA_TURNS });
       say(`${m.n}에 성흔을 새겼다. 이제 저것이 맞으면 곁도 맞는다.`, 'level');
+      /* 그리고 그 손이 한 대다. **표식을 먼저 붙이고** 때리는 순서가
+         전부다 — 그러면 이미 있는 번짐 규칙이 이 타격에 얹혀서, 누른
+         순간에 화면이 「곁도 맞는다」를 보여 준다. 순서를 뒤집으면
+         첫 대는 안 번지고, 그건 설명문과 다른 게임이 된다.
+         피해를 여기서 굴리지 않고 hurtMonster 로 보내는 것도 같은
+         이유다 — 번짐은 그 안에 있다(§5-2). */
+      hurtMonster(m, Math.max(2, Math.round(baseSwing(p) * STIGMA_HIT)), '성흔');
       break;
     }
     case 'martyr': {

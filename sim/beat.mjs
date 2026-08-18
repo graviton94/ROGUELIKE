@@ -85,7 +85,21 @@ const r = await pg.evaluate(async () => {
     peak: Math.max(...tUlt.k), tail: tUlt.k[tUlt.k.length - 1], closedAfter: tUlt.closed,
     sigZoom: Math.max(...tSig.k), hitZoom: Math.max(...tHit.k),
     junk: (() => { try { J.beat('아직없는등급', { x: 1, y: 1 }); J.beat('ult', null);
-                         J.beat('ult', { x: NaN, y: 2 }); J.update(16.7, []); return null; }
+                         J.beat('ult', { x: NaN, y: 2 }); J.update(16.7, []);
+                         /* 기예 프레임도 같이 던져 본다. 주문 쪽은
+                            spellfx.mjs 가 예순여섯 갈래를 보는데 기예 쪽은
+                            아무도 안 봤다 — 새 기예의 그림에서 색 이름
+                            하나만 틀려도 판 중에 화면이 멈추고, 규칙 벤치는
+                            그것을 영영 못 본다. 새 프레임을 하나 만들면
+                            여기 이름을 한 줄 더한다. */
+                         for (const t of ['crusadeCross', 'crusade', 'judgest', 'stigma',
+                                          'stigmaBurst', 'martyr', 'word', 'repay',
+                                          '아직없는프레임'])
+                           for (const e of [{ t, x: 3, y: 3, tx: 6, ty: 4, r: 4, n: 2, turns: 5 },
+                                            { t, x: 3, y: 3 },
+                                            { t, x: NaN, y: 3, r: 0, n: 0 }])
+                             J.pump([e], { x: 3, y: 3, hp: 5, maxhp: 10 });
+                         J.update(16.7, []); return null; }
                    catch (e) { return e.message; } })(),
   };
 });

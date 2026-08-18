@@ -169,6 +169,41 @@ console.log('\n── 축');
 {
   ok(D.CRUSADE_HITS > 0 && D.CRUSADE_TURNS > 0,
      '팔라딘 — 성전에 상한이 둘 있다 (턴과 횟수)', `${D.CRUSADE_TURNS}턴 · ${D.CRUSADE_HITS}번`);
+  /* 십자가 방을 상대하는가. 팔이 없으면(0) 그건 십자가 아니라 제자리
+     타격이고, 감쇠가 1이면 네 칸 십자 넷이 방을 통째로 지운다. */
+  ok(D.CRUSADE_ARM >= 3 && D.CRUSADE_FALL > 0 && D.CRUSADE_FALL < 1,
+     '팔라딘 — 십자가 넓고, 멀수록 얇아진다',
+     `팔 ${D.CRUSADE_ARM}칸 · 끝에서 ×${Math.pow(D.CRUSADE_FALL, D.CRUSADE_ARM - 1).toFixed(2)}`);
+  /* 누른 그 턴에 나가는가. 상태만 켜면 §0 위반이다 — 눌렀는데 아무
+     일도 안 일어나면 고장으로 읽힌다. 실제 층에서, 십자 안에 무언가
+     서 있게 만들어 놓고 누른다. */
+  {
+    Meta.forget();
+    let struck = null;
+    for (let t = 0; t < 10 && struck === null; t++) {
+      Meta.forget();
+      runBot('human', 'paladin', false, { tough: 3, onTurn: (g) => {
+        if (struck !== null || !g.player || g.player.lv < 12) return;
+        const p = g.player;
+        const arm = [];
+        for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]])
+          for (let i = 1; i <= D.CRUSADE_ARM; i++) {
+            const x = p.x + dx * i, y = p.y + dy * i;
+            if (g.level.solid(x, y)) break;
+            const m = g.monsters.find(o => o.x === x && o.y === y && !o.disguise);
+            if (m) arm.push(m);
+          }
+        if (!arm.length) return;
+        const hp0 = arm.map(m => m.hp);
+        p.crusade = 0; p.crusadeLeft = 0;     // 엔진을 끄고 **누르는 쪽만** 잰다
+        p.stam = p.maxStam;
+        Game.useArt('crusade');
+        struck = arm.filter((m, i) => m.hp < hp0[i]).length;
+      } });
+    }
+    ok(struck > 0, '팔라딘 — 성전을 누르면 그 턴에 십자가 나간다 (상태만 켜면 §0 위반이다)',
+       struck === null ? '열 판 안에 십자 안에 선 것을 못 만났다' : `맞은 것 ${struck}`);
+  }
   /* **마을에서 물으면 안 된다.** 판결은 보이는 것이 있어야 나가므로,
      계단을 안 밟은 영웅에게 맹세를 열다섯 번 채워도 남은 판결은 그대로
      다섯이다 — 그리고 그것이 「상한이 있다」로 읽힌다. 처음에 그렇게

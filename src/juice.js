@@ -336,21 +336,45 @@ function stepInFx(e) {
    갈래 하나로 얹으면서 기준선 네 줄을 다 넘겼다. 얹은 것보다 조금 더
    뺀다: 기준선을 올리려면 이유를 적어야 하고, 여기서 댈 이유는 「기예를
    하나 더했다」뿐이라 그건 이유가 아니다. */
+/* 십자. 고리가 아니라 **네 개의 선**이다 — 고리를 하나 더 그리면
+   서리 폭발·말씀·연막과 같은 그림이 되고, 이 기예가 방을 상대하는
+   방식이 원이 아니라 십자라는 것이 화면에서 사라진다. 팔이 멀수록
+   얇아지는 규칙이 있으므로 선도 끝으로 갈수록 옅게 — 보이는 것이 곧
+   맞는 값이어야 한다.
+   `pump` 의 가지가 아니라 함수인 이유는 매듭 린트다(§3): 저 스위치는
+   이미 갈래 82에 복잡도 174이고, 새 그림은 제 함수를 갖는다. */
+function crusadeCrossFx(e) {
+  const arm = e.r || 4;
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    beams.push({ fx: e.x + 0.5, fy: e.y + 0.5,
+                 tx: e.x + 0.5 + dx * arm, ty: e.y + 0.5 + dy * arm,
+                 color: PALETTE.W, age: 0, life: 300 });
+    beams.push({ fx: e.x + 0.5, fy: e.y + 0.5,
+                 tx: e.x + 0.5 + dx * (arm * 0.55), ty: e.y + 0.5 + dy * (arm * 0.55),
+                 color: PALETTE.y, age: 0, life: 220 });
+  }
+  ring(e.x, e.y, 1.1, PALETTE.y, 280);
+  burstShards(e.x, e.y, [PALETTE.W, PALETTE.y], 20, 1.3);
+  if (e.n) number(e.x, e.y - 1.1, `판결 ${e.n}`, PALETTE.W, 1.15);
+  flashScreen = Math.max(flashScreen, e.n ? 0.3 : 0.16); flashHue = 'y';
+  freeze = Math.max(freeze, e.n ? 90 : 40);
+  shake = Math.max(shake, e.n ? 0.5 : 0.2);
+  buzz(e.n ? [28, 10, 28] : 14); sfx.crit();
+}
+
+/* 성전이 돌려보낸 판결에 흰 고리를 한 겹 더 붙이던 가지가 여기
+   있었다. 성전이 십자가 되면서 그쪽은 제 프레임을 갖게 됐고
+   (`crusadeCross`), 이 함수는 다시 손이 누른 한 대만 그린다 —
+   `e.crusade` 를 보내는 자리가 하나도 없는 채로 가지를 남겨 두면
+   그 가지는 「있는데 안 나가는 그림」이 된다. */
 function judgestFx(e) {
   ring(e.tx, e.ty, 1.9, PALETTE.y, 380);
   beams.push({ fx:e.x + 0.5, fy:e.y - 1.2, tx:e.tx + 0.5, ty:e.ty + 0.5,
                color:PALETTE.W, age:0, life:260 });
-  /* 성전이 돌려보낸 판결은 흰 고리 한 겹이 더 붙는다 — 손이 누른 것과
-     맹세가 부른 것은 화면에서 갈려야 한다. 자주 나가므로(다섯 번까지)
-     무게는 안 올린다. */
-  if (e.crusade) {
-    ring(e.tx, e.ty, 1.2, PALETTE.W, 240);
-    number(e.tx, e.ty - 0.9, '판결', PALETTE.W, 1.0);
-  }
-  flashScreen = Math.max(flashScreen, e.crusade ? 0.18 : 0.3); flashHue = 'y';
-  freeze = e.crusade ? 40 : 80;
-  shake = Math.max(shake, e.crusade ? 0.32 : 0.6);
-  buzz(e.crusade ? 20 : 36); sfx.crit();
+  flashScreen = Math.max(flashScreen, 0.3); flashHue = 'y';
+  freeze = 80;
+  shake = Math.max(shake, 0.6);
+  buzz(36); sfx.crit();
 }
 function hushCutFx(e) {
   beams.push({ fx: e.x + 0.5, fy: e.y + 0.5, tx: e.tx + 0.5, ty: e.ty + 0.5,
@@ -1313,11 +1337,9 @@ export function pump(queue, player) {
         flashScreen = Math.max(flashScreen, 0.24); flashHue = 'W';
         break;
 
-      /* crusadeCut 이 있던 자리 — 행진하며 베던 기예가 상태로 바뀌면서
-         그 프레임을 아무도 안 띄운다. 대신 성전이 켜진 동안의 심판은
-         judgest 프레임에 `crusade` 를 실어 보내고(아래), 같은 그림에
-         흰 고리 한 겹이 더 붙는다: 같은 일이 다른 이유로 나가는 것이
-         화면에서 갈려야 한다. */
+      /* crusadeCut 이 있던 자리. 행진하며 베던 기예가 상태가 됐고,
+         그다음 십자가 됐다 — 그림은 crusadeCrossFx 에 있다. */
+      case 'crusadeCross': crusadeCrossFx(e); break;
 
       /* 신전에서 떨어져 나가는 것. Upward and pale — the one
          effect in the game that is a subtraction. */

@@ -566,8 +566,13 @@ function runBot(race, cls, clear, opt = {}) {
       if (canPray(word) && adjA.length >= 2 && p.hp < p.maxhp * 0.6)
         { useArtCounted('word'); continue; }
 
+      /* 문턱이 「셋 이상 보일 때」였다. 그때 이 기예는 표식만 붙였으므로
+         값이 전부 번짐에 있었고, 번지려면 여럿이어야 했다. 이제 새기는
+         손이 한 대이므로 **둘이면 이미 남는 장사**다 — 평타 한 대에
+         곁의 하나가 절반 넘게 같이 맞는다. 규칙이 바뀌었는데 정책을
+         안 고치면 재는 것은 새 규칙이 아니라 옛 습관이다. */
       const stigma = art('stigma');
-      if (canPray(stigma) && seen.length >= 3
+      if (canPray(stigma) && seen.length >= 2
           && !G.monsters.some(m => m.stigma > 0))
         { useArtCounted('stigma'); continue; }
 

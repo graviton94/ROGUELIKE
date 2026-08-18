@@ -1977,7 +1977,7 @@ function slam(ctx, w, h, k) {
   const scale = (0.52 + ease * 0.46) * h / hand.height;
   const hw = hand.width * scale, hh = hand.height * scale;
   ctx.globalAlpha = Math.min(1, ease * 2.2);
-  hardBlit(ctx, hand, (w - hw) / 2, h - hh * 0.94, hw, hh);
+  hardBlit(ctx, hand, (w - hw) / 2, h - hh, hw, hh);   // 손목이 화면 아래로 잘린다
   ctx.restore();
 }
 /* 얼굴들 — 어둠에서 얼굴가죽이 떠오른다. 입이 열리고, 다시 잠긴다. */

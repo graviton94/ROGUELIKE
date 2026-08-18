@@ -7,7 +7,7 @@
    ═══════════════════════════════════════════════════════════ */
 
 import { PALETTE, spriteColors } from './pixels.js';
-import { EYE_TEX, FLESH_TEX, VEIN_TEX, HAND_TEX, FACE_TEX } from './horror.js';
+import { EYE_TEX, FLESH_TEX, VEIN_TEX, HAND_TEX, FACE_TEX, LIMBS } from './horror.js';
 import { MW as MAP_W } from './world.js';
 import { sfx, from as earFrom } from './audio.js';
 
@@ -1831,6 +1831,12 @@ const RAMP = {
   /* 손은 사진이라 밝은 쪽 값이 많다. 살 램프를 그대로 태우면 위쪽이
      인쇄용지처럼 하얘진다 — 죽은 살이지 종이가 아니므로 윗단을 눌러
      회색 도는 창백함에서 멈춘다. */
+  /* 안구는 사진이다. 흰자와 홍채는 밝기가 거의 안 겹치므로(홍채 평균
+     94, 흰자 평균 203) 램프 하나로 둘 다 낼 수 있다 — 아래쪽 절반은
+     차가운 파랑, a부터는 붉은기 없는 뼈색. 따뜻한 램프로 태워 봤더니
+     주황 구슬이 되어 눈으로 안 읽혔다. */
+  eyeball:['#000000','#04060b','#0a1018','#101c2a','#17293c','#1f374e','#2c4557',
+          '#3a5566','#4c6672','#63787e','#8a9088','#a3a79c','#bcbdaf','#d0cfc0','#e2e0d0','#f4f1e4'],
   hand:  ['#0d0406','#170709','#220c0d','#320f10','#451614','#5b201b','#742e24',
           '#8c4030','#a4553f','#b96b50','#c88062','#d29175','#daa188','#e0ae98','#e5b9a6','#ead2c2'],
 };
@@ -1867,29 +1873,35 @@ function oneEye(ctx, ex, ey, r, px, py, blink) {
   }
   ctx.save();
   ctx.translate(ex, ey); ctx.scale(1, blink); ctx.translate(-ex, -ey);
-  /* 안구는 **사람 망막 안저 사진**이다(CC0). 도트로 그린 눈은 「그린
-     눈」이지만, 줄여서 격자에 가둔 사진은 무엇인지 알기 전에 먼저
-     불쾌하다. 원형이라 그대로 안구로 앉는다. */
-  const globe = texCanvas(EYE_TEX, RAMP.eye, 'eye');
+  /* 안구는 **사진이다**. 도트로 그린 눈은 「그린 눈」이지만, 줄여서
+     격자에 가둔 사진은 무엇인지 알기 전에 먼저 불쾌하다.
+     눈동자를 따로 그리지 않는다 — 사진에 이미 있다. 대신 **공 전체를**
+     너 쪽으로 밀어 눈알이 눈구멍 안에서 돌게 한다. 그게 눈이 하는
+     짓이고, 그린 눈동자를 사진 위에 겹치면 홍채가 둘이 된다.
+     타원(눈꺼풀 틈)보다 공을 크게 깔아야 굴려도 가장자리가 안 빈다. */
+  const globe = texCanvas(EYE_TEX, RAMP.eyeball, 'eye');
+  const roll = r * 0.24, gr = r * 1.22;
+  const [gx, gy] = EYE_TRACK(px, py, ex, ey, roll);
   ctx.beginPath(); ctx.ellipse(ex, ey, r, r * 0.72, 0, 0, Math.PI * 2);
   ctx.save(); ctx.clip();
-  hardBlit(ctx, globe, ex - r, ey - r, r * 2, r * 2);
+  hardBlit(ctx, globe, gx - gr, gy - gr, gr * 2, gr * 2);
   ctx.restore();
-  // 핏줄 사진을 얇게 겹친다 — 같은 눈에서 뜬 것이라 결이 맞는다
+  /* 핏줄 사진을 0.45로 겹쳐 봤더니 눈 아홉 개가 전부 **연어색 덩어리**
+     가 되고 홍채가 지워졌다. 이 사진에는 흰자에 실핏줄이 이미 있다 —
+     겹치는 것은 아래쪽 삼분의 일, 그것도 얇게. */
   ctx.save(); ctx.beginPath();
   ctx.ellipse(ex, ey, r, r * 0.72, 0, 0, Math.PI * 2); ctx.clip();
-  ctx.globalAlpha = 0.45;
-  hardBlit(ctx, texCanvas(VEIN_TEX, RAMP.flesh, 'vein'), ex - r, ey - r * 0.9, r * 2, r * 1.8);
+  ctx.globalAlpha = 0.16;
+  hardBlit(ctx, texCanvas(VEIN_TEX, RAMP.flesh, 'vein'), ex - r, ey + r * 0.1, r * 2, r * 0.9);
   ctx.restore();
-  // 눈동자 — 너를 쫓는다. 사진 위에 얹으므로 이것만 그린 것이다.
-  const [ix, iy] = EYE_TRACK(px, py, ex, ey, r * 0.30);
-  const ir = r * 0.40;
-  const gi = ctx.createRadialGradient(ix, iy, ir * 0.2, ix, iy, ir);
-  gi.addColorStop(0, '#000'); gi.addColorStop(0.62, '#120a06'); gi.addColorStop(1, 'rgba(10,4,2,0)');
-  ctx.fillStyle = gi;
-  ctx.beginPath(); ctx.arc(ix, iy, ir, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#fffdf8';               // 각막 반사 한 점
-  ctx.beginPath(); ctx.arc(ix - ir * 0.34, iy - ir * 0.38, Math.max(1, ir * 0.20), 0, Math.PI * 2); ctx.fill();
+  // 눈꺼풀 그늘 — 위아래로 어둡게 눌러 구멍에 박힌 눈으로 만든다
+  const lid = ctx.createLinearGradient(0, ey - r * 0.72, 0, ey + r * 0.72);
+  lid.addColorStop(0, 'rgba(8,4,6,0.75)'); lid.addColorStop(0.38, 'rgba(8,4,6,0)');
+  lid.addColorStop(0.7, 'rgba(8,4,6,0)'); lid.addColorStop(1, 'rgba(8,4,6,0.6)');
+  ctx.save(); ctx.beginPath();
+  ctx.ellipse(ex, ey, r, r * 0.72, 0, 0, Math.PI * 2); ctx.clip();
+  ctx.fillStyle = lid; ctx.fillRect(ex - r, ey - r, r * 2, r * 2);
+  ctx.restore();
   ctx.restore();
 }
 /* 눈의 방 — 화면 전체가 눈이다. 격자로 박고, 파도처럼 깜빡이고,
@@ -1918,45 +1930,47 @@ function veilEyes(ctx, w, h, px, py, tt) {
     }
   ctx.globalAlpha = 1;
 }
-/* 팔의 벽 — 네 변에서 팔이 들어온다. 그리고 예고 없이 손이 화면을 덮는다. */
-function oneArm(ctx, x0, y0, ang, len, wid) {
+/* 팔의 벽 — 네 변에서 팔이 들어온다. 팔은 **사진**이다(ARM_TEX):
+   격자 안에서 어깨가 왼쪽 위, 손이 오른쪽 아래이므로, 어깨를 변에 대고
+   손이 안쪽을 향하도록 돌려서 붙인다. 길이는 안 늘인다 — 사진을 늘이면
+   힘줄 간격이 같이 늘어나 고무가 된다. 대신 **밀어 넣었다 뺀다.** */
+function oneArm(ctx, x0, y0, aim, len, k) {
+  const A = LIMBS[k % LIMBS.length];
+  const cv = texCanvas(A.g, RAMP.corpse, 'limb' + (k % LIMBS.length));
+  const hh = len * cv.height / cv.width;
   ctx.save();
-  ctx.translate(x0, y0); ctx.rotate(ang);
-  /* 원통으로 읽히게 — 위가 밝고 가운데가 살색이고 아래가 잠긴다.
-     팔레트 밖의 계조라 이 게임의 어떤 물건과도 안 닮는다. */
-  /* 팔의 표면도 세포 사진이다. 길이가 매번 다르므로 늘려 붙인다 —
-     늘어난 결이 오히려 「살아 있는 것을 잡아 늘인」 것으로 읽힌다. */
-  hardBlit(ctx, texCanvas(FLESH_TEX, RAMP.flesh, 'flesh'), 0, -wid * 0.5, len, wid);
-  // 손: 손바닥 하나에 손가락 넷
-  ctx.save();
-  ctx.beginPath(); ctx.arc(len, 0, wid * 0.78, 0, Math.PI * 2); ctx.clip();
-  hardBlit(ctx, texCanvas(FLESH_TEX, RAMP.flesh, 'flesh'),
-           len - wid * 0.8, -wid * 0.8, wid * 1.6, wid * 1.6);
-  ctx.restore();
-  ctx.fillStyle = FLESH.mid;
-  for (let f = 0; f < 4; f++) {
-    const a = -0.7 + f * 0.47;
-    ctx.save(); ctx.translate(len, 0); ctx.rotate(a);
-    ctx.fillRect(0, -wid * 0.14, wid * 1.5, wid * 0.28);
-    ctx.restore();
-  }
+  ctx.translate(x0, y0);
+  ctx.rotate(aim - A.ang);            // 사진마다 팔이 누운 각이 다르다
+  hardBlit(ctx, cv, -A.sx * len, -A.sy * hh, len, hh);
+  /* 손끝 쪽으로 갈수록 어둠에 잠긴다 — 팔이 벽에서 나오는 것이지
+     화면을 가로지르는 것이 아니다. */
+  const fade = ctx.createLinearGradient(0, 0, len, 0);
+  fade.addColorStop(0, 'rgba(0,0,0,0)');
+  fade.addColorStop(0.55, 'rgba(0,0,0,0)');
+  fade.addColorStop(1, 'rgba(6,4,6,0.85)');
+  ctx.globalCompositeOperation = 'source-atop';
+  ctx.fillStyle = fade;
+  ctx.fillRect(-A.sx * len, -A.sy * hh, len, hh);
   ctx.restore();
 }
 function veilLimbs(ctx, w, h, px, py, tt) {
-  const reach = 0.5 + Math.sin(tt / 1100) * 0.28;
-  const wid = Math.max(4, Math.min(w, h) / 16);
-  ctx.globalAlpha = 0.9;
-  for (let i = 0; i < 5; i++) {
-    const f = (i + 1) / 6;
-    const grow = reach * (0.6 + ((i * 37) % 40) / 100);
-    oneArm(ctx, -wid, h * f, 0.15 - f * 0.3, w * 0.42 * grow, wid);
-    oneArm(ctx, w + wid, h * (1 - f), Math.PI - 0.15 + f * 0.3, w * 0.42 * grow, wid);
+  /* 처음에 열넷을 화면 길이만큼 깔았더니 **화면이 통째로 고기**가 되고
+     영웅이 어디 있는지 안 보였다. 기괴한 것과 안 보이는 것은 다르다
+     (§0). 변에서 들어오되 가운데는 비워 둔다 — 일곱, 화면의 절반 길이,
+     그리고 팔이 안쪽으로 갈수록 옅어진다. */
+  const reach = 0.66 + Math.sin(tt / 1100) * 0.24;
+  const L = Math.min(w, h) * 0.52;
+  const push = i => reach * (0.72 + ((i * 37) % 34) / 100);
+  let k = 0;
+  ctx.globalAlpha = 0.85;
+  for (let i = 0; i < 2; i++) {
+    const f = (i + 1) / 3;
+    oneArm(ctx, 0, h * f, 0.30 - f * 0.5, L * push(i), k++);
+    oneArm(ctx, w, h * (1 - f), Math.PI - 0.30 + f * 0.5, L * push(i + 2), k++);
   }
-  for (let i = 0; i < 3; i++) {
-    const f = (i + 1) / 4;
-    oneArm(ctx, w * f, -wid, Math.PI / 2 - 0.2 + f * 0.4, h * 0.38 * reach, wid);
-    oneArm(ctx, w * (1 - f), h + wid, -Math.PI / 2 + 0.2 - f * 0.4, h * 0.38 * reach, wid);
-  }
+  oneArm(ctx, w * 0.34, 0, Math.PI / 2 - 0.2, L * push(4), k++);
+  oneArm(ctx, w * 0.72, h, -Math.PI / 2 + 0.25, L * push(5), k++);
+  oneArm(ctx, w * 0.18, h, -Math.PI / 2 - 0.3, L * push(6), k++);
   ctx.globalAlpha = 1;
   void px; void py;
 }

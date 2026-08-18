@@ -2068,7 +2068,10 @@ export function useItem(slotIdx) {
      2.4로 내린다(바닥에서 0.82 — 다섯 병째는 여전히 덜 듣는다). */
   const gulp = (cracked('gut') && hasRelic('gut') ? 2.4
               : hasRelic('gut') || hasRelic('famine') ? 2 : 1)
-             * (hasRelic('wick') && !cracked('wick') ? 0.7 : 1);
+             * (hasRelic('wick') && !cracked('wick') ? 0.7 : 1)
+             /* 저울추의 대가. 30% 아래에서 세지는 물건이 올라오는 길까지
+                열어 주면 그건 거래가 아니라 상향이다. */
+             * (hasRelic('scale') ? 0.7 : 1);
   if (hasRelic('wick') && it.spr === 'potion') {
     const burn = (relicVal('wick') + G.depth) * (cracked('wick') ? 2 : 1);
     const reach = cracked('wick') ? 2 : 1;

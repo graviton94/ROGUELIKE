@@ -37,7 +37,7 @@ let bad = 0;
 const ok = (c, m, g) => { console.log(`  ${c ? '·' : '✗'} ${m}${g !== undefined ? ` — ${g}` : ''}`); if (!c) bad++; };
 
 /* ═══ 1. 아무것도 안 움직였다 ═════════════════════════════ */
-console.log('\n── 값이 그대로인가 (마흔 개 × 크랙 둘)');
+console.log(`\n── 값이 그대로인가 (유물 × 크랙 둘)`);
 {
   const base = JSON.parse(readFileSync(new URL('./_gearbase.json', import.meta.url), 'utf8'));
   Meta.forget();
@@ -79,8 +79,8 @@ console.log('\n── 값이 그대로인가 (마흔 개 × 크랙 둘)');
   }
   const held = new Set(D.RELICS.map(r => r.id));
   const gone = Object.keys(base.snap).map(k => k.split('/')[0]).filter(id => !held.has(id));
-  ok(!diff.length, '기준선의 여든 칸이 한 칸도 안 달라졌다 — 표로 옮기는 것은 리팩터링이지 밸런스 변경이 아니다',
-     diff.length ? diff.slice(0, 4).join(' · ') + (diff.length > 4 ? ` 외 ${diff.length - 4}` : '')
+  ok(!diff.length, '기준선의 모든 칸이 그대로다 — 표로 옮기는 것은 리팩터링이지 밸런스 변경이 아니다',
+     diff.length ? '\n      ' + diff.join('\n      ')
                  : `${Object.keys(base.snap).length / 2}개 × 2`);
   ok(!gone.length, '기준선에 있던 유물이 조용히 사라지지 않았다',
      gone.length ? [...new Set(gone)].join(' ') : `${held.size - fresh.size}개 그대로`);
@@ -103,11 +103,15 @@ const WORDS = ['몸', '손', '혀', '눈', '발', '주머니', '*'];
   /* ── 대가 없는 유물 ────────────────────────────────────
      이 게임의 다른 모든 것이 「규칙 하나와 대가 하나」를 지킨다
      (§4의 종족). 유물만 예외였고 여섯 개가 대가 없이 서 있다.
-     늘어나지만 않게 막는다 — 줄이는 것은 순서 4의 일이다. */
+
+     ⑤-유물 (4)에서 그 여섯에 대가를 붙였다 — 메아리의 종(최대 체력
+     −10%) · 거울 방패(은신 −25%) · 불씨 항아리(불빛 −1) · 저울추(물약
+     −30%) · 뼈 목걸이(명중 −6) · 앙심(주문 위력 −3). 기준선을 6에서
+     **0**으로 내려 적는다. 내리는 것은 언제나 공짜다. */
   const free = D.RELICS.filter(r => !r.take);
-  console.log(`     대가 없는 것 ${free.length}개 — ${free.map(r => r.n).join(' · ')}`);
-  ok(free.length <= 6, '대가 없는 유물이 늘지 않는다 — 대가가 없으면 유물이 아니라 스탯이다',
-     `${free.length}개 (기준선 6)`);
+  console.log(`     대가 없는 것 ${free.length}개 — ${free.map(r => r.n).join(' · ') || '없다'}`);
+  ok(free.length <= 0, '대가 없는 유물이 없다 — 대가가 없으면 유물이 아니라 스탯이다',
+     `${free.length}개 (기준선 0)`);
 }
 
 /* ═══ 3. 격자 ═════════════════════════════════════════════ */
@@ -211,10 +215,22 @@ console.log('\n── 손의 문법 (겹침 · 갚음 · 겹친 대가)');
    ── 그리고 아홉 개는 구조적으로 폭이 0이다 ────────────────
    주는 어휘와 가져가는 어휘가 **같으면** 값이 모든 직업에서 정확히
    0이다(쌍둥이 룬 혀/혀 · 무모함의 인장 손/손 · 매듭 밧줄 발/발 …).
-   그건 자의 결함이 아니라 그 유물의 성질이다: 혀를 주고 혀를 가져가는
-   거래는 마법사에게도 전사에게도 같은 거래다. **유물을 직업별로
-   만들려면 주는 어휘와 가져가는 어휘가 달라야 한다** — 이 아홉이
-   순서 4에서 손볼 목록이고, 이 절이 그 목록을 인쇄한다. */
+
+   ── 여기 적혀 있던 말이 틀렸다 ──────────────────────────────
+   처음엔 「그건 자의 결함이 아니라 그 유물의 성질이다 — 이 아홉이
+   손볼 목록이다」라고 적어 두었다. 아니었다. 폭은
+   `무게(give,cls) − 무게(take,cls)` 이므로 give === take 면 **어떤
+   무게표를 넣어도 모든 직업에서 0**이다. 관측이 아니라 항등식이다.
+
+   `sim/evenhand.mjs` 가 어휘 **안쪽**을 재 보니 여섯 낱말 전부가
+   직업마다 갈렸다 — 치명 3.9배 · 은신 201배 · 명중 3.0배. (「명중은
+   평평할 것」을 대조군으로 세웠다가 그 대조군에 물려서 알았다.)
+   즉 이 아홉은 「직업을 안 가리는 유물 아홉」이 아니라 **이 자로는
+   판정할 수 없는 유물 아홉**이다. 유물을 고칠 목록이 아니다.
+
+   그래서 이 절은 아홉을 「폭 0」이 아니라 **판정 안 함**으로 인쇄한다.
+   남겨 두는 규칙은 하나뿐이다: 이 아홉이 **늘지 않는다** — 새로 짓는
+   유물은 어휘가 갈리는 쪽으로 짓는 편이 자에게도 보인다. */
 console.log('\n── 무조건 좋은 유물은 없는가');
 {
   const W = JSON.parse(readFileSync(new URL('./_words.json', import.meta.url), 'utf8'));
@@ -245,8 +261,9 @@ console.log('\n── 무조건 좋은 유물은 없는가');
     console.log(`       ${x.r.n.padEnd(12)} ${(x.r.give + '/' + (x.r.take || '없음')).padEnd(11)}`
       + ` 폭 ${x.spread.toFixed(2)}  ${KOC[x.best]} 쪽 > ${KOC[x.worst]} 쪽`);
   const same = rows.filter(x => x.same);
-  console.log(`     **주는 것과 가져가는 것이 같아서** 폭이 0인 것 ${same.length}개 —`);
+  console.log(`     **주는 것과 가져가는 것이 같아서 이 자로는 판정 안 되는** 것 ${same.length}개 —`);
   console.log(`       ${same.map(x => x.r.n).join(' · ')}`);
+  console.log(`       (폭 0은 관측이 아니라 항등식이다 — 어휘 안쪽은 sim/evenhand.mjs 가 잰다)`);
   const free = rows.filter(x => !x.r.take);
   console.log(`     대가가 없어서 폭이 give 하나로 정해지는 것 ${free.length}개`);
 
@@ -258,7 +275,7 @@ console.log('\n── 무조건 좋은 유물은 없는가');
      '유물의 값이 직업마다 다르다 — 배치 폭을 넘겨서 갈리는 것이 스물넷은 된다',
      `${sharp.length}개 (미지근 ${flat.length})`);
   ok(same.length <= 9,
-     '주는 어휘와 가져가는 어휘가 같은 유물이 늘지 않는다 — 그 거래는 여섯 직업에게 똑같다',
+     '주는 어휘와 가져가는 어휘가 같은 유물이 늘지 않는다 — 이 자가 판정 못 하는 칸이 늘어난다',
      `${same.length}개 (기준선 9)`);
 }
 

@@ -1842,6 +1842,11 @@ const RAMP = {
      진한 잉크가 제일 밝은 금색이 된다. 종이는 아예 안 칠한다. */
   sigil: ['#0e0a03','#140e04','#1a1205','#211706','#291c07','#322208','#3b290a','#45300b',
           '#50380d','#5c410f','#694b11','#775614','#866217','#9a721c','#bb8b26','#e6bb44'],
+  /* 살덩이 벽은 젖은 고기다. 살 램프(flesh)를 그대로 태웠더니 위쪽이
+     크림색으로 떠서 **사암 벽**처럼 보였다. 아래를 검붉게 깔고 가운데를
+     피로 채우고, 뼈는 맨 위 두 칸에서만 밝아지게 한다. */
+  meat:  ['#0b0305','#170609','#24080c','#340b0f','#450e12','#571216','#6a181a','#7d2020',
+          '#8f2b26','#a03a2f','#ae4b3a','#bb6048','#c67b5c','#d09a78','#dcbb9c','#eddcc6'],
   hand:  ['#0d0406','#170709','#220c0d','#320f10','#451614','#5b201b','#742e24',
           '#8c4030','#a4553f','#b96b50','#c88062','#d29175','#daa188','#e0ae98','#e5b9a6','#ead2c2'],
 };
@@ -1997,6 +2002,19 @@ function oneArm(ctx, x0, y0, aim, len, k) {
   ctx.restore();
 }
 function veilLimbs(ctx, w, h, px, py, tt) {
+  /* 팔이 **어디서** 나오는가. 지금까지는 검은 화면 가장자리였고,
+     그러면 팔은 허공에서 나온 것이 된다. 벽이 있어야 벽에 박힌
+     것이 된다 — 사람 여럿이 녹아 붙은 벽 사진을 화면에 덮고 그
+     위에서 팔을 뽑는다. 숨을 쉬듯 아주 느리게 밀린다(§3: 정지한
+     배경은 배경이고, 미는 배경은 살아 있는 것이다). */
+  const wall = texCanvas(FLESH_TEX, RAMP.meat, 'meat');
+  const breath = Math.sin(tt / 2300) * 0.035;
+  const cover = Math.max(w / wall.width, h / wall.height) * (1.10 + breath);
+  const cw = wall.width * cover, ch = wall.height * cover;
+  ctx.globalAlpha = 0.92;
+  hardBlit(ctx, wall, (w - cw) / 2 + Math.sin(tt / 3700) * w * 0.02,
+                      (h - ch) / 2 + Math.cos(tt / 4300) * h * 0.02, cw, ch);
+  ctx.globalAlpha = 1;
   /* 처음에 열넷을 화면 길이만큼 깔았더니 **화면이 통째로 고기**가 되고
      영웅이 어디 있는지 안 보였다. 기괴한 것과 안 보이는 것은 다르다
      (§0). 변에서 들어오되 가운데는 비워 둔다 — 일곱, 화면의 절반 길이,
@@ -2015,7 +2033,7 @@ function veilLimbs(ctx, w, h, px, py, tt) {
   oneArm(ctx, w * 0.72, h, -Math.PI / 2 + 0.25, L * push(5), k++);
   oneArm(ctx, w * 0.18, h, -Math.PI / 2 - 0.3, L * push(6), k++);
   ctx.globalAlpha = 1;
-  void px; void py;
+  punchPlayer(ctx, w, h, px, py, Math.min(w, h) * 0.24);   // 벽이 화면을 덮는다
 }
 /* 깜짝. 손 하나가 화면을 통째로 덮는다 — 0.42초, 붉은 섬광과 함께.
    이것이 이 층에서 가장 중요한 그림이고, 그래서 예고가 없다. */

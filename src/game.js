@@ -806,6 +806,20 @@ export function gearBonus(p) {
      are nearly dead, which is what makes it a gamble rather
      than a stat. */
   for (const id of p.relics || []) {
+    /* ── 표가 말하는 값을 먼저 건다 ────────────────────────
+       `mod`/`uncracked` 로 적힌 것은 여기 한 줄이 처리한다. 아래
+       switch 에 남은 것은 조건부이거나 규칙을 바꾸는 것들이다.
+       'v' 는 relicVal(id) — 표의 v 를 먹인 값이 닿는 통로가 그것
+       하나뿐이라 리터럴로 적으면 먹이기가 안 통한다. */
+    const rec = relicById(id);
+    for (const src of [rec?.mod, cracked(id) ? null : rec?.uncracked]) {
+      if (!src) continue;
+      for (const [k, raw] of Object.entries(src)) {
+        if (raw === true) { b[k] = true; continue; }
+        const v = raw === 'v' ? relicVal(id) : raw === '-v' ? -relicVal(id) : raw;
+        b[k] += v;
+      }
+    }
     switch (id) {
       /* 크랙이 갈리는 자리. 두 번째 계산 경로를 만들지 않고 **같은
          줄에서** 갈린다 — 크랙용 gearBonus를 따로 두면 그 날로
@@ -814,28 +828,20 @@ export function gearBonus(p) {
          중 열다섯만 relicVal 을 읽었고, 그래서 「일반 유물을 줄인다」가
          그 열다섯에만 걸렸다 — 표에 적힌 v 가 화면에도 규칙에도
          안 닿는 유물이 스물다섯 개 있었다는 뜻이다. */
-      case 'pact':     if (!cracked('pact')) b.maxhpPct -= 0.25;
-                       b.crit += relicVal('pact'); break;
       /* 먹일 수 있는 것들은 리터럴이 아니라 relicVal을 읽는다 —
          먹인 값(p.tuned)이 닿는 통로가 그것 하나뿐이다. 안 먹였으면
          relicVal은 표의 v를 그대로 돌려주므로 값은 전과 같다. */
-      case 'chain':    b.ac += relicVal('chain'); if (!cracked('chain')) b.noStealth = true; break;
       case 'reckless': b.hitPct *= 0.85;
                        b.critMult += relicVal('reckless') * (cracked('reckless') ? 2 : 1); break;
-      case 'eye':      b.manaFlat -= relicVal('eye'); break;
-      case 'vow':      b.dmgPct += relicVal('vow'); break;
       case 'scale':    if (p.hp <= p.maxhp * (cracked('scale') ? 0.5 : 0.3))
                          b.dmgPct += relicVal('scale') * (cracked('scale') ? 2 : 1); break;
       case 'lamp':     b.lightR += cracked('lamp') ? relicVal('lamp') : -relicVal('lamp'); break;
-      case 'everflame': if (!cracked('everflame')) b.maxhpPct -= 0.20; break;
-      case 'moth':     b.maxhpPct -= 0.10; break;
-      case 'knot':     b.stealth -= 0.5; break;
+      /* 씨앗은 절반만 표로 갔다 — 최대 체력은 고정이지만 방어는
+         층마다 자라는 값(p.seedAc)이라 수정치 표에 안 담긴다. */
       case 'seed':     b.maxhpPct -= 0.15; b.ac += p.seedAc || 0; break;
       case 'grudge':   b.dmgPct += (p.grudge || 0) * relicVal('grudge'); break;
       // The stat relics pay for themselves in health, not in
       // a second stat — see effStats() for what they actually do.
-      case 'specs':    b.maxhpPct -= 0.20; break;
-      case 'ballast':  if (!cracked('ballast')) b.maxhpPct -= 0.25; break;
       case 'nighteye': if (cracked('nighteye') && G.depth > 0 && p.lightTurns <= 0)
                          b.dmgPct += 0.25; break;
 
@@ -858,7 +864,6 @@ export function gearBonus(p) {
       case 'martyr':   b.maxhpPct -= 0.40; b.crit += 0.25 * FUSED_SCALE;
                        b.critMult += 1.2 * FUSED_SCALE; b.hitPct *= 0.90; break;
       case 'paradox':  b.dmgPct += 0.20 * FUSED_SCALE; break;
-      case 'oracle':   b.manaFlat -= 3; b.lightR -= 2; break;
     }
   }
   /* ── 아르카나가 몸에 닿는 두 곳 ────────────────────────

@@ -815,7 +815,11 @@ export function gearBonus(p) {
        'v' 는 relicVal(id) — 표의 v 를 먹인 값이 닿는 통로가 그것
        하나뿐이라 리터럴로 적으면 먹이기가 안 통한다. */
     const rec = relicById(id);
-    for (const src of [rec?.mod, cracked(id) ? null : rec?.uncracked]) {
+    /* 세 칸이다: 늘 붙는 것(mod) · 깨지기 전까지만 붙는 것(uncracked) ·
+       깨진 뒤에만 붙는 것(cracked). 앞의 둘로 ②(대가를 지운다)는
+       표에 적을 수 있었지만 ①(선물을 민다)은 못 적어서 switch 로
+       내려갔다. 세 번째 칸 한 줄이면 ①도 표에 앉는다. */
+    for (const src of [rec?.mod, cracked(id) ? rec?.cracked : rec?.uncracked]) {
       if (!src) continue;
       for (const [k, raw] of Object.entries(src)) {
         if (raw === true) { b[k] = true; continue; }
@@ -5869,6 +5873,7 @@ export const goldGain = n => {
     n * (SHACKLES[G.abyss || 0] || SHACKLES[0]).gold
       * (hasArcana('greed') ? 2 : 1)
       * (hasRelic('toll') || hasRelic('ledger') ? 2 : 1) * (hasRelic('quill') ? 0.75 : 1)
+      * (hasRelic('swift') ? 0.6 : 1)
       * (hasBoon('hoard') ? 1.6 : 1)));
   G.goldEarned = (G.goldEarned || 0) + got;
   /* 원금으로 적는다. 보정 뒤 금액을 적으면 뱃사공의 동전이 자기가 두
@@ -7384,7 +7389,8 @@ function monsterTurn(m) {
       const wading = L.tiles[idx(p.x, p.y)] === WATER;
     const quiet = wading ? stealth(p) * 0.25 : stealth(p);
     // 전쟁 북 is loud: it hears you two tiles sooner.
-    const reach = dist - (hasRelic('march') ? 3 : hasRelic('drum') ? 2 : 0);
+    const reach = dist - (hasRelic('march') ? 3 : hasRelic('drum') ? 2 : 0)
+                       - (hasRelic('horn') && !cracked('horn') ? 2 : 0);
     /* 열기가 각성에 거는 자리. 곱이 아니라 **거리를 당긴다** —
        확률에 곱하면 멀리 있는 것은 여전히 못 보고 붙은 것만 더 잘
        보게 되는데, 이 시스템이 만들려는 것은 「멀리서부터 온다」다. */

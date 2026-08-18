@@ -44,7 +44,7 @@ console.log('\n── 값이 그대로인가 (마흔 개 × 크랙 둘)');
   Game.startGame('human', 'warrior', Game.rollStats('warrior'));
   const p = G.player;
   p.lv = 10; Game.recalc(p);
-  const diff = [];
+  const diff = [], fresh = new Set();
   for (const r of D.RELICS) for (const crack of [false, true]) {
     p.relics = [r.id];
     G.cracks = crack ? { [r.id]: true } : {};
@@ -58,15 +58,33 @@ console.log('\n── 값이 그대로인가 (마흔 개 × 크랙 둘)');
       const v = b[k];
       return typeof v === 'number' ? Math.round(v * 1e6) / 1e6 : v;
     });
+    /* ── 기준선에 없는 유물은 「달라졌다」가 아니다 ────────────
+       여기서 한 번 터졌다. 유물을 여섯 개 새로 지으니 was 가
+       undefined 라 벤치가 죽었고, 처음 든 생각은 「기준선을 다시
+       떠야겠다」였다. 그게 정확히 이 파일이 막으려던 일이다 —
+       다시 떠 버리면 옛 여든 칸이 안 움직였다는 보증이 그 순간
+       사라진다.
+
+       그래서 새 것은 **견줄 대상이 없다고 말하고 넘긴다.** 기준선은
+       마흔 개 × 둘로 그대로 두고, 그 여든 칸만 지킨다. 값을 실제로
+       고치는 날(대가 없는 여섯에 대가를 붙이는 순서 ⑤ 같은 날)에만
+       _gearbase.mjs 로 일부러 다시 뜨고, 커밋에 **왜** 다시 떴는지
+       적는다. */
     const was = base.snap[`${r.id}/${crack ? 'crack' : 'plain'}`];
+    if (!was) { fresh.add(r.id); continue; }
     was.forEach((v, i) => {
       if (JSON.stringify(v) !== JSON.stringify(now[i]))
         diff.push(`${r.n}${crack ? '(크랙)' : ''} ${base.keys[i]} ${v} → ${now[i]}`);
     });
   }
-  ok(!diff.length, '여든 칸이 한 칸도 안 달라졌다 — 표로 옮기는 것은 리팩터링이지 밸런스 변경이 아니다',
+  const held = new Set(D.RELICS.map(r => r.id));
+  const gone = Object.keys(base.snap).map(k => k.split('/')[0]).filter(id => !held.has(id));
+  ok(!diff.length, '기준선의 여든 칸이 한 칸도 안 달라졌다 — 표로 옮기는 것은 리팩터링이지 밸런스 변경이 아니다',
      diff.length ? diff.slice(0, 4).join(' · ') + (diff.length > 4 ? ` 외 ${diff.length - 4}` : '')
-                 : `${D.RELICS.length}개 × 2`);
+                 : `${Object.keys(base.snap).length / 2}개 × 2`);
+  ok(!gone.length, '기준선에 있던 유물이 조용히 사라지지 않았다',
+     gone.length ? [...new Set(gone)].join(' ') : `${held.size - fresh.size}개 그대로`);
+  console.log(`    (기준선에 없는 새 유물 ${fresh.size}개는 견줄 대상이 없다: ${[...fresh].join(' ') || '없음'})`);
 }
 
 /* ═══ 2. 문법 ═════════════════════════════════════════════ */

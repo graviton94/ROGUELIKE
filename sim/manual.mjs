@@ -109,5 +109,17 @@ for (const [n, val, phrase] of CHECKS) {
      gone.length ? `빠진 것 ${gone.join(' · ')}` : names.join(' · '));
 }
 
+/* ── 유물이 몇 종인지 ─────────────────────────────────────
+   문서가 「40종」이라고 적어 두고 있었는데 여섯을 더 지어 마흔여섯이
+   됐다. 이 파일이 잡으라고 있는 종류의 어긋남인데 안 잡았다 — 세는
+   줄이 없었으니까. 종수와 융합 수를 둘 다 뽑아서 맞춘다. */
+{
+  const m = text.match(/몇 종류\s*(\d+)종\(그중 (\d+)종은 융합/);
+  const fused = D.RELICS.filter(r => r.fused).length;
+  ok(!!m && +m[1] === D.RELICS.length && +m[2] === fused,
+     '유물 종수와 융합 종수를 문서가 그대로 말한다',
+     m ? `문서 ${m[1]}종 / 융합 ${m[2]} · 코드 ${D.RELICS.length}종 / 융합 ${fused}` : '줄을 못 찾았다');
+}
+
 console.log(bad ? `\n조작법 벤치: ${bad}건 어긋남\n` : '\n조작법 벤치: 문서와 게임이 같은 값을 말한다\n');
 process.exit(bad ? 1 : 0);

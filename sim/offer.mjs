@@ -80,7 +80,18 @@ for (const s of SIZES) {
       } else {
         L.tiles[i] = { camp: W.CAMP, altar: W.ALTAR, event: W.EVENT, anvil: W.ANVIL,
                        down: W.DOWN, up: W.UP }[k];
-        if (k === 'event') L.eventId = L.eventId || 'seep';
+        /* ── 자리를 반쯤만 꾸며 놓고 있었다 ──────────────────
+           타일만 EVENT 로 갈아 끼우고 `eventAt` 에는 안 넣었다.
+           그런데 규칙이 보는 조건은 둘이다 —
+           `t === EVENT && !L.eventAt.has(here)` 이면 아무것도 없는
+           자리다(이미 가져간 자리라는 뜻). 즉 이 칸은 「발밑에 사건이
+           있으면 버튼이 뜨는가」를 잰 것이 아니라 **플레이어가 하필
+           진짜 사건 타일 위에 서 있었는가**를 재고 있었다.
+           기준선에서는 마침 서 있었고, 무관한 커밋 하나가 난수 흐름을
+           밀자 그 자리에서 실패로 찍혔다. 규칙이 읽는 곳을 그대로
+           꾸민다. */
+        if (k === 'event') { L.eventId = L.eventId || 'seep';
+          (L.eventAt = L.eventAt || new Map()).set(i, 'seep'); }
       }
       UI.refresh();
       const btn = document.getElementById('btn-here');

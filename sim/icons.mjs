@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   icons.mjs — 마흔일곱이 각자 제 얼굴인가
+   icons.mjs — 유물과 이름 있는 무기가 각자 제 얼굴인가
 
    플레이어: 「최정상급 아이템, 유물은 아이콘도 각자 unique하게」.
 
@@ -10,7 +10,7 @@
    이름 있는 무기 일곱도 평범한 단검·활·대검을 그대로 입고 있었다.
 
    묻는 것 넷:
-     1. 마흔일곱이 각자 다른 그림을 **가리키는가** (데이터)
+     1. 전부가 각자 다른 그림을 **가리키는가** (데이터)
      2. 그 그림이 실제로 **있는가** (없으면 빈 칸이 그려진다)
      3. 은총 여섯이 각자 제 문장을 갖는가 — 초월은 절차적으로
         만들어져서 제 그림을 미리 못 갖는다
@@ -29,7 +29,11 @@ const P = await import('../src/pixels.js');
 let bad = 0;
 const ok = (c, m, g) => { console.log(`  ${c?'·':'✗'} ${m}${g!==undefined?` — ${g}`:''}`); if (!c) bad++; };
 
-console.log('\n아이콘 벤치 — 마흔일곱이 각자 제 얼굴인가\n');
+/* 「마흔일곱」을 제목과 단언에 손으로 적어 두고 있었다. 유물을 여섯
+   지으니 쉰셋인데 화면에는 계속 마흔일곱이라고 적혀 있었다 — 이 파일이
+   스스로 「손으로 적은 목록은 어긋난다」고 적어 놓은 그 자리다. */
+const FACES = D.RELICS.length + D.UNIQUES.length;
+console.log(`\n아이콘 벤치 — ${FACES}종이 각자 제 얼굴인가\n`);
 
 /* ── 1·2. 각자 다른 그림을, 실제로 있는 그림을 ────────── */
 {
@@ -42,7 +46,7 @@ console.log('\n아이콘 벤치 — 마흔일곱이 각자 제 얼굴인가\n');
     if (seen.has(spr)) shared.push(`${n} = ${seen.get(spr)}`); else seen.set(spr, n);
     void kind; void id;
   }
-  ok(shared.length === 0, '마흔일곱이 각자 다른 그림을 가리킨다 — 같은 그림을 쓰는 짝이 없다',
+  ok(shared.length === 0, `${FACES}종이 각자 다른 그림을 가리킨다 — 같은 그림을 쓰는 짝이 없다`,
      shared.length ? shared.slice(0, 5).join(' · ') : `${rows.length}종 · 그림 ${seen.size}장`);
   ok(missing.length === 0, '가리키는 그림이 전부 실제로 있다 — 없으면 빈 칸이 그려진다',
      missing.length ? missing.join(' ') : '');
@@ -97,5 +101,5 @@ console.log('');
      same.length ? same.map(p => `${p.a}↔${p.b}`).join(' ') : '');
 }
 
-console.log(bad ? `\n아이콘 벤치: ${bad}건 실패\n` : '\n아이콘 벤치: 마흔일곱이 각자 제 얼굴이다\n');
+console.log(bad ? `\n아이콘 벤치: ${bad}건 실패\n` : `\n아이콘 벤치: ${FACES}종이 각자 제 얼굴이다\n`);
 process.exit(bad ? 1 : 0);

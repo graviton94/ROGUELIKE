@@ -7,7 +7,7 @@
    ═══════════════════════════════════════════════════════════ */
 
 import { PALETTE, spriteColors } from './pixels.js';
-import { EYE_TEX, FLESH_TEX, VEIN_TEX, HAND_TEX, FACE_TEX, LIMBS } from './horror.js';
+import { EYE_TEX, FLESH_TEX, VEIN_TEX, HAND_TEX, FACE_TEX, LIMBS, SIGIL_TEX } from './horror.js';
 import { MW as MAP_W } from './world.js';
 import { sfx, from as earFrom } from './audio.js';
 
@@ -1837,6 +1837,11 @@ const RAMP = {
      주황 구슬이 되어 눈으로 안 읽혔다. */
   eyeball:['#000000','#04060b','#0a1018','#101c2a','#17293c','#1f374e','#2c4557',
           '#3a5566','#4c6672','#63787e','#8a9088','#a3a79c','#bcbdaf','#d0cfc0','#e2e0d0','#f4f1e4'],
+  /* 표는 흰 종이에 검은 잉크로 찍힌 판화다. 어두운 화면에 그대로
+     얹으면 안 보이므로 **잉크 세기를 밝기로 뒤집어** 태운다 —
+     진한 잉크가 제일 밝은 금색이 된다. 종이는 아예 안 칠한다. */
+  sigil: ['#0e0a03','#140e04','#1a1205','#211706','#291c07','#322208','#3b290a','#45300b',
+          '#50380d','#5c410f','#694b11','#775614','#866217','#9a721c','#bb8b26','#e6bb44'],
   hand:  ['#0d0406','#170709','#220c0d','#320f10','#451614','#5b201b','#742e24',
           '#8c4030','#a4553f','#b96b50','#c88062','#d29175','#daa188','#e0ae98','#e5b9a6','#ead2c2'],
 };
@@ -2024,42 +2029,52 @@ function veilFaces(ctx, w, h, px, py, tt) {
   ctx.globalAlpha = 1;
   void px; void py;
 }
-/* 새겨진 표 — 원과 삼각형이 겹겹이, 스스로 도는 프랙탈. 각 겹의
-   가운데에 눈이 하나씩 박혀 있다. */
-function glyphRing(ctx, cxx, cyy, r, rot, sides) {
-  ctx.beginPath(); ctx.arc(cxx, cyy, r, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath();
-  for (let i = 0; i <= sides; i++) {
-    const a = rot + i * Math.PI * 2 / sides;
-    const x = cxx + Math.cos(a) * r, y = cyy + Math.sin(a) * r;
-    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-  }
-  ctx.closePath(); ctx.stroke();
-}
+/* 새겨진 표 — **판화 한 장이 스스로를 낳는다.** 벡터로 원과 삼각형을
+   그려 봤을 때는 「도형 몇 개」였다. 같은 판화를 0.6배씩 줄여 겹쳐
+   놓고 겹마다 다른 속도로 돌리면, 화면이 자기를 들여다보는 굴이 된다.
+   판화의 눈은 안 움직인다 — 그래서 겹의 꼭짓점에 **너를 쫓는 눈**을
+   따로 박는다. 안 보는 눈과 보는 눈이 같은 화면에 있어야 불쾌하다. */
 function veilSigil(ctx, w, h, px, py, tt) {
-  const cxx = w / 2, cyy = h / 2, big = Math.hypot(w, h) * 0.52;
+  const cxx = w / 2, cyy = h / 2, big = Math.min(w, h) * 0.80;
+  const eng = texCanvas(SIGIL_TEX, RAMP.sigil, 'sigil');
   ctx.save();
-  ctx.strokeStyle = PALETTE.y;
-  ctx.globalAlpha = 0.42;
+  /* 두 번 크게 깔았다가 두 번 다 지도를 지웠다. 이 판화는 삼각형
+     **안쪽이 점묘로 꽉 찬** 그림이라, 화면보다 크게 깔면 보이는 것이
+     테두리가 아니라 잉크 덩어리다. 화면 짧은 변의 0.8배 — 햇살까지
+     한 장이 다 들어오고 가장자리에 방이 남는다. */
   for (let k = 0; k < 5; k++) {
-    const r = big * Math.pow(0.62, k);
-    const rot = tt / (1400 + k * 900) * (k % 2 ? -1 : 1);
-    ctx.lineWidth = 1;
-    glyphRing(ctx, cxx, cyy, r, rot, 3 + (k % 2));
-    ctx.globalAlpha = 0.42 - k * 0.05;
+    const s = big * Math.pow(0.60, k);
+    const rot = tt / (2600 + k * 1500) * (k % 2 ? -1 : 1);
+    ctx.globalAlpha = 0.26 - k * 0.035;
+    ctx.save();
+    ctx.translate(cxx, cyy); ctx.rotate(rot);
+    hardBlit(ctx, eng, -s / 2, -s / 2, s, s);
+    ctx.restore();
   }
   ctx.restore();
-  /* 그리고 그 겹마다 눈. 프랙탈이 「도형」이 아니라 「보는 것」이 된다. */
+  /* 겹의 꼭짓점마다 눈. 프랙탈이 「도형」이 아니라 「보는 것」이 된다. */
   ctx.globalAlpha = 0.8;
-  for (let k = 0; k < 4; k++) {
-    const r = big * Math.pow(0.62, k), rot = tt / (1400 + k * 900) * (k % 2 ? -1 : 1);
+  for (let k = 1; k < 3; k++) {
+    const r = big * 0.30 * Math.pow(0.60, k), rot = tt / (2600 + k * 1500) * (k % 2 ? -1 : 1);
     for (let i = 0; i < 3; i++) {
-      const a = rot + i * Math.PI * 2 / 3;
+      const a = rot - Math.PI / 2 + i * Math.PI * 2 / 3;
       oneEye(ctx, cxx + Math.cos(a) * r, cyy + Math.sin(a) * r,
-             Math.max(3, big * 0.055 * Math.pow(0.8, k)), px, py, 1);
+             Math.max(3, big * 0.030 * Math.pow(0.8, k)), px, py, 1);
     }
   }
   ctx.globalAlpha = 1;
+  /* 발밑에 구멍을 뚫는다. 이 판화는 삼각형 안쪽이 점묘로 꽉 차 있어서
+     그냥 얹으면 **네가 잉크 밑으로 사라진다**(§0). 이 겹은 빈 버퍼에
+     그려 화면 위에 얹는 것이므로, 지워 낸 자리로는 방이 그대로 보인다.
+     완전히 지우지는 않는다 — 표가 너를 피해 갈라지는 것으로 남는다. */
+  const hole = ctx.createRadialGradient(px, py, 0, px, py, Math.min(w, h) * 0.20);
+  hole.addColorStop(0, 'rgba(0,0,0,0.94)');
+  hole.addColorStop(0.5, 'rgba(0,0,0,0.72)');
+  hole.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.fillStyle = hole; ctx.fillRect(0, 0, w, h);
+  ctx.restore();
 }
 /* 고대의 천사 — 화면만 한 눈 하나가 뒤에서 보고 있고, 네 변에 깃이
    돋아 있다. 눈동자는 세로로 갈라져 있고 너를 쫓는다. */

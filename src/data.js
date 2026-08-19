@@ -567,111 +567,111 @@ export const IMMUNE = {
    on:   ailment inflicted on a landed hit
    door: 'open' opens doors, 'smash' breaks them, absent = stopped
    regen: hp regained per turn                                */
+/* ═══ 몬스터 — 사다리는 「더 센 것」이 아니라 「나에게 가까운 것」 ═══
+   DESIGN.md §1 「깊이는 무엇이 깊어지는가」.
+
+   서른 마리 중 스물넷이 표준 D&D였고(코볼드·오크·오우거·동굴 트롤·
+   어린 붉은 용·리치), **동시에 스물넷이 `hunt`** 였다. 이름만 다르고
+   똑같이 굴었다는 뜻이다. 그 표에서는 깊이가 체력 막대의 길이였다.
+
+   다시 짠 표가 지키는 것 둘:
+
+     ① 층대가 내려갈수록 **나에게 가까워진다.** 1–3층은 짐승,
+        4–6층은 먼저 내려간 자들의 장비, 7–9층은 신앙에 먹힌 사람,
+        10–12층은 신의 것, 13–15층은 **전대 용사들**. 최심부에서
+        전대 용사를 이기고 그 자리에 앉는 것이 이 게임의 결말이므로
+        (§1), 그 결말은 1층부터 예고되어 있어야 한다.
+     ② 한 층대 안에서 **하는 짓이 안 겹친다.** `does` 는 표에만 있고
+        `monsterVerb` 한 자리에서 읽는다(§5-2).
+
+   DCSS에서 빌린 것은 ②의 구조뿐이다. 숫자는 한 개도 안 빌렸다. */
 export const MONSTERS = [
-  { spr:'rat',     n:'커다란 쥐',        d:1,  rar:10, hp:5,   atk:3,  ac:1,  xp:2,   ai:'hunt',    grp:[1,3],
-    lore:'성채가 사람 것이던 시절부터 여기 있었다. 요즘은 내려오는 사람이 많아 잘 먹는다.' },
-  { spr:'bat',     n:'과일 박쥐',        d:1,  rar:9,  hp:6,   atk:3,  ac:3,  xp:3,   ai:'erratic', spd:1.7,
-    lore:'과일은 오래전에 없어졌는데 이름만 남았다. 지금은 다른 걸 먹는다.' },
-  { spr:'mold',    n:'회색 곰팡이',      d:1,  rar:5,  hp:14,  atk:5,  ac:1,  xp:5,   ai:'still',   on:'poison', does:'corrode',
-    lore:'벽이 아니라 벽에 기댄 것에서 자란다. 밟기 전에는 벽처럼 보인다.' },
-  /* The step between one and two. Measured, floor 1 threw 0.8
-     damage a turn and floor 2 threw 2.5 — three times as much,
-     across a single staircase, at a character who has gained
-     about one level. A fresh mage died to three kobolds in 71%
-     of tries; to three rats, never.
-
-     So: something that lives on both floors, comes alone, hits
-     for what a kobold hits for, and cannot follow you through a
-     door. It teaches the two habits floor 2 is about to demand —
-     that a single thing can hurt now, and that a doorway is a
-     tool — while it is still survivable to learn them. */
-  { spr:'lean',    n:'굶은 들쥐',        d:1,  rar:7,  hp:9,   atk:6,  ac:2,  xp:4,   ai:'hunt',    spd:1.15,
+  /* ── 1~3층 · 갱구 ────────────────────────────────────────
+     아직 사람의 자리다. 굴에 원래 살던 것과, 사람이 두고 간 것. */
+  { spr:'rat',     n:'굴쥐',             d:1,  rar:10, hp:5,   atk:3,  ac:1,  xp:2,   ai:'hunt',    grp:[1,3],
+    lore:'갱구가 사람 것이던 시절부터 있었다. 요즘은 내려오는 사람이 많아 잘 먹는다.' },
+  { spr:'bat',     n:'눈먼 박쥐',         d:1,  rar:9,  hp:6,   atk:3,  ac:3,  xp:3,   ai:'erratic', spd:1.7,
+    lore:'여기서는 눈이 쓸모없다. 쓸모없어진 것은 오래지 않아 없어진다.' },
+  { spr:'mold',    n:'벽에 핀 것',        d:1,  rar:5,  hp:14,  atk:5,  ac:1,  xp:5,   ai:'still',   on:'poison', does:'corrode',
+    lore:'벽이 아니라 벽에 기댄 것에서 자란다. 기댄 것이 무엇이었는지는 이제 모른다.' },
+  { spr:'lean',    n:'굶은 것',           d:1,  rar:7,  hp:9,   atk:6,  ac:2,  xp:4,   ai:'hunt',    spd:1.15,
     lore:'무리에서 밀려난 쪽이다. 혼자 다니는 것은 그만큼 굶었다는 뜻이고, 굶은 것이 더 문다.' },
-  { spr:'snake',   n:'흰 큰뱀',          d:2,  rar:8,  hp:10,  atk:4,  ac:3,  xp:5,   ai:'hunt',    on:'poison',
-    lore:'빛을 본 적 없는 비늘은 이렇게 하얗다. 눈이 퇴화한 대신 혀가 길다.' },
-  { spr:'kobold',  n:'코볼드',           d:2,  rar:8,  hp:12,  atk:6,  ac:4,  xp:8,   ai:'hunt',    grp:[2,3], door:'open',
-    lore:'성채가 무너질 때 남은 것들의 후손. 아직도 사람 갑옷을 잘라 입는다.' },
-  { spr:'kobold',  n:'코볼드 투석꾼',    d:2,  rar:7,  hp:9,   atk:5,  ac:3,  xp:11,  ai:'ranged',  rng:5, spd:0.65, grp:[1,2], door:'open',
-    lore:'던질 것이 떨어지면 자기 이빨을 뽑아 던진다는 말이 있다. 확인한 사람은 없다.' },
-  { spr:'dog',     n:'들개',             d:2,  rar:9,  hp:11,  atk:6,  ac:3,  xp:9,   ai:'coward',  spd:1.3, grp:[2,3],
-    lore:'누군가 데리고 내려왔던 개들이다. 개는 남고 사람은 남지 않았다.' },
-  { spr:'jelly',   n:'푸른 젤리',        d:3,  rar:5,  hp:34,  atk:8,  ac:1,  xp:20,  ai:'still',   on:'slow', does:'corrode',
-    lore:'다 녹인 뒤에도 자기가 무엇을 녹였는지 안쪽에 남긴다. 번호가 찍힌 패가 떠 있는 것을 본 적 있다.' },
-  { spr:'spider',  n:'동굴 거미',        d:3,  rar:8,  hp:16,  atk:8,  ac:5,  xp:16,  ai:'hunt',    spd:1.3, on:'poison', web:true,
-    lore:'줄을 치는 것이 아니라 길을 짜는 것에 가깝다. 자기 길은 걸어서 지난다.' },
-  { spr:'orc',     n:'오크 병사',        d:3,  rar:11, hp:24,  atk:10, ac:7,  xp:24,  ai:'hunt',    grp:[2,4], door:'open',
-    lore:'갱도를 파던 드워프를 밀어낸 쪽. 그래서 곡괭이 자국이 남은 갑옷을 입는다.' },
-  { spr:'orc',     n:'오크 궁수',        d:4,  rar:7,  hp:20,  atk:9,  ac:6,  xp:28,  ai:'ranged',  rng:6, spd:0.7, grp:[1,2], door:'open',
-    lore:'활보다 사거리를 잘 안다. 물러나며 쏘는 법은 내려온 것들에게서 배웠을 것이다.' },
-  { spr:'orc',     n:'검은 오크',        d:5,  rar:9,  hp:36,  atk:13, ac:9,  xp:42,  ai:'hunt',    grp:[2,4], door:'open',
-    lore:'검게 그을린 것이 아니라 원래 그렇다. 아래쪽에서 올라온 무리이고, 아래쪽은 계속 올려보낸다.' },
-  { spr:'dog',     n:'늑대',             d:5,  rar:8,  hp:30,  atk:12, ac:6,  xp:38,  ai:'hunt',    spd:1.35, grp:[2,4],
-    lore:'갱도의 소리를 듣고 위에서 내려왔다. 여기서는 무리를 이루는 편이 오래 산다.' },
-  /* The lore promised a wind-up for four months and the field was
-     never set — `heavy` existed, monsterTurn implemented it, and
-     only elites ever had it. Setting it makes the codex true, and
-     the attack drops from 16 to 13 because a telegraphed blow
-     lands for two and a half times as much. */
-  { spr:'ogre',    n:'오우거',           d:6, rar:8,  hp:52,  atk:13, ac:10, xp:70,  ai:'hunt',    spd:0.75, door:'smash', heavy:true,
-    lore:'문을 여는 법을 배운 적이 없어서 부순다. 한 번 팔을 당기면 그 자리를 비켜야 한다.' },
-  { spr:'mummy',   n:'미라',             d:7, rar:6,  hp:48,  atk:15, ac:12, xp:75,  ai:'hunt',    spd:0.65, on:'fear', does:'corrode',
-    lore:'성소에 눕혀졌던 것. 이름은 벽에서 긁혔지만 몸은 남았다.' },
-  { spr:'troll',   n:'동굴 트롤',        d:8, rar:9,  hp:70,  atk:19, ac:13, xp:110, ai:'hunt',    door:'smash', regen:2,
-    lore:'상처가 아무는 속도가 상처가 나는 속도보다 빠르다. 오래 끌면 진다.' },
-  { spr:'wraith',  n:'망령',             d:9, rar:7,  hp:60,  atk:20, ac:15, xp:130, ai:'erratic', spd:1.2, on:'fear', does:'corrode',
-    lore:'모신 것도 모셔진 것도 아니고 그 사이에 끼인 것. 걷는 방향에 규칙이 없다.' },
-  { spr:'giant',   n:'언덕 거인',        d:9, rar:7,  hp:95,  atk:23, ac:14, xp:170, ai:'ranged',  rng:5, spd:0.6, door:'smash',
-    lore:'언덕이 있던 시절의 것이다. 앉아서도 천장에 머리가 닿는다.' },
-  { spr:'vampire', n:'흡혈귀',           d:11, rar:6,  hp:88,  atk:26, ac:17, xp:220, ai:'hunt',    spd:1.25, on:'blind', door:'open', regen:3,
-    lore:'성채의 마지막 영주였다는 이야기가 있다. 본인이 퍼뜨렸을 것이다.' },
-  { spr:'dragon',  n:'어린 붉은 용',     d:11, rar:5,  hp:120, atk:28, ac:20, xp:300, ai:'ranged',  rng:6, spd:0.7, door:'smash',
-    lore:'어리다는 것은 아직 다 자라지 않았다는 뜻이지 약하다는 뜻이 아니다.' },
-  { spr:'wyrm',    n:'서리 비룡',        d:12, rar:5,  hp:140, atk:31, ac:22, xp:380, ai:'ranged',  rng:6, spd:0.7, on:'slow', door:'smash',
-    lore:'잿불 위에서 사는 것이 얼음을 뱉는다. 아래가 뜨거우니 그럴 만도 하다.' },
-  { spr:'lich',    n:'리치',             d:14, rar:4,  hp:130, atk:35, ac:24, xp:480, ai:'ranged',  rng:7, spd:0.75, on:'paralyze', door:'open',
-    lore:'죽는 것을 협상으로 처리한 자. 협상의 대가는 이름이었던 모양이다.' },
+  { spr:'dog',     n:'두고 간 개',        d:2,  rar:9,  hp:11,  atk:6,  ac:3,  xp:9,   ai:'coward',  spd:1.3, grp:[2,3],
+    lore:'누군가 데리고 내려왔던 개들이다. 개는 남고 사람은 안 남았다.' },
+  { spr:'snake',   n:'눈 없는 뱀',        d:2,  rar:8,  hp:10,  atk:4,  ac:3,  xp:5,   ai:'hunt',    on:'poison',
+    lore:'빛을 본 적 없는 비늘은 이렇게 하얗다. 눈이 없어진 대신 혀가 길다.' },
+  { spr:'spider',  n:'갱도 거미',         d:3,  rar:8,  hp:16,  atk:8,  ac:5,  xp:16,  ai:'hunt',    spd:1.3, on:'poison', web:true,
+    lore:'줄을 갱도 천장에 건다. 사람이 판 자리는 줄을 걸기에 좋다.' },
+  { spr:'jelly',   n:'고인 것',           d:3,  rar:5,  hp:34,  atk:8,  ac:1,  xp:20,  ai:'still',   on:'slow', does:'split',
+    lore:'다 녹인 뒤에도 무엇을 녹였는지 안쪽에 남긴다. 번호가 찍힌 패가 떠 있는 것을 본 적 있다.' },
 
-  /* ── the ember floors ─────────────────────────────────
-     Counted by behaviour rather than by name, floors 7 to 15 held
-     eight monsters that differed along exactly two axes: speed and
-     ailment. Half of them were archers, which is most of why the
-     bottom of the game kills — there was nothing to close with and
-     nowhere the knowledge could be applied.
+  /* ── 4~6층 · 파낸 자국 ───────────────────────────────────
+     나보다 앞서 온 사람이 있었다. 여기 있는 것은 대부분 그 사람의
+     물건이거나, 그 물건을 걸친 것이다. */
+  { spr:'kobold',  n:'남의 갑옷을 걸친 것', d:4, rar:8,  hp:14,  atk:7,  ac:5,  xp:11,  ai:'hunt',    grp:[2,3], door:'open',
+    lore:'치수가 안 맞는다. 맞을 리가 없다 — 그 갑옷은 이것을 위해 만든 것이 아니다.' },
+  { spr:'thief',   n:'배낭을 뒤지는 것',   d:4,  rar:4,  hp:20,  atk:6,  ac:7,  xp:24,  ai:'hunt',    spd:1.45, thief:true,
+    lore:'뒤지던 배낭은 아직 등에 매여 있었다. 그것도 같이 가져간다.' },
+  { spr:'emptyplate', n:'빈 갑옷',        d:5,  rar:6,  hp:30,  atk:9,  ac:12, xp:30,  ai:'hunt',    door:'smash', does:'corrode',
+    lore:'투구가 없다. 안에도 없다. 그런데 걸을 때 소리가 안에서 난다.' },
+  { spr:'orc',     n:'곡괭이를 든 것',     d:5,  rar:7,  hp:26,  atk:11, ac:6,  xp:28,  ai:'hunt',    grp:[2,3],
+    lore:'곡괭이는 파는 물건이다. 이것은 파는 데 안 쓴다.' },
+  { spr:'warden',  n:'앞서 간 자의 등불',  d:6,  rar:4,  hp:34,  atk:10, ac:8,  xp:44,  ai:'hunt',    does:'summon',
+    lore:'등불을 들고 있다. 등불이 있으면 사람이 모인다 — 그것이 이것이 아는 전부다.' },
+  { spr:'ogre',    n:'무너뜨리는 것',      d:6,  rar:6,  hp:52,  atk:16, ac:7,  xp:60,  ai:'hunt',    door:'smash', heavy:true,
+    lore:'갱도를 넓히려고 데려온 것이었다. 넓히는 일은 아직 안 끝났다.' },
+  { spr:'standing', n:'서 있는 것',        d:6,  rar:3,  hp:40,  atk:14, ac:9,  xp:70,  ai:'unseen',
+    lore:'보고 있는 동안에는 움직이지 않는다. 눈을 감으면 거리가 줄어 있다.' },
 
-     Every one of these opens an axis that the rules implement,
-     tellsOf already writes a habit for, and no monster past floor
-     five was using: packs, a wind-up, drain, theft, a floor
-     pattern, and a thing that simply does not move. Each one has a
-     different right answer, and the codex will say what it is
-     after three bodies. That is the whole point of a bestiary — a
-     deeper floor should ask a different question, not the same
-     question with bigger numbers. */
-  { spr:'ashhound', n:'재의 사냥개',      d:10, rar:8,  hp:62,  atk:22, ac:15, xp:140, ai:'hunt',    spd:1.45, grp:[3,5], door:'open',
-    lore:'화로 둘레를 도는 것들. 저 불이 커질수록 수가 는다 — 위에서 강이 마르는 것과 같은 속도로.' },
-  { spr:'warden',   n:'화로지기',         d:10, rar:7,  hp:130, atk:15, ac:21, xp:240, ai:'hunt',    spd:0.6,  door:'smash', heavy:true,
-    lore:'불을 지키라는 명령만 남고 명령한 자는 없다. 그 불이 지금 세상을 먹고 있다.' },
-  { spr:'ashen',    n:'잿물 먹는 것',     d:12, rar:6,  hp:110, atk:27, ac:16, xp:300, ai:'hunt',    spd:0.9,  drain:0.45, on:'slow',
-    lore:'상처를 삼켜서 제 것으로 만든다. 이 아래의 모든 것이 같은 방식으로 산다.' },
-  { spr:'thief',    n:'잿불 도굴꾼',      d:12, rar:5,  hp:70,  atk:20, ac:19, xp:260, ai:'coward',  spd:1.5,  thief:true, door:'open',
-    lore:'아래에서 무엇을 파내는지는 아무도 모른다. 자루에서 이따금 사람 것이 나온다.' },
-  { spr:'emberpriest', n:'화로의 사제',   d:13, rar:5,  hp:105, atk:24, ac:18, xp:400, ai:'hunt',    spd:0.85, casts:['zone','wave'], cool:4, door:'open',
-    lore:'화로에 무엇을 바쳤는지 벽에 적혀 있었으나 그 벽도 탔다. 바닥에 먼저 그린다.' },
-  { spr:'ashheap',  n:'잿더미 속의 것',   d:15, rar:4,  hp:160, atk:40, ac:26, xp:560, ai:'still',   on:'fear',
-    lore:'재가 쌓인 자리 중 하나는 재가 아니다. 건드리지 않으면 그대로 있는다.' },
+  /* ── 7~9층 · 마른 강바닥 ─────────────────────────────────
+     앞서 온 사람들이 어떻게 됐는지. 여기부터 짐승이 거의 없다 —
+     서 있는 것은 대부분 **사람이었던 것**이고, 반쯤 신의 것이다. */
+  { spr:'mummy',   n:'마른 순례자',        d:7,  rar:6,  hp:46,  atk:15, ac:9,  xp:72,  ai:'hunt',    on:'fear', does:'corrode',
+    lore:'물이 있던 시절에 내려왔다. 물이 빠지는 동안에도 계속 걸었던 것 같다.' },
+  { spr:'wraith',  n:'두고 온 것',         d:7,  rar:5,  hp:38,  atk:16, ac:6,  xp:78,  ai:'hunt',    on:'fear', does:'blink',
+    lore:'누가 여기 두고 갔다. 두고 간 쪽은 더 내려갔고, 이것은 안 따라갔다.' },
+  { spr:'kneeler', n:'무릎 꿇은 것',       d:8,  rar:5,  hp:44,  atk:13, ac:11, xp:84,  ai:'still',   does:'shriek',
+    lore:'기도하던 자세 그대로 굳었다. 아직 기도하고 있고, 그 소리가 층을 넘는다.' },
+  { spr:'troll',   n:'부풀어 오른 것',     d:8,  rar:5,  hp:78,  atk:20, ac:10, xp:130, ai:'hunt',    regen:3, does:'grip',
+    lore:'신앙은 몸에 안 들어가는 것인데 이것은 들어갔다. 들어간 만큼 늘어났다.' },
+  { spr:'vampire', n:'피를 세는 것',       d:9,  rar:3,  hp:66,  atk:22, ac:12, xp:190, ai:'hunt',    on:'blind', drain:0.35,
+    lore:'세는 쪽은 이것이지 당신이 아니다. 다 세면 무슨 일이 일어나는지는 아무도 모른다.' },
+  { spr:'giant',   n:'커진 것',            d:9,  rar:4,  hp:96,  atk:26, ac:11, xp:210, ai:'hunt',    heavy:true,
+    lore:'선물을 여러 번 받은 자리에서 이렇게 된다. 받을 때마다 조금씩 컸다고 한다.' },
+  { spr:'wyrm',    n:'길게 늘어난 것',     d:9,  rar:3,  hp:82,  atk:24, ac:14, xp:230, ai:'hunt',    on:'slow', does:'split',
+    lore:'사람의 마디 수로는 이만큼 길어질 수가 없다. 마디가 더 생긴 것이다.' },
 
-  /* ── 보고 있는 동안에는 움직이지 않는 것 ──────────────────
-     이 게임에서 시야는 횃불이 정한다. 그러니 이것은 「보고 있으면
-     멈춘다」는 오래된 장치가 아니라 **기름이 줄면 가까워지는 것**이다.
-     불이 밝을 때는 방 저쪽에 서 있는 조각이고, 불이 사그라들면 그
-     조각이 눈을 뗄 때마다 두 칸씩 좁혀 온다.
+  /* ── 10~12층 · 잿불 언저리 ───────────────────────────────
+     신은 도우러 온 것이 아니다. 여기 있는 것들은 사람이 아니고,
+     사람이었던 적도 없다. */
+  { spr:'ashhound', n:'재의 사냥개',       d:10, rar:7,  hp:70,  atk:24, ac:12, xp:200, ai:'hunt',    spd:1.35, grp:[2,3],
+    lore:'재를 밟아도 자국이 안 남는다. 재 쪽이 비켜 준다.' },
+  { spr:'grinmask', n:'웃는 가면',         d:10, rar:4,  hp:58,  atk:26, ac:10, xp:220, ai:'unseen',
+    lore:'뒤가 없다. 앞에서 보면 웃고 있고, 돌아가면 아무것도 없다.' },
+  { spr:'dragon',  n:'깃이 남은 것',       d:11, rar:3,  hp:104, atk:30, ac:16, xp:300, ai:'hunt',    does:'blink', on:'fear',
+    lore:'날개만 남아 있고 그 사이에 아무것도 없다. 그런데 난다.' },
+  { spr:'ashen',   n:'잿물 먹는 것',       d:11, rar:5,  hp:92,  atk:27, ac:13, xp:260, ai:'still',   on:'slow', does:'corrode',
+    lore:'쇠를 먹는다. 쇠를 두르고 내려온 사람이 많았으므로 잘 먹었다.' },
+  { spr:'sigilfly', n:'떠 있는 부호',      d:11, rar:4,  hp:74,  atk:25, ac:18, xp:290, ai:'ranged',  rng:6, does:'summon',
+    lore:'벽에 새겨진 것과 같은 모양이다. 벽에 있는 쪽은 안 움직인다.' },
+  { spr:'ashheap', n:'잿더미 속의 것',     d:12, rar:4,  hp:120, atk:32, ac:14, xp:340, ai:'still',   on:'fear', does:'split',
+    lore:'잿더미가 무너지는 것이 아니라 잿더미가 일어서는 것이다.' },
 
-     체력이 높고 피해는 보통이다 — 이것은 이기고 지는 싸움이 아니라
-     견디는 일이다. 그리고 도망은 다리가 아니라 기름으로 친다 — 재
-     보니 불이 닿는 동안에는 여섯 걸음에 5칸이 7칸이 되고, 불이
-     꺼지면 같은 여섯 걸음에 5칸이 1칸이 된다. 답은 셋뿐이다.
-     붙어서 끝내거나, 문을 닫거나, 기름을 태워 계속 보고 있거나. */
-  { spr:'standing', n:'서 있는 것',       d:7,  rar:4,  hp:74,  atk:12, ac:14, xp:150, ai:'unseen',
-    lore:'처음에는 조각인 줄 알았다. 조각을 여기까지 옮길 사람이 없다는 것은 나중에 생각났다.' },
+  /* ── 13~15층 · 화로 ──────────────────────────────────────
+     전대 용사들. 여섯 부름이 여기까지 왔고, 여섯 다 여기서 끝났다.
+     내가 이기면 이 자리에 앉는다(§1) — 그러니 이것들은 예고다. */
+  { spr:'lich',    n:'마법사였던 것',      d:13, rar:3,  hp:112, atk:34, ac:15, xp:520, ai:'ranged',  rng:6, does:'summon', on:'paralyze',
+    lore:'신을 안 믿고 내려왔다. 아래에 있는 것을 알고 싶어서였다. 알아냈다.' },
+  { spr:'deadhunter', n:'사냥꾼이었던 것', d:13, rar:4,  hp:98,  atk:36, ac:13, xp:480, ai:'ranged',  rng:7, spd:0.7,
+    lore:'강이 마르자 사냥감을 따라 내려왔다. 사냥감은 계속 아래로 갔다.' },
+  { spr:'deadrogue', n:'도적이었던 것',    d:14, rar:4,  hp:104, atk:38, ac:14, xp:540, ai:'hunt',    spd:1.4, does:'blink', thief:true,
+    lore:'뽑히지 않았는데 따라 내려왔다. 금화 때문이었고, 금화는 아직 쥐고 있다.' },
+  { spr:'deadwarrior', n:'전사였던 것',    d:14, rar:5,  hp:170, atk:40, ac:20, xp:600, ai:'hunt',    heavy:true, door:'smash',
+    lore:'성채가 보냈다. 명령이었지 계시가 아니었다 — 그래서 마지막까지 안 믿었다.' },
+  { spr:'emberpriest', n:'사제였던 것',    d:15, rar:4,  hp:150, atk:38, ac:18, xp:680, ai:'hunt',    on:'fear', does:'shriek',
+    lore:'신의 말을 옮기러 왔다. 말이 참인지는 안 물었다. 지금도 옮기고 있다.' },
+  { spr:'deadpaladin', n:'팔라딘이었던 것', d:15, rar:3, hp:210, atk:44, ac:24, xp:820, ai:'hunt',    heavy:true, does:'grip', on:'fear',
+    lore:'계시를 그대로 믿었다. 뽑힌 것이 자랑이었고, 그래서 제일 깊이 왔다. 다음은 당신이다.' },
 ];
 
 /* ── telegraphed attacks ──────────────────────────────────

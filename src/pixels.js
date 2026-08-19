@@ -194,15 +194,19 @@ export const SPRITES = {
     '.NN..NN.',
     '.nn..nn.',
   ],
+  /* 부풀어 오른 것 — 신앙이 몸에 들어가 늘어난 것. 예전 그림은 오우거와
+     **IoU 1.000**이었고(네모난 몸 + 갈라진 다리), 층대를 다시 짜면서
+     둘이 ±2층 안에 들어왔다. 이것은 사람 모양이 아니라 **부푼 덩어리**
+     여야 한다 — 가운데가 제일 넓고 팔다리가 없다. */
   troll: [
+    '...ee...',
+    '..ekke..',
     '.eeEEee.',
-    'eEEwwEEe',
-    'eEkEEkEe',
-    '.EEwwEE.',
-    'eeEEEEee',
-    'eeEEEEee',
-    '.EE..EE.',
-    '.ee..ee.',
+    'eEEEEEEe',
+    'eEEEEEEe',
+    '.eEEEEe.',
+    '..eeee..',
+    '...ee...',
   ],
   giant: [
     'NNNNNNNN',
@@ -311,15 +315,20 @@ export const SPRITES = {
     '.......d',
   ],
   // 화로지기: wide and plated, arms already half-drawn back.
+  /* 앞서 간 자의 등불 — 한쪽으로 팔을 뻗어 등불을 들고 있다.
+     예전 그림은 오우거·트롤과 **IoU 1.000**, 즉 색만 다른 같은 덩어리
+     였다(실루엣 린트가 1회차부터 적어 둔 것이다). 층대를 다시 짜면서
+     셋이 ±2층 안에 들어왔고, 그러면 화면에서 세 마리가 한 마리다.
+     좌우 비대칭이 이 저장소에 거의 없으므로, 뻗은 팔 하나로 갈린다. */
   warden: [
-    '.ssssss.',
-    'sGGooGGs',
-    'sGoRRoGs',
-    '.soooGs.',
-    'ssGGGGss',
-    'skGGGGks',
-    '.ss..ss.',
-    '.kk..kk.',
+    '..gg....',
+    '.gGGg...',
+    '.gkkg...',
+    '.ggggooo',
+    '.gggg.oo',
+    '..gg..o.',
+    '.g..g...',
+    '.g..g...',
   ],
   // 잿물 먹는 것: a slumped thing, brighter where it has fed.
   ashen: [
@@ -333,15 +342,19 @@ export const SPRITES = {
     '.d.dd.d.',
   ],
   // 화로의 사제: robed, and holding the mark it is about to draw.
+  /* 사제였던 것 — 로브가 바닥까지 퍼져 다리가 없다. 예전 그림은
+     리치와 **IoU 1.000**이었다(둘 다 위가 해골, 아래가 갈라진 다리).
+     13층과 15층이라 ±2층 안이다. 아래를 안 가르면 갈린다 — 이 세계의
+     사제는 걷는 것이 아니라 서 있는 것이다. */
   emberpriest: [
+    '...oo...',
+    '..okko..',
     '..oooo..',
-    '.okooko.',
-    '.oooooo.',
+    '.rroorr.',
+    'rrroorrr',
+    'rrroorrr',
+    '.rrrrrr.',
     '..rrrr..',
-    '.rRoorR.',
-    'rR.rr.Rr',
-    '.r.rr.r.',
-    '.rr..rr.',
   ],
   // 잿더미 속의 것: a heap, until the moment it is not.
   ashheap: [
@@ -870,6 +883,106 @@ export const SPRITES = {
      선다), 발이 바닥에 붙어 있고, 얼굴 자리에 이목구비 대신 세로로
      난 금이 하나 있다. 색은 벽과 같은 돌색 계열로 두어, 밝을 때는
      방의 일부처럼 보이게 한다. */
+  /* ── 사다리 아래쪽의 몸 여덟 ────────────────────────────
+     DESIGN.md §1 「깊이는 무엇이 깊어지는가」. 4층 아래로는 짐승이
+     아니라 **사람이었던 것**이 나와야 하는데, 가진 몸 스물다섯이
+     전부 짐승 아니면 표준 판타지였다. 여덟을 새로 그린다.
+     전부 8×8 · 팔레트 안 · 실루엣이 서로 다른 가족에 앉게. */
+
+  /* 빈 갑옷 — 머리가 없다. 위가 넓고 가운데가 뚫린 실루엣은 이
+     저장소에 하나도 없었다(전부 머리부터 시작한다). */
+  emptyplate: [
+    '.s....s.',
+    'ssssssss',
+    'ss.kk.ss',
+    '.s.kk.s.',
+    '.sskkss.',
+    '.s.ss.s.',
+    '.s....s.',
+    '.ss..ss.',
+  ],
+  /* 무릎 꿇은 것 — 낮고 넓다. 스물다섯이 전부 위가 무거운데
+     이것만 아래가 무겁다. 기도하다 굳었다. */
+  kneeler: [
+    '........',
+    '...ww...',
+    '..wwww..',
+    '..wggw..',
+    '.wwggww.',
+    'wwwwwwww',
+    '.wwwwww.',
+    '..w..w..',
+  ],
+  /* 떠 있는 부호 — 바닥이 비어 있다. 아래 두 점만 남겨 「떠 있다」로
+     읽히게 한다. 발이 안 닿는 것은 이것 하나뿐이다. */
+  sigilfly: [
+    '...y....',
+    '..y.y...',
+    '..y.y...',
+    '.yy.yy..',
+    '.y.k.y..',
+    'yyyyyyy.',
+    '........',
+    '..y..y..',
+  ],
+  /* 웃는 가면 — 뒤가 없다. 턱이 걸려 있고 눈구멍이 뚫렸다. */
+  grinmask: [
+    '..WWWW..',
+    '.WWWWWW.',
+    'WWkWWkWW',
+    'WWWWWWWW',
+    'WkWkkWkW',
+    '.WWWWWW.',
+    '..W..W..',
+    '...WW...',
+  ],
+  /* 사냥꾼이었던 것 — 오른쪽에 활이 곧게 선다. 몸은 말랐다. */
+  deadhunter: [
+    '..gg..n.',
+    '.gGGg.nn',
+    '.gkkg..n',
+    '.gggg..n',
+    '..gg...n',
+    '.g..g.nn',
+    '.g..g.n.',
+    'g....g..',
+  ],
+  /* 팔라딘이었던 것 — 왼쪽 절반이 방패다. 계시를 그대로 믿은 자가
+     아직 그것을 들고 서 있다. */
+  deadpaladin: [
+    '.yy.ss..',
+    'yyyysGGs',
+    'yyyyskks',
+    'yyyysGGs',
+    'yyyyssss',
+    '.yy.ssss',
+    '....s..s',
+    '....ss.s',
+  ],
+  /* 전사였던 것 — 오른쪽에 칼이 세로로. 성채가 보낸 자다. */
+  deadwarrior: [
+    '..ss..W.',
+    '.ssss.W.',
+    '.skks.W.',
+    '.ssss.W.',
+    'sssssWW.',
+    '.ssss.W.',
+    '.s..s...',
+    '.s..s...',
+  ],
+  /* 도적이었던 것 — 웅크렸다. 안 뽑혔는데 따라 내려온 자라 아직
+     숨어 있다. 위가 비고 아래가 옆으로 퍼진다. */
+  deadrogue: [
+    '........',
+    '..pp....',
+    '.pkkp...',
+    '.pppp.p.',
+    'ppppppp.',
+    '.pp.pp..',
+    '.p...p..',
+    '........',
+  ],
+
   standing: [
     '..GGGG..',
     '.GgggggG',

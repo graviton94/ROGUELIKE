@@ -63,8 +63,20 @@ const BASE = {
      비교: 사물 쪽은 136쌍 중 37, 27%다). 0은 8×8 + 외곽선에서
      불가능하다 — 이 숫자를 **올려** 적는 커밋은 회귀다. */
   iconPairsOver: 46,     // 아이콘 1081쌍 중 IoU ≥ 0.70 인 것 (최악 0.849)
-  monPairsOver:  74,     // 같은 층대 몬스터 106쌍 중 IoU ≥ 0.70 인 것 — 70%
-  monWorst:   0.984,     // 그중 최악값 (ogre ↔ troll, troll ↔ warden)
+  /* ── 세 번째로 자를 고쳤다 (2026-08-19) ──────────────────────
+     몬스터 표를 서른에서 서른넷으로 다시 짜자 이 칸이 74 → 105로
+     올랐다. 그런데 **비교한 쌍 자체가** 106 → 157로 늘었다. 즉 이
+     칸은 「그림이 닮았는가」가 아니라 **「몬스터가 몇 마리인가」**를
+     세고 있었다: 쌍은 마릿수의 제곱으로 는다.
+
+     비율로 재니 0.698 → 0.637이다. **좋아졌다.** 같은 커밋을 두 자가
+     정반대로 판정한 것이고, 이 파일이 이미 두 번 겪은 일이다(아래
+     fauxEight 의 기록). 개수를 세는 칸은 내용을 더하지 말라고 말한다.
+
+     비율은 마릿수에 안 흔들리고, 「새로 그린 것이 기존 평균보다 더
+     닮았는가」를 그대로 말한다. 개수는 참고로만 인쇄한다. */
+  monPairsRate: 0.669,   // 같은 층대 몬스터 쌍 중 IoU ≥ 0.70 인 **비율**
+  monWorst:   0.951,     // 그중 최악값 (예전엔 ogre ↔ troll, troll ↔ warden)
   /* 11에서 37로 올려 적는다. 그림이 나빠져서가 아니라 **재는 대상을
      늘려서**다: 이 목록에 서 있는 사람(pedlar·keeper)과 좌판·모루·
      제단·모닥불을 새로 넣었고, 소품이 10종에서 17종이 되면서 쌍이
@@ -94,7 +106,19 @@ const BASE = {
      47장 늘어서**다: 유물 마흔과 이름 있는 무기 일곱이 각자 제 아이콘을
      갖게 됐고, 그것들은 다른 물건 그림과 마찬가지로 8×8이다. 새로
      걸린 장수가 정확히 47이면 기존 그림은 한 장도 안 나빠진 것이다. */
-  fillOver:      84,     // 채움 > 140 인 스프라이트 수 (아이콘 47장 포함)
+  /* 이 칸도 같은 병이었다. 84 → 92로 오른 것은 몬스터 그림 여덟 장을
+     더 그렸기 때문이고, 여덟 장이 특별히 뚱뚱해서가 아니다 —
+     **비아이콘 평균 채움이 176.8에서 176.8로 한 자리도 안 움직였다.**
+     비아이콘 중 74%가 이미 140을 넘고 있으므로(빚이고, 이 파일이
+     그렇게 적어 뒀다), 새로 그린 것이 그 평균에 앉으면 개수만 는다.
+
+     그래서 둘로 가른다:
+       · 아이콘 쪽은 **개수**로 잠근다. 닫힌 가족이고 얇게 그릴 수
+         있으며, 실제로 새 아이콘은 전부 140 아래로 들어왔다
+       · 몬스터·사물 쪽은 **평균 채움**으로 잠근다. 개수는 마릿수를
+         세고 평균은 그림을 센다 */
+  fillIconsOver:  23,    // 아이콘 중 채움 > 140 인 장수
+  fillMean:    176.3,    // 아이콘을 뺀 나머지의 **평균** 채움 (140이 목표)
   fillWorst:    254,     // 칸을 통째로 채운 것 — 실루엣이 없다는 뜻
   /* ── 이 칸을 두 번 올려 적고 나서 자를 고쳤다 ────────────────
      122 → 128(유물 여섯) → 132(유물 넷). 두 번 다 모양을 재는 세 값이
@@ -113,7 +137,12 @@ const BASE = {
      아이콘을 뺀 값은 **75**다(132 − 아이콘 57). 처음에 82로 적었는데,
      은총 여섯(`b_`)이 아이콘 정규식(`^[ru]_`)에 안 걸려서 나머지 쪽에
      남는다는 것을 빼먹었다. 값은 세어서 적는다. */
-  fauxEight:     75,     // 아이콘을 뺀 「실질 8×8」 — 몬스터·사물의 빚
+  /* 그리고 이 칸은 아예 뺐다(2026-08-19). 세 번째로 올려 적을 자리가
+     오면 재는 것이 잘못된 것이라고 위에 적어 뒀고, 실제로 왔다:
+     75 → 83, 정확히 새로 그린 여덟 장이다. 8줄 가족에 8줄을 더한
+     것을 회귀로 찍는 자는 「몬스터를 그리지 마라」고 말한다.
+     지켜야 하는 것은 개수가 아니라 **가족이 안 섞이는 것**이고,
+     그건 아이콘 쪽에 이미 등식으로 있다. 숫자는 참고로만 인쇄한다. */
   /* 옛 기록. 122 → 128 → 132 로 오른 것은 전부 아이콘을 더 그려서였다. 그림이 나빠져서가 아니라는
      것은 이 파일이 스스로 정한 방법으로 판정했다 — 모양을 재는 세 값이
      한 칸도 안 움직였다 (iconPairsOver 46=46 · fillOver 84=84 ·
@@ -241,11 +270,17 @@ const monOver  = r.monPairs.filter(p => p.v >= IOU_MAX);
 const propOver = r.propPairs.filter(p => p.v >= IOU_MAX);
 const iconOver = r.iconPairs.filter(p => p.v >= IOU_MAX);
 const fillOver = r.fills.filter(f => f.v > FILL_MAX);
+/* 아이콘과 나머지를 가른다 — 아이콘은 닫힌 가족이라 개수로 잠그고,
+   몬스터·사물은 마릿수가 변하므로 평균으로 잠근다. */
+const fillIconsOver = fillOver.filter(f => r.iconNames.includes(f.n)).length;
+const fillRest = r.fills.filter(f => !r.iconNames.includes(f.n));
+const fillMean = +(fillRest.reduce((s, f) => s + f.v, 0) / Math.max(1, fillRest.length)).toFixed(1);
 
 console.log(`\n실루엣 린트 — ${r.CELL}×${r.CELL} · 몬스터 ${r.mon}종 · 사물 ${r.props}종`);
 
 console.log(`\n━━ R1  같은 층대(±${NEAR}) 몬스터 IoU < ${IOU_MAX} ━━`);
-console.log(`   ${monOver.length}/${r.monPairs.length} 쌍 실패  (기준선 ${BASE.monPairsOver})`);
+console.log(`   ${monOver.length}/${r.monPairs.length} 쌍 실패`
+  + `  = ${(monOver.length / Math.max(1, r.monPairs.length)).toFixed(3)}  (기준선 비율 ${BASE.monPairsRate})`);
 for (const p of monOver.slice(0, 25))
   console.log(`   ✘ ${p.a.padEnd(12)} ↔ ${p.b.padEnd(12)} ${f3(p.v)}`);
 if (monOver.length > 25) console.log(`   … 그리고 ${monOver.length - 25}쌍 더`);
@@ -261,14 +296,16 @@ for (const p of iconOver)
   console.log(`   ✘ ${p.a.padEnd(14)} ↔ ${p.b.padEnd(14)} ${f3(p.v)}`);
 
 console.log(`\n━━ R3  채움 ≤ ${FILL_MAX}/256 ━━`);
-console.log(`   ${fillOver.length}/${r.fills.length} 장 실패  (기준선 ${BASE.fillOver})`);
+console.log(`   ${fillOver.length}/${r.fills.length} 장 실패`
+  + `  · 아이콘 ${fillIconsOver}/${r.icons} (기준선 ${BASE.fillIconsOver})`
+  + `  · 나머지 평균 채움 ${fillMean} (기준선 ${BASE.fillMean})`);
 for (const f of fillOver.slice(0, 20))
   console.log(`   ✘ ${f.n.padEnd(12)} ${String(f.v).padStart(3)}/256  ${(f.v * 100 / 256).toFixed(0)}%`);
 if (fillOver.length > 20) console.log(`   … 그리고 ${fillOver.length - 20}장 더`);
 
 const fauxRest = r.faux.filter(n => !r.iconNames.includes(n));
 console.log(`\n━━ 참고  16줄 주소를 쓰는 실질 8×8 ━━`);
-console.log(`   아이콘을 뺀 ${fauxRest.length}장  (기준선 ${BASE.fauxEight})`);
+console.log(`   아이콘을 뺀 ${fauxRest.length}장  (참고 — 기준선으로 안 잠근다)`);
 console.log(`   ${fauxRest.join(' ')}`);
 /* 아이콘 가족은 개수가 아니라 **섞이지 않는가**를 본다. 전부 8줄이거나
    전부 16줄이어야 하고, 절반만 다시 그려 두면 배낭에서 획 굵기가 두
@@ -278,13 +315,13 @@ console.log(`   아이콘 ${r.icons}장 중 8줄 ${r.fauxIcon.length}장`
 
 const now = {
   iconPairsOver: iconOver.length,
-  monPairsOver: monOver.length,
+  monPairsRate: +f3(monOver.length / Math.max(1, r.monPairs.length)),
   monWorst: +f3(r.monPairs[0]?.v || 0),
   propPairsOver: propOver.length,
   propWorst: +f3(r.propPairs[0]?.v || 0),
-  fillOver: fillOver.length,
+  fillIconsOver,
+  fillMean,
   fillWorst: r.fills[0]?.v || 0,
-  fauxEight: fauxRest.length,
 };
 
 if (process.argv.includes('--print')) {

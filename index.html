@@ -214,83 +214,39 @@
   <div id="stage">
     <canvas id="map"></canvas>
     <canvas id="mini" title="탭하면 크기가 바뀝니다"></canvas>
-    <!-- What just took health off you, as faces and numbers. The
-         log is prose and prose is for reading; this is for
-         glancing at mid-fight, which is a different job and was
-         never going to fit in the same channel. Inside the map so
-         it costs no layout height. -->
     <div id="tally" hidden></div>
-    <!-- ── 방향판은 지도 위에 뜬다 ────────────────────────────
-         320×568에서 지도가 화면의 20%, **다섯 줄**이었다. 위아래로
-         두 칸씩 보이는 로그라이크는 앞을 못 본다(390px에서는 열네
-         줄이다 — 같은 게임이 아니다). 높이를 다 재 보니 남는 자리가
-         없었다: HUD 103 · 로그 40 · 조작 309 중에 손가락보다 작아도
-         되는 것이 하나도 없다.
-
-         그래서 가장 큰 덩어리를 격자에서 꺼내 지도 위에 얹는다.
-         겹치는 것은 값이지만, 겹치기 전의 지도(320×116)보다 겹친
-         뒤의 지도가 **보이는 넓이로도 더 크다** — 116×320=37,120 →
-         215×320−132×132=51,376. 줄 수는 5 → 10.
-         가려지는 것이 왼쪽 아래 한 귀퉁이이고, 미니맵이 이미 오른쪽
-         위에서 같은 약속을 하고 있다. 손을 대면 진해지고 떼면
-         물러난다. -->
-    <div id="dpad">
-      <button data-dir="-1,-1" aria-label="북서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.9 5.9 L21.9 14.3 L14.1 14.1 L14.3 21.9 Z"/></svg></button>
-      <button data-dir="0,-1" aria-label="북"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4 L17.4 20.6 L12 14.9 L6.6 20.6 Z"/></svg></button>
-      <button data-dir="1,-1" aria-label="북동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.1 5.9 L9.7 21.9 L9.9 14.1 L2.1 14.3 Z"/></svg></button>
-      <button data-dir="-1,0" aria-label="서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 12 L20.6 6.6 L14.9 12 L20.6 17.4 Z"/></svg></button>
-      <button data-dir="0,0" class="wait" aria-label="대기"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.4"/></svg></button>
-      <button data-dir="1,0" aria-label="동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 12 L3.4 17.4 L9.1 12 L3.4 6.6 Z"/></svg></button>
-      <button data-dir="-1,1" aria-label="남서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.9 18.1 L14.3 2.1 L14.1 9.9 L21.9 9.7 Z"/></svg></button>
-      <button data-dir="0,1" aria-label="남"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.6 L6.6 3.4 L12 9.1 L17.4 3.4 Z"/></svg></button>
-      <button data-dir="1,1" aria-label="남동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.1 18.1 L2.1 9.7 L9.9 9.9 L9.7 2.1 Z"/></svg></button>
-    </div>
   </div>
 
   <div id="log" aria-live="polite"></div>
 
   <div id="controls">
-    <!-- 기술·주문 줄은 격자 밖, 화면 전체 폭을 쓴다. d-pad 옆의 좁은
-         칸에 두었더니 320px에서 다섯 칸이 29px씩이 되어 「치유」가
-         「치듀」로 잘렸다. 손가락 하나가 44px인데. 폭을 두 배로
-         주면 같은 다섯 칸이 56px가 된다 — 배치를 다시 짜는 것이
-         아니라 줄을 격자에서 꺼내는 것뿐이다. -->
     <div class="pair spells wide" id="art-row" hidden></div>
     <div class="pair spells wide" id="spell-row" hidden></div>
-    <div id="acts">
-      <div class="pair quick" id="quick-row"></div>
-      <!-- 기술과 주문을 갈랐다. 한 줄에 몰아넣었더니 팔라딘처럼 둘 다
-           가진 직업에서 아홉 칸이 되어 「돌진 Lv4 Lv8 Lv1 치듀 Lv3…」
-           로 글자가 토막 났다. 자원이 다르면(기력·맹세 / 마나) 줄도
-           다르다 — 눈이 한 줄을 한 종류로 읽는다. -->
-      <button id="btn-inv" class="slim">배낭 · 장비</button>
-      <!-- Paired so the new spell row pays for itself: the book is
-           now a reference screen, not the thing you tap every turn. -->
-      <!-- 늘 있는 네 가지. 봇 137,276턴을 재 보니 주문서와 외침은
-           100%의 턴에, 문 닫기는 44%의 턴에 살아 있다 — 죽은 자리가
-           아니므로 고정된 칸을 그대로 준다. 쏘기는 1.9%지만 제 줄을
-           썼다 나타났다 사라졌다 하며 지도를 밀어 올리고 있었다.
-           나타나는 대신 어두워진다. -->
-      <div class="pair">
-        <button id="btn-cast">주문서</button>
-        <button id="btn-door" disabled>문닫기</button>
-        <button id="btn-shout">외침</button>
-        <button id="btn-shoot" disabled>쏘기 <b id="shoot-n"></b></button>
+    <div class="pair quick wide" id="quick-row"></div>
+
+    <div id="bottom-deck">
+      <div id="dpad">
+        <button data-dir="-1,-1" aria-label="북서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.9 5.9 L21.9 14.3 L14.1 14.1 L14.3 21.9 Z"/></svg></button>
+        <button data-dir="0,-1" aria-label="북"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4 L17.4 20.6 L12 14.9 L6.6 20.6 Z"/></svg></button>
+        <button data-dir="1,-1" aria-label="북동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.1 5.9 L9.7 21.9 L9.9 14.1 L2.1 14.3 Z"/></svg></button>
+        <button data-dir="-1,0" aria-label="서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 12 L20.6 6.6 L14.9 12 L20.6 17.4 Z"/></svg></button>
+        <button data-dir="0,0" class="wait" aria-label="대기"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.4"/></svg></button>
+        <button data-dir="1,0" aria-label="동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 12 L3.4 17.4 L9.1 12 L3.4 6.6 Z"/></svg></button>
+        <button data-dir="-1,1" aria-label="남서"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.9 18.1 L14.3 2.1 L14.1 9.9 L21.9 9.7 Z"/></svg></button>
+        <button data-dir="0,1" aria-label="남"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.6 L6.6 3.4 L12 9.1 L17.4 3.4 Z"/></svg></button>
+        <button data-dir="1,1" aria-label="남동"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.1 18.1 L2.1 9.7 L9.9 9.9 L9.7 2.1 Z"/></svg></button>
       </div>
-      <!-- 발밑에 있는 것 하나. 모닥불·제단·모루·?·수레는 밟는 순간
-           화면을 띄우지 않는다 — 걷는 손가락 아래로 시트가 올라오면,
-           다음 반복 입력이 버튼을 눌러 버린다. 서 있는 동안 이 버튼이
-           기다린다.
 
-           계단도 여기로 들어왔다. 내려가기와 올라가기는 서로 동시에
-           살아 있는 일이 0.0%고(한 칸에 두 계단은 없으므로 당연하다),
-           발밑의 자리들과도 0.0%다. 셋 다 「지금 이 칸에 있는 것」을
-           말하는 같은 동사라, 한 자리에 두어도 잃는 것이 없다.
-           그렇게 한 줄이 통째로 사라졌다.
-
-           비어 있을 때도 자리는 남긴다. 사라지는 줄은 지도를 매 걸음
-           밀어 올리고, 그러면 누르려던 것이 아닌 것이 눌린다. -->
-      <button id="btn-here" class="offer" disabled>발밑에 아무것도 없다</button>
+      <div id="acts">
+        <button id="btn-inv" class="slim">배낭 · 장비</button>
+        <div class="pair">
+          <button id="btn-cast">주문서</button>
+          <button id="btn-door" disabled>문닫기</button>
+          <button id="btn-shout">외침</button>
+          <button id="btn-shoot" disabled>쏘기 <b id="shoot-n"></b></button>
+        </div>
+        <button id="btn-here" class="offer" disabled>발밑에 아무것도 없다</button>
+      </div>
     </div>
   </div>
 </section>

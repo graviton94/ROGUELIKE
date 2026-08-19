@@ -6153,6 +6153,19 @@ export function hurtMonster(m, dmg, source, opt = {}) {
   const before = m.hp;
   m.hp -= dmg;
   if (m.hp > 0) enterPhase(m);
+  /* 갈라진다 — 광역이 답일 때가 있다는 말을 규칙으로 한다. 살아남은
+     한 대마다 둘이 되고, 둘 다 절반이다. 절반이 3 아래로 내려가면
+     더는 안 갈라진다: 안 그러면 1짜리가 화면을 채운다. */
+  if (m.does === 'split' && m.hp > 0 && m.hp >= 6 && G.monsters.length < 40) {
+    const spot = freeTileNear(m.x, m.y);
+    if (spot) {
+      m.hp = Math.floor(m.hp / 2); m.maxhp = Math.max(1, Math.floor(m.maxhp / 2));
+      const half = { ...m, x:spot.x, y:spot.y, awake:true, energy:0, vcool:0 };
+      G.monsters.push(half);
+      say(`${m.n}이(가) 둘로 갈라졌다.`, 'warn');
+      fx({ t:'split', x:spot.x, y:spot.y });
+    }
+  }
   const via = source ? `${source}이(가) ` : '';
 
   if (m.hp <= 0) {
@@ -7431,6 +7444,11 @@ function monsterTurn(m) {
   if (m.disguise) return;
   if (m.ai === 'still' && dist2 > 2) return;
 
+  /* 하는 짓이 턴을 먹었으면 이번 턴은 그것으로 끝이다. 움직임보다
+     앞에 둔다 — 뒤에 두면 부르는 것이 먼저 붙어 와서 「부르는 쪽을
+     먼저 죽인다」가 성립을 안 한다. */
+  if (monsterVerb(m, dist)) return;
+
   /* ── 보고 있는 동안에는 움직이지 않는 것 ──────────────────
      이 게임에서 시야는 장식이 아니라 자원이다 — 횃불이 곧 보이는
      범위이고, 그 범위는 판 내내 줄어든다. 그러니 「보고 있으면
@@ -7706,20 +7724,98 @@ function monsterMelee(m) {
   }
   if (m.on && Math.random() < 0.28) afflict(p, m.on, 9 + rnd(9));
   corrode(m);
+  /* 움켜쥠 — 도망은 미리 쳐야 한다. 붙잡힌 뒤에 치는 것은 늦다. */
+  if (m.does === 'grip' && G.running && (p.stuck || 0) <= 0) {
+    p.stuck = 2;
+    say(`${m.n}이(가) 붙잡았다. 두 턴 동안 못 움직인다.`, 'bad');
+    fx({ t:'ail', kind:'slow', x:p.x, y:p.y });
+  }
   reflect(m, dmg);
 }
 
+/* ── 하는 짓 ──────────────────────────────────────────────
+   DCSS에서 빌리는 구조는 숫자가 아니라 이것 하나다: **몬스터마다
+   하는 짓이 다르다.** 서른 마리 중 스물넷이 `hunt` 였고, 그러면
+   깊이는 체력 막대의 길이일 뿐이다.
+
+   표에 `does` 를 한 글자 달고 **여기 한 자리에서** 읽는다. 여덟 곳에
+   흩으면 이름을 바꾸는 순간 조용히 꺼진다 — 부식이 실제로 그랬다.
+   몬스터 **이름 넉 장이 배열에 박혀** 있어서, 이름을 갈면 부식이
+   사라지는데 아무도 안 운다.
+
+   턴을 먹는 것만 이 함수에 있다. 때릴 때 붙는 것(부식·움켜쥠)은
+   때리는 자리에, 맞을 때 붙는 것(갈라짐)은 맞는 자리에 있다. */
+const VERB_COOL = 5;
+/* 바로 옆의 설 수 있는 칸. freeSpotNear 는 바닥에 놓을 자리를 찾는
+   것이라 몬스터를 안 본다 — 부르는 데 그것을 쓰면 겹쳐 선다. */
+function freeTileNear(x, y) {
+  const p = G.player;
+  for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]]) {
+    const nx = x + dx, ny = y + dy;
+    if (G.level.solid(nx, ny)) continue;
+    if (p.x === nx && p.y === ny) continue;
+    if (monsterAt(nx, ny)) continue;
+    return { x: nx, y: ny };
+  }
+  return null;
+}
+function monsterVerb(m, dist) {
+  if (!m.does || (m.vcool || 0) > G.turn) return false;
+  const p = G.player;
+  /* 비명 — 층이 깨어난다. 판에 한 번뿐이다: 매번 지르면 그건 비명이
+     아니라 배경음이고, 두 번째부터는 깨울 것도 없다. */
+  if (m.does === 'shriek') {
+    if (dist > 7 || m.shrieked) return false;
+    m.shrieked = true; m.vcool = G.turn + VERB_COOL;
+    for (const o of G.monsters) o.awake = true;
+    say(`${m.n}이(가) 비명을 질렀다. 층이 깨어난다.`, 'bad');
+    fx({ t:'noise', x:m.x, y:m.y, r:14 });
+    return true;
+  }
+  /* 부른다 — 부르는 쪽을 먼저 죽이라는 말을 규칙으로 한다. 부른 것은
+     다시 안 부른다(does 를 지운다). 안 그러면 한 마리가 층을 채운다. */
+  if (m.does === 'summon') {
+    if (dist > 7) return false;
+    const born = [];
+    for (let i = 0; i < 2; i++) {
+      const spot = freeTileNear(m.x, m.y);
+      const kind = spot && pickMonster(Math.max(1, G.depth - 2));
+      if (!kind) continue;
+      const one = { ...scaleMonster(kind, G.depth), x:spot.x, y:spot.y, awake:true, energy:0 };
+      one.maxhp = one.hp; one.does = null;
+      G.monsters.push(one); born.push(one.n);
+    }
+    if (!born.length) return false;
+    m.vcool = G.turn + VERB_COOL * 2;
+    say(`${m.n}이(가) 불렀다 — ${born.join(' · ')}.`, 'bad');
+    fx({ t:'noise', x:m.x, y:m.y, r:5 });
+    return true;
+  }
+  /* 건너뛴다 — 거리는 안전이 아니다. 붙어 있을 때는 안 쓴다(붙은
+     것이 사라지면 그건 도주지 위협이 아니다). */
+  if (m.does === 'blink') {
+    if (dist < 2.5 || dist > 8) return false;
+    const spot = freeTileNear(p.x, p.y);
+    if (!spot) return false;
+    m.vcool = G.turn + VERB_COOL;
+    fx({ t:'blink', x:m.x, y:m.y });
+    m.x = spot.x; m.y = spot.y;
+    fx({ t:'blink', x:m.x, y:m.y });
+    say(`${m.n}이(가) 사이를 건넜다.`, 'warn');
+    return true;
+  }
+  return false;
+}
+
 /* 부식. The other end of the anvil: rarely, something that eats
-   metal takes a level of enhancement back off you. Only the four
-   things that should be able to do it can, and only on a landed
-   blow, and never through 불괴의.
+   metal takes a level of enhancement back off you. Only what the
+   표 says can, and only on a landed blow, and never through 불괴의.
 
    A level, never the item — losing a +7 sword to a mould would
    be a story about quitting, not a story about the dungeon. */
-const CORRODERS = ['회색 곰팡이', '푸른 젤리', '미라', '망령'];
 function corrode(m) {
   const p = G.player;
-  if (!CORRODERS.includes(m.n) || Math.random() >= CORRODE_CHANCE) return;
+  if (m.does !== 'corrode' || Math.random() >= CORRODE_CHANCE) return;
   const worn = GEAR_SLOTS
     .map(k => p.equip[k]).filter(it => it && (it.plus || 0) > 0 && it.boon !== 'aegis');
   if (!worn.length) return;

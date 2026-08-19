@@ -597,6 +597,15 @@ function spellFx(e) {
       buzz([70, 40, 90]); sfx.crit();
       break;
     }
+    /* 갈라짐 — 하나가 둘이 된 자리. 고리 하나로는 「맞았다」로 읽히
+       므로 둘을 어긋나게 겹친다. */
+    case 'split': {
+      ring(e.x - 0.35, e.y, 1.1, PALETTE.E, 300, true);
+      ring(e.x + 0.35, e.y, 1.1, PALETTE.e, 300, true);
+      burstShards(e.x, e.y, [PALETTE.E, PALETTE.e], 8, 0.8);
+      buzz([14, 10, 14]); sfx.crit();
+      break;
+    }
     default:
       ring(e.x, e.y, 1.4, C, 260, true);
       sfx.crit();

@@ -66,10 +66,10 @@ for (const u of UNIQUES) {
    주워서 안 끼우는 물건을 **설명하는** 말이지 정당화하는 말이 아니다. */
 console.log('');
 ok(UNIQUES.every(u => u.rule && u.crackN),
-   '일곱 다 규칙과 크랙을 갖고 있다 — 성능 위에 얹히는 것이지 대신하는 것이 아니다');
+   `${UNIQUES.length}자루 다 규칙과 크랙을 갖고 있다 — 성능 위에 얹히는 것이지 대신하는 것이 아니다`);
 ok(UNIQUES.every(u => u.t === 'wand' || u.dice[0] >= 2),
    '주사위가 한 개인 유일무기는 없다 — 한 개면 굴림이 널뛰어서 「센 무기」로 안 읽힌다');
 
 console.log(bad ? `\n유일무기 벤치: ${bad}건 곡선 아래\n`
-                : '\n유일무기 벤치: 일곱 다 곡선 위에 있다\n');
+                : `\n유일무기 벤치: ${UNIQUES.length}자루 다 곡선 위에 있다\n`);
 process.exit(bad ? 1 : 0);

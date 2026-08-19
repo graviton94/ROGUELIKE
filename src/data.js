@@ -2013,11 +2013,24 @@ export const UNIQUES = [
     crack:'①', crackN:'셈이 끝나지 않는다',
     crackT:'층을 내려가도 셈이 안 지워진다. 그리고 여덟을 셀 때마다 **주사위가 한 면 커진다.**',
     lore:'자루에 금이 그어져 있다. 세는 쪽은 칼이지 당신이 아니다.' },
+  { id:'pruner',   n:'가지 치는 것', spr:'u_pruner',  t:'axe',    dice:[2,8], d:5,  hands:1,
+    rule:'양옆까지 **온전히** 벤다 — 70%가 아니라 그대로.',
+    crack:'②', crackN:'가지가 끝나지 않는다',
+    crackT:'옆에서 **죽은 것이 있으면** 그 자리에서 한 번 더 번진다. 줄이 끊길 때까지.',
+    lore:'벌목용이라고 자루에 적혀 있다. 이 아래에 나무는 없다.' },
   { id:'longhush', n:'긴 침묵',       spr:'u_longhush',    t:'bow',    dice:[3,5], d:6,  hands:2, rng:7,
     rule:'맞은 것 말고는 아무것도 깨어나지 않는다.',
     crack:'②', crackN:'붙어도 활이다',
     crackT:'활은 붙으면 막대기다 — 이것은 아니다. **근접에서도 온전히 쏜다.**',
     lore:'시위를 당겨도 소리가 나지 않는다. 놓아도 마찬가지다.' },
+  /* 주사위를 [2,9]로 뒀다가 벤치가 울었다 — 같은 층의 장창(9.0) 대비
+     1.11배라 주워서 갈아 끼울 이유가 없다(문턱 1.25배). 장대는 무겁고
+     굴림이 널뛰면 안 되므로 면을 키우지 않고 **개수**를 늘린다: 12.0. */
+  { id:'sounding', n:'강을 재던 것', spr:'u_sounding', t:'spear', dice:[3,7], d:7,  hands:2,
+    rule:'**세 칸**에서 찌른다.',
+    crack:'①', crackN:'하나만 꿰지 않는다',
+    crackT:'찌른 것 **뒤에 선 것까지** 꿰뚫는다 — 뒤쪽은 70%.',
+    lore:'강 깊이를 재던 장대다. 이제 잴 것이 없다.' },
   { id:'emberpull', n:'화로에서 꺼낸 것', spr:'u_emberpull', t:'great', dice:[4,7], d:8, hands:2,
     rule:'잃은 피가 많을수록 무거워진다 — 반쯤 죽었을 때 피해 +60%.',
     crack:'②', crackN:'빗맞지 않는다',
@@ -2357,7 +2370,13 @@ export const ARMOURS = [
   { spr:'armor',  n:'미스릴 갑옷',       ac:30, d:12, cost:3600, slot:'body' },
   { spr:'shield', n:'작은 방패',         ac:3,  d:0,  cost:20,   slot:'shield' },
   { spr:'shield', n:'둥근 방패',         ac:6,  d:3,  cost:110,  slot:'shield' },
-  { spr:'shield', n:'탑 방패',           ac:11, d:7, cost:480,  slot:'shield' },
+  { spr:'shield', n:'탑 방패',           ac:11, d:7,  cost:480,  slot:'shield' },
+  /* 방패가 7층에서 멈춰 있었다. 몸은 12층까지 여섯 단(4·7·12·16·22·30)
+     인데 방패는 세 단(3·6·11)이라, 8층 아래로는 방패 칸이 **더 안
+     자라는 칸**이었다 — 한 손 무기를 든 채 내려가는 길이 그만큼
+     조용히 나빠진다. 몸의 단수에 맞춰 둘을 잇는다. */
+  { spr:'shield', n:'빗장 방패',         ac:16, d:10, cost:1200, slot:'shield' },
+  { spr:'shield', n:'뜯어 온 문짝',      ac:22, d:13, cost:3200, slot:'shield' },
 ];
 
 /* ── the unknown ──────────────────────────────────────────

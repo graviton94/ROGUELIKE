@@ -5453,7 +5453,10 @@ function openChest(index, chest) {
    needs to know what a spear is. */
 export { fitsOf, fitRule, FITS, oddityOf, UNIQUES, ODDITIES };
 export const weaponType = p => p.equip.weapon?.t || 'sword';
-export const weaponReach = p => (weaponType(p) === 'spear' ? 2 : 1);
+/* 창은 두 칸. 「강을 재던 것」은 세 칸이다 — 강 깊이를 재던 장대라
+   애초에 찌르라고 만든 길이가 아니다. */
+export const weaponReach = p =>
+  weaponType(p) !== 'spear' ? 1 : (hasUnique('sounding') ? 3 : 2);
 /* 앞으로 n칸. 창의 연격이 쓴다 — 「앞」은 마지막으로 움직인 쪽이고,
    서 있기만 했으면 가장 가까운 것 쪽이다. */
 function lineTargets(p, n) {
@@ -5933,6 +5936,38 @@ function onKill(m) {
   }
 }
 
+/* 도끼의 옆베기. 한 자리에 모아 두는 이유는 「가지 치는 것」 때문이다 —
+   그 도끼는 옆이 온전히(70%가 아니라 그대로) 베이고, 옆에서 **죽은
+   것이 있으면 그 자리에서 한 번 더** 번진다. 번짐을 재귀로 쓰면
+   같은 것을 두 번 벨 수 있으므로 벤 것을 적어 두고 지나간다. */
+function cleave(m, dmg, whole) {
+  const p = G.player;
+  /* 첫 두 칸은 **나를 기준으로** 그 자리의 양옆이다 — 셋이 한 줄로 서게
+     자리를 잡는 것이 도끼의 전부이고, 그 표는 원래 쓰던 것과 같다. */
+  const dx = Math.sign(m.x - p.x), dy = Math.sign(m.y - p.y);
+  const first = dx && dy ? [[-dx, 0], [0, -dy]]
+              : dx       ? [[0, -1], [0, 1]]
+                         : [[-1, 0], [1, 0]];
+  const seen = new Set([m]);
+  let front = first.map(off => ({ at: m, off }));
+  /* 「가지 치는 것」은 옆에서 **죽은 것이 있으면** 그 자리에서 한 번 더
+     번진다. 번지는 방향은 나를 기준으로 다시 재지 않는다 — 그러면
+     둘째 칸에서 방향이 꺾여 원래 자리로 돌아온다(줄로 선 셋 중 하나만
+     죽었다). 가지는 **뻗던 쪽으로** 뻗는다. */
+  for (let hop = 0; hop < (whole ? 8 : 1) && front.length; hop++) {
+    const next = [];
+    for (const { at, off } of front) {
+      const o = monsterAt(at.x + off[0], at.y + off[1]);
+      if (!o || seen.has(o) || o.disguise) continue;
+      seen.add(o);
+      fx({ t:'arc', fx:at.x, fy:at.y, tx:o.x, ty:o.y });
+      hurtMonster(o, Math.max(1, Math.round(dmg * (whole ? 1 : 0.7))), '휘둘러', {});
+      if (whole && !G.monsters.includes(o)) next.push({ at: o, off });
+    }
+    front = next;
+  }
+}
+
 /* What the weapon does *after* the damage lands. Kept in one
    place so a new family is one case, and so 연쇄 and 작열 stack
    on top of it rather than fighting it. */
@@ -5941,15 +5976,15 @@ function weaponRule(kind, m, dmg, crit) {
   if (kind === 'axe') {
     /* Cleave: the two tiles flanking the target, relative to you.
        Standing so that three bodies line up is the whole skill. */
+    cleave(m, dmg, hasUnique('pruner'));
+  } else if (kind === 'spear' && hasUnique('sounding')) {
+    /* 「하나만 꿰지 않는다」 — 찌른 것 뒤에 선 것까지. 장대가 길어서
+       앞의 것을 지나 뒤까지 닿는다. 뒤쪽은 앞을 지나온 만큼 얕다. */
     const dx = Math.sign(m.x - p.x), dy = Math.sign(m.y - p.y);
-    const side = dx && dy ? [[dx, 0], [0, dy]] : dx ? [[dx, -1], [dx, 1]] : [[-1, dy], [1, dy]];
-    const spill = Math.max(1, Math.round(dmg * 0.7));
-    for (const [ox, oy] of side) {
-      const o = monsterAt(p.x + ox, p.y + oy);
-      if (o && o !== m && !o.disguise) {
-        fx({ t:'arc', fx:m.x, fy:m.y, tx:o.x, ty:o.y });
-        hurtMonster(o, spill, '휘둘러', {});
-      }
+    const o = monsterAt(m.x + dx, m.y + dy);
+    if (o && o !== m && !o.disguise) {
+      fx({ t:'arc', fx:m.x, fy:m.y, tx:o.x, ty:o.y });
+      hurtMonster(o, Math.max(1, Math.round(dmg * 0.7)), '꿰뚫어', {});
     }
   } else if (kind === 'mace' && Math.random() < 0.30 && G.monsters.includes(m)) {
     // Stagger: eat the energy it had banked, so it loses its turn.

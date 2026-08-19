@@ -2989,22 +2989,36 @@ export const LOAD_TINT = { wick:'o', flask:'e', paper:'w', iron:'s', ash:'p', od
 
 /* Race under, class over. Any cell the kit leaves as '.' shows
    the body beneath, which is why the face survives the helmet. */
+export const RACE_PALETTE = {
+  human:  { skin: 'N', hair: 'n', eye: 'k' },
+  castle: { skin: 'w', hair: 'y', eye: 'b' },
+  river:  { skin: 'W', hair: 'W', eye: 'c' },
+  shaft:  { skin: 'N', hair: 'n', eye: 'k' },
+  ash:    { skin: 'G', hair: 'W', eye: 'r' },
+  stone:  { skin: 'n', hair: 'o', eye: 'k' },
+  exile:  { skin: 'E', hair: 'e', eye: 'R' },
+  bone:   { skin: 'w', hair: 'd', eye: 'R' },
+};
+
 function bakeHero(race, cls) {
-  const body = RACE_BODY[race] || RACE_BODY.human;
   const kit = CLASS_KIT[cls] || CLASS_KIT.warrior;
-  /* 몸과 장비는 같은 크기로 그려져 있다. 그 크기로 겹친다 —
-     8줄짜리 몸을 16칸으로 훑으면 절반이 빈칸이 된다. */
-  const N = Math.max(body.length, kit.length);
-  const merged = [];
+  const rp = RACE_PALETTE[race] || RACE_PALETTE.human;
+  const N = kit.length;
+  const mapped = [];
+
   for (let row = 0; row < N; row++) {
     let line = '';
+    const srcLine = kit[row] || '';
     for (let col = 0; col < N; col++) {
-      const over = (kit[row] || '')[col] || '.';
-      line += over !== '.' ? over : ((body[row] || '')[col] || '.');
+      let ch = srcLine[col] || '.';
+      if (ch === 'N') ch = rp.skin;
+      else if (ch === 'n') ch = rp.hair;
+      else if (ch === 'C') ch = CLASS_TINT[cls] || 's';
+      line += ch;
     }
-    merged.push(line);
+    mapped.push(line);
   }
-  return bakeGrid(merged, CLASS_TINT[cls]);
+  return bakeGrid(mapped, CLASS_TINT[cls]);
 }
 
 /* ── 정예의 테두리 ────────────────────────────────────────
@@ -3060,30 +3074,33 @@ let flesh = new Set();
 
 export function bakeAll(living) {
   if (living) flesh = living instanceof Set ? living : new Set(living);
-  for (const race of Object.keys(RACE_BODY))
-    for (const cls of Object.keys(CLASS_KIT))
+  const allRaces = ['human', 'castle', 'river', 'shaft', 'ash', 'stone', 'exile', 'bone'];
+  const allCls = ['warrior', 'mage', 'priest', 'rogue', 'ranger', 'paladin'];
+
+  for (const race of allRaces) {
+    for (const cls of allCls) {
       baked.set(`hero:${race}:${cls}`, bakeHero(race, cls));
+    }
+  }
+
+  for (const [cls, grid] of Object.entries(CLASS_KIT)) {
+    baked.set(`hero:${cls}`, bakeHero('human', cls));
+  }
+
   for (const [name, grid] of Object.entries(SPRITES)) {
     if (name === 'hero') {
-      // Kept as the fallback for anything that asks for a class
-      // without naming a race — the ending screen, mostly.
       for (const [cls, tint] of Object.entries(CLASS_TINT))
-        baked.set(`hero:${cls}`, bakeGrid(grid, tint));
+        baked.set(`hero:${cls}`, bakeHero('human', cls));
     } else if (name === 'keeper') {
       SHOP_TINT.forEach((tint, i) => baked.set(`keeper:${i + 1}`, bakeGrid(grid, tint)));
     } else if (name === 'pedlar') {
       baked.set('pedlar', bakeGrid(grid, 'N'));
       for (const [id, tint] of Object.entries(LOAD_TINT))
         baked.set(`pedlar:${id}`, bakeGrid(grid, tint));
-    } else if (flesh.has(name)) {
-      const bent = deform(grid, name);
-      baked.set(name, bakeGrid(bent));
-      baked.set(`wrong:${name}`, bakeGrid(wrongen(bent, name)));
-      /* 비틀린 그림에서 고리를 뜬다 — 원본에서 뜨면 정예의 테두리만
-         한 픽셀씩 어긋나 몸에서 떠 보인다. */
-      for (const ink of ELITE_RIM) baked.set(`rim:${ink}:${name}`, bakeRim(bent, ink));
     } else {
       baked.set(name, bakeGrid(grid));
+      baked.set(`wrong:${name}`, bakeGrid(grid));
+      for (const ink of ELITE_RIM) baked.set(`rim:${ink}:${name}`, bakeRim(grid, ink));
     }
   }
 }

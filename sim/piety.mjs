@@ -18,7 +18,7 @@
    ═══════════════════════════════════════════════════════════ */
 import * as Game from '../src/game.js';
 import { PIETY_MAX, PIETY_FLOOR, PIETY_GIFT, PIETY_BREAK, PIETY_STIR, PIETY_ZEAL,
-         VOW_BREAK, GODS, ARCANA_AT, MAX_DEPTH } from '../src/data.js';
+         VOW_BREAK, GODS, PLEDGE_AT, MAX_DEPTH } from '../src/data.js';
 
 let bad = 0;
 const ok = (c, m, g) => { console.log(`  ${c ? '·' : '✗'} ${m}${g !== undefined ? ` — ${g}` : ''}`); if (!c) bad++; };
@@ -35,8 +35,8 @@ const walk = take => {
   const seen = {};
   let zeal = null, stir = null;
   for (let d = 1; d <= MAX_DEPTH; d++) {
-    if (ARCANA_AT.includes(d)) {
-      if (take) Game.pledge(GODS[ARCANA_AT.indexOf(d)].id);
+    if (PLEDGE_AT.includes(d)) {
+      if (take) Game.pledge(GODS[PLEDGE_AT.indexOf(d)].id);
       else G.refused++;
     }
     Game.piety(PIETY_FLOOR, 'depth');
@@ -69,7 +69,7 @@ ok(left.end > 0 && left.stir !== null,
    `${left.stir}층에서 화면이 어긋나기 시작`);
 ok(left.end === MAX_DEPTH * PIETY_FLOOR,
    '   거절한 판의 신앙심은 층 몫뿐이다', `${MAX_DEPTH}×${PIETY_FLOOR} = ${left.end}`);
-ok(took.end - left.end === ARCANA_AT.length * PIETY_GIFT,
+ok(took.end - left.end === PLEDGE_AT.length * PIETY_GIFT,
    '   받은 몫이 정확히 선물 셋이다', `${took.end} − ${left.end} = ${took.end - left.end}`);
 
 /* ── ③ 계율 ──────────────────────────────────────────────── */

@@ -1963,52 +1963,52 @@ function showHeat() {
   $('look').hidden = false;
 }
 
-/* ── 아르카나 ────────────────────────────────────────────
-   4·8·12층에 한 번씩, 셋 중 하나. 전부 양날이라 「좋은 것 고르기」가
-   아니라 **이 판을 어떤 판으로 만들 것인가**를 고르는 화면이다.
-   그래서 좋은 쪽과 값을 같은 크기로 적는다 — 한쪽만 크게 쓰면
-   그건 광고지 결정이 아니다. */
-function renderArcana() {
-  /* ── 서약 화면 ────────────────────────────────────────────
-     DESIGN.md §4. 아르카나가 쓰던 화면을 그대로 쓴다 — 넷째 칸이
-     붙었을 뿐이다.
+/* ── 서약 화면 ────────────────────────────────────────────
+   DESIGN.md §4. 4·8·12층에 한 번씩, 넷 중 하나 — 셋은 받는 것이고
+   넷째는 거절이다.
 
+   이 화면의 이름은 「아르카나」였다. 아르카나가 지워졌으므로 이름도
+   같이 옮긴다 — 화면 하나에 죽은 이름이 붙어 있으면 코드를 읽는
+   사람이 없는 것을 찾게 된다(§5).
+*/
+function renderPledge() {
+  /*
      **신이 말한 것만 뜬다.** 실제로 일어나는 것(real)은 이 함수가
      아예 안 읽는다 — 규칙 쪽(godOffer)이 안 내보내기도 하지만, 화면이
      그것을 알면 언젠가 새 나간다.
 
      그리고 이 화면도 뒤틀린다. 신앙심이 깊어질수록 신의 말이 흔들리고,
      넷째 칸은 점점 멀어진다. */
-  const list = $('arcana-list'); list.innerHTML = '';
+  const list = $('pledge-list'); list.innerHTML = '';
   const have = (G.gifts || []).length + (G.refused || 0);
   const w = Juice.warpLens();
   /* 사자는 신앙심만큼 또렷해진다. 처음엔 배경에 밴 얼룩이고, 광신에
      이르면 화면 앞에 서 있다 — 값은 규칙 쪽 warpOf 하나에서 온다. */
-  const idol = $('arcana-idol');
+  const idol = $('pledge-idol');
   if (idol) {
     Juice.drawHerald(idol, Game.warpOf());
     idol.style.transform = w ? `translateX(${(w.split || 0) * -1}px)` : '';
   }
-  $('arcana-sub').textContent = G.god
+  $('pledge-sub').textContent = G.god
     ? `${G.depth}층. 그가 다시 말한다.`
     : `${G.depth}층. 무언가 듣고 있다.`;
 
   for (const g of Game.godOffer()) {
-    const row = el('button', 'itemrow arcanarow');
+    const row = el('button', 'itemrow pledgerow');
     const mid = el('div', 'imid');
     const nm = el('span', 'iname', g.n);
     nm.style.color = 'var(--P)';
     nm.classList.add('transcend');
     mid.appendChild(nm);
-    mid.appendChild(el('span', 'idesc arcanacat', g.face));
+    mid.appendChild(el('span', 'idesc pledgecat', g.face));
     /* 부름은 명령형이다(§2) — 짧고, 이유를 안 댄다. */
-    mid.appendChild(el('span', 'idesc arcanagood', `「${g.call}」`));
+    mid.appendChild(el('span', 'idesc pledgegood', `「${g.call}」`));
     /* 선물. **정직하다** — 성능을 속이면 결정을 못 하고, 결정을 못 하는
        것은 이 게임에서 「고장」으로 읽힌다(§0). 신이 속이는 것은 값이
        아니라 「무찌르면 평화가 온다」쪽이다. */
-    mid.appendChild(el('span', 'idesc arcanacost', g.boon));
-    mid.appendChild(el('span', 'idesc arcanacat', `계율 — ${g.vow}`));
-    mid.appendChild(el('span', 'idesc arcanalore', g.lore));
+    mid.appendChild(el('span', 'idesc pledgecost', g.boon));
+    mid.appendChild(el('span', 'idesc pledgecat', `계율 — ${g.vow}`));
+    mid.appendChild(el('span', 'idesc pledgelore', g.lore));
     row.appendChild(mid);
     if (w) row.style.transform = `translateX(${(w.split || 0) * (Math.random() < 0.5 ? -1 : 1)}px)`;
     row.onclick = () => { if (!armed()) return; Game.pledge(g.id); setScreen('play'); refresh(); };
@@ -2021,14 +2021,14 @@ function renderArcana() {
      진 엔딩은 없는 진 엔딩이다. 잠긴 채로 보이면 왜 잠겼는지 알고
      싶어진다. */
   const can = Game.canRefuse();
-  const row = el('button', 'itemrow arcanarow' + (can ? '' : ' poor'));
+  const row = el('button', 'itemrow pledgerow' + (can ? '' : ' poor'));
   const mid = el('div', 'imid');
   const nm = el('span', 'iname', Data.REFUSE.n);
   nm.style.color = can ? 'var(--w)' : 'var(--g)';
   mid.appendChild(nm);
-  mid.appendChild(el('span', 'idesc arcanacost',
+  mid.appendChild(el('span', 'idesc pledgecost',
     can ? Data.REFUSE.say : Data.REFUSE.locked));
-  if (can) mid.appendChild(el('span', 'idesc arcanalore', Data.REFUSE.lore));
+  if (can) mid.appendChild(el('span', 'idesc pledgelore', Data.REFUSE.lore));
   row.appendChild(mid);
   row.disabled = !can;
   /* 뒤틀리면 이 칸이 **멀어진다.** 신이 원하지 않는 쪽이라는 것을
@@ -2115,7 +2115,7 @@ export const armed = () => Date.now() >= armUntil;
 const OVERLAYS = ['help', 'codex'];
 const SCREEN_IDS = ['title', 'create', 'play', 'inv', 'shop', 'spell', 'end', 'help',
                     'camp', 'slots', 'altar', 'stairs', 'relic', 'event', 'anvil',
-                    'codex', 'arcana'];
+                    'codex', 'pledge'];
 function showOnly(name) {
   const sheeted = SHEETS.includes(name);
   for (const s of SCREEN_IDS) {
@@ -2202,12 +2202,12 @@ export function setScreen(name) {
   if (name === 'play') {
     /* 아르카나가 밀린 채로 판에 돌아오면 안 된다 — 4층에 들어선 순간
        고르는 화면이 떠야 그 층부터 그 판이 된다. */
-    if (Game.pledgeDue(G.depth)) { setScreen('arcana'); return; }
+    if (Game.pledgeDue(G.depth)) { setScreen('pledge'); return; }
     resize(); refresh();
     // Back on the map: whatever was waiting can be read now.
     if (loreQueue.length && $('lorecard').hidden) showLore();
   }
-  if (name === 'arcana') renderArcana();
+  if (name === 'pledge') renderPledge();
   if (name === 'inv')  renderInventory();
   if (name === 'shop') renderShop();
   if (name === 'spell') renderSpells();
@@ -4755,7 +4755,7 @@ export function dumpRun(btn) {
     `깊은 곳 판 기록 · ${d.build} · 형식 v${d.v}`,
     `${d.race}/${d.cls} Lv${d.lv} · ${d.deepest}층 · ${d.turns}턴`
       + ` · ${d.ending ? (d.ending.win ? '클리어' : `${d.ending.by}에게`) : '진행 중'}`,
-    `유물 ${d.relics.length} · 아르카나 ${d.arcana.length} · 총 강화 +${d.plus}`
+    `유물 ${d.relics.length} · 총 강화 +${d.plus}`
       + ` · 처치 ${d.kills} · 최고 연격 ${d.bestCombo}`,
     `이 브라우저에 남은 것 — 판 ${d.meta?.runs || 0}회 · 완주 ${d.meta?.wins || 0}회`
       + ` · 최고 ${d.meta?.best?.depth || 0}층 · 저장 슬롯 ${d.slots.length}개`
@@ -5299,9 +5299,9 @@ function walkTo(tx, ty) {
    step — walking onto a fire, opening a chest with a relic in
    it. One list, so a new screen is never routed from three
    places and forgotten in a fourth. */
-/* 'arcana' 가 여기 없었다. 규칙이 G.screen='arcana' 를 세워도
-   act() 가 그것을 인터럽트로 안 봐서 그냥 'play' 로 덮였다. */
-const INTERRUPTS = ['shop', 'camp', 'altar', 'stairs', 'relic', 'event', 'anvil', 'arcana'];
+/* 서약이 여기 없었다. 규칙이 G.screen='pledge' 를 세워도 act() 가
+   그것을 인터럽트로 안 봐서 그냥 'play' 로 덮였다. */
+const INTERRUPTS = ['shop', 'camp', 'altar', 'stairs', 'relic', 'event', 'anvil', 'pledge'];
 /* Everything that happens *on a floor*. The shop is in town where
    there is no map worth keeping, so it stays a whole screen. */
 const SHEETS = ['camp', 'altar', 'stairs', 'relic', 'event', 'anvil'];

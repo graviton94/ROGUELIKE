@@ -38,7 +38,7 @@ const outs = ev.filter(e => e.k === 'floor.out');
 console.log(`\n판 기록 — ${d.build} · ${d.race}/${d.cls} Lv${d.lv}`);
 console.log(`${d.deepest}층 · ${d.turns}턴 · `
   + (d.ending ? (d.ending.win ? '클리어' : `${d.ending.by}에게`) : '진행 중')
-  + ` · 유물 ${d.relics.length} · 아르카나 ${d.arcana.length} · 총 강화 +${d.plus}\n`);
+  + ` · 유물 ${d.relics.length} · 총 강화 +${d.plus}\n`);
 
 /* ── 이 브라우저에 남아 있던 것 ────────────────────────────
    층별 기록은 v43 부터만 쌓인다. 그 전에 친 판들은 층별로는 사라졌지만

@@ -26,7 +26,7 @@ import {
   STIGMA_TURNS, STIGMA_SPLASH, STIGMA_RANGE, STIGMA_HIT,
   RELICS, RELIC_SLOTS, relicSlots, relicById, crackOf, crackSaid, crackNeed, CRACK_LEFT, BRANCHES,
   STRANGE, strangeById, STRANGE_FROM, STRANGE_BASE, STRANGE_CAP,
-  ARCANA, arcanaById, ARCANA_AT, GODS, godById, REFUSE,
+  PLEDGE_AT, GODS, godById, REFUSE,
   PIETY_MAX, PIETY_FLOOR, PIETY_GIFT, PIETY_BREAK, PIETY_STIR, PIETY_ZEAL,
   VOW_BREAK, HOARD_AT,
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH, REGIONS, regionOf,
@@ -878,8 +878,6 @@ export function gearBonus(p) {
   /* ── 아르카나가 몸에 닿는 두 곳 ────────────────────────
      나머지 일곱은 세계에 붙지만, 이 둘은 주고받는 값이라 여기 온다.
      같은 깔때기를 지나므로 강화·유물과 섞이는 방식이 똑같다. */
-  if (hasArcana('brittle')) b.dmgPct += 0.40;
-  if (hasArcana('dark') && G.depth > 0 && p.lightTurns <= 0) b.dmgPct += 0.60;
   /* 광폭 — 잃은 피에 비례해 오른다. 가득 차 있으면 아무 일도 없고,
      다 죽어 갈 때 +80%. 「죽음에 가까울수록 세진다」가 곡선이 되는
      자리이고, 그래서 켜는 것이 도박이다. */
@@ -1303,7 +1301,6 @@ export function hurtPlayer(dmg, opt = {}) {
   /* 전사의 버텨선다. 피해 깔때기 한 곳에서만 깎인다 — 열한 군데가
      전부 여기를 지나므로 어디서 맞아도 같다. */
   /* 무른 판 — 유리로 만든 칼이 가장 잘 든다. */
-  if (hasArcana('brittle')) taken = Math.round(taken * 1.4);
   if ((p.brace || 0) > 0) taken = Math.max(1, Math.round(taken * STAND_CUT));
   /* 팔라딘의 불굴. 순교와 달리 빚이 없다 — 맹세 다섯이 그 값이다. */
   if ((p.bulwark || 0) > 0 && p.hp - taken < 1) taken = Math.max(0, p.hp - 1);
@@ -1961,7 +1958,7 @@ export function salvage(slotIdx) {
   /* 탐욕의 판이 약속한 「많이 벌고」의 둘째 절 — 카드에는 적혀 있고
      코드에는 없었다. */
   const mult = (G.branch?.mats || 1) * (hasBoon('hoard') ? 1.6 : 1)
-             * (hasArcana('greed') ? 2 : 1);
+             ;
   for (const k of ['scrap', 'dust', 'essence']) {
     if (!got[k]) continue;
     got[k] = Math.round(got[k] * mult);
@@ -3538,7 +3535,6 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
   G.strange = depth > 0 ? rollStrange(depth) : null;
   if (G.strange) (G.strangeSeen ||= []).push(G.strange);
   setFacilityBias({ camp: cracked('ember'), extra: cracked('moth'),
-                    noCamp: hasArcana('echo'), extraEvent: hasArcana('echo'),
                     strange: G.strange ? strangeTheme(G.strange) : null });
   G.level = new Level(depth, G.branch);
   G.monsters = [];
@@ -3713,12 +3709,6 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     say(hasRelic('ledger') ? `장부가 ${fee}닢을 지웠다.` : `뱃사공이 ${fee}닢을 챙겼다.`, 'warn');
   }
   // 돌씨 hardens a little every floor, for the whole run.
-  /* 재촉하는 판 — 서두른 사람은 오래 산다. 서두를 줄 아는 동안은. */
-  if (depth > 0 && hasArcana('clock')) {
-    p.permHp = (p.permHp || 0) + 4;
-    recalc(p);
-    say('서두른 만큼 몸이 버텨 준다. 최대 체력 +4.', 'good');
-  }
   if (depth > 0 && hasRelic('seed')) {
     p.seedAc = (p.seedAc || 0) + relicVal('seed') * (cracked('seed') ? 2 : 1);
     recalc(p);
@@ -3764,12 +3754,10 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     say('시간 도둑이 상처를 되감았다.', 'good');
     fx({ t:'heal', x:p.x, y:p.y, amt:0 });
   }
-  /* ── 아르카나 화면은 규칙이 요구한다 ────────────────────
-     여기 없었다. `arcanaDue` 를 보는 곳이 ui.js 의 setScreen('play')
-     한 곳뿐이었는데, enterDepth 를 부르는 경로 셋 중 **둘은 화면을
-     안 바꾼다** — 구덩이 낙하와 도주 두루마리. 그 둘로 4층에 도착하면
-     아르카나가 안 뜨고 그대로 지나가고, `arcanaDue` 는 보유 개수로
-     세므로 그 판은 셋이 아니라 둘로 끝났다.
+  /* ── 서약 화면은 규칙이 요구한다 ────────────────────────
+     한때 화면 쪽(setScreen('play')) 한 곳에서만 봤는데, enterDepth 를
+     부르는 경로 셋 중 **둘은 화면을 안 바꾼다** — 구덩이 낙하와 도주
+     두루마리. 그 둘로 4층에 도착하면 서약이 안 뜨고 그대로 지나갔다.
 
      그래서 pendingRelic·pendingBranch 와 같은 문법을 쓴다: 규칙이
      화면을 세우고, ui 는 그것을 띄우기만 한다. */
@@ -3789,10 +3777,10 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
     say(`${o.n}. ${o.lore}`, 'level');
     say(o.t, 'warn');
     lore('strange', o.n, `${o.lore}\n\n${o.t}`, o.spr);
-    fx({ t:'arcana', n: o.n });
+    fx({ t:'proclaim', n: o.n });
   }
   if (depth > 0) traceOpenFloor(depth);
-  if (depth > 0 && pledgeDue(depth)) G.screen = 'arcana';
+  if (depth > 0 && pledgeDue(depth)) G.screen = 'pledge';
 }
 
 function findTile(L, t) {
@@ -3848,7 +3836,7 @@ function populate(depth) {
      것을 전부 정예로 만든다 — 마릿수가 아니라 **밀도의 성격**이 바뀐다. */
   const budget = Math.round((4 + rnd(3) + Math.floor(depth * 0.55))
                             * Math.min(mob, 1.35) * (br.mon || 1)
-                            * (hasArcana('thin') ? 0.7 : 1));
+                            );
   let placed = 0;
   for (let guard = 0; placed < budget && guard < budget * 4; guard++) {
     const m = pickMonster(depth);
@@ -3875,7 +3863,7 @@ function populate(depth) {
                     awake: strangeIs('eyes')          // 눈의 방은 전부 깨어 있다
                         || (hasShackle('awake') && Math.random() < 0.5)
                         || Math.random() < heatAwake(), energy: 0 };
-      if (hasArcana('thin') || Math.random() < eliteChance(depth) * (br.elite ?? 1))
+      if (Math.random() < eliteChance(depth) * (br.elite ?? 1))
         makeElite(one, depth);
       one.maxhp = one.hp;
       G.monsters.push(one);
@@ -3890,7 +3878,7 @@ function populate(depth) {
      drawn from your own depth band, is the same total value
      arriving in pieces big enough to notice. */
   const loot = Math.max(1, Math.round((2 + rnd(3)) * (br.item || 1)
-                        * (hasArcana('famine') ? 0.5 : 1)));
+                        ));
   for (let i = 0; i < loot; i++) {
     const item = pickItem(depth);
     const spot = L.randomFloor(busy);
@@ -4224,7 +4212,6 @@ export function rollAffixes(item, depth, guaranteed) {
   /* 굶주린 판 — 주울 것이 절반이 되는 값으로, 떨어지는 것마다 속성이
      하나씩 더 붙는다. 「주울 것이 적은 판은 가난한 판이 아니라
      **고를 것이 적은 판**이다」가 이 한 줄로 참이 된다. */
-  if (hasArcana('famine')) guaranteed = true;
   if (item.kind !== 'weapon' && item.kind !== 'armour') return item;
   const tag = item.kind;
   /* 매력 is the stat the dungeon likes you for. It moves the odds
@@ -4527,14 +4514,6 @@ export function step(dx, dy) {
     say('발을 박아 두었다. 이 자리에서는 못 움직인다.', 'warn');
     return;
   }
-  /* 멎은 판 — 걷는 데 두 턴이 든다. 공격은 그대로 매 턴이라,
-     「걸어서 붙는다」가 두 배로 비싸지고 「서서 친다」는 안 변한다.
-     같이 느려지면 아무것도 안 달라진다고들 하는데, 해 보면 다르다. */
-  if (stillHalf() && (dx || dy) && !monsterAt(p.x + dx, p.y + dy)) {
-    G.stillStep = !G.stillStep;
-    if (G.stillStep) { say('발이 무겁다.', 'warn'); endTurn(); return; }
-  }
-
   // Paralysis eats the turn outright — that is what makes a lich
   // frightening rather than merely damaging.
   if (has(p, 'paralyze')) {
@@ -5932,7 +5911,6 @@ export const goldGain = n => {
   const raw = Math.max(0, Math.round(n * (SHACKLES[G.abyss || 0] || SHACKLES[0]).gold));
   const got = Math.max(0, Math.round(
     n * (SHACKLES[G.abyss || 0] || SHACKLES[0]).gold
-      * (hasArcana('greed') ? 2 : 1)
       * (hasRelic('toll') || hasRelic('ledger') ? 2 : 1) * (hasRelic('quill') ? 0.75 : 1)
       * (hasRelic('swift') ? 0.6 : 1)
       * (hasBoon('hoard') ? 1.6 : 1)));
@@ -6608,7 +6586,7 @@ function traceOpenFloor(depth) {
     hp: p ? `${p.hp}/${p.maxhp}` : '', lv: p?.lv || 0, gold: p?.gold || 0,
     mons: G.monsters.length, awake, elite: G.monsters.filter(m => m.elite?.length).length,
     budget: floorBudget(), branch: G.branch?.id || 'plain',
-    strange: G.strange || null, arcana: [...(G.arcana || [])],
+    strange: G.strange || null,
     relics: [...(p?.relics || [])],
     gear: ['weapon', 'body', 'shield'].map(k => p?.equip?.[k])
       .filter(Boolean).map(it => `${affixName(it)}${it.plus ? `+${it.plus}` : ''}`),
@@ -6623,7 +6601,7 @@ export function traceDump() {
     deepest: G.deepest || 0, turns: G.turn || 0,
     ending: G.ending ? { win: !!G.ending.win, by: G.ending.by || null } : null,
     kills: G.kills || 0, bestCombo: G.bestCombo || 0,
-    relics: [...(p?.relics || [])], arcana: [...(G.arcana || [])],
+    relics: [...(p?.relics || [])],
     strangeSeen: [...(G.strangeSeen || [])],
     plus: ['weapon', 'body', 'shield'].reduce((n, k) => n + (p?.equip?.[k]?.plus || 0), 0),
     events: G.trace || [],
@@ -6815,7 +6793,6 @@ export function endTurn(skipMonsters = false) {
     if (!hasRelic('lamp'))
       p.lightTurns -= (G.branch?.drain || 1) * OIL_BURN(G.depth)
         * (packLoad(p) >= LADEN_AT ? 2 : 1)
-        * (hasArcana('dark') ? 2 : 1)
         * (hasRelic('famine') ? 3 : hasRelic('hunger') && !cracked('hunger') ? 2 : 1)
         + (hasShackle('hunger') && G.turn % 10 < 3 ? 1 : 0);
     if (p.lightTurns === 640) say('불빛이 한 뼘 줄었다. 벽이 가까워진 것은 아니다.', 'warn');
@@ -6964,8 +6941,7 @@ export function floorBudget() {
        지적을 받았다. 여기서 값을 받는다: 불은 늘 있고, 대신 층이 더
        빨리 조여 온다. */
     FLOOR_BUDGET(G.depth) * (G.branch?.clock || 1) * heatClock()
-      * (hasArcana('clock') ? 0.6 : 1) * (hasArcana('flood') ? 0.5 : 1)
-      * (cracked('ember') && !hasArcana('echo') ? 0.78 : 1)
+      * (cracked('ember') ? 0.78 : 1)
       * (strangeIs('gullet') ? 0.5 : 1)
       * (hasRelic('thief') ? (cracked('thief') ? 1.15 : 0.65) : 1)));
 }
@@ -7089,7 +7065,6 @@ export const heatAwake = () => (G.heat || 0) * 0.006;       // 0 ~ 60%
 
    판당 셋(4·8·12층). 고를 때마다 셋 중 하나이고 전부 양날이다 —
    순증이 하나라도 있으면 그 판부터 나머지는 안 고른다. */
-export const hasArcana = id => !!G.arcana?.includes(id);
 /* 이 층에서 고를 차례인가. 층에 들어서는 순간 화면이 뜬다. */
 /* ── 서약 ──────────────────────────────────────────────────
    DESIGN.md §4. 아르카나가 쓰던 리듬(4·8·12층)을 그대로 쓴다. 다만
@@ -7206,45 +7181,12 @@ export function refuse() {
   return true;
 }
 
-/* 이 층에서 신이 말을 거는가. 아르카나가 쓰던 4·8·12를 그대로 쓴다.
-   받았든 거절했든 한 번 답하면 그 층은 끝난다. */
+/* 이 층에서 신이 말을 거는가. 4·8·12층. 받았든 거절했든 한 번
+   답하면 그 층은 끝난다. */
 export function pledgeDue(depth) {
   const answered = (G.gifts || []).length + (G.refused || 0);
-  return ARCANA_AT.includes(depth) && answered < ARCANA_AT.indexOf(depth) + 1;
+  return PLEDGE_AT.includes(depth) && answered < PLEDGE_AT.indexOf(depth) + 1;
 }
-
-export function arcanaDue(depth) {
-  return ARCANA_AT.includes(depth) && (G.arcana || []).length < ARCANA_AT.indexOf(depth) + 1;
-}
-export function arcanaOffer() {
-  if (G.arcanaPick) return G.arcanaPick;
-  const pool = ARCANA.filter(a => !hasArcana(a.id));
-  const out = [];
-  for (let i = 0; i < 3 && pool.length; i++)
-    out.push(pool.splice(rnd(pool.length), 1)[0]);
-  G.arcanaPick = out;
-  return out;
-}
-export function takeArcana(id) {
-  if (!id || hasArcana(id)) return;
-  (G.arcana ||= []).push(id);
-  G.arcanaPick = null;
-  const a = arcanaById(id);
-  /* 아르카나도 마찬가지. 「무른 판 — 네가 주는 피해 +40%. 대신 받는
-     피해도 +40%다」가 아니라 「무른 판. 유리로 만든 칼이 가장 잘
-     든다」 — 아홉 자로 같은 것을 말하면서 고르는 사람의 마음까지
-     말하는 줄이, 지금까지 화면에 한 번도 안 나왔다. */
-  trace('arcana', { id, n: a.n });
-  say(`${a.n}. ${a.lore || a.t.replace(/\*\*/g, '')}`, 'level');
-  fx({ t:'arcana', id, n: a.n });
-  recalc(G.player);
-  G.screen = 'play';
-}
-
-/* 멎은 판 — 몬스터도 나도 두 턴에 한 번 움직인다. 공격만 매 턴이라,
-   「걸어서 붙는다」가 두 배로 비싸지고 「서서 친다」가 그대로다.
-   같이 느려지면 아무것도 안 달라진다고들 하는데, 해 보면 다르다. */
-export const stillHalf = () => hasArcana('still');
 
 export const pressureLevel = () => {
   const over = G.floorTurn - floorBudget();
@@ -7303,7 +7245,6 @@ function spawnWave() {
     m.atk = Math.round(m.atk * grow);
     m.maxhp = m.hp;
     Object.assign(m, { x: spot.x, y: spot.y, awake: true, energy: 0 });
-    if (hasArcana('flood')) m.rich = 2;      // 밀려온 것은 손에 무언가를 쥐고 온다
     if (Math.random() < eliteChance(G.depth) * 1.5) makeElite(m, G.depth);
     m.maxhp = m.hp;
     G.monsters.push(m);
@@ -7401,9 +7342,6 @@ function wakeNear(m) {
 function monsterTurn(m) {
   if (!G.running) return;
   const p = G.player, L = G.level;
-  /* 멎은 판 — 저쪽도 두 턴에 한 번이다. 나만 느려지면 그건 아르카나가
-     아니라 저주다. */
-  if (stillHalf()) { m.slowTick = !m.slowTick; if (m.slowTick) return; }
   if (m.staggered > 0) { m.staggered--; return; }   // 둔기류 took its turn
   if (m.cooling > 0) m.cooling--;
   /* 도발 — 두 턴 동안 이것은 다른 것을 못 본다. 이 게임에 「강제
@@ -8535,7 +8473,7 @@ export const upgradeCostFor = (key, careful = false) => {
   /* 그리고 「많이 쓰는」 절. 벌이만 두 배로 해 놓고 값을 안 올리면
      탐욕은 양날이 아니라 순증이 된다 — 지금까지는 반대로 순감이었다. */
   const dear = (hasShackle('coldanvil') ? 1.4 : 1) * named
-             * (hasArcana('greed') ? 2 : 1);
+             ;
   const raw = upgradeCost(plusOf(t));
   const base = {};
   for (const k of Object.keys(raw)) base[k] = Math.ceil(raw[k] * dear);
@@ -9087,7 +9025,6 @@ function eventApi() {
 
     /* state queries the gates use */
     hasRelic, cracked, crackHint, crackProgress, crackOf, crackLeft, nearestCrack, feedable,
-    hasArcana, arcanaDue, arcanaOffer, takeArcana,
     godOffer, pledge, refuse, canRefuse, pledgeDue,
     piety, breakVow, blessed, warpOf, vowRisk, endKind, lastHero,
     powerOf, expectedPower, heatFor, HEAT_WORD, HEAT_MAX,
@@ -9885,11 +9822,8 @@ export const priceOf = (item, buying) => {
   const face = (buying && cracked('mask')) ? 0.5 : 1;
   const swing = (buying ? mood.buy(G.player) * (hag?.cut ?? 1)
                         : mood.sell(G.player)) * cart * face;
-  /* 탐욕의 판 — 많이 벌고 많이 쓴다. 파는 값은 안 건드린다: 양쪽을
-     다 올리면 되팔기가 무한 기계가 된다. */
-  const greed = (buying && hasArcana('greed')) ? 2 : 1;
   return buying
-    ? Math.max(1, Math.round(base * (1.25 - chrB * 0.03) * mk * swing * greed))
+    ? Math.max(1, Math.round(base * (1.25 - chrB * 0.03) * mk * swing))
     : Math.max(1, Math.round(base * (0.42 + chrB * 0.02) / mk * swing));
 };
 
@@ -10258,7 +10192,7 @@ export const RUN_FIELDS = {
   trace: [], floorTally: null,
   rareTaken: 0, rareFound: 0, resoFound: 0,
   floorTurns: {}, blowRatio: 0, funnelled: 0, clung: 0, clungSaid: 0,
-  promiseFloor: 0, stillStep: false, taskDone: false, spoils: null,
+  promiseFloor: 0, taskDone: false, spoils: null,
 };
 export const resetRun = () => {
   for (const k of Object.keys(RUN_FIELDS)) G[k] = structuredClone(RUN_FIELDS[k]);
@@ -10278,7 +10212,6 @@ export function startGame(raceKey, classKey, base) {
   G.opened = 0; G.mimicsBitten = 0; G.trapsSprung = 0; G.kills = 0; G.eventsSeen = 0;
   G.ledger = {}; G.cracks = {}; G.relicFloors = {}; G.chainGuard = 0; G.murmured = {};
   G.heat = 0; G.provoked = 0;
-  G.arcana = []; G.arcanaPick = null;
   G.god = null; G.godPick = null; G.gifts = []; G.refused = 0; G.piety = 0; G.vowBroke = -1;
   G.martyred = 0;
   G.regionAt = null;

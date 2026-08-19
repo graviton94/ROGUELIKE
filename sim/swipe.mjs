@@ -77,8 +77,8 @@ async function trial(name, dx, dy) {
 console.log('\n밀어내기 벤치 — 양피지를 손으로 치울 수 있는가\n');
 /* 화면을 덮는 것은 안내 카드다. 그것부터 밀린다. */
 {
-  /* 4층이 아니라 5층이다. 4·8·12층은 아르카나를 고르는 층이라
-     enterDepth 가 화면을 'arcana' 로 세우고, 그러면 그 뒤의 배너가
+  /* 4층이 아니라 5층이다. 4·8·12층은 신이 말을 거는 층이라
+     enterDepth 가 화면을 'pledge' 로 세우고, 그러면 그 뒤의 배너가
      한 장도 안 뜬다 — 「배너가 안 떴다」로 세 줄이 뒤집혔다. */
   await pg.evaluate(async () => { const G = await import('/src/game.js'); G.enterDepth(5); });
   await pg.waitForTimeout(600);

@@ -18,7 +18,7 @@
    usage: node sim/pledge.mjs      (포트 8199에 정적 서버 필요)
    ═══════════════════════════════════════════════════════════ */
 import { chromium } from 'playwright';
-import { GODS, REFUSE, MAX_SHACKLE, ARCANA_AT } from '../src/data.js';
+import { GODS, REFUSE, MAX_SHACKLE, PLEDGE_AT } from '../src/data.js';
 
 let bad = 0;
 const ok = (c, m, g) => { console.log(`  ${c ? '·' : '✗'} ${m}${g !== undefined ? ` — ${g}` : ''}`); if (!c) bad++; };
@@ -68,9 +68,9 @@ for (let i = 0; i < 4; i++) {
 }
 
 const read = () => pg.evaluate(async () => {
-  window.UI.setScreen('arcana');
+  window.UI.setScreen('pledge');
   await new Promise(r => setTimeout(r, 260));
-  return [...document.querySelectorAll('#arcana-list .itemrow')].map(r => ({
+  return [...document.querySelectorAll('#pledge-list .itemrow')].map(r => ({
     n: r.querySelector('.iname')?.textContent || '',
     text: [...r.querySelectorAll('.idesc')].map(x => x.textContent).join(' '),
     off: !!r.disabled,
@@ -102,9 +102,9 @@ const opened = await pg.evaluate(async n => {
   const G = (await import('/src/game.js')).G;
   Meta.clearedAt(n); Meta.setAbyss(n);
   G.abyss = n;
-  window.UI.setScreen('play'); window.UI.setScreen('arcana');
+  window.UI.setScreen('play'); window.UI.setScreen('pledge');
   await new Promise(r => setTimeout(r, 260));
-  const rs = [...document.querySelectorAll('#arcana-list .itemrow')];
+  const rs = [...document.querySelectorAll('#pledge-list .itemrow')];
   const l = rs[rs.length - 1];
   return { off: !!l.disabled, text: [...l.querySelectorAll('.idesc')].map(x => x.textContent).join(' ') };
 }, MAX_SHACKLE);
@@ -138,11 +138,11 @@ const due = await pg.evaluate(async at => {
   const next = Game.pledgeDue(at[1]);
   const between = Game.pledgeDue(at[0] + 1);
   return { first, again, next, between };
-}, ARCANA_AT);
-ok(due.first === true, `④ ${ARCANA_AT[0]}층에서 묻는다`);
+}, PLEDGE_AT);
+ok(due.first === true, `④ ${PLEDGE_AT[0]}층에서 묻는다`);
 ok(due.again === false, '   답하면 그 층은 끝난다 — 두 번 안 묻는다');
-ok(due.between === false, `   사이 층(${ARCANA_AT[0] + 1}층)에서는 안 묻는다`);
-ok(due.next === true, `   그리고 ${ARCANA_AT[1]}층에서 다시 묻는다`);
+ok(due.between === false, `   사이 층(${PLEDGE_AT[0] + 1}층)에서는 안 묻는다`);
+ok(due.next === true, `   그리고 ${PLEDGE_AT[1]}층에서 다시 묻는다`);
 
 /* ── ⑤ 진짜 손가락으로 눌리는가 ──────────────────────────
    합성 click 은 레이아웃과 무관하게 요소에 직접 꽂힌다. 그래서 화면이

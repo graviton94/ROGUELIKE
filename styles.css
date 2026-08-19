@@ -1472,22 +1472,22 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 /* 신의 사자. 캔버스 뒷면은 96×160 그대로이고 여기서만 늘린다 —
    pixelated 를 빼면 격자가 뭉개져서 「사진을 줄인 것」이 아니라
    「흐린 그림」이 된다. */
-#arcana-idol {
+#pledge-idol {
   display: block; margin: 2px auto 6px; width: 132px; height: 220px;
   image-rendering: pixelated; image-rendering: crisp-edges;
 }
-.arcanarow { border-left: 3px solid var(--B); padding-left: 9px; margin-bottom: 10px; }
-.idesc.arcanacat { color: var(--B); opacity: .85; font-size: 9px; }
-.idesc.arcanagood { color: var(--o); }
+.pledgerow { border-left: 3px solid var(--B); padding-left: 9px; margin-bottom: 10px; }
+.idesc.pledgecat { color: var(--B); opacity: .85; font-size: 9px; }
+.idesc.pledgegood { color: var(--o); }
 /* --r(#5e0f1c)은 어두운 배경 위에서 대비 1.45:1 — 「그 아래는 흐린
    것이 아니라 없는 것이다」라고 우리 대비 자가 정한 3:1 아래다.
    판을 되돌릴 수 없게 바꾸는 선택인데 **대가 쪽 절반이 화면에 없었다.**
    ui.js 는 「좋은 쪽과 값을 같은 크기로 적는다」고 주석까지 달아 놨는데,
    크기는 같고 대비가 네 배 차이라 눈에는 광고지였다. --R 은 5.2:1. */
-.idesc.arcanacost { color: var(--R); font-weight: 600; }
-.idesc.arcanagood, .idesc.arcanacost { font-size: 12px; }
-.idesc.arcanacat { font-size: 11px; }
-.idesc.arcanalore { color: var(--G); opacity: .7; font-style: italic; margin-top: 3px; }
+.idesc.pledgecost { color: var(--R); font-weight: 600; }
+.idesc.pledgegood, .idesc.pledgecost { font-size: 12px; }
+.idesc.pledgecat { font-size: 11px; }
+.idesc.pledgelore { color: var(--G); opacity: .7; font-style: italic; margin-top: 3px; }
 
 /* ── 배낭 줄 접기 ──────────────────────────────────────────
    한 줄이 138px 이었다(이름·설명·강화·비교·거래 다섯 문장). 390px

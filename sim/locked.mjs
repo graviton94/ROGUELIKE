@@ -72,11 +72,11 @@ const stage = async (locked) => pg.evaluate(async (lock) => {
   const D = await import('/src/data.js');
   Game.enterDepth(4);
   const G = Game.G, L = G.level, p = G.player;
-  /* 4층은 아르카나를 고르는 층이라, enterDepth 가 화면을 'arcana' 로
+  /* 4층은 신이 말을 거는 층이라, enterDepth 가 화면을 'pledge' 로
      세운다. 그대로 두면 이 벤치는 계단이 아니라 선택 화면을 재게
      된다 — 실제로 「흔들림 0칸」과 「표식이 없다」로 뒤집혔다.
-     사람이 하듯 하나 고르고 판으로 돌아간다. */
-  if (Game.arcanaDue(4)) Game.takeArcana(Game.arcanaOffer()[0].id);
+     사람이 하듯 하나 받고 판으로 돌아간다. */
+  if (Game.pledgeDue(4)) Game.pledge(Game.godOffer()[0].id);
   G.screen = 'play';
   let at = -1;
   for (let i = 0; i < L.tiles.length; i++) if (L.tiles[i] === W.DOWN) { at = i; break; }

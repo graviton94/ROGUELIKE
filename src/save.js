@@ -167,9 +167,6 @@ export function snapshot() {
     /* 크랙 계통 다섯. 안 적으면 불러오기 한 번에 판이 유물의 두 번째
        줄을 통째로 잃고, **더 나쁘게** — apply가 지우지도 않아서 앞
        판의 크랙이 다음 판으로 샌다. 둘 다 실측으로 확인됐다. */
-    /* 아르카나는 판이 끝날 때까지 가는 것이라, 저장에 없으면 불러온
-       판은 다른 판이 된다. */
-    arcana: [...(G.arcana || [])], arcanaPick: null,
     heat: G.heat || 0, provoked: G.provoked || 0,
     ledger: { ...(G.ledger || {}) }, cracks: { ...(G.cracks || {}) },
     relicFloors: { ...(G.relicFloors || {}) }, murmured: { ...(G.murmured || {}) },
@@ -236,8 +233,6 @@ export function apply(data) {
   G.ashCount = data.ashCount || 0;
   /* `|| {}` 가 여기서는 기본값이 아니라 **지우개**다. 이 다섯 줄이
      없으면 저장에 없던 값이 남아서 앞 판의 크랙이 다음 판에 걸린다. */
-  G.arcana = data.arcana || [];
-  G.arcanaPick = null;
   G.heat = data.heat || 0;
   G.provoked = data.provoked || 0;
   G.ledger = data.ledger || {};
@@ -349,7 +344,7 @@ export function slotDigest(slot) {
     depth: d.depth, deepest: d.deepest, turn: d.turn,
     race: p.race, cls: p.cls, lv: p.lv, hp: `${p.hp}/${p.maxhp}`, gold: p.gold,
     heat: d.heat, provoked: d.provoked,
-    branch: d.branch, arcana: d.arcana, strangeSeen: d.run?.strangeSeen || [],
+    branch: d.branch, strangeSeen: d.run?.strangeSeen || [],
     relics: p.relics || [], cracks: Object.keys(d.cracks || {}),
     plus: gear.reduce((n, it) => n + (it.plus || 0), 0),
     gear: gear.map(it => ({ n: it.n, plus: it.plus || 0, pre: it.pre || null,

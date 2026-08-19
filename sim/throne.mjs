@@ -25,7 +25,7 @@ const ok = (c, m, g) => { console.log(`  ${c ? '·' : '✗'} ${m}${g !== undefin
 const G = Game.G;
 
 const fresh = () => Game.startGame('human', 'warrior', Game.rollStats('warrior'));
-const won = extra => ({ win: true, race: 'dwarf', cls: 'paladin', lv: 18, depth: 15,
+const won = extra => ({ win: true, race: 'stone', cls: 'paladin', lv: 18, depth: 15,
                         turn: 3000, relics: ['a', 'b'], weapon: '약속 +5', sent: 7,
                         gifts: [], refused: 0, ...extra });
 
@@ -68,7 +68,7 @@ console.log('');
 Meta.forget();
 Meta.finish(won({ kind: 'throne', gifts: ['ember'] }));
 const seated = Game.lastHero().hp;
-Meta.finish({ win: true, kind: 'true', race: 'elf', cls: 'mage', lv: 20, depth: 15,
+Meta.finish({ win: true, kind: 'true', race: 'river', cls: 'mage', lv: 20, depth: 15,
               turn: 2800, gifts: [], refused: 3, relics: [], weapon: '막대기', sent: 8 });
 fresh();
 const after = Game.lastHero();

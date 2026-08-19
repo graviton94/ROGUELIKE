@@ -1837,8 +1837,8 @@ export const RACE_BODY = {
     '..C..C..',
     '..n..n..',
   ],
-  // Half-elf: fair hair, and a little of the ear's point.
-  halfElf: [
+  // Half-river: fair hair, and a little of the ear's point.
+  castle: [
     '..yyyy..',
     '.ywwwwy.',
     'wwkwwkww',
@@ -1849,7 +1849,7 @@ export const RACE_BODY = {
     '..n..n..',
   ],
   // Elf: pale, long ears standing clear of the head.
-  elf: [
+  river: [
     '..WWWW..',
     'w.WWWW.w',
     'wWkWWkWw',
@@ -1860,7 +1860,7 @@ export const RACE_BODY = {
     '..n..n..',
   ],
   // Halfling: small, low, a mop of curls. Sits a row lower.
-  halfling: [
+  shaft: [
     '........',
     '..nnnn..',
     '.nwkkwn.',
@@ -1871,7 +1871,7 @@ export const RACE_BODY = {
     '.nn..nn.',
   ],
   // Gnome: big head, small body, a shock of white hair.
-  gnome: [
+  ash: [
     '.WWWWWW.',
     'WWwwwwWW',
     'WwkwwkwW',
@@ -1882,7 +1882,7 @@ export const RACE_BODY = {
     '..n..n..',
   ],
   // Dwarf: broad, and the fire-orange beard is most of the face.
-  dwarf: [
+  stone: [
     '.oooooo.',
     'owwwwwwo',
     'owkwwkwo',
@@ -1893,7 +1893,7 @@ export const RACE_BODY = {
     '.nn..nn.',
   ],
   // Half-orc: green, red-eyed, tusks up from the lip.
-  halfOrc: [
+  exile: [
     '..eeee..',
     '.eEEEEe.',
     '.eREERe.',
@@ -1904,7 +1904,7 @@ export const RACE_BODY = {
     '.nn..nn.',
   ],
   // Half-troll: fills the tile. Nothing else does.
-  halfTroll: [
+  bone: [
     '.EEEEEE.',
     'EEwwwwEE',
     'EEkEEkEE',
@@ -2360,7 +2360,7 @@ export const hasSprite = name => baked.has(name);
 const shardCache = new Map();
 
 export function spriteColors(name) {
-  // hero:elf:mage and hero:mage both scatter the same palette.
+  // hero:river:mage and hero:mage both scatter the same palette.
   const key = name.startsWith('hero') ? 'hero' : name;
   if (shardCache.has(key)) return shardCache.get(key);
   const grid = SPRITES[key];

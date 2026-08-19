@@ -178,7 +178,7 @@ console.log('\n── 깔때기');
    안 일어났다. */
 {
   const split = [];
-  for (const race of ['human', 'halfElf']) for (const cls of CLS) {
+  for (const race of ['human', 'castle']) for (const cls of CLS) {
     for (const lv of [1, 2, 3, 4, 7, 8, 12]) {
       const p = Game.createHero(race, cls, Game.rollStats(cls));
       p.lv = lv; Game.recalc(p, true); G.player = p;

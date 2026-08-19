@@ -8,7 +8,8 @@
 
 import { PALETTE, spriteColors } from './pixels.js';
 import { EYE_TEX, FLESH_TEX, VEIN_TEX, HAND_TEX, FACE_TEX, LIMBS, SIGIL_TEX, HERALD_TEX, KNIGHT_TEX, QUILL_TEX, PLATE_TEX,
-         GULLET_TEX, GEAR_TEX, ASH_TEX, FUSED_TEX, PROC_TEX, MASK_TEX } from './horror.js';
+         GULLET_TEX, GEAR_TEX, ASH_TEX, FUSED_TEX, PROC_TEX, MASK_TEX,
+         TITLE_TEX, TITLE_WARM } from './horror.js';
 import { MW as MAP_W } from './world.js';
 import { sfx, from as earFrom } from './audio.js';
 
@@ -1870,7 +1871,13 @@ const RAMP = {
   /* 식어 가는 재 — 회색에서 잉걸불로. 갈라진 틈만 뜨겁다. */
   ember: ['#0a0809','#141011','#1d1718','#272020','#332927','#3f332f','#4c3d36','#5a483e',
           '#6a5446','#7b6250','#8c715c','#9d8169','#ae9278','#bfa48a','#cfb79d','#dfcbb3'],
-  /* 젖은 돌 — 색이 없다. 첫 화면의 줄과 벽이 되어 가는 것에 쓴다. */
+  /* 첫 화면 전용. 회색 램프로 태웠더니 죽은 땅이 밝은 회색이 되어
+     제목과 부제가 그 위에서 안 읽혔다(대비 벤치의 자리다). 위를
+     눌러 재빛에서 멈추고, 아래를 더 검게 깐다 — 이 그림에서 밝아야
+     하는 것은 하늘이 아니라 갱구 바닥의 불씨 하나뿐이다. */
+  dusk:  ['#050506','#0a0a0c','#0f1012','#141518','#1a1c1f','#212327','#282b2f','#303338',
+          '#383c41','#41454a','#4a4e53','#53575c','#5c6065','#65696e','#6e7276','#777b7f'],
+  /* 젖은 돌 — 색이 없다. 벽이 되어 가는 것에 쓴다. */
   grey:  ['#08090b','#0f1113','#16181b','#1e2124','#272a2e','#313438','#3c3f43','#484b4f',
           '#55585c','#636669','#717477','#7f8285','#8e9093','#9d9fa1','#adaeb0','#bdbebf'],
   hand:  ['#0d0406','#170709','#220c0d','#320f10','#451614','#5b201b','#742e24',
@@ -1944,32 +1951,35 @@ export function drawBand(ctx, w, h, depth, deep = 0) {
    첫 화면. 「용사는 계시에 따라 선택받아 내려간다」를 시작 버튼 누르기
    전에 말한다. 손으로 그린 수직 갱도 위에 겹친다 — 갱도만 있으면
    장소이고, 줄이 있으면 **차례**다. */
-export function drawProcession(ctx, w, h) {
-  const cv = texCanvas(PROC_TEX, RAMP.grey, 'proc');
-  /* **폭에 맞추고 아래에 붙인다.** 처음에 화면을 덮게(cover) 깔았더니
-     첫 화면이 세로로 길어서 가운데 세로 띠만 보였다 — 줄이 아니라
-     회색 얼룩이었다. 이 사진은 위가 갱구의 입이고 아래가 사람들이라,
-     아래에 붙여야 「손으로 그린 갱도 아래에 줄이 서 있다」가 된다. */
-  const k = w / cv.width;
-  const cw = w, ch = cv.height * k;
-  /* 아래에 붙였더니 버튼 뒤로 들어가 안 보였다. 갱도의 소실점이 화면
-     높이의 0.58이므로 사진의 **검은 입이 거기 오게** 올린다 — 그러면
-     줄이 소실점으로 걸어 들어간다. 위아래를 다 녹여 그린 갱도와
-     이어 붙인다: 안 녹이면 사진의 네모난 변이 그대로 보인다. */
-  const top = h * 0.30;
+export function drawTitleArt(ctx, w, h) {
+  /* 첫 화면을 **한 장으로** 간다. 전에는 손으로 그린 수직 갱도 + 불빛
+     + 줄 사진 셋을 겹쳤는데, 셋이 서로를 흐리게 만들어 아무것도 안
+     읽혔다. 그림 하나가 할 일을 셋이 나눠 하면 셋 다 못 한다.
+
+     화면을 덮게(cover) 깐다 — 첫 화면은 기기마다 비가 다르고, 이
+     그림은 위 25%가 빈 하늘, 아래 30%가 검은 구멍이라 잘려도 글자와
+     버튼 자리가 산다. */
+  const cv = texCanvas(TITLE_TEX, RAMP.dusk, 'title');
+  const k = Math.max(w / cv.width, h / cv.height);
+  const cw = cv.width * k, ch = cv.height * k;
+  const x = (w - cw) / 2, y = (h - ch) / 2;
   const smooth = ctx.imageSmoothingEnabled;
-  ctx.save();
   ctx.imageSmoothingEnabled = false;
-  ctx.globalAlpha = 0.85;
-  ctx.drawImage(cv, 0, 0, cv.width, cv.height, 0, top, cw, ch);
+  ctx.drawImage(cv, 0, 0, cv.width, cv.height, x, y, cw, ch);
+  /* 그리고 잉걸불. 회색 램프에서는 이 한 점이 밝은 회색이 되어
+     사라진다 — 그림의 뜻이 거기 있는데. 따로 뽑아 두고 위에 얹는다. */
+  const em = texCanvas(TITLE_WARM, RAMP.ember, 'titlewarm');
+  ctx.globalAlpha = 0.85 + Math.sin(now() / 900) * 0.15;
+  ctx.drawImage(em, 0, 0, em.width, em.height, x, y, cw, ch);
   ctx.globalAlpha = 1;
-  const up = ctx.createLinearGradient(0, top, 0, top + ch * 0.30);
-  up.addColorStop(0, 'rgba(14,11,16,1)'); up.addColorStop(1, 'rgba(14,11,16,0)');
-  ctx.fillStyle = up; ctx.fillRect(0, top, w, ch * 0.30);
-  const dn = ctx.createLinearGradient(0, top + ch, 0, top + ch * 0.62);
-  dn.addColorStop(0, 'rgba(14,11,16,1)'); dn.addColorStop(1, 'rgba(14,11,16,0)');
-  ctx.fillStyle = dn; ctx.fillRect(0, top + ch * 0.62, w, ch * 0.38);
-  ctx.restore();
+  /* 글자와 버튼 자리를 눌러 준다. 그림이 아무리 어두워도 제목이 하늘
+     위에 앉으므로, 위아래를 한 번 더 깔아야 글자가 그림에서 떨어진다. */
+  const top = ctx.createLinearGradient(0, 0, 0, h * 0.34);
+  top.addColorStop(0, 'rgba(6,6,8,0.72)'); top.addColorStop(1, 'rgba(6,6,8,0)');
+  ctx.fillStyle = top; ctx.fillRect(0, 0, w, h * 0.34);
+  const bot = ctx.createLinearGradient(0, h, 0, h * 0.72);
+  bot.addColorStop(0, 'rgba(6,6,8,0.86)'); bot.addColorStop(1, 'rgba(6,6,8,0)');
+  ctx.fillStyle = bot; ctx.fillRect(0, h * 0.72, w, h * 0.28);
   ctx.imageSmoothingEnabled = smooth;
 }
 

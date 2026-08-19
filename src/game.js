@@ -488,7 +488,7 @@ export function createHero(raceKey, classKey, base) {
      what a class is, and adding the old modifier on top counted
      it twice — a 전사 came out at 힘 20 and 지혜 3 every time.
      The race modifier stays, because that is the only thing left
-     that separates a 드워프 전사 from an 엘프 전사. */
+     that separates a 돌족 전사 from a 강족 전사. */
   const stats = {};
   for (const k of STATS)
     stats[k] = clamp(base[k] + (race.mod[k] || 0), 3, 20);
@@ -997,7 +997,7 @@ export const stealth = p =>
   : (oddAwake('quietsteel') && G.player?.stillFor > 0) ? 0.95
   : (gearBonus(p).noStealth ? 0 : clamp(
   0.10 + statB(p, 'dex') * 0.05
-  + (p.race === 'halfling' ? 0.20 : p.race === 'elf' ? 0.10 : p.race === 'halfTroll' ? -0.15 : 0)
+  + (p.race === 'shaft' ? 0.20 : p.race === 'river' ? 0.10 : p.race === 'bone' ? -0.15 : 0)
   + (p.cls === 'rogue' ? 0.25 : p.cls === 'ranger' ? 0.12 : 0)
   - (p.equip.body?.ac || 0) * 0.012
   - (p.equip.shield?.ac || 0) * 0.010
@@ -1626,7 +1626,7 @@ export const healScale = () => {
   const priest = (p?.cls === 'priest' && p.hp < p.maxhp * 0.5) ? 1.6 : 1;
   const drunk = G.gulped || 0;
   const dulled = Math.max(TOLERANCE_FLOOR, 1 - TOLERANCE_STEP * drunk);
-  /* 「저절로 아무는 몸은 병에 덜 답한다」 — 트롤과 하프오크의 대가가
+  /* 「저절로 아무는 몸은 병에 덜 답한다」 — 뼈족과 유민의 대가가
      여기 하나에 걸린다. 회복은 전부 이 문을 지나므로 물약도 주문도
      모닥불도 같이 준다. */
   return priest * dulled * (raceRule(p, 'potion') ?? 1);
@@ -1647,8 +1647,8 @@ export function tookDraught() {
    뒤에 붙는다 — 화면의 줄 순서가 곧 유틸 칸의 순서다.
 
    `learned` 를 지난다. 여기는 `s.lv <= p.lv` 로 직접 세고 있었는데
-   기예 쪽(spellSlots)은 `learned` 를 쓴다. 갈린 값이 하프엘프다:
-   기예와 주문이 두 레벨 일찍 열리는 종족이라, 1레벨 하프엘프 마법사의
+   기예 쪽(spellSlots)은 `learned` 를 쓴다. 갈린 값이 성채인이다:
+   기예와 주문이 두 레벨 일찍 열리는 종족이라, 1레벨 성채인 마법사의
    줄에 점멸이 **켜진 채로** 뜨고 눌러도 cast 가 조용히 되돌아왔다.
    같은 질문에 답하는 자리는 하나여야 한다(§5-2). */
 export const spellList = p =>
@@ -4387,7 +4387,7 @@ export function refreshFov() {
   const p = G.player;
   let radius = lightRadiusOf(p);
   radius += gearBonus(p).lightR;
-  if (p.race === 'elf') radius += 1;          // "눈이 밝다"
+  if (p.race === 'river') radius += 1;          // "눈이 밝다"
   /* 전설. 기름이 바닥나도 다섯 칸은 남는다 — 이 판에서 가장 센
      효과이고, 그래서 전설급으로 잠가 둔다. */
   if (hasRelic('everflame')) radius = Math.max(radius, 5);
@@ -4725,7 +4725,7 @@ function forceDoor(x, y) {
    at this — and so a class passive is written once. */
 export function lockBonus(p) {
   return (p?.cls === 'rogue' ? 0.30 : 0)
-       + (p?.race === 'gnome' ? 0.08 : 0);
+       + (p?.race === 'ash' ? 0.08 : 0);
 }
 
 function wearPicks() {

@@ -2469,6 +2469,13 @@ export function openSlots(mode) {
 let sparks = null, sceneAt = 0;
 
 function drawTitleScene() {
+  /* 첫 화면은 **그림 한 장**이다. 전에는 여기서 수직 갱도를 격자로
+     그리고, 아래에 불빛을 깔고, 그 위에 줄 사진을 겹쳤다 — 셋이 서로를
+     흐리게 만들어 아무것도 안 읽혔다. 그림 하나가 할 일을 셋이 나눠
+     하면 셋 다 못 한다. 격자·광원·불티를 전부 지웠다.
+
+     그림 자체는 png 가 아니라 다른 것들과 같은 **격자**다(§3). 이
+     화면이 스스로 「파일은 픽셀 글꼴 하나」라고 적어 두고 있다. */
   const cv = $('title-scene');
   if (!cv || $('sc-title').hidden) return;
   const w = cv.clientWidth, h = cv.clientHeight;
@@ -2477,103 +2484,9 @@ function drawTitleScene() {
   if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
   const c = cv.getContext('2d');
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  c.imageSmoothingEnabled = false;
-  setTerrainTheme('plain');
-
-  const t = Math.max(22, Math.round(w / 11));
-  const cols = Math.ceil(w / t) + 1, rows = Math.ceil(h / t) + 1;
   c.fillStyle = PALETTE.k;
   c.fillRect(0, 0, w, h);
-
-  /* A shaft: masonry on both sides, floor down the middle,
-     narrowing as it goes so the eye is pulled to the bottom. */
-  /* The shaft narrows as it drops, and the walls are held much
-     darker than the floor — without that gap the grid reads as
-     noise rather than as a place with a middle you could walk
-     down. The vanishing point is a little below centre, where the
-     eye lands first. */
-  const midX = cols / 2, vanish = 0.58;
-  for (let y = 0; y < rows; y++) {
-    const depth = Math.min(1, (y / rows) / vanish);
-    const half = Math.max(1.1, (cols / 2 - 0.4) * (1 - depth * 0.82));
-    for (let x = 0; x < cols; x++) {
-      const off = Math.abs(x + 0.5 - midX);
-      const px = x * t, py = y * t;
-      const wall = off >= half;
-      c.globalAlpha = 1;
-      c.drawImage(wall ? wallTile(x, y) : floorTile(x, y), px, py, t, t);
-      /* Floors keep some light so the lane is legible; walls go
-         nearly to black, and the very edges go all the way. */
-      const edge = Math.max(0, off - half) / Math.max(1, cols / 2);
-      c.globalAlpha = Math.min(0.95,
-        (wall ? 0.62 + edge * 1.6 : 0.14) + depth * (wall ? 0.28 : 0.42));
-      c.fillStyle = PALETTE.k;
-      c.fillRect(px, py, t, t);
-    }
-  }
-
-  /* The stair goes down *before* the light, so the light falls on
-     it. Drawn after, it was a cold blue chip sitting on top of an
-     amber wash. */
-  const gy = h * vanish;
-  const ss = t * 1.4;
-  c.globalAlpha = 0.85;
-  c.drawImage(sprite('stairsDown'), w / 2 - ss / 2, gy - ss * 0.5, ss, ss);
-  c.globalAlpha = 1;
-
-  /* And the reason to go down. Kept dim: this is a hole with
-     something burning a long way below it, not a bonfire. */
-  const glow = c.createRadialGradient(w / 2, gy + ss * 0.2, t * 0.1, w / 2, gy, h * 0.3);
-  glow.addColorStop(0, 'rgba(232,199,106,0.34)');
-  glow.addColorStop(0.4, 'rgba(217,138,60,0.17)');
-  glow.addColorStop(1, 'rgba(143,47,40,0)');
-  c.globalAlpha = 0.72 + 0.28 * Math.abs(Math.sin(performance.now() / 2600));
-  c.fillStyle = glow;
-  c.fillRect(0, 0, w, h);
-  c.globalAlpha = 1;
-
-  /* 뽑힌 자들. 손으로 그린 갱도 위에 겹친다 — 갱도만 있으면 그건
-     **장소**이고, 줄이 있으면 **차례**다. 시작 버튼을 누르기 전에
-     「용사는 계시에 따라 선택받아 내려간다」가 화면에 있어야 한다. */
-  Juice.drawProcession(c, w, h);
-
-  /* Embers. Seeded once, looped forever — no allocation per
-     frame, and the same drift on every visit. */
-  const now = performance.now();
-  const dt = Math.min(60, now - (sceneAt || now));
-  sceneAt = now;
-  sparks ||= Array.from({ length: 26 }, (_, i) => ({
-    x: 0.5 + (((i * 7919) % 100) / 100 - 0.5) * 0.5,
-    y: ((i * 104729) % 100) / 100,
-    v: 0.05 + ((i * 31) % 40) / 900,
-    s: 1 + (i % 3),
-  }));
-  for (const p of sparks) {
-    p.y -= p.v * dt / 1000;
-    p.x += Math.sin(now / 900 + p.y * 9) * 0.0006;
-    if (p.y < -0.05) { p.y = 1.05; p.x = 0.5 + (Math.random() - 0.5) * 0.5; }
-    c.globalAlpha = Math.max(0, Math.min(0.85, p.y * 1.1)) * 0.9;
-    c.fillStyle = p.s > 2 ? PALETTE.y : PALETTE.o;
-    c.fillRect(Math.round(p.x * w), Math.round(p.y * h), p.s, p.s);
-  }
-  c.globalAlpha = 1;
-  /* A soft floor of darkness under the type and under the
-     buttons, so neither sits on masonry. */
-  const fade = c.createLinearGradient(0, h * 0.62, 0, h);
-  fade.addColorStop(0, 'rgba(10,12,18,0)');
-  fade.addColorStop(0.55, 'rgba(10,12,18,0.72)');
-  fade.addColorStop(1, 'rgba(10,12,18,0.99)');
-  c.fillStyle = fade;
-  c.fillRect(0, 0, w, h);
-  /* And the sides, so the shaft is the only thing with light in
-     it. */
-  const sides = c.createLinearGradient(0, 0, w, 0);
-  sides.addColorStop(0, 'rgba(10,12,18,0.9)');
-  sides.addColorStop(0.28, 'rgba(10,12,18,0)');
-  sides.addColorStop(0.72, 'rgba(10,12,18,0)');
-  sides.addColorStop(1, 'rgba(10,12,18,0.9)');
-  c.fillStyle = sides;
-  c.fillRect(0, 0, w, h);
+  Juice.drawTitleArt(c, w, h);
 }
 
 export function refreshTitle() {

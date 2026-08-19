@@ -21,7 +21,10 @@
    있다. 저장 형식을 같이 적는 이유는 그쪽이 호환을 끊는 유일한
    값이라, 판번호보다 그것이 먼저 궁금해지기 때문이다. */
 export const BUILD = 'v46';
-export const SAVE_FORMAT = 8;
+/* 8 → 9. 종족 여덟의 **id 를 전부 갈았다**(halfling → shaft …).
+   옛 저장에는 없는 이름이 들어 있어 화면이 `RACES[p.race].name` 에서
+   터진다. 형식을 올려 옛 판을 조용히 버린다 — 터지는 것보다 낫다. */
+export const SAVE_FORMAT = 9;
 
 export const MAX_DEPTH = 15;
 
@@ -178,9 +181,9 @@ export const REGIONS = [
     t:'사람이 지은 마지막 층들이다. 계단은 넓고 문에는 아직 경첩이 남아 있다.',
     line:'무너진 성채 — 사람이 지은 마지막 곳이다. 여기까지는 지도가 있었다.',
     stake:'여기까지는 다들 왔다. 벽에 긁어 놓은 이름이 많다.' },
-  { from:4,  to:7,  n:'드워프 갱도',
+  { from:4,  to:7,  n:'돌족 갱도',
     t:'성채 아래를 파고 들어간 갱도. 다듬은 돌이 끝나고 파낸 흙이 시작된다.',
-    line:'드워프 갱도 — 다듬은 돌이 끝났다. 여기부터는 파낸 자국뿐이다.',
+    line:'돌족 갱도 — 다듬은 돌이 끝났다. 여기부터는 파낸 자국뿐이다.',
     stake:'이름이 드물어진다. 대신 물건이 늘어난다 — 놓고 간 것이 아니라 떨어뜨린 것들이다.' },
   { from:8,  to:10, n:'잊힌 성소',
     t:'갱도가 뚫고 들어간 것. 누구를 모시던 곳인지는 벽에서 긁어내져 있다.',
@@ -275,15 +278,36 @@ export const STAT_NAME = { str:'힘', int:'지능', wis:'지혜', dex:'민첩', 
 
 /* ── races ────────────────────────────────────────────────
    xp: experience cost multiplier. Tougher races level slower. */
+/* ═══ 종족 — 누가 계시를 받는가 ═══════════════════════════
+   DESIGN.md §1·§4. 종족은 이 게임에서 **몸이 아니라 뽑힐 자격**이다.
+   신이 왜 하필 그것을 뽑았는지가 규칙 하나와 대가 하나가 된다.
+
+   엘프 · 드워프 · 하플링 · 노움 · 하프오크 · 하프트롤은 남의 세계의
+   분류였다. 여기서 갈리는 것은 귀 모양이 아니라 **위에서 무엇을 잃고
+   내려왔는가**다 — 성채가 무너졌거나, 강이 말랐거나, 쫓겨났거나.
+
+   **규칙은 한 줄도 안 바꿨다.** 여덟 개의 얻는 것과 대가는 벤치로
+   재서 자리를 잡은 값이고(sim/race.mjs, 종족 몫 2.72층), 바뀐 것은
+   그 규칙이 **누구의 것인가**뿐이다. 여덟 다 새 이름이 옛 규칙에
+   그대로 맞아떨어졌다 — 갱도에서 자란 쪽이 안 보일 때 빠르고 좁은
+   굴이라 양손 무기를 안 배웠다는 것이, 하플링의 규칙과 같은 말이다. */
 export const RACES = {
-  human:     { name:'인간',      mod:{},                                          hp:0, xp:1.00, note:'균형 잡힌 표준. 가장 빠르게 성장한다.' },
-  halfElf:   { name:'하프엘프',  mod:{ int:+1, dex:+1, con:-1 },                   hp:0, xp:1.10, note:'양쪽의 피를 절반씩. 어느 길도 막히지 않는다.' },
-  elf:       { name:'엘프',      mod:{ int:+2, dex:+1, str:-1, con:-2 },           hp:-2, xp:1.20, note:'마법에 능하고 몸이 약하다. 눈이 밝다.' },
-  halfling:  { name:'하플링',    mod:{ dex:+3, str:-2, con:+1, chr:+1 },           hp:-2, xp:1.10, note:'작고 빠르다. 그림자를 잘 쓴다.' },
-  gnome:     { name:'노움',      mod:{ int:+2, wis:-2, dex:+2, str:-1 },           hp:-1, xp:1.25, note:'타고난 술사. 마비되지 않는다.' },
-  dwarf:     { name:'드워프',    mod:{ str:+2, con:+2, int:-2, chr:-2 },           hp:+2, xp:1.20, note:'돌 밑에서 태어났다. 눈이 멀지 않는다.' },
-  halfOrc:   { name:'하프오크',  mod:{ str:+2, int:-1, chr:-3 },                   hp:+1, xp:1.15, note:'맞아도 잘 죽지 않는다. 환영받지 못한다.' },
-  halfTroll: { name:'하프트롤',  mod:{ str:+4, con:+3, int:-3, wis:-2, dex:-3, chr:-4 }, hp:+4, xp:1.45, note:'거대하고 둔하다. 상처가 저절로 아문다.' },
+  human:  { name:'인간',   mod:{},                                          hp:0, xp:1.00,
+            note:'신이 제일 먼저 부르는 쪽. 부름을 잘 듣는 만큼 물드는 것도 빠르다.' },
+  castle: { name:'성채인', mod:{ int:+1, dex:+1, con:-1 },                   hp:0, xp:1.10,
+            note:'무너진 성채의 후손. 어릴 때부터 배웠고, 배운 것 말고는 물려받은 것이 없다.' },
+  river:  { name:'강족',   mod:{ int:+2, dex:+1, str:-1, con:-2 },           hp:-2, xp:1.20,
+            note:'마르기 전의 강에서 살았다. 흐린 물속을 보던 눈이라 어둠에서 멀리 본다.' },
+  shaft:  { name:'갱족',   mod:{ dex:+3, str:-2, con:+1, chr:+1 },           hp:-2, xp:1.10,
+            note:'갱도에서 나고 자랐다. 여기서는 안 보이는 것이 이기는 쪽이다.' },
+  ash:    { name:'재족',   mod:{ int:+2, wis:-2, dex:+2, str:-1 },           hp:-1, xp:1.25,
+            note:'잿가루를 마시고 자랐다. 그래서 굳지 않고, 그래서 오래 살지 못한다.' },
+  stone:  { name:'돌족',   mod:{ str:+2, con:+2, int:-2, chr:-2 },           hp:+2, xp:1.20,
+            note:'돌을 다루던 사람들. 몸이 돌을 닮아 간다 — 아무는 쪽도, 안 도는 쪽도.' },
+  exile:  { name:'유민',   mod:{ str:+2, int:-1, chr:-3 },                   hp:+1, xp:1.15,
+            note:'위에서 쫓겨났다. 갱구 말고는 갈 데가 없어서 내려온 쪽이다.' },
+  bone:   { name:'뼈족',   mod:{ str:+4, con:+3, int:-3, wis:-2, dex:-3, chr:-4 }, hp:+4, xp:1.45,
+            note:'죽은 것의 뼈를 이어 붙여 산다. 그래서 잘 안 죽고, 그래서 아무도 안 반긴다.' },
 };
 
 /* ── classes ──────────────────────────────────────────────
@@ -551,11 +575,14 @@ export const AILMENTS = {
   paralyze:{ n:'마비', tone:'R', note:'움직일 수 없다' },
 };
 
+/* 몸이 안 받는 것. 이름이 바뀌어도 규칙은 그대로다 — 재족은 잿가루로
+   자라 굳지 않고, 돌족은 돌 밑에서 자라 안 멀고, 뼈족과 강족은
+   무서워할 것을 위에서 이미 다 봤다. */
 export const IMMUNE = {
-  gnome:     ['paralyze'],   // "마비되지 않는다"
-  dwarf:     ['blind'],      // "눈이 멀지 않는다"
-  halfTroll: ['fear'],
-  elf:       ['fear'],
+  ash:   ['paralyze'],   // 잿가루로 자란 몸은 굳지 않는다
+  stone: ['blind'],      // 돌 밑에서 자란 눈은 안 먼다
+  bone:  ['fear'],       // 무서워할 것을 위에서 이미 다 봤다
+  river: ['fear'],
 };
 
 /* ── bestiary ─────────────────────────────────────────────
@@ -2264,7 +2291,7 @@ export const pickLine = (list, name, tick = 0) =>
 /* ── 종족은 규칙이지 보정이 아니다 ────────────────────────
    여태 종족은 **능력치 보정 + 설명 한 줄**이었다. 그리고 설명이
    약속한 것을 코드가 안 지키는 자리도 있었다 — 하플링의 「그림자를
-   잘 쓴다」는 은신 수치 하나가 전부였고, 드워프의 「돌 밑에서
+   잘 쓴다」는 은신 수치 하나가 전부였고, 돌 밑에서 자란 쪽의 「돌 밑에서
    태어났다」는 실명 면역뿐이었다.
 
    종족마다 **규칙 하나와 대가 하나**를 준다. 대가가 있어야 고르는
@@ -2280,33 +2307,33 @@ export const pickLine = (list, name, tick = 0) =>
    숫자는 DCSS 것을 안 가져온다. 저쪽은 15시간·27분기짜리 저울이고
    여기는 15층·3000턴이다 — 구조만 빌리고 값은 우리 벤치로 잰다. */
 export const RACE_RULE = {
-  human:     { gain:'신앙심이 1.4배 빨리 오른다',      cost:'상태이상이 한 턴 더 간다',
-               piety:1.4, ailPlus:1 },
-  halfElf:   { gain:'기예와 주문이 두 레벨 일찍 열린다', cost:'통이 둘 작다',
-               early:2, pool:-2 },
-  elf:       { gain:'마나가 두 배로 빨리 돌아온다',     cost:'받는 물리 피해 +15%',
-               manaFast:2, physUp:0.15 },
-  halfling:  { gain:'아무도 못 볼 때 통이 두 배로 찬다', cost:'양손 무기를 못 든다',
-               quiet:2, noTwoHand:true },
-  gnome:     { gain:'주문 값이 하나 싸다',             cost:'최대 체력 −15%',
-               spellCut:1, hpPct:-0.15 },
-  dwarf:     { gain:'흉터가 절반만 남는다',            cost:'마나가 절반만 돌아온다',
-               woundCut:0.5, manaFast:0.5 },
-  halfOrc:   { gain:'체력 4분의 1 아래에서 피해 +30%',  cost:'회복 물약 효과 −25%',
-               cornered:0.30, potion:0.75 },
+  human:  { gain:'신앙심이 1.4배 빨리 오른다',       cost:'상태이상이 한 턴 더 간다',
+            piety:1.4, ailPlus:1 },
+  castle: { gain:'기예와 주문이 두 레벨 일찍 열린다', cost:'통이 둘 작다',
+            early:2, pool:-2 },
+  river:  { gain:'마나가 두 배로 빨리 돌아온다',     cost:'받는 물리 피해 +15%',
+            manaFast:2, physUp:0.15 },
+  shaft:  { gain:'아무도 못 볼 때 통이 두 배로 찬다', cost:'양손 무기를 못 든다',
+            quiet:2, noTwoHand:true },
+  ash:    { gain:'주문 값이 하나 싸다',              cost:'최대 체력 −15%',
+            spellCut:1, hpPct:-0.15 },
+  stone:  { gain:'흉터가 절반만 남는다',             cost:'마나가 절반만 돌아온다',
+            woundCut:0.5, manaFast:0.5 },
+  exile:  { gain:'체력 4분의 1 아래에서 피해 +30%',   cost:'회복 물약 효과 −25%',
+            cornered:0.30, potion:0.75 },
   /* 처음에 대가를 둘 붙였다가(물약 절반 + 기예 값 +1) 도달 층이
-     5.57로 내려앉았다 — 드워프와 4.2층 차이. 이 종족은 xp 1.45로
+     5.57로 내려앉았다 — 돌족과 4.2층 차이. 이 종족은 xp 1.45로
      **이미 가장 느리게 크는** 종족이라 대가 하나가 이미 붙어 있었다.
      기예 값을 되돌리고, 대신 얻는 쪽을 진짜로 만든다: 이 몸은
      **맞는 중에도 아문다.** 다른 종족은 열 턴을 안 맞아야 숨이
-     돌아오는데 이쪽만 그 문턱이 없다 — 그게 트롤이다.
+     돌아오는데 이쪽만 그 문턱이 없다.
 
      물약도 처음엔 절반으로 뒀는데 너무 셌다: 기준선에서 이미
-     꼴찌(7.71 vs 드워프 9.47)인 종족에 −0.94를 더 얹어 6.77이 됐다.
+     꼴찌(7.71 vs 돌족 9.47)인 종족에 −0.94를 더 얹어 6.77이 됐다.
      0.7로 되돌린다 — 「병에 덜 답하는 몸」은 남기되 그것만으로 판이
      끝나지는 않게. */
-  halfTroll: { gain:'맞는 중에도 아문다 — 두 배로',     cost:'물약 효과 −30%',
-               regenX:2, potion:0.7, regenInFight:true },
+  bone:   { gain:'맞는 중에도 아문다 — 두 배로',      cost:'물약 효과 −30%',
+            regenX:2, potion:0.7, regenInFight:true },
 };
 export const raceRule = (p, k) => RACE_RULE[p?.race]?.[k];
 
@@ -3926,7 +3953,7 @@ export const statBonus = v => Math.floor((v - 10) / 2);
    the character you chose, and the dice only decide the last two
    or three points.
 
-   Race modifiers apply on top, so a 드워프 전사 and a 엘프 전사
+   Race modifiers apply on top, so a 돌족 전사 and a 강족 전사
    still differ — by the amount the race is supposed to be worth,
    not by whatever the dice felt like.                          */
 export const BANDS = {

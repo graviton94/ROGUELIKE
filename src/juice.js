@@ -7,7 +7,8 @@
    ═══════════════════════════════════════════════════════════ */
 
 import { PALETTE, spriteColors } from './pixels.js';
-import { EYE_TEX, FLESH_TEX, VEIN_TEX, HAND_TEX, FACE_TEX, LIMBS, SIGIL_TEX, HERALD_TEX, KNIGHT_TEX, QUILL_TEX, PLATE_TEX } from './horror.js';
+import { EYE_TEX, FLESH_TEX, VEIN_TEX, HAND_TEX, FACE_TEX, LIMBS, SIGIL_TEX, HERALD_TEX, KNIGHT_TEX, QUILL_TEX, PLATE_TEX,
+         GULLET_TEX, GEAR_TEX, ASH_TEX, FUSED_TEX, PROC_TEX, MASK_TEX } from './horror.js';
 import { MW as MAP_W } from './world.js';
 import { sfx, from as earFrom } from './audio.js';
 
@@ -1861,6 +1862,17 @@ const RAMP = {
      쪽으로. 살 램프에 태우면 깃이 아니라 고기가 된다. */
   quill: ['#0a0a0c','#131316','#1c1b1e','#262428','#322f31','#3f3b3b','#4d4846','#5c5652',
           '#6c655e','#7c746a','#8c8377','#9c9285','#aca293','#bcb2a2','#ccc3b3','#dcd5c8'],
+  /* 두고 간 장비 — 쇠와 젖은 가죽. 채도가 거의 없다. 살 램프에
+     태우면 고기가 되고, 시체 램프는 너무 차갑다(쇠는 녹슬어 있다).
+     회색에서 마른 가죽색으로 아주 조금만 민다. */
+  iron:  ['#08080a','#101013','#18181c','#212125','#2b2a2d','#363436','#423f3f','#4f4a48',
+          '#5c5652','#6a635c','#786f66','#867c70','#94897b','#a29686','#b0a392','#beb1a0'],
+  /* 식어 가는 재 — 회색에서 잉걸불로. 갈라진 틈만 뜨겁다. */
+  ember: ['#0a0809','#141011','#1d1718','#272020','#332927','#3f332f','#4c3d36','#5a483e',
+          '#6a5446','#7b6250','#8c715c','#9d8169','#ae9278','#bfa48a','#cfb79d','#dfcbb3'],
+  /* 젖은 돌 — 색이 없다. 첫 화면의 줄과 벽이 되어 가는 것에 쓴다. */
+  grey:  ['#08090b','#0f1113','#16181b','#1e2124','#272a2e','#313438','#3c3f43','#484b4f',
+          '#55585c','#636669','#717477','#7f8285','#8e9093','#9d9fa1','#adaeb0','#bdbebf'],
   hand:  ['#0d0406','#170709','#220c0d','#320f10','#451614','#5b201b','#742e24',
           '#8c4030','#a4553f','#b96b50','#c88062','#d29175','#daa188','#e0ae98','#e5b9a6','#ead2c2'],
 };
@@ -1888,6 +1900,105 @@ const EYE_TRACK = (px, py, ex, ey, r) => {
   const dx = px - ex, dy = py - ey, d = Math.hypot(dx, dy) || 1;
   return [ex + dx / d * r, ey + dy / d * r];
 };
+/* ── 층대의 결 ───────────────────────────────────────────
+   DESIGN.md §1 「깊이는 무엇이 깊어지는가」. 층대 다섯이 데이터에는
+   있는데 **화면에는 없었다** — 돌 무늬가 조금 달라질 뿐이라, 4층과
+   11층이 같은 게임으로 보였다.
+
+   층대마다 사진 한 장을 화면 전체에 아주 옅게 깐다. 무엇이 깔리는지가
+   그 층대가 하는 말이다:
+
+     1–3   없다        아직 사람의 자리다. 결이 없는 것이 그 뜻이다
+     4–6   장비 더미   나보다 앞서 온 사람이 있었다
+     7–9   벽이 된 것  앞서 온 사람이 어떻게 됐는지
+     10–12 식은 재     아래의 열이 여기부터 만져진다
+     13–15 살덩이 벽   전부 여기 녹아 붙어 있다
+
+   그리고 **신앙심이 짙을수록 진해진다**(warpOf). 값이 규칙 쪽 문
+   하나에서 오므로 화면과 규칙이 갈릴 수 없다(§5-2). 알파 상한은
+   0.16이다 — 무대는 배우 아래에 있어야 한다(§3, sim/stage.mjs). */
+const BANDS = [
+  { at: 4,  tex: GEAR_TEX,   ramp: 'iron',   key: 'bGear' },
+  { at: 7,  tex: FUSED_TEX,  ramp: 'grey',   key: 'bFused' },
+  { at: 10, tex: ASH_TEX,    ramp: 'ember',  key: 'bAsh' },
+  { at: 13, tex: FLESH_TEX,  ramp: 'meat',   key: 'bFlesh' },
+];
+export function drawBand(ctx, w, h, depth, deep = 0) {
+  if (!depth || depth < 4) return;                 // 1~3층에는 결이 없다
+  let b = null;
+  for (const o of BANDS) if (depth >= o.at) b = o;
+  if (!b) return;
+  const cv = texCanvas(b.tex, RAMP[b.ramp], b.key);
+  const k = Math.max(w / cv.width, h / cv.height);
+  const cw = cv.width * k, ch = cv.height * k;
+  const smooth = ctx.imageSmoothingEnabled;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.globalAlpha = 0.055 + Math.min(1, Math.max(0, deep)) * 0.105;
+  ctx.drawImage(cv, 0, 0, cv.width, cv.height, (w - cw) / 2, (h - ch) / 2, cw, ch);
+  ctx.restore();
+  ctx.imageSmoothingEnabled = smooth;
+}
+
+/* ── 뽑힌 자들 ───────────────────────────────────────────
+   첫 화면. 「용사는 계시에 따라 선택받아 내려간다」를 시작 버튼 누르기
+   전에 말한다. 손으로 그린 수직 갱도 위에 겹친다 — 갱도만 있으면
+   장소이고, 줄이 있으면 **차례**다. */
+export function drawProcession(ctx, w, h) {
+  const cv = texCanvas(PROC_TEX, RAMP.grey, 'proc');
+  /* **폭에 맞추고 아래에 붙인다.** 처음에 화면을 덮게(cover) 깔았더니
+     첫 화면이 세로로 길어서 가운데 세로 띠만 보였다 — 줄이 아니라
+     회색 얼룩이었다. 이 사진은 위가 갱구의 입이고 아래가 사람들이라,
+     아래에 붙여야 「손으로 그린 갱도 아래에 줄이 서 있다」가 된다. */
+  const k = w / cv.width;
+  const cw = w, ch = cv.height * k;
+  /* 아래에 붙였더니 버튼 뒤로 들어가 안 보였다. 갱도의 소실점이 화면
+     높이의 0.58이므로 사진의 **검은 입이 거기 오게** 올린다 — 그러면
+     줄이 소실점으로 걸어 들어간다. 위아래를 다 녹여 그린 갱도와
+     이어 붙인다: 안 녹이면 사진의 네모난 변이 그대로 보인다. */
+  const top = h * 0.30;
+  const smooth = ctx.imageSmoothingEnabled;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.globalAlpha = 0.85;
+  ctx.drawImage(cv, 0, 0, cv.width, cv.height, 0, top, cw, ch);
+  ctx.globalAlpha = 1;
+  const up = ctx.createLinearGradient(0, top, 0, top + ch * 0.30);
+  up.addColorStop(0, 'rgba(14,11,16,1)'); up.addColorStop(1, 'rgba(14,11,16,0)');
+  ctx.fillStyle = up; ctx.fillRect(0, top, w, ch * 0.30);
+  const dn = ctx.createLinearGradient(0, top + ch, 0, top + ch * 0.62);
+  dn.addColorStop(0, 'rgba(14,11,16,1)'); dn.addColorStop(1, 'rgba(14,11,16,0)');
+  ctx.fillStyle = dn; ctx.fillRect(0, top + ch * 0.62, w, ch * 0.38);
+  ctx.restore();
+  ctx.imageSmoothingEnabled = smooth;
+}
+
+/* ── 신의 얼굴 ───────────────────────────────────────────
+   **한 장이 다섯을 전부 낸다.** §1: 「다섯 신을 고르는 것처럼 보이지만
+   전부 같은 것이다. 어느 얼굴을 골라도 같은 곳으로 데려간다.」
+   그래서 다섯 카드에 같은 격자가 뜨고 램프 색만 갈린다. 첫 판에는
+   그냥 다섯 색이고, 두 번째 판에 다른 얼굴을 고르고서야 **같은
+   가면**이라는 것을 알아본다. 그것이 이 그림이 하는 일의 전부다. */
+const MASK_TONE = {
+  ember: ['#12070a','#1c0a0b','#28100c','#36170e','#452010','#552b14','#663819','#78471f',
+          '#8a5726','#9c682e','#ae7a38','#c08d44','#d0a154','#deb46a','#e9c684','#f2d8a4'],
+  blood: ['#10060a','#1a080d','#250a10','#320d13','#411016','#51151a','#621b1f','#742325',
+          '#862d2c','#983a35','#a94a41','#ba5d50','#c97364','#d68b7c','#e2a598','#ecc0b6'],
+  hush:  ['#08080c','#0e0e14','#15151d','#1d1d27','#262632','#31313e','#3d3d4b','#4a4a59',
+          '#585868','#676777','#767687','#868696','#9696a5','#a7a7b3','#b8b8c2','#c9c9d1'],
+  scale: ['#0a0a08','#12120d','#1a1a12','#232318','#2d2d1f','#383826','#44442f','#515139',
+          '#5f5f44','#6d6d50','#7c7c5e','#8b8b6d','#9a9a7e','#a9a990','#b8b8a4','#c7c7ba'],
+  scar:  ['#0b0709','#140a0d','#1d0e11','#271316','#32191b','#3e2021','#4b2828','#583130',
+          '#663b39','#744644','#825250','#90605d','#9e6f6c','#ac7f7c','#ba908e','#c8a2a0'],
+};
+export function drawMask(cv, tone = 'hush') {
+  const w = MASK_TEX[0].length, h = MASK_TEX.length;
+  if (cv.width !== w) { cv.width = w; cv.height = h; }
+  const x = cv.getContext('2d');
+  x.clearRect(0, 0, w, h);
+  x.drawImage(texCanvas(MASK_TEX, MASK_TONE[tone] || MASK_TONE.hush, 'mask' + tone), 0, 0);
+}
+
 /* ── 신의 사자 ────────────────────────────────────────────
    서약 화면의 「무언가 듣고 있다」에 얼굴을 준다. 이 게임의 다른
    그림은 전부 8×8 도트인데 이것만 실사 격자다 — 이물의 층과 같은
@@ -2218,22 +2329,48 @@ function veilStatic(ctx, w, h, tt) {
   ctx.globalAlpha = 1;
 }
 /* 뱃속 — 화면이 숨을 쉰다. 조리개가 조여들고, 변에서 융모가 흔들린다. */
-function veilGullet(ctx, w, h, tt) {
+function veilGullet(ctx, w, h, tt, px, py) {
+  /* 벡터로 그리던 것을 버린다 — 그러데이션 하나에 융모 스물둘이었고,
+     그건 「뱃속」이 아니라 「초록 테두리」로 읽혔다. 목구멍 안쪽
+     사진을 화면에 덮고 **숨 박자로 조인다.** 벽이 규칙적으로 조여든다는
+     이 층의 문장이 그때 비로소 화면에 있다. */
+  const gut = texCanvas(GULLET_TEX, RAMP.meat, 'gullet');
   const beat = 0.5 + Math.sin(tt / 780) * 0.5;
-  const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * (0.20 + beat * 0.10),
-                                     w / 2, h / 2, Math.hypot(w, h) * 0.62);
-  g.addColorStop(0, 'rgba(0,0,0,0)');
-  g.addColorStop(1, `rgba(37,74,42,${(0.55 + beat * 0.25).toFixed(3)})`);
-  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = PALETTE.E; ctx.lineWidth = 1; ctx.globalAlpha = 0.7;
-  for (let i = 0; i < 22; i++) {           // 융모
-    const f = i / 22, sw = Math.sin(tt / 420 + i) * 3, len = 5 + (i % 4) * 3;
-    ctx.beginPath(); ctx.moveTo(w * f, 0); ctx.lineTo(w * f + sw, len); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(w * f, h); ctx.lineTo(w * f - sw, h - len); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, h * f); ctx.lineTo(len, h * f + sw); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(w, h * f); ctx.lineTo(w - len, h * f - sw); ctx.stroke();
-  }
+  const zoom = 1.06 + beat * 0.10;                     // 조였다 풀린다
+  const cover = Math.max(w / gut.width, h / gut.height) * zoom;
+  const cw = gut.width * cover, ch = gut.height * cover;
+  ctx.globalAlpha = 0.94;
+  hardBlit(ctx, gut, (w - cw) / 2, (h - ch) / 2, cw, ch);
   ctx.globalAlpha = 1;
+  /* 가운데의 구멍이 더 깊어 보이게 가장자리를 눌러 준다 — 삼켜지는
+     쪽은 가장자리가 아니라 가운데다. */
+  const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * (0.08 + beat * 0.05),
+                                     w / 2, h / 2, Math.hypot(w, h) * 0.55);
+  g.addColorStop(0, 'rgba(12,2,4,0.85)');
+  g.addColorStop(0.45, 'rgba(12,2,4,0)');
+  g.addColorStop(1, `rgba(24,4,8,${(0.45 + beat * 0.2).toFixed(3)})`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  punchPlayer(ctx, w, h, px, py, Math.min(w, h) * 0.20);
+}
+
+/* 두고 간 것들 — 먼저 내려간 자들의 장비가 벽까지 쌓여 있다.
+   층대 4~6이 하는 말(「나보다 앞서 온 사람이 있었다」)을 이물 하나가
+   끝까지 밀어붙인 자리다. 더미는 안 움직인다 — 이 층에서 움직이는
+   것은 그것을 걸친 쪽이다. */
+function veilGear(ctx, w, h, px, py, tt) {
+  const heap = texCanvas(GEAR_TEX, RAMP.iron, 'gear');
+  const cover = Math.max(w / heap.width, h / heap.height) * 1.06;
+  const cw = heap.width * cover, ch = heap.height * cover;
+  ctx.globalAlpha = 0.92;
+  hardBlit(ctx, heap, (w - cw) / 2 + Math.sin(tt / 5200) * w * 0.012,
+                      (h - ch) / 2 + Math.cos(tt / 6100) * h * 0.012, cw, ch);
+  ctx.globalAlpha = 1;
+  const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.14,
+                                     w / 2, h / 2, Math.hypot(w, h) * 0.6);
+  g.addColorStop(0, 'rgba(6,6,8,0)');
+  g.addColorStop(1, 'rgba(6,6,8,0.8)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  punchPlayer(ctx, w, h, px, py, Math.min(w, h) * 0.22);
 }
 const VEIL = {
   eyes:   (c, w, h, px, py, tt) => veilEyes(c, w, h, px, py, tt),
@@ -2242,7 +2379,8 @@ const VEIL = {
   sigil:  (c, w, h, px, py, tt) => veilSigil(c, w, h, px, py, tt),
   angel:  (c, w, h, px, py, tt) => veilAngel(c, w, h, px, py, tt),
   static: (c, w, h, px, py, tt) => veilStatic(c, w, h, tt),
-  gullet: (c, w, h, px, py, tt) => veilGullet(c, w, h, tt),
+  gullet: (c, w, h, px, py, tt) => veilGullet(c, w, h, tt, px, py),
+  gear:   (c, w, h, px, py, tt) => veilGear(c, w, h, px, py, tt),
 };
 /* 놀램이 있는 층. 없는 층은 덮개만 돈다 — 전부 놀래키면 놀램이
    아니라 박자가 된다. */

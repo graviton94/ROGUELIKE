@@ -167,7 +167,7 @@ export function snapshot() {
     /* 크랙 계통 다섯. 안 적으면 불러오기 한 번에 판이 유물의 두 번째
        줄을 통째로 잃고, **더 나쁘게** — apply가 지우지도 않아서 앞
        판의 크랙이 다음 판으로 샌다. 둘 다 실측으로 확인됐다. */
-    heat: G.heat || 0, provoked: G.provoked || 0,
+    heat: G.heat || 0, provoked: G.provoked || 0, swapped: G.swapped || 0,
     ledger: { ...(G.ledger || {}) }, cracks: { ...(G.cracks || {}) },
     relicFloors: { ...(G.relicFloors || {}) }, murmured: { ...(G.murmured || {}) },
     chainGuard: G.chainGuard || 0, martyred: G.martyred || 0,
@@ -234,6 +234,7 @@ export function apply(data) {
   /* `|| {}` 가 여기서는 기본값이 아니라 **지우개**다. 이 다섯 줄이
      없으면 저장에 없던 값이 남아서 앞 판의 크랙이 다음 판에 걸린다. */
   G.heat = data.heat || 0;
+  G.swapped = data.swapped || 0;
   G.provoked = data.provoked || 0;
   G.ledger = data.ledger || {};
   G.cracks = data.cracks || {};

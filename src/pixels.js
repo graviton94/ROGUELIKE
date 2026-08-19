@@ -2416,6 +2416,47 @@ const terrainCache = new Map();
    이물의 그림이고, 깨도 되는 것은 영구적이지 않은 층이다.
    변종으로 좌우가 뒤집히므로 한 줄에 이어 붙어도 벽지가 안 된다.  */
 export const STRANGE_ART = {
+  /* 두고 간 것들 — 벽은 투구와 칼날이 켜켜이 쌓인 것이고, 바닥에는
+     떨어진 쇠붙이가 흩어져 있다. 켜가 반듯한 이유가 돌이 아니라
+     **쌓아 올린 것**이기 때문이다. */
+  gear: {
+    wall: [[
+      '.ss..gg..ss..gg.',
+      'sGGs.gGg.sGGs.gg',
+      'sGGs.gGg.sGGs.gG',
+      '.ss...g...ss...g',
+      'nnnnnnnnnnnnnnnn',
+      '.s..ss..s..ss..s',
+      '.s..sGs.s..sGs.s',
+      '.s..ss..s..ss..s',
+      'nnnnnnnnnnnnnnnn',
+      '..gg..ss..gg..ss',
+      '.gGg.sGGs.gGg.sG',
+      '.gGg.sGGs.gGg.sG',
+      '..g...ss...g...s',
+      'nnnnnnnnnnnnnnnn',
+      '.ss..s..ss..s..s',
+      '.ss..s..ss..s..s',
+    ]],
+    floor: [[
+      '................',
+      '...s............',
+      '..sGs....n......',
+      '...s....nNn.....',
+      '..........n.....',
+      '.......s........',
+      '....n..ss.......',
+      '...nNn..s...s...',
+      '....n......sGs..',
+      '............s...',
+      '..s.............',
+      '.sGs......nn....',
+      '..s......nNNn...',
+      '..........nn....',
+      '.....ss.........',
+      '................',
+    ]],
+  },
   limbs: {
     wall: [[
       '..n..n..n..n....',
@@ -2738,6 +2779,10 @@ export const TERRAIN = {
   /* 새겨진 표: 낡은 금이 그어진 검은 돌. 그은 자리만 밝다. */
   sigil:   { base:'d', grain:'y', mortar:'k', floor:'k', dust:'y',  style:'streak',
              art: STRANGE_ART.sigil },
+  /* 두고 간 것들: 쇠와 젖은 가죽. 벽이 쌓아 올린 것이라 켜가 반듯하고,
+     바닥은 그 아래로 떨어진 것들이라 어둡다. */
+  gear:    { base:'g', grain:'s', mortar:'n', floor:'k', dust:'N',  style:'ashlar',
+             art: STRANGE_ART.gear },
 };
 
 /* ── 구역의 열 ────────────────────────────────────────────

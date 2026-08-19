@@ -1898,6 +1898,10 @@ export function equip(slotIdx) {
     if (key === 'shield' && p.equip.weapon?.hands === 2) { say('양손 무기를 든 채로는 방패를 들 수 없다.', 'warn'); return; }
     const old = p.equip[key];
     p.equip[key] = it;
+    /* 갈아 낀 횟수. 「두고 간 것들」이 이것을 보고 불린다 — 남의 장비를
+       자주 집어 든 손이 남의 장비가 쌓인 층을 부른다. 여기 한 자리에서만
+       센다(§5-2): 장비가 바뀌는 문이 이 한 줄이다. */
+    if (old !== it) G.swapped = (G.swapped || 0) + 1;
     removeItem(p, slotIdx);
     if (old) addItem(p, old);
     wieldFx(it, `${nameOf(it)}을(를) 착용했다.`);
@@ -3382,6 +3386,9 @@ const STRANGE_PULL = {
   limbs:   () => Math.min(1, ledgerOf('hit') / 60),
   /* 얼굴들: 파도를 맞은 판. 시끄럽게 놀았으면 시끄러운 층이 부른다. */
   faces:   () => Math.min(1, (G.waves || 0) / 6),
+  /* 두고 간 것들: 장비를 많이 바꾼 판. 갈아 끼우는 손이 남의 장비
+     더미를 부른다. */
+  gear:    () => Math.min(1, (G.swapped || 0) / 12),
   /* 고대의 천사: 물약을 많이 마신 판. 아무는 데 기대는 쪽을 부른다. */
   angel:   () => Math.min(1, ledgerOf('gulp') / 22),
   /* 새겨진 표: 유물을 많이 든 판. 모으는 쪽이 모으는 것을 부른다. */
@@ -3460,6 +3467,10 @@ const STRANGE_PAY = {
   /* 눈의 방: 벽이 본 것을 너도 본다 — 숨을 수 없는 대가로 숨은
      것이 없다. */
   eyes: () => { revealMap(); dropRelic(); },
+  /* 두고 간 것들: 여기 있는 것을 걸친 쪽을 눕히면 그 장비가 나온다.
+     정예가 전부라 값은 이미 바닥에 깔려 있고, 그 위에 하나 더. */
+  gear: (depth) => { const it = pickItem(Math.min(MAX_DEPTH, depth + 3));
+                     if (it) dropAt(it); },
   /* 뱃속: 아직 소화되지 않은 것들. 시계가 절반인 대가다. */
   gullet: (depth) => {
     const p = G.player;
@@ -3858,7 +3869,9 @@ function populate(depth) {
                     awake: strangeIs('eyes')          // 눈의 방은 전부 깨어 있다
                         || (hasShackle('awake') && Math.random() < 0.5)
                         || Math.random() < heatAwake(), energy: 0 };
-      if (Math.random() < eliteChance(depth) * (br.elite ?? 1))
+      /* 두고 간 것들 — 그 장비를 걸치고 있는 쪽이 여기 산다. 전부
+         정예다. 이것이 세 배 드롭의 값이다. */
+      if (strangeIs('gear') || Math.random() < eliteChance(depth) * (br.elite ?? 1))
         makeElite(one, depth);
       one.maxhp = one.hp;
       G.monsters.push(one);
@@ -3872,8 +3885,10 @@ function populate(depth) {
      indistinguishable from the ones you left. Three or four,
      drawn from your own depth band, is the same total value
      arriving in pieces big enough to notice. */
+  /* 두고 간 것들 — 바닥에 떨어지는 것이 세 배다. 남이 두고 간 것이
+     쌓인 층이고, 그것이 이 이물이 내는 값의 전부다. */
   const loot = Math.max(1, Math.round((2 + rnd(3)) * (br.item || 1)
-                        ));
+                        * (strangeIs('gear') ? 3 : 1)));
   for (let i = 0; i < loot; i++) {
     const item = pickItem(depth);
     const spot = L.randomFloor(busy);

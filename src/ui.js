@@ -652,6 +652,11 @@ export function draw() {
   /* 0 above a quarter health, rising to 1 at death's door. One
      number so the pulse and its speed can never disagree. */
   const low = p.maxhp ? Math.max(0, 1 - p.hp / (p.maxhp * 0.25)) : 0;
+  /* 층대의 결. 층대 다섯이 데이터에는 있는데 화면에는 없었다 —
+     돌 무늬가 조금 달라질 뿐이라 4층과 11층이 같은 게임으로 보였다.
+     이물이 아니라 **보통 층**에 배는 것이므로 이물의 겹보다 먼저
+     깔고, 알파 상한을 0.16으로 묶는다(무대는 배우 아래에 있다). */
+  Juice.drawBand(ctx, viewW, viewH, G.depth, Game.warpOf());
   /* 이물의 층은 화면 전체를 덮는다 — 타일 위, 연출 위. 눈알 벽·팔·
      얼굴가죽·프랙탈 도형은 타일만으로는 「방 하나」로 읽히고, 이 층들이
      주는 것은 방이 아니라 **여기 있으면 안 된다는 감각**이다. 던전의
@@ -2000,6 +2005,12 @@ function renderPledge() {
     nm.style.color = 'var(--P)';
     nm.classList.add('transcend');
     mid.appendChild(nm);
+    /* 얼굴. 다섯 카드에 **같은 격자**가 뜨고 램프 색만 갈린다 —
+       §1의 「신은 하나다」를 화면이 말하는 유일한 자리다. */
+    const face = document.createElement('canvas');
+    face.className = 'godface'; face.setAttribute('aria-hidden', 'true');
+    Juice.drawMask(face, g.id);
+    row.appendChild(face);
     mid.appendChild(el('span', 'idesc pledgecat', g.face));
     /* 부름은 명령형이다(§2) — 짧고, 이유를 안 댄다. */
     mid.appendChild(el('span', 'idesc pledgegood', `「${g.call}」`));
@@ -2520,6 +2531,11 @@ function drawTitleScene() {
   c.fillStyle = glow;
   c.fillRect(0, 0, w, h);
   c.globalAlpha = 1;
+
+  /* 뽑힌 자들. 손으로 그린 갱도 위에 겹친다 — 갱도만 있으면 그건
+     **장소**이고, 줄이 있으면 **차례**다. 시작 버튼을 누르기 전에
+     「용사는 계시에 따라 선택받아 내려간다」가 화면에 있어야 한다. */
+  Juice.drawProcession(c, w, h);
 
   /* Embers. Seeded once, looped forever — no allocation per
      frame, and the same drift on every visit. */

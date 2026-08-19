@@ -284,4 +284,27 @@ export const sfx = {
     [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) =>
       tone(f, 0.6, { type: 'triangle', gain: 0.16, delay: i * 0.13 }));
   },
+
+  anvilStrike() {
+    tone(740, 0.12, { type: 'triangle', gain: 0.22 });
+    tone(1480, 0.08, { type: 'square', gain: 0.14, delay: 0.02 });
+    noise(0.15, { gain: 0.18, hp: 1200, lp: 4500 });
+  },
+
+  anvilShatter() {
+    tone(130, 0.45, { type: 'sawtooth', gain: 0.25, slide: 0.4 });
+    noise(0.6, { gain: 0.28, hp: 1500 });
+  },
+
+  bossPhase() {
+    tone(55, 0.85, { type: 'sawtooth', gain: 0.28, slide: 0.7 });
+    tone(58.3, 0.85, { type: 'sawtooth', gain: 0.24, slide: 0.7 });
+    noise(0.7, { gain: 0.22, lp: 800 });
+  },
+
+  sealShatter() {
+    [1047, 1319, 1568, 2093].forEach((f, i) =>
+      tone(f, 0.6, { type: 'triangle', gain: 0.20, delay: i * 0.08 }));
+    noise(0.9, { gain: 0.30, hp: 2200 });
+  },
 };

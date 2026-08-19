@@ -56,16 +56,15 @@ html, body {
   -webkit-font-smoothing: none;
 }
 
-/* ── the tube ─────────────────────────────────────────────
-   A faint scanline wash over everything, DOM and canvas alike.
-   It is the cheapest possible CRT: one repeating gradient, no
-   blend modes, pointer-events off. Kept near-invisible — the
-   look is meant to register, not to be noticed. */
+/* ── the tube & dark fantasy atmosphere ──────────────────
+   A subtle scanline wash and deep corner vignette over DOM
+   and canvas alike, evoking high-end CRT retro-consoles. */
 body::after {
   content: ''; position: fixed; inset: 0; z-index: 999;
   pointer-events: none;
-  background: repeating-linear-gradient(
-    to bottom, rgba(0,0,0,.12) 0 1px, transparent 1px 3px);
+  background:
+    radial-gradient(circle at center, transparent 65%, rgba(14, 11, 16, 0.45) 100%),
+    repeating-linear-gradient(to bottom, rgba(0,0,0,.14) 0 1px, transparent 1px 3px);
 }
 
 .screen {
@@ -457,68 +456,55 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
 #controls {
   flex: 0 0 auto;
   display: grid; grid-template-columns: minmax(0, 1fr);
-  gap: 12px; align-items: start;
+  gap: 8px; align-items: start;
   grid-auto-rows: min-content;
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  padding: 8px 10px calc(12px + env(safe-area-inset-bottom));
   background: var(--d); border-top: 2px solid var(--g);
   overflow: hidden;
+  touch-action: manipulation;
 }
-/* The pad is a square of its own, with explicit rows. Before, it
-   was a flex item that stretched to whatever height the action
-   column happened to be — so showing "문 닫기" made the buttons
-   taller than wide and the arrows, sized in percent, grew with
-   them. Its size must not depend on its neighbour at all. */
-/* ── 그리고 이제 격자 밖, 지도 위에 뜬다 ─────────────────────
-   320×568에서 지도가 다섯 줄이었다(390px에서는 열네 줄이다). 조작
-   높이를 전부 재 보니 손가락(44px)보다 작아도 되는 칸이 하나도
-   없었고, 그러면 남은 방법은 **덩어리 하나를 격자에서 꺼내는 것**
-   뿐이다. 방향판이 가장 크다(320px에서 128px, 390px에서 150px).
 
-   겹치는 값을 치르지만 셈이 남는다 — 겹치기 전 지도가 320×116이고
-   겹친 뒤가 320×215에서 왼쪽 아래 132×132를 잃은 것이라, 보이는
-   넓이가 37,120 → 51,376이다. 줄 수는 5 → 10.
-
-   그리고 물러나 있는다: 평소 0.5, 손을 대면 1. 미니맵이 오른쪽 위에서
-   이미 같은 약속을 하고 있으므로 새 규칙이 아니다. 반대쪽 아래 귀퉁이에
-   두는 것은 오른손 엄지가 거기 있기 때문이다. */
 #dpad {
   position: absolute; left: 8px; bottom: 8px; z-index: 3;
-  /* 3×44 + 사이 둘. 44px은 손가락이고 협상 대상이 아니다 — 폭을
-     132로 잡았더니 칸이 41px였다(사이 4px을 빼는 것을 잊었다.
-     격자에 있을 때가 40px였으니 나빠진 것은 아니지만, 옮기면서
-     고칠 수 있는 것을 안 고친 것이다). 사이를 2로 좁혀서 덮는
-     넓이를 도로 줄인다 — 지도의 27%다. */
-  width: min(136px, 43vw);
+  width: min(152px, 46vw);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
   aspect-ratio: 1;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
-  opacity: .5; transition: opacity .14s linear;
+  opacity: .55; transition: opacity .12s ease-out;
+  touch-action: none;
 }
-/* 손이 오면 진해진다. `:active` 하나로는 안 된다 — 누르는 순간에만
-   보이면 「어디를 누를지」를 못 고른다. 포인터가 안에 있는 동안,
-   그리고 키보드 초점이 안에 있는 동안 전부. */
 #dpad:hover, #dpad:active, #dpad:focus-within { opacity: 1; }
-/* 지도가 비쳐야 겹친 값이 절반으로 준다. 칸의 배경만 반투명하게
-   하고 테두리와 화살표는 그대로 둔다 — 흐린 것과 없는 것은 다르다. */
-#dpad button { background: rgba(10, 10, 14, .62); }
-/* No aspect-ratio here: the grid above already hands every cell a
-   square, and a second constraint would just fight it. */
-#dpad button { color: var(--G); display: grid; place-items: center;
-               padding: 0; min-width: 0; min-height: 0;
-               touch-action: none; user-select: none; -webkit-user-select: none; }
-
-/* Eight shapes, no transforms. Rotating one triangle made the
-   diagonals read as larger — a 45° turn grows the bounding box
-   by √2 even though the element box is unchanged — so each
-   direction is drawn at its own angle instead, with the
-   diagonals shortened to carry equal visual weight. */
-/* One reach, one width, eight angles — identical ink for all. */
-#dpad svg { width: 62%; height: 62%; aspect-ratio: 1;
+#dpad button {
+  background: rgba(14, 11, 16, .72);
+  color: var(--G); display: grid; place-items: center;
+  padding: 0; min-width: 44px; min-height: 44px;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+  border-radius: 4px;
+  transition: transform 0.06s ease, background-color 0.06s ease;
+}
+#dpad button:active {
+  background: rgba(212, 116, 31, .85);
+  color: var(--W);
+  transform: scale(0.92);
+}
+#dpad svg { width: 64%; height: 64%; aspect-ratio: 1;
             fill: currentColor; display: block; }
-#dpad button.wait svg { width: 30%; height: 30%; }
+#dpad button.wait svg { width: 34%; height: 34%; }
+
+/* Mobile optimized action buttons */
+#acts button, .pair button, .pair.spells button {
+  min-height: 44px;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 0.06s ease, background-color 0.06s ease;
+}
+#acts button:active, .pair button:active {
+  transform: scale(0.96);
+}
 #dpad button:active { background: var(--g); color: var(--W); }
 #dpad button.wait { color: var(--g); }
 

@@ -1578,7 +1578,7 @@ export function refresh() {
   hb.disabled = !here && !stair;
   hb.classList.toggle('live', !!((here || stair) && !shut));
   hb.classList.toggle('shut', !!shut);
-  hb.textContent = here ? (here.shop ? `${here.n}${wa(here.n)} 거래` : `${here.n} 열기`)
+  hb.textContent = here ? (here.item ? `[줍기] ${here.n}` : here.shop ? `${here.n}${wa(here.n)} 거래` : `${here.n} 열기`)
                  : shut ? `🔒 잠긴 계단 — ${Game.lockHint()}`
                  : stair === 'down' ? '▼ 내려가기'
                  : stair === 'up'   ? '▲ 올라가기'
@@ -4969,15 +4969,15 @@ function renderEnd() {
      DESIGN.md §1. 이기는 것이 실패다. 무엇을 이겼는지가 신앙심으로
      갈리고, 그 갈래를 규칙이 문자열 하나로 건네준다(endKind). */
   const ENDS = {
-    throne: ['그 자리에 앉았다',
-             '가장 깊은 곳의 것을 눕혔다. 그것은 앞서 간 자였다.',
-             '앉을 자리가 비어 있었고, 다리가 저절로 굽었다. 다음 사람이 내려올 것이다.'],
+    throne: ['윤회의 마왕 (그 자리에 앉았다)',
+             '선대 용사를 눕히고 그의 투구를 벗겨냈을 때, 비로소 4·8·12층에서 받아온 천사의 축복이 악의 근원이 파놓은 기만이었음을 깨달았다.',
+             '신앙이란 이름으로 길러진 새로운 제물... 사지에 검은 쇠사슬이 감겨오고, 당신은 절망 속에서 스스로 다음 마왕이 되어 옥좌에 주저앉는다.'],
     hollow: ['불이 꺼졌다',
-             '가장 깊은 곳의 것을 눕혔다. 그것은 앞서 간 자였다.',
-             '앉지 않았다. 그렇다고 걸어 나가지도 못했다.'],
-    true:   ['아무것도 받지 않았다',
-             '가장 깊은 곳의 것을 눕혔다. 그것은 앞서 간 자였고, 당신이 될 뻔한 것이었다.',
-             '처음으로 위를 올려다본다. 거기 있는 것은 신이 아니다.'],
+             '가장 깊은 곳의 선대 용사를 눕혔으나, 천사의 기만도 꿰뚫지 못한 채 멍하니 칼을 놓았다.',
+             '옥좌에 앉지도, 봉인석을 깨뜨리지도 못한 채 차가운 어둠 속에서 조용히 숨이 멎었다.'],
+    true:   ['운명을 찢은 자 (진 엔딩: 억겁의 해방)',
+             '최고 심연의 모든 시련 속에서 천사의 거짓된 축복을 전부 거절하고, 선대 용사를 쓰러뜨린 후 봉인석을 산산조각 냈다.',
+             '옥좌와 던전이 무너져 내리고, 천사의 기만과 억겁의 윤회가 영원히 끊어졌다. 당신은 마침내 빛나는 새벽을 향해 걸어 나간다.'],
   };
   const end = e.win ? (ENDS[e.kind] || ENDS.hollow) : null;
   $('end-title').textContent = end ? end[0] : '당신은 죽었다';
@@ -4987,7 +4987,15 @@ function renderEnd() {
      아래에 남는 것은 아무도 안 든 쇠붙이뿐이다. 처음엔 진 판에도 같은
      그림을 흐리게 세웠는데, 그러면 「졌다」가 「덜 이겼다」로 읽힌다. */
   const kn = $('end-knight');
-  if (kn) { if (e.win) Juice.drawKnight(kn, 1); else Juice.drawPlate(kn); }
+  if (kn) {
+    if (e.win) {
+      if (e.kind === 'true') Juice.drawTrueDawn(kn, 1);
+      else if (e.kind === 'throne') Juice.drawThrone(kn, 1);
+      else Juice.drawKnight(kn, 1);
+    } else {
+      Juice.drawPlate(kn);
+    }
+  }
   /* 지난 판의 줄부터 치운다. **두 군데가 틀려 있었다:** 지우는 쪽이
      `#end-sub` 안을 뒤졌는데 줄은 `end-title.after(...)` 로 붙어서
      제목의 **형제**로 들어간다 — 한 줄도 안 지워졌다. 그리고 지우는

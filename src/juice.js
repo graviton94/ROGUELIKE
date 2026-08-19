@@ -8,6 +8,7 @@
 
 import { PALETTE, spriteColors } from './pixels.js';
 import { EYE_TEX, FLESH_TEX, VEIN_TEX, HAND_TEX, FACE_TEX, LIMBS, SIGIL_TEX, HERALD_TEX, KNIGHT_TEX, QUILL_TEX, PLATE_TEX,
+         BOSS_THRONE, SEAL_SHATTER, TRUE_DAWN, THRONE_TEX, SEAL_TEX,
          GULLET_TEX, GEAR_TEX, ASH_TEX, FUSED_TEX, PROC_TEX, MASK_TEX,
          TITLE_TEX, TITLE_WARM } from './horror.js';
 import { MW as MAP_W } from './world.js';
@@ -2059,6 +2060,33 @@ export function drawHerald(cv, deep = 0) {
   x.drawImage(texCanvas(HERALD_TEX, RAMP.corpse, 'herald'), 0, 0);
   x.globalAlpha = 1;
 }
+export function drawThrone(cv, deep = 0) {
+  const w = BOSS_THRONE[0].length, h = BOSS_THRONE.length;
+  if (cv.width !== w) { cv.width = w; cv.height = h; }
+  const x = cv.getContext('2d');
+  x.clearRect(0, 0, w, h);
+  x.globalAlpha = 0.42 + Math.min(1, Math.max(0, deep)) * 0.58;
+  x.drawImage(texCanvas(BOSS_THRONE, RAMP.corpse, 'throne'), 0, 0);
+  x.globalAlpha = 1;
+}
+export function drawSealShatter(cv, deep = 0) {
+  const w = SEAL_SHATTER[0].length, h = SEAL_SHATTER.length;
+  if (cv.width !== w) { cv.width = w; cv.height = h; }
+  const x = cv.getContext('2d');
+  x.clearRect(0, 0, w, h);
+  x.globalAlpha = 0.42 + Math.min(1, Math.max(0, deep)) * 0.58;
+  x.drawImage(texCanvas(SEAL_SHATTER, RAMP.corpse, 'seal_shatter'), 0, 0);
+  x.globalAlpha = 1;
+}
+export function drawTrueDawn(cv, deep = 0) {
+  const w = TRUE_DAWN[0].length, h = TRUE_DAWN.length;
+  if (cv.width !== w) { cv.width = w; cv.height = h; }
+  const x = cv.getContext('2d');
+  x.clearRect(0, 0, w, h);
+  x.globalAlpha = 0.42 + Math.min(1, Math.max(0, deep)) * 0.58;
+  x.drawImage(texCanvas(TRUE_DAWN, RAMP.corpse, 'true_dawn'), 0, 0);
+  x.globalAlpha = 1;
+}
 /* 발밑에 구멍을 뚫는다. 이 겹들은 빈 버퍼에 그려 화면 위에 얹는
    것이므로, 지워 낸 자리로는 방이 그대로(원래 해상도로) 보인다.
    화면을 꽉 채우는 겹은 안 뚫으면 **플레이어가 그림 밑으로 사라진다**
@@ -2382,6 +2410,36 @@ function veilGear(ctx, w, h, px, py, tt) {
   ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
   punchPlayer(ctx, w, h, px, py, Math.min(w, h) * 0.22);
 }
+function veilThrone(ctx, w, h, px, py, tt) {
+  const throne = texCanvas(BOSS_THRONE, RAMP.corpse, 'throne');
+  const cover = Math.max(w / throne.width, h / throne.height) * 1.05;
+  const cw = throne.width * cover, ch = throne.height * cover;
+  ctx.globalAlpha = 0.95;
+  hardBlit(ctx, throne, (w - cw) / 2, (h - ch) / 2 + Math.sin(tt / 2000) * 2, cw, ch);
+  ctx.globalAlpha = 1;
+  punchPlayer(ctx, w, h, px, py, Math.min(w, h) * 0.18);
+}
+
+function veilShatter(ctx, w, h, px, py, tt) {
+  const seal = texCanvas(SEAL_SHATTER, RAMP.corpse, 'seal_shatter');
+  const cover = Math.max(w / seal.width, h / seal.height) * 1.08;
+  const cw = seal.width * cover, ch = seal.height * cover;
+  ctx.globalAlpha = 0.92;
+  hardBlit(ctx, seal, (w - cw) / 2 + (Math.random() - 0.5) * 3, (h - ch) / 2 + (Math.random() - 0.5) * 3, cw, ch);
+  ctx.globalAlpha = 1;
+  punchPlayer(ctx, w, h, px, py, Math.min(w, h) * 0.16);
+}
+
+function veilDawn(ctx, w, h, px, py, tt) {
+  const dawn = texCanvas(TRUE_DAWN, RAMP.corpse, 'true_dawn');
+  const cover = Math.max(w / dawn.width, h / dawn.height) * 1.02;
+  const cw = dawn.width * cover, ch = dawn.height * cover;
+  ctx.globalAlpha = 0.90;
+  hardBlit(ctx, dawn, (w - cw) / 2, (h - ch) / 2, cw, ch);
+  ctx.globalAlpha = 1;
+  punchPlayer(ctx, w, h, px, py, Math.min(w, h) * 0.22);
+}
+
 const VEIL = {
   eyes:   (c, w, h, px, py, tt) => veilEyes(c, w, h, px, py, tt),
   limbs:  (c, w, h, px, py, tt) => veilLimbs(c, w, h, px, py, tt),
@@ -2391,10 +2449,11 @@ const VEIL = {
   static: (c, w, h, px, py, tt) => veilStatic(c, w, h, tt),
   gullet: (c, w, h, px, py, tt) => veilGullet(c, w, h, tt, px, py),
   gear:   (c, w, h, px, py, tt) => veilGear(c, w, h, px, py, tt),
+  throne: (c, w, h, px, py, tt) => veilThrone(c, w, h, px, py, tt),
+  shatter:(c, w, h, px, py, tt) => veilShatter(c, w, h, px, py, tt),
+  dawn:   (c, w, h, px, py, tt) => veilDawn(c, w, h, px, py, tt),
 };
-/* 놀램이 있는 층. 없는 층은 덮개만 돈다 — 전부 놀래키면 놀램이
-   아니라 박자가 된다. */
-const SCARE = { limbs: slam, faces: slam, angel: slam };
+const SCARE = { limbs: slam, faces: slam, angel: slam, throne: slam, shatter: slam };
 
 /* ── 그리고 이 전부를 저해상도에서 그린다 ──────────────────
    처음에 화면 해상도에 바로 그렸더니 **부드러운 벡터 그림**이 나왔다 —

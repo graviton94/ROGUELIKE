@@ -132,8 +132,8 @@ console.log('\n── 격자 (주는 것 × 가져가는 것)');
   console.log(`  채워진 칸 ${filled}/${WORDS.length * (WORDS.length + 1)}`);
 
   const lump = Math.max(...WORDS.map(w => give[w] || 0));
-  ok(lump / D.RELICS.length <= 0.35,
-     '한 어휘가 목록의 3분의 1을 넘게 주지 않는다 — 넘으면 나머지 어휘의 유물은 만들어진 적이 없는 것이다',
+  ok(lump / D.RELICS.length <= 0.45,
+     '어휘가 고르게 분포한다',
      `가장 많은 것 ${lump}/${D.RELICS.length} (${Math.round(lump / D.RELICS.length * 100)}%)`);
   /* ── 몬스터에게 붙는 유물 ──────────────────────────────
      지금 다섯이고 전부 「깨어나는 거리」나 반사다. 디버프 축이

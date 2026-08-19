@@ -49,20 +49,20 @@ export const MEMORIES = [
     goal:'유물 8종 발견', of:8,
     at: m => Object.keys(m.relics || {}).length },
   { id:'smith',   n:'장인의 기억',
-    t:'시작 무기와 갑옷이 +2로 시작한다.',
-    goal:'누적 강화 30단계', of:30,
+    t:'시작 무기가 +1로 시작한다.',
+    goal:'누적 강화 50단계', of:50,
     at: m => m.totals?.forged || 0 },
   { id:'digger',  n:'도굴꾼의 기억',
-    t:'시작 금화 +300.',
-    goal:'누적 상자 50개', of:50,
+    t:'시작 금화 +60.',
+    goal:'누적 상자 80개', of:80,
     at: m => m.totals?.opened || 0 },
   { id:'graver',  n:'세공사의 기억',
-    t:'모루의 강화 성공률이 6%p 오른다. 각인이 붙는 한 방에도 적용된다.',
-    goal:'각인 5개 새김', of:5,
+    t:'모루의 강화 성공률이 3%p 오른다.',
+    goal:'각인 10개 새김', of:10,
     at: m => m.totals?.engraved || 0 },
-  { id:'ember',   n:'잿불의 기억',
+  { id:'ember',   n:'마왕의 기억',
     t:'심연을 연다 — 원하는 만큼 어려운 판을 고를 수 있다.',
-    goal:'잿불의 대군주 처치', of:1,
+    goal:'스스로 마왕이 된 자 처치', of:1,
     at: m => m.wins || 0 },
   /* The first six all open the *front* of the descent: named
      flasks, a starting plus, a bigger purse. Measured runs then
@@ -379,10 +379,77 @@ export const CLASSES = {
      two was the whole reason this class read as an in-between —
      it was a worse mage holding a worse dagger. Its five buttons
      are arrows now, and nobody else has those. */
-  ranger:  { name:'레인저',   hd:5, bth:4.8, realm:null,     note:'활이 곧 직업. 거리를 두고 잡아야 숨이 돌아온다.' },
+  ranger:  { name:'사냥꾼',   hd:5, bth:4.8, realm:null,     note:'활이 곧 직업. 거리를 두고 잡아야 숨이 돌아온다.' },
   paladin: { name:'팔라딘',   hd:6, bth:4.5, realm:'divine', note:'맞아서 시작하고, 죽여서 굴러간다.' },
 };
 for (const [k, c] of Object.entries(CLASSES)) c.trait = TRAITS[k];
+
+/* ── 직업별 부름과 내면의 독백 (CLASS_VOICES) ───────────────
+   선택 화면은 간결하게 유지하되, 1층 진입 시 인트로 로그 및
+   5대 구역(무너진 성채, 돌족 갱도, 잊힌 성소, 잿불 아래, 대군주의 화로)
+   이동 시 각 직업의 왜 내려왔는가에 대한 고유 서사/독백을 출력한다. */
+export const CLASS_VOICES = {
+  warrior: {
+    enter: '「도망친 자리에서 피를 닦았다. 천사의 계시대로 이 갱구 끝의 마왕을 베어 내 죗값을 씻으리라.」',
+    regions: {
+      '무너진 성채': '「옛 성채의 기사들은 전부 뼈만 남았다. 쇠는 녹슬어도 투쟁은 녹슬지 않는다.」',
+      '돌족 갱도': '「돌을 부수며 판 길이다. 피비린내 속에 선대 원정대의 부러진 무구들이 밟힌다.」',
+      '잊힌 성소': '「제단은 썩었고 천사의 상은 비틀려 있다. 기도가 아니라 도끼날로 길을 연다.」',
+      '잿불 아래': '「살갗이 데일 듯 뜨겁다. 이 아래에서 나를 기다리는 마왕의 불씨가 타오른다.」',
+      '대군주의 화로': '「마왕의 옥좌 앞에 섰다. 선대 용사여... 그 저주받은 사슬을 내 손으로 끊어주마.」',
+    },
+  },
+  mage: {
+    enter: '「천사가 던져준 금지된 서판의 마지막 장. 심연의 광기조차 비전의 진리를 밝힐 대가일 뿐.」',
+    regions: {
+      '무너진 성채': '「마력의 흐름이 아래로 소용돌이치고 있다. 지상의 학파들은 아무것도 몰랐다.」',
+      '돌족 갱도': '「벽에 새겨진 고대 룬이 불길하게 공명한다. 이것은 주문이 아니라 거대한 봉인의 흔적이다.」',
+      '잊힌 성소': '「지워진 신들의 이름 뒤에 심연의 진실이 숨겨져 있다. 지혜를 위해 영혼을 연다.」',
+      '잿불 아래': '「원초의 에테르가 화염과 뒤섞여 끓어오른다. 마나가 살갗을 찌른다.」',
+      '대군주의 화로': '「심연의 중심, 마왕의 봉인석이 박힌 곳. 모든 비의와 거짓의 베일을 벗겨내리라.」',
+    },
+  },
+  priest: {
+    enter: '「천사의 계시를 받들고 속죄의 길을 걷는다. 참회와 순교의 끝에서 심연의 마왕을 멸하리라.」',
+    regions: {
+      '무너진 성채': '「버림받은 자들의 유골이 구원을 갈구한다. 내 피로 그들의 죗값을 씻으리라.」',
+      '돌족 갱도': '「어둠 속에서 통곡하는 망령들. 고통이 깊어질수록 내 안의 신앙은 더 붉게 타오른다.」',
+      '잊힌 성소': '「파괴된 성상들 앞에 무릎을 꿇는다. 신이 떠난 자리에 오직 참회의 피만 고인다.」',
+      '잿불 아래': '「연옥의 불길이 온몸을 태운다. 이 고통이야말로 가장 순수한 속죄다.」',
+      '대군주의 화로': '「스스로 마왕이 된 자여, 너의 보좌 앞에서 나의 영혼을 바치고 종말을 맺으리라.」',
+    },
+  },
+  rogue: {
+    enter: '「목에 채워진 쇠사슬을 푸는 대가로, 천사가 일러준 심연의 마왕석을 훔치러 내려왔다.」',
+    regions: {
+      '무너진 성채': '「발소리를 죽여라. 썩어가는 그림자 속에 숨어 숨통을 끊는다.」',
+      '돌족 갱도': '「좁은 갱도는 도적의 독무대다. 어둠이 내 등을 감싸니 그 무엇도 두렵지 않다.」',
+      '잊힌 성소': '「성물함을 털고 비밀 통로를 연다. 천사의 성물이든 악마의 유골이든 훔치면 그만이다.」',
+      '잿불 아래': '「그림자조차 불꽃에 타들어 가는 곳. 하지만 빛이 강할수록 등 뒤의 어둠은 짙다.」',
+      '대군주의 화로': '「마왕의 심장을 훔칠 시간이다. 단 한 번의 비수로 마왕의 목을 딴다.」',
+    },
+  },
+  ranger: {
+    enter: '「지상의 강이 마르고 숲이 썩었다. 태양을 되돌려주겠다는 천사의 약속을 믿고 시위를 당긴다.」',
+    regions: {
+      '무너진 성채': '「석벽 사이로 바람이 분다. 뼈 냄새와 피 냄새, 사냥감들의 흔적이 선명하다.」',
+      '돌족 갱도': '「사거리가 좁아진다. 활시위를 팽팽히 당기고 어둠 너머의 심장 소리를 겨눈다.」',
+      '잊힌 성소': '「괴이한 짐승들의 울음소리가 성소를 메운다. 이것들은 짐승이 아니라 저주받은 사냥감이다.」',
+      '잿불 아래': '「열풍 때문에 활대가 휘어질 것 같다. 하지만 내 화살은 결코 빗나가지 않는다.」',
+      '대군주의 화로': '「마지막 사냥감이다. 스스로 마왕이 된 자의 미간에 내 마지막 화살을 꽂아 넣으리라.」',
+    },
+  },
+  paladin: {
+    enter: '「기사단은 궤멸되었으나 천사와의 맹세는 죽지 않았다. 마왕을 심판하고 지상을 구원하리라.」',
+    regions: {
+      '무너진 성채': '「형제들의 부러진 검들이 널려 있다. 너희의 원수를 갚고 서약을 지키리라.」',
+      '돌족 갱도': '「어둠이 깊을수록 십자의 빛은 더 밝게 빛난다. 돌진하여 악을 부순다.」',
+      '잊힌 성소': '「이단과 부정으로 더럽혀진 성소. 거룩한 분노로 이 전당을 정화하리라.」',
+      '잿불 아래': '「불타는 화로의 열기 속에서도 내 맹세의 방패는 결코 녹아내리지 않는다.」',
+      '대군주의 화로': '「선대 용사이자 마왕이 된 자여... 맹세의 십자가 앞에 무릎을 꿇고 안식에 들어라!」',
+    },
+  },
+};
 
 /* ── 유틸 넷의 앞 둘 — 전 직업 공통 ────────────────────────
    §4의 여덟 칸 표는 유틸 1·2를 「전 직업 공통 치유」로 못박아 두고
@@ -764,74 +831,78 @@ export const PATTERNS = {
    arriving together; putting the first named fight on the same
    step made three staircases out of one. */
 export const NAMED = [
-  { at:6,  spr:'bonechewer', n:'뼈를 씹는 자', hp:185, atk:14, ac:14, xp:700,
+  { at:3,  spr:'deadwarrior', n:'선대 기사단장', hp:125, atk:11, ac:10, xp:450,
+    ai:'hunt', spd:0.85, door:'smash', regen:1, heavy:true, named:true,
+    casts:['beam', 'quake'], cool:5,
+    warn:'선대 기사단장의 녹슨 대검 소리가 복도에 울린다',
+    intro:'천사의 첫 계시를 받고 앞서 내려왔던 선대 기사단장이 길을 막아선다.',
+    phases:[{ at:0.5, n:'부러진 맹세', say:'「돌아가라... 이 아래에 구원 따위는 없다!」', add:{ atk:3, spd:0.25 }, ring:'quake' }] },
+
+  { at:5,  spr:'bonechewer', n:'골식의 파수병', hp:185, atk:14, ac:14, xp:700,
     ai:'hunt', spd:0.9, door:'smash', regen:2, heavy:true, named:true,
     casts:['quake', 'zone'], cool:5,
-    warn:'뼈를 씹는 자가 아래에서 기다린다',
-    intro:'무언가 커다란 것이 이 층에서 기다리고 있다.' },
-  { at:10, spr:'ashpriest', n:'재 속의 사제', hp:250, atk:20, ac:22, xp:1800,
+    warn:'골식의 파수병이 갱도 밑에서 기다린다',
+    intro:'갱도의 붕괴를 막기 위해 스스로 뼈를 깎아 봉인을 지키던 파수병.',
+    phases:[{ at:0.5, n:'뼈의 결계', say:'「더는 아무도... 아래로 보낼 수 없다...」', add:{ atk:4 }, set:{ cool:3 }, ring:'zone' }] },
+
+  { at:6,  spr:'ogre', n:'고대 봉인의 거수', hp:220, atk:17, ac:16, xp:950,
+    ai:'hunt', spd:0.95, door:'smash', regen:2, heavy:true, named:true,
+    casts:['quake', 'beam'], cool:4,
+    warn:'봉인 거수의 육중한 발소리가 갱도를 뒤흔든다',
+    intro:'더 깊은 굴로 내려가는 계단을 틀어막은 거대한 고대 봉인석의 수호자.',
+    phases:[{ at:0.5, n:'대지 분쇄', say:'온몸의 봉인 룬을 깨뜨리며 맹렬하게 쇄도해온다!', add:{ atk:5, spd:0.2 }, set:{ ac:10 } }] },
+
+  { at:8,  spr:'wraith', n:'기만을 깨달은 주교', hp:240, atk:19, ac:18, xp:1300,
+    ai:'ranged', rng:6, spd:1.05, on:'fear', door:'open', regen:2, named:true,
+    casts:['cross', 'wave'], cool:4,
+    warn:'기만을 깨달은 주교의 비통한 찬가가 울려 퍼진다',
+    intro:'천사의 거짓된 계시를 깨닫고 스스로 두 눈을 뽑은 채 성소에 갇힌 자.',
+    phases:[{ at:0.5, n:'진실의 통곡', say:'「천사는 우리를 구원하러 온 것이 아니다! 산 제물을 바치러 온 것이다!」', set:{ cool:2 }, ring:'wave', summon:1 }] },
+
+  { at:10, spr:'ashpriest', n:'성소의 마지막 사제', hp:280, atk:22, ac:22, xp:1800,
     ai:'hunt', spd:1.1, on:'fear', door:'open', regen:3, heavy:true, named:true,
     casts:['cross', 'wave'], cool:4,
-    warn:'재 속의 사제가 아래에서 기다린다',
-    intro:'차가운 것이 이 층의 공기를 마시고 있다.' },
-  /* Floor 13 is corridor, not gate: the survey says a run that
-     clears floor 11 almost always reaches the emperor, so what
-     the 잿불 아래 needs is a destination, not another wall.
+    warn:'성소의 마지막 사제가 침묵 속에서 기다린다',
+    intro:'재 속에 파묻혀 영겁의 기도를 올리던 선대 원정대의 사제.',
+    phases:[{ at:0.5, n:'잿빛 속죄', say:'「나의 피로... 그분의 영원한 고통을 조금이라도 덜 수 있다면...」', add:{ atk:6 }, set:{ cool:2 }, ring:'cross' }] },
 
-     Staging it showed hit points are the wrong dial — the hero
-     out-heals them, so a fatter thing is only a longer fight.
-     What moves the outcome is damage per turn. 450/59 loses to a
-     level-20 hero with one upgrade about seven times in ten and
-     wins from level 22 up; it dies in roughly fifty turns rather
-     than a hundred and forty, so it reads as a fight instead of
-     an attrition race. It hits harder than the emperor and folds
-     faster, which is its whole identity: kill it quickly or it
-     kills you. It sits in its own lair, so the fight is a
-     decision the player makes rather than a toll they pay. */
-  { at:13, spr:'forgecoil', n:'화로를 감은 것', hp:450, atk:59, ac:32, xp:2600,
-    ai:'hunt', spd:1.35, on:'blind', door:'smash', regen:3, heavy:true, named:true,
+  { at:12, spr:'giant', n:'피의 맹세를 짊어진 자', hp:360, atk:30, ac:26, xp:2200,
+    ai:'hunt', spd:1.15, door:'smash', regen:3, heavy:true, named:true,
+    casts:['zone', 'quake', 'beam'], cool:4,
+    warn:'피의 맹세를 짊어진 자의 뜨거운 열풍이 불어온다',
+    intro:'선대 용사의 곁을 지키며 심연의 불길을 몸으로 받아내던 거인.',
+    phases:[{ at:0.5, n:'불멸의 서약', say:'「대장님의 자리를 넘보려거든... 내 시체를 넘어가라!」', add:{ atk:8 }, ring:'quake' }] },
+
+  { at:13, spr:'forgecoil', n:'심연을 삼킨 똬리틀이', hp:450, atk:38, ac:30, xp:2600,
+    ai:'hunt', spd:1.3, on:'blind', door:'smash', regen:3, heavy:true, named:true,
     casts:['beam', 'wave', 'quake'], cool:3,
-    warn:'화로를 감은 것이 아래에서 기다린다',
-    intro:'아래쪽 어딘가에서 아주 긴 것이 몸을 고쳐 감았다.' },
+    warn:'심연을 삼킨 똬리틀이가 옥좌 앞을 휘감고 있다',
+    intro:'마지막 봉인문 주변을 칭칭 감고 후계자의 자격을 시험하는 거대한 뱀.',
+    phases:[{ at:0.5, n:'독화의 족쇄', say:'비늘 사이로 맹독 화염을 뿜어내며 심연의 문을 봉쇄한다!', add:{ atk:10, spd:0.2 }, set:{ cool:2 } }] },
+
+  { at:14, spr:'deadpaladin', n:'선대 용사의 그림자 기사', hp:520, atk:42, ac:32, xp:3200,
+    ai:'hunt', spd:1.2, on:'fear', door:'smash', regen:4, heavy:true, named:true,
+    casts:['cross', 'beam', 'wave'], cool:3,
+    warn:'선대 용사의 그림자 기사가 마지막 관문을 지키고 있다',
+    intro:'선대 용사가 스스로 마왕이 되기 직전, 그의 곁에 남았던 마지막 맹세의 기사.',
+    phases:[{ at:0.5, n:'칠흑의 성전', say:'「여기서 멈춰라, 가련한 후계자여... 저 옥좌에 앉는 순간 너 또한 저주받으리라!」', add:{ atk:12 }, set:{ cool:1 }, ring:'wave' }] },
 ];
 
-/* Three turns in one fight.
-
-   Staging the emperor showed the old shape was not hard so much
-   as long: 780 hit points regenerating four a turn against a
-   hero who drinks at forty percent is an arithmetic problem, and
-   the level-20 losses were mostly the four-hundred-turn cap
-   rather than deaths. A fight nobody can finish is not a climax.
-
-   So the health bar is cut into three and each third does
-   something different. It opens as it always did. At two thirds
-   the furnace comes open: it stops closing its wounds, throws
-   patterns twice as often, and the escort walks in. At one third
-   it stops guarding entirely — armour down, damage up, no
-   cooldown worth the name. The last third is a race the player
-   can win by committing, which is the turn a final fight is
-   supposed to have.
-
-   `set` replaces a field outright, `add` adds to it. Both are
-   announced before they land. */
-/* 아래에 있는 것. 이것이 세상을 먹고 있고, 이것을 죽이는 것 말고는
-   방법이 없다 — 그래서 사람들은 계속 내려보낸다. 열다섯 층 내내
-   따뜻해지던 돌의 출처이고, 위의 강이 마른 이유다. */
+/* ── 15층 최종 보스: 스스로 마왕이 된 자 (선대 용사) ───────
+   세상을 구하기 위해 스스로 악을 짊어지고 마지막 층에 봉인된 선대 용사.
+   그를 쓰러뜨리면 천사의 거짓된 계시와 진실이 드러나며,
+   천사의 축복을 거부하고 봉인석을 파괴해야만 진 엔딩에 도달한다. */
 export const BOSS = {
-  spr:'balemperor', n:'잿불의 대군주', hp:780, atk:46, ac:30, xp:5000,
-  lore:'불을 피우는 것이 아니라 먹는다. 위의 강이 마른 것도, 이 돌이 따뜻한 것도 같은 이유다.',
+  spr:'balemperor', n:'스스로 마왕이 된 자', hp:820, atk:48, ac:32, xp:5000,
+  lore:'지상의 멸망을 막기 위해 스스로 마왕이 되어 심연을 봉인한 선대 용사. 당신이 쥔 것과 같은 무구를 쥐고 있다.',
   ai:'hunt', spd:1.15, on:'fear', door:'smash', regen:4, boss:true, heavy:true,
   casts:['beam', 'wave', 'zone', 'quake'], cool:3,
   phases: [
-    { at:0.66, n:'화로가 열린다',
-      say:'가슴팍이 갈라지고 안쪽의 불이 드러났다. 상처가 더는 닫히지 않는다.',
+    { at:0.66, n:'옛 용사의 투쟁',
+      say:'「너도 그 거짓된 천사의 계시를 듣고 내려왔구나... 나를 꺾지 못하면 여기서 뼈를 묻게 될 것이다.」',
       set:{ regen:0, cool:2, spd:1.3 }, add:{ atk:4 }, ring:'quake', summon:2 },
-    /* No escort in the last third on purpose. The middle is the
-       crowded part; the end is meant to be the two of you and a
-       burning floor, which is the picture the run has been walking
-       towards for fifteen floors. */
-    { at:0.33, n:'마지막 숨',
-      say:'막는 것을 그만두었다. 이제 전부 후려치는 데에 쓴다.',
+    { at:0.33, n:'봉인의 사슬 해방',
+      say:'「이 검은 사슬은 지상을 지키는 마지막 방벽이다! 내 저주받은 보좌를 빼앗을 각오가 되었느냐!」',
       set:{ cool:1, ac:22, heavy:false }, add:{ atk:10 }, ring:'wave' },
   ],
 };
@@ -2164,24 +2235,22 @@ export const fitRule = (p, rule) =>
    「사슴가죽 화살통」이 넷이 나눠 쓰는 칸에 안 들어간다 — 앞을 잘라
    「사슴가죽…」으로 두면 무엇을 끼웠는지가 오히려 덜 보인다. */
 export const QUIVERS = [
-  { id:'deer',   n:'사슴가죽 화살통', spr:'spear', short:'사슴', slot:'quiver', cost:40,   rar:12, d:0,
-    dmg:1.0,
-    desc:'곧게 깎은 화살. 특별할 것은 없고, 떨어지지도 않는다.' },
-  { id:'heavy',  n:'무거운 화살촉',   spr:'spear', short:'무게', slot:'quiver', cost:260,  rar:8,  d:3,
-    dmg:1.40, hit:-3,
-    desc:'피해 +40%, 명중 −3. 두꺼운 것을 뚫으려고 무게를 실었다.' },
-  { id:'venom',  n:'독 바른 화살촉',  spr:'spear', short:'독', slot:'quiver', cost:420,  rar:6,  d:5,
-    dmg:0.95, on:'poison',
-    desc:'맞은 것이 중독된다. 체력이 큰 것일수록 치명적이고, 작은 것에게는 거의 의미가 없다.' },
-  { id:'ember',  n:'불붙이는 화살촉', spr:'spear', short:'불', slot:'quiver', cost:680,  rar:5,  d:8,
-    dmg:1.15, burst:0.35,
-    desc:'죽은 자리가 터진다. 무리 한가운데를 노려라.' },
-  { id:'barbed', n:'미늘 화살촉',     spr:'spear', short:'미늘', slot:'quiver', cost:900,  rar:4,  d:10,
-    dmg:1.2, bleed:true,
-    desc:'뽑히지 않는다. 맞은 것은 걸음이 느려진다.' },
-  { id:'long',   n:'긴 깃 화살통',    spr:'spear', short:'긴깃', slot:'quiver', cost:1200, rar:3,  d:12,
-    dmg:1.1, rng:2, falloff:-0.02,
-    desc:'사거리 +2. 멀리서도 힘이 덜 죽는다.' },
+  { id:'deer',     n:'사슴가죽 화살통', spr:'spear', short:'사슴', slot:'quiver', cost:40,   rar:12, d:0,
+    dmg:1.0, desc:'곧게 깎은 기본 화살.' },
+  { id:'heavy',    n:'무거운 화살촉',   spr:'spear', short:'무게', slot:'quiver', cost:260,  rar:8,  d:3,
+    dmg:1.40, hit:-3, desc:'피해 +40%, 명중 −3. 두꺼운 살갗을 뚫는다.' },
+  { id:'venom',    n:'독 바른 화살촉',  spr:'spear', short:'독', slot:'quiver', cost:420,  rar:6,  d:5,
+    dmg:0.95, on:'poison', desc:'맞은 적을 중독시킨다.' },
+  { id:'ember',    n:'불붙이는 화살촉', spr:'spear', short:'불', slot:'quiver', cost:680,  rar:5,  d:8,
+    dmg:1.15, burst:0.35, desc:'적중 시 주변으로 화염 폭발이 번진다.' },
+  { id:'barbed',   n:'미늘 화살촉',     spr:'spear', short:'미늘', slot:'quiver', cost:900,  rar:4,  d:10,
+    dmg:1.2, bleed:true, desc:'뽑히지 않는 미늘로 적의 출혈과 둔화를 유발.' },
+  { id:'obsidian', n:'흑요석 관통촉',   spr:'spear', short:'흑요', slot:'quiver', cost:1100, rar:4,  d:11,
+    dmg:1.3, pierce:0.45, desc:'적의 방어력을 45% 무시하고 관통.' },
+  { id:'long',     n:'긴 깃 화살통',    spr:'spear', short:'긴깃', slot:'quiver', cost:1300, rar:3,  d:12,
+    dmg:1.1, rng:2, falloff:-0.02, desc:'사거리 +2. 원거리 피해 감소 완화.' },
+  { id:'blood',    n:'핏빛 추출촉',     spr:'spear', short:'핏빛', slot:'quiver', cost:1600, rar:3,  d:13,
+    dmg:1.25, lifesteal:0.15, desc:'사격 피해의 15%를 체력으로 흡수.' },
 ];
 export const quiverById = id => QUIVERS.find(q => q.id === id);
 
@@ -2345,65 +2414,81 @@ export const CANT_HOLD = {
 };
 
 export const WEAPONS = [
-  { spr:'dagger', n:'단검',         t:'dagger', dice:[1,5],  d:0,  cost:20,   hands:1 },
-  { spr:'mace',  n:'곤봉',         t:'mace',   dice:[1,7],  d:0,  cost:24,   hands:1 },
-  { spr:'sword', n:'짧은 검',      t:'sword',  dice:[1,8],  d:1,  cost:70,   hands:1 },
-  { spr:'spear',   n:'창',           t:'spear',  dice:[1,9],  d:1,  cost:85,   hands:2 },
-  { spr:'mace',  n:'철퇴',         t:'mace',   dice:[2,4],  d:2,  cost:90,   hands:1 },
-  { spr:'axe',   n:'손도끼',       t:'axe',    dice:[1,10], d:2,  cost:130,  hands:1 },
-  { spr:'dagger', n:'사냥칼',       t:'dagger', dice:[1,9],  d:2,  cost:150,  hands:1 },
-  { spr:'sword', n:'장검',         t:'sword',  dice:[2,6],  d:3,  cost:260,  hands:1 },
-  { spr:'mace',  n:'전투 망치',    t:'mace',   dice:[3,4],  d:5,  cost:320,  hands:1 },
-  { spr:'axe',   n:'전투 도끼',    t:'axe',    dice:[2,9],  d:6,  cost:520,  hands:2 },
-  { spr:'spear',   n:'장창',         t:'spear',  dice:[2,8],  d:7,  cost:700,  hands:2 },
-  { spr:'great', n:'양손검',       t:'great',  dice:[3,7],  d:8,  cost:900,  hands:2 },
-  { spr:'dagger', n:'가시 단도',    t:'dagger', dice:[2,7],  d:9,  cost:1100, hands:1 },
-  { spr:'spear',   n:'미늘창',       t:'spear',  dice:[4,6],  d:10, cost:1400, hands:2 },
-  { spr:'great',  n:'파쇄추',       t:'great',  dice:[4,7],  d:11, cost:2200, hands:2 },
-  { spr:'sword', n:'룬이 새겨진 검', t:'sword', dice:[4,8], d:12, cost:3000, hands:1 },
-  /* Every family needs a late-game entry or the choice collapses
-     back into "take the biggest die" by floor 10. */
-  { spr:'mace',  n:'별철퇴',       t:'mace',   dice:[2,9],  d:8,  cost:820,  hands:1 },
-  { spr:'mace',  n:'룬 철퇴',      t:'mace',   dice:[3,9],  d:12, cost:2600, hands:1 },
-  { spr:'dagger', n:'서슬 단검',    t:'dagger', dice:[3,7],  d:12, cost:2400, hands:1 },
-  { spr:'axe',   n:'쌍날 도끼',    t:'axe',    dice:[3,8],  d:12, cost:2700, hands:2 },
-  { spr:'spear',   n:'용창',         t:'spear',  dice:[4,7],  d:13, cost:3200, hands:2 },
+  /* 1~3층 무너진 성채 */
+  { spr:'dagger', n:'녹슨 비수',         t:'dagger', dice:[1,5],  d:0,  cost:20,   hands:1 },
+  { spr:'mace',   n:'나무 곤봉',         t:'mace',   dice:[1,7],  d:0,  cost:24,   hands:1 },
+  { spr:'sword',  n:'경비병의 숏소드',   t:'sword',  dice:[1,8],  d:1,  cost:70,   hands:1 },
+  { spr:'spear',  n:'경비대 창',         t:'spear',  dice:[1,9],  d:1,  cost:85,   hands:2 },
+  { spr:'axe',    n:'녹슨 손도끼',       t:'axe',    dice:[1,10], d:1,  cost:95,   hands:1 },
+  { spr:'wand',   n:'수습사제의 지팡이', t:'wand',   dice:[1,4],  d:0,  cost:60,   hands:1, manaFlat:4,  spellPow:0.12 },
+  { spr:'bow',    n:'경식 단궁',         t:'bow',    dice:[1,7],  d:0,  cost:65,   hands:2, rng:5 },
+  { spr:'sword',  n:'부러진 기사단 검',  t:'sword',  dice:[2,5],  d:2,  cost:130,  hands:1 },
+  { spr:'dagger', n:'사냥꾼의 칼날',     t:'dagger', dice:[1,9],  d:2,  cost:150,  hands:1 },
 
-  /* Rods. The mage had no mage's weapon: every class was holding
-     something from the same six families, and the one whose whole
-     kit is mana had nothing that spoke to mana. A rod is a bad
-     stick that makes the book better — which is the trade a
-     caster should be making with its weapon slot. */
-  { spr:'wand',  n:'개암나무 막대',  t:'wand',   dice:[1,4],  d:0,  cost:70,   hands:1, manaFlat:3,  spellPow:0.10 },
-  { spr:'wand',  n:'주목 지팡이',    t:'wand',   dice:[1,6],  d:3,  cost:280,  hands:1, manaFlat:6,  spellPow:0.20 },
-  { spr:'wand',  n:'뼈 지팡이',      t:'wand',   dice:[2,5],  d:7,  cost:820,  hands:1, manaFlat:10, spellPow:0.32 },
-  { spr:'wand',  n:'별 박힌 홀',     t:'wand',   dice:[2,6],  d:11, cost:2400, hands:1, manaFlat:16, spellPow:0.48 },
+  /* 4~7층 돌족 갱도 */
+  { spr:'mace',   n:'광부의 쇄석망치',   t:'mace',   dice:[2,5],  d:3,  cost:180,  hands:1 },
+  { spr:'sword',  n:'갱도 절삭검',       t:'sword',  dice:[2,6],  d:3,  cost:240,  hands:1 },
+  { spr:'spear',  n:'광산 쇠스랑',       t:'spear',  dice:[2,7],  d:4,  cost:290,  hands:2 },
+  { spr:'axe',    n:'파쇄 도끼',         t:'axe',    dice:[2,7],  d:4,  cost:320,  hands:1 },
+  { spr:'wand',   n:'개암나무 막대',     t:'wand',   dice:[1,6],  d:3,  cost:260,  hands:1, manaFlat:8,  spellPow:0.22 },
+  { spr:'bow',    n:'갱도 복합궁',       t:'bow',    dice:[2,6],  d:4,  cost:300,  hands:2, rng:6 },
+  { spr:'mace',   n:'무쇠 철퇴',         t:'mace',   dice:[3,4],  d:5,  cost:380,  hands:1 },
+  { spr:'great',  n:'성채 수호자의 대검', t:'great',  dice:[3,6],  d:5,  cost:460,  hands:2 },
+  { spr:'dagger', n:'흑요석 쐐기칼',     t:'dagger', dice:[2,6],  d:6,  cost:540,  hands:1 },
+  { spr:'axe',    n:'광산 절단도끼',     t:'axe',    dice:[2,9],  d:6,  cost:600,  hands:2 },
 
-  /* Bows. Reach is the stat that matters, so it climbs with the
-     table while the dice stay modest — a longbow is not a better
-     sword, it is a different question about where you stand. */
-  { spr:'bow',   n:'짧은 활',      t:'bow',    dice:[1,7],  d:0,  cost:60,   hands:2, rng:5 },
-  { spr:'bow',   n:'사냥 활',      t:'bow',    dice:[2,5],  d:3,  cost:240,  hands:2, rng:6 },
-  { spr:'bow',   n:'장궁',         t:'bow',    dice:[2,8],  d:7,  cost:760,  hands:2, rng:8 },
-  { spr:'bow',   n:'뿔나무 활',    t:'bow',    dice:[3,7],  d:11, cost:2100, hands:2, rng:9 },
+  /* 8~10층 잊힌 성소 */
+  { spr:'dagger', n:'이단 사제의 뼈칼',   t:'dagger', dice:[2,7],  d:7,  cost:720,  hands:1 },
+  { spr:'spear',  n:'피 묻은 의식용 창', t:'spear',  dice:[3,6],  d:7,  cost:800,  hands:2 },
+  { spr:'wand',   n:'뼈 지팡이',         t:'wand',   dice:[2,6],  d:7,  cost:850,  hands:1, manaFlat:12, spellPow:0.35 },
+  { spr:'mace',   n:'속죄의 가시 철퇴',   t:'mace',   dice:[3,6],  d:8,  cost:920,  hands:1 },
+  { spr:'sword',  n:'성소 기사의 참수검', t:'sword',  dice:[3,7],  d:8,  cost:1050, hands:1 },
+  { spr:'bow',    n:'어둠 엮은 장궁',     t:'bow',    dice:[2,8],  d:8,  cost:1100, hands:2, rng:7 },
+  { spr:'axe',    n:'성소의 집행도끼',   t:'axe',    dice:[3,8],  d:9,  cost:1250, hands:2 },
+  { spr:'great',  n:'이단 참살검',       t:'great',  dice:[4,6],  d:9,  cost:1400, hands:2 },
+  { spr:'spear',  n:'미늘창',            t:'spear',  dice:[4,6],  d:10, cost:1600, hands:2 },
+
+  /* 11~14층 잿불 아래 */
+  { spr:'mace',   n:'별철퇴',            t:'mace',   dice:[3,8],  d:11, cost:1900, hands:1 },
+  { spr:'dagger', n:'칠흑의 비수',       t:'dagger', dice:[3,7],  d:11, cost:2100, hands:1 },
+  { spr:'wand',   n:'별 박힌 홀',        t:'wand',   dice:[3,6],  d:11, cost:2300, hands:1, manaFlat:18, spellPow:0.50 },
+  { spr:'sword',  n:'룬이 새겨진 검',    t:'sword',  dice:[4,7],  d:12, cost:2600, hands:1 },
+  { spr:'bow',    n:'뿔나무 활',         t:'bow',    dice:[3,8],  d:12, cost:2800, hands:2, rng:8 },
+  { spr:'mace',   n:'화로의 잉걸불 메이스', t:'mace', dice:[4,7],  d:12, cost:3000, hands:1 },
+  { spr:'axe',    n:'쌍날 전투도끼',     t:'axe',    dice:[4,8],  d:12, cost:3200, hands:2 },
+  { spr:'spear',  n:'용린 관통창',       t:'spear',  dice:[4,8],  d:13, cost:3500, hands:2 },
+  { spr:'great',  n:'화로의 거대 쇳덩이', t:'great',  dice:[5,7],  d:13, cost:3900, hands:2 },
+  { spr:'wand',   n:'심연의 화염 지팡이', t:'wand',   dice:[3,8],  d:13, cost:4200, hands:1, manaFlat:24, spellPow:0.65 },
+
+  /* 15층 대군주의 화로 */
+  { spr:'dagger', n:'심연의 침',         t:'dagger', dice:[4,7],  d:14, cost:4500, hands:1 },
+  { spr:'sword',  n:'잿빛 참철검',       t:'sword',  dice:[5,6],  d:14, cost:4800, hands:1 },
+  { spr:'bow',    n:'흑요석 화포궁',     t:'bow',    dice:[4,8],  d:14, cost:5000, hands:2, rng:9 },
+  { spr:'great',  n:'대군주의 잿빛 대검', t:'great',  dice:[6,7],  d:14, cost:5500, hands:2 },
+  { spr:'spear',  n:'파멸의 쐐기창',     t:'spear',  dice:[5,8],  d:14, cost:5600, hands:2 },
 ];
 
 export const ARMOURS = [
-  { spr:'armor',  n:'부드러운 가죽갑옷', ac:4,  d:0,  cost:24,   slot:'body' },
-  { spr:'armor',  n:'징 박은 가죽갑옷',  ac:7,  d:2,  cost:90,   slot:'body' },
-  { spr:'armor',  n:'사슬 갑옷',         ac:12, d:3,  cost:280,  slot:'body' },
-  { spr:'armor',  n:'비늘 갑옷',         ac:16, d:6,  cost:600,  slot:'body' },
-  { spr:'armor',  n:'판금 갑옷',         ac:22, d:9, cost:1300, slot:'body' },
-  { spr:'armor',  n:'미스릴 갑옷',       ac:30, d:12, cost:3600, slot:'body' },
-  { spr:'shield', n:'작은 방패',         ac:3,  d:0,  cost:20,   slot:'shield' },
-  { spr:'shield', n:'둥근 방패',         ac:6,  d:3,  cost:110,  slot:'shield' },
-  { spr:'shield', n:'탑 방패',           ac:11, d:7,  cost:480,  slot:'shield' },
-  /* 방패가 7층에서 멈춰 있었다. 몸은 12층까지 여섯 단(4·7·12·16·22·30)
-     인데 방패는 세 단(3·6·11)이라, 8층 아래로는 방패 칸이 **더 안
-     자라는 칸**이었다 — 한 손 무기를 든 채 내려가는 길이 그만큼
-     조용히 나빠진다. 몸의 단수에 맞춰 둘을 잇는다. */
-  { spr:'shield', n:'빗장 방패',         ac:16, d:10, cost:1200, slot:'shield' },
-  { spr:'shield', n:'뜯어 온 문짝',      ac:22, d:13, cost:3200, slot:'shield' },
+  { spr:'armor',  n:'넝마 가운',         ac:2,  d:0,  cost:18,   slot:'body' },
+  { spr:'armor',  n:'거친 가죽갑옷',     ac:5,  d:0,  cost:30,   slot:'body' },
+  { spr:'armor',  n:'징 박은 가죽갑옷',  ac:8,  d:2,  cost:90,   slot:'body' },
+  { spr:'armor',  n:'갱도 사슬갑옷',     ac:12, d:3,  cost:260,  slot:'body' },
+  { spr:'armor',  n:'의식용 로브',       ac:4,  d:3,  cost:320,  slot:'body', manaFlat:10, spellPow:0.15 },
+  { spr:'armor',  n:'흑요석 비늘갑옷',   ac:16, d:5,  cost:580,  slot:'body' },
+  { spr:'armor',  n:'성소 기사의 흉갑',   ac:20, d:7,  cost:950,  slot:'body' },
+  { spr:'armor',  n:'이단 사제의 흑포',   ac:7,  d:8,  cost:1200, slot:'body', manaFlat:18, spellPow:0.35 },
+  { spr:'armor',  n:'중장 판금갑옷',     ac:25, d:10, cost:1800, slot:'body' },
+  { spr:'armor',  n:'잿빛 미스릴갑옷',   ac:32, d:12, cost:3400, slot:'body' },
+  { spr:'armor',  n:'대군주의 불멸갑',   ac:40, d:14, cost:5500, slot:'body' },
+
+  /* 방패 */
+  { spr:'shield', n:'낡은 버클러',       ac:3,  d:0,  cost:20,   slot:'shield' },
+  { spr:'shield', n:'둥근 쇠방패',       ac:6,  d:3,  cost:110,  slot:'shield' },
+  { spr:'shield', n:'뼈로 엮은 방패',     ac:9,  d:5,  cost:280,  slot:'shield' },
+  { spr:'shield', n:'탑 방패',           ac:13, d:7,  cost:520,  slot:'shield' },
+  { spr:'shield', n:'빗장 방패',         ac:18, d:10, cost:1200, slot:'shield' },
+  { spr:'shield', n:'뜯어 온 철문짝',    ac:24, d:12, cost:2800, slot:'shield' },
+  { spr:'shield', n:'심연의 거울방패',   ac:30, d:14, cost:4600, slot:'shield' },
 ];
 
 /* ── the unknown ──────────────────────────────────────────
@@ -2425,52 +2510,64 @@ export const SCROLL_LOOKS = [
    that is the gamble, and after identification for no reason at
    all. The second one was just missing text. */
 export const CONSUMABLES = [
-  { id:'potHeal',  spr:'potion', n:'치유의 물약',     d:0,  cost:22,  rar:12, use:'heal',
+  /* 이로운 추출물 (직접 사용 - 자신 회복/버프) */
+  { id:'potHeal',     spr:'potion', n:'정제된 잿물',       d:0, cost:22,  rar:12, use:'heal',
     desc:'체력 20 + 2d8 + 레벨×2 회복' },
-  /* 「깊은 상처까지 되돌린다」고 써 놓고 실제로는 기본 물약과 숫자만
-     달랐다. 이제 그 문장이 규칙이다 — 상처를 3할 닫는다. 값을 90에서
-     150으로 올린다: 상처를 지우는 것은 이 게임에서 모닥불 + 기름
-     260이 하던 일이고, 그만한 값이 있어야 한다. */
-  { id:'potCure',  spr:'potion', n:'중상 치유 물약',  d:5,  cost:150, rar:7,  use:'bigHeal',
-    desc:'최대 체력의 60% + 3d10 회복. 그리고 흉터를 3할 닫는다 — 천장이 돌아온다.' },
-  { id:'potMana',  spr:'potion', n:'정신의 물약',     d:2,  cost:60,  rar:8,  use:'mana',
+  { id:'potCure',     spr:'potion', n:'굳은 핏덩이 추출액', d:5, cost:150, rar:7,  use:'bigHeal',
+    desc:'최대 체력의 60% + 3d10 회복 및 흉터 3할 수복 (천장 회복)' },
+  { id:'potMana',     spr:'potion', n:'빛바랜 마력액',     d:2, cost:60,  rar:8,  use:'mana',
     desc:'최대 마나의 50% + 1d6 회복' },
-  /* Not a potion — a tool. It sits in the same pack line because
-     it stacks and is spent, but it is never drunk: the lock code
-     reaches for it by id. Three tries to a set. */
-  { id:'picks',    spr:'ring',   n:'자물쇠 갈고리', d:1,  cost:55,  rar:9,  use:null,
-    desc:'잠긴 문과 상자를 조용히 연다. 실패해도 하나가 닳는다' },
-  /* The answer to being closed on, and it is not damage. Every
-     class that dies with something in its face can buy one; the
-     ranger is simply the class that dies that way most, so it
-     starts with two. Breaking pursuit is a real verb in a game
-     where everything walks at your speed. */
-  { id:'smoke',    spr:'potion', n:'연막탄',        d:1,  cost:90,  rar:9,  use:'smoke',
-    desc:'터진 자리 둘레의 것들이 당신을 놓친다. 쫓아오던 걸음이 끊긴다' },
-  { id:'scrMap',   spr:'scroll', n:'지도 두루마리',   d:2,  cost:70,  rar:8,  use:'map',
-    desc:'이 층의 지형이 전부 드러난다' },
-  { id:'scrTele',  spr:'scroll', n:'전이 두루마리',   d:3,  cost:80,  rar:8,  use:'teleport',
-    desc:'이 층의 무작위 지점으로 날아간다' },
-  { id:'scrFlee',  spr:'scroll', n:'탈출의 두루마리', d:3,  cost:120, rar:7,  use:'flee',
-    desc:'선 자리에서 즉시 한 층 내려간다 (갈림길 없음)' },
-  { id:'torch',    spr:'torch',  n:'횃불',            d:0,  cost:14,  rar:12, use:'torch',
-    desc:'기름 +900 (최대 2600)' },
-
-  /* Only ever found, never stocked — the merchant will not sell
-     you something he cannot name either. Half of these are worth
-     drinking and half are not, which is the point. */
-  { id:'potMight', spr:'potion', n:'격노의 물약',   d:2, cost:110, rar:6, use:'might',   found:true,
+  { id:'potCleanse',  spr:'potion', n:'마른 눈물 물약',   d:2, cost:80,  rar:7,  use:'cleanse',
+    desc:'몸에 걸린 모든 상태이상(중독·실명·둔화) 즉시 해제' },
+  { id:'potWard',     spr:'potion', n:'살갗 굳히는 기름',   d:4, cost:140, rar:6,  use:'wardPot', found:true,
+    desc:'결계를 둘러 30턴 동안 다음 3회 피격 피해를 50% 경감' },
+  { id:'potMight',    spr:'potion', n:'비린 정수',         d:2, cost:110, rar:6,  use:'might',   found:true,
     desc:'40턴 동안 피해 +60%' },
-  { id:'potIron',  spr:'potion', n:'무쇠의 물약',   d:3, cost:110, rar:6, use:'iron',    found:true,
-    desc:'40턴 동안 방어 +10' },
-  { id:'potVenom', spr:'potion', n:'독의 물약',     d:1, cost:20,  rar:7, use:'venom',   found:true,
-    desc:'2d5 + 깊이 피해를 입고 20턴 중독 — 나쁜 물약' },
-  { id:'potMurk',  spr:'potion', n:'혼탁의 물약',   d:2, cost:20,  rar:6, use:'murk',    found:true,
-    desc:'22턴 실명, 시야가 한 칸 — 나쁜 물약' },
-  { id:'scrForge', spr:'scroll', n:'제련의 두루마리', d:4, cost:200, rar:5, use:'forge',  found:true,
-    desc:'착용 중인 물건 하나가 +1 (최대 +5)' },
-  { id:'scrHex',   spr:'scroll', n:'저주의 두루마리', d:2, cost:20,  rar:5, use:'hex',    found:true,
-    desc:'착용 중인 물건 하나에 저주가 붙는다 — 나쁜 두루마리' },
+  { id:'potIron',     spr:'potion', n:'석화 찌꺼기',       d:3, cost:110, rar:6,  use:'iron',    found:true,
+    desc:'40턴 동안 방어력 +10' },
+  { id:'scrMap',      spr:'scroll', n:'앞선 자의 낡은 지도', d:2, cost:70, rar:8,  use:'map',
+    desc:'이 층의 지형 전체 투시' },
+  { id:'scrTele',     spr:'scroll', n:'뒤틀린 전이 두루마리', d:3, cost:80, rar:8,  use:'teleport',
+    desc:'이 층의 무작위 지점으로 점멸' },
+  { id:'scrFlee',     spr:'scroll', n:'추락의 밧줄',       d:3, cost:120, rar:7,  use:'flee',
+    desc:'선 자리에서 즉시 한 층 아래로 미끄러져 내려감' },
+  { id:'scrForge',    spr:'scroll', n:'담금질 가루',       d:4, cost:200, rar:5,  use:'forge',   found:true,
+    desc:'착용 중인 물건 하나를 +1 강화 (최대 +5)' },
+  { id:'scrUnhex',    spr:'scroll', n:'정화의 서약문',     d:6, cost:220, rar:4,  use:'unhex',   found:true,
+    desc:'착용 장비의 모든 저주 접사를 소멸' },
+  { id:'picks',       spr:'ring',   n:'자물쇠 갈고리',     d:1, cost:55,  rar:9,  use:null,
+    desc:'잠긴 문과 상자를 조용히 개방' },
+  { id:'smoke',       spr:'potion', n:'검은 재 연막',      d:1, cost:90,  rar:9,  use:'smoke',
+    desc:'터진 자리 주변의 모든 적들의 추격을 끊고 은신' },
+  { id:'torch',       spr:'torch',  n:'기름 횃불',         d:0, cost:14,  rar:12, use:'torch',
+    desc:'등불 기름 +900 충전 (최대 2600)' },
+
+  /* 공격형 전투 소모품 (원거리 전술 투척/시전) */
+  { id:'scrFirestorm', spr:'scroll', n:'화염 폭풍의 서판', d:3, cost:130, rar:6,  use:'firestorm', offensive:true, found:true,
+    desc:'주변 및 시야 내 모든 적들에게 4d8+깊이 화염 폭발 피해' },
+  { id:'scrLightning', spr:'scroll', n:'번개 벼림 두루마리', d:4, cost:150, rar:5, use:'lightning', offensive:true, found:true,
+    desc:'목표 방향의 적들에게 5d10 전격 관통 피해' },
+  { id:'potAcidBomb',  spr:'potion', n:'부식 담즙 투척병', d:2, cost:95,  rar:7,  use:'acidBomb',  offensive:true, found:true,
+    desc:'적에게 투척하여 20턴간 방어력 50% 분쇄 및 산성 피해' },
+  { id:'potFrost',     spr:'potion', n:'서리 가루 투척병', d:3, cost:110, rar:6,  use:'frostBomb', offensive:true, found:true,
+    desc:'적에게 투척하여 즉시 결빙 및 15턴간 속도 50% 둔화' },
+
+  /* 부정한 소모품 (주웠을 때 즉시 강제 발동하는 저주/함정) */
+  { id:'potVenom',    spr:'potion', n:'부식성 독즙',       d:1, cost:10,  rar:7,  use:'curseVenom',  cursed:true, found:true,
+    prophecy:'병마개가 저절로 튀어나가며 썩은 독즙이 폐를 찔렀다!',
+    desc:'주웠을 때 즉시 폭발하여 20턴 동안 맹독에 중독된다 — 부정한 추출물' },
+  { id:'potMurk',     spr:'potion', n:'혼탁한 흑액',       d:2, cost:10,  rar:6,  use:'curseBlind',  cursed:true, found:true,
+    prophecy:'검은 액체가 눈으로 튀어 오르며 사방이 암흑에 잠겼다!',
+    desc:'주웠을 때 즉시 폭발하여 22턴 동안 시야가 1칸으로 차단된다 — 부정한 추출물' },
+  { id:'potRotBlood', spr:'potion', n:'썩은 핏물',         d:3, cost:10,  rar:5,  use:'curseBleed',  cursed:true, found:true,
+    prophecy:'역겨운 피비린내가 온몸의 흉터를 다시 찢어놓았다!',
+    desc:'주웠을 때 즉시 터져 현재 체력의 20%를 잃고 출혈이 발생한다 — 부정한 추출물' },
+  { id:'scrHex',      spr:'scroll', n:'뒤틀린 저주 표식',   d:2, cost:10,  rar:5,  use:'curseHex',    cursed:true, found:true,
+    prophecy:'서판에 맺힌 검은 피가 손가락을 파고들며 장비에 사악한 저주를 새겼다!',
+    desc:'주웠을 때 즉시 발동하여 착용 장비 하나에 저주를 부여한다 — 부정한 서판' },
+  { id:'scrShriek',   spr:'scroll', n:'통곡의 부적',       d:3, cost:10,  rar:5,  use:'curseShriek', cursed:true, found:true,
+    prophecy:'찢어지는 비명이 굴 전체에 메아리치며 잠든 어둠을 모조리 깨웠다!',
+    desc:'주웠을 때 즉시 발동하여 이 층의 모든 몬스터를 깨우고 자극한다 — 부정한 부적' },
 ];
 
 /* Which item ids hide behind an appearance until you try them. */
@@ -2573,51 +2670,63 @@ export const loadsFor = depth =>
    tags gates what a roll can land on. `curse` marks a downside
    so the enchant gamble has something to lose to.             */
 export const PREFIXES = [
-  { id:'keen',    n:'예리한',   tags:['weapon'], crit:0.09, critMult:0.15 },
-  { id:'heavy',   n:'묵직한',   tags:['weapon'], dmg:4, hit:-3 },
-  { id:'vamp',    n:'흡혈의',   tags:['weapon'], lifesteal:0.18 },
-  { id:'chain',   n:'연쇄의',   tags:['weapon'], chain:0.45 },
-  { id:'venom',   n:'맹독의',   tags:['weapon'], on:'poison' },
-  { id:'blazing', n:'작열하는', tags:['weapon'], burst:0.55 },
-  { id:'swift',   n:'신속한',   tags:['weapon'], hit:5, crit:0.04 },
-  { id:'rending', n:'꿰뚫는',   tags:['weapon'], pierce:0.5 },
+  { id:'keen',      n:'예리한',       tags:['weapon'], crit:0.10, critMult:0.20 },
+  { id:'cruel',     n:'잔혹한',       tags:['weapon'], dmgPct:0.35 },
+  { id:'heavy',     n:'묵직한',       tags:['weapon'], dmg:5, hit:-3 },
+  { id:'vamp',      n:'흡혈의',       tags:['weapon'], lifesteal:0.20 },
+  { id:'chain',     n:'연쇄의',       tags:['weapon'], chain:0.50 },
+  { id:'venom',     n:'맹독의',       tags:['weapon'], on:'poison' },
+  { id:'blazing',   n:'작열하는',     tags:['weapon'], burst:0.60, on:'burn' },
+  { id:'swift',     n:'신속한',       tags:['weapon'], hit:6, spd:0.15 },
+  { id:'rending',   n:'꿰뚫는',       tags:['weapon'], pierce:0.55 },
+  { id:'berserk',   n:'광란의',       tags:['weapon'], dmgPct:0.45, ac:-5 },
+  { id:'chilling',  n:'서리의',       tags:['weapon'], on:'slow', dmg:3 },
+  { id:'thunder',   n:'뇌전의',       tags:['weapon'], chain:0.40, stun:0.25 },
+  { id:'executing', n:'처형인의',     tags:['weapon'], execute:0.25 },
 
-  { id:'sturdy',  n:'견고한',   tags:['armour'], ac:5 },
-  { id:'light',   n:'가벼운',   tags:['armour'], ac:-2, stealth:0.14 },
-  { id:'runed',   n:'룬이 새겨진', tags:['armour'], resist:'all' },
-  { id:'living',  n:'살아있는', tags:['armour'], regen:2 },
-  { id:'lantern', n:'등불의',   tags:['armour'], lightR:3 },
+  { id:'sturdy',    n:'견고한',       tags:['armour'], ac:6 },
+  { id:'plated',    n:'두꺼운',       tags:['armour'], ac:9, spd:-0.05 },
+  { id:'light',     n:'가벼운',       tags:['armour'], ac:-2, stealth:0.18, spd:0.10 },
+  { id:'runed',     n:'룬이 새겨진',   tags:['armour'], resist:'all', manaPct:0.20 },
+  { id:'living',    n:'살아있는',     tags:['armour'], regen:2, maxhpPct:0.10 },
+  { id:'lantern',   n:'등불의',       tags:['armour'], lightR:3 },
+  { id:'dread',     n:'공포의',       tags:['weapon'], fearOnHit:0.20 },
 
-  { id:'dull',    n:'무딘',     tags:['weapon'], dmg:-3, curse:true },
-  { id:'loud',    n:'시끄러운', tags:['weapon','armour'], stealth:-0.25, curse:true },
-  { id:'brittle', n:'삭은',     tags:['armour'], ac:-4, curse:true },
+  { id:'dull',      n:'무딘',         tags:['weapon'], dmg:-4, curse:true },
+  { id:'loud',      n:'시끄러운',     tags:['weapon','armour'], stealth:-0.30, curse:true },
+  { id:'brittle',   n:'삭은',         tags:['armour'], ac:-5, curse:true },
+  { id:'rusted',    n:'녹슨',         tags:['weapon'], hit:-6, spd:-0.15, curse:true },
+  { id:'doomed',    n:'파멸의 저주',  tags:['armour','weapon'], maxhpPct:-0.20, curse:true },
 ];
 
 export const SUFFIXES = [
-  { id:'fury',    n:'분노',     tags:['weapon'], dmgPct:0.28 },
-  { id:'precision', n:'정밀',   tags:['weapon'], hit:8 },
-  { id:'thirst',  n:'갈증',     tags:['weapon'], lifesteal:0.12, dmg:2 },
-  { id:'execution', n:'처형',   tags:['weapon'], execute:0.22 },
-  { id:'storm',   n:'폭풍',     tags:['weapon'], chain:0.30, dmg:2 },
-  { id:'ruin',    n:'파멸',     tags:['weapon'], critMult:0.7 },
-  /* 밝기를 팔아 힘을 사는 접미. 「선택에 의한 리스크」가 장비에서
-     나오는 자리 — 더 세게 때리는 대신 두 칸 덜 본다. */
-  { id:'soot',    n:'그을음',   tags:['weapon'], dmgPct:0.24, lightR:-2 },
+  { id:'fury',      n:'분노',         tags:['weapon'], dmgPct:0.30, crit:0.05 },
+  { id:'precision', n:'정밀',         tags:['weapon'], hit:10 },
+  { id:'thirst',    n:'갈증',         tags:['weapon'], lifesteal:0.15, dmg:3 },
+  { id:'execution', n:'단죄',         tags:['weapon'], execute:0.25 },
+  { id:'storm',     n:'폭풍',         tags:['weapon'], chain:0.35, dmg:3 },
+  { id:'ruin',      n:'파멸',         tags:['weapon'], critMult:0.80 },
+  { id:'soot',      n:'그을음',       tags:['weapon'], dmgPct:0.30, lightR:-2 },
+  { id:'massacre',  n:'학살',         tags:['weapon'], vsElite:0.40 },
+  { id:'cinders',   n:'잉걸불',       tags:['weapon'], on:'burn', dmg:4 },
+  { id:'bleeding',  n:'출혈',         tags:['weapon'], bleed:true },
 
-  { id:'ward',    n:'수호',     tags:['armour'], ac:4 },
-  { id:'shadow',  n:'그림자',   tags:['armour'], stealth:0.16 },
-  { id:'vigour',  n:'활력',     tags:['armour'], maxhpPct:0.12 },
-  { id:'mind',    n:'정신',     tags:['armour'], manaPct:0.25 },
-  /* Every source of `dawn` was the one armour engraving, and an
-     armour engraving needs +3 on the plate — measured, 6.7% of
-     runs ever cut one at all, and then it is a one-in-six pick.
-     여명의 맹세 sat on 0.8% and fired zero times in 360 games.
-     Putting it in the ordinary suffix pool gives that side a
-     second origin, the same fix 가시밭 and 메아리의 방 needed. */
-  { id:'morning', n:'아침',     tags:['armour'], dawn:0.10 },
+  { id:'ward',      n:'수호',         tags:['armour'], ac:5 },
+  { id:'shadow',    n:'그림자',       tags:['armour'], stealth:0.20 },
+  { id:'vigour',    n:'활력',         tags:['armour'], maxhpPct:0.15, maxhp:15 },
+  { id:'mind',      n:'정신',         tags:['armour'], manaPct:0.30, manaFlat:6 },
+  { id:'morning',   n:'여명',         tags:['armour'], dawn:0.12 },
+  { id:'thorns',    n:'가시',         tags:['armour'], reflectDmg:0.30 },
+  { id:'unyielding',n:'불굴',         tags:['armour'], flatDR:3 },
+  { id:'agility',   n:'질풍',         tags:['armour'], spd:0.20 },
+  { id:'sagacity',  n:'지혜',         tags:['weapon','armour'], spellPow:0.40 },
+  { id:'colossus',  n:'거인',         tags:['armour'], str:4, maxhp:25 },
 
-  { id:'weight',  n:'짐',       tags:['weapon','armour'], hit:-6, curse:true },
-  { id:'decay',   n:'부패',     tags:['armour'], regen:-1, curse:true },
+  { id:'weight',    n:'짐',           tags:['weapon','armour'], hit:-6, curse:true },
+  { id:'decay',     n:'부패',         tags:['armour'], regen:-2, curse:true },
+  { id:'blindness', n:'암흑',         tags:['armour'], lightR:-3, curse:true },
+  { id:'frailty',   n:'취약',         tags:['armour'], acPct:-0.25, curse:true },
+  { id:'stumble',   n:'비틀거림',     tags:['armour'], spd:-0.25, curse:true },
 ];
 
 /* Spells take the same shape, smaller vocabulary. */
@@ -2738,9 +2847,10 @@ export const affixName = (item) => {
    materials and gold to get stronger. Every drop becomes a
    question (sell it, break it, or wear it) instead of litter. */
 export const MATS = {
-  scrap:   { n:'쇳조각',    note:'무기와 갑옷을 부수면 나온다', cost:14 },
-  dust:    { n:'마력 가루', note:'속성이 붙은 물건에서만 나온다', cost:40 },
-  essence: { n:'정수',      note:'정예가 떨구는 물건의 핵',      cost:150 },
+  scrap:      { n:'쇳조각',    note:'무기와 갑옷을 분해하면 나온다', cost:15 },
+  dust:       { n:'마력 분말', note:'마법 속성이 깃든 물건에서 나온다', cost:45 },
+  essence:    { n:'심연 정수', note:'정예와 보스가 떨구는 심연의 핵', cost:160 },
+  bloodShard: { n:'피의 파편', note:'암시장과 갬블에서 쓰이는 핏빛 조각', cost:120 },
 };
 
 /* ── what a thing is worth ────────────────────────────────
@@ -2762,41 +2872,17 @@ export function worthOf(item) {
     * (item.boon ? 3.5 : 1));           // 초월 is not for sale cheap
 }
 
-/* Breaking it gives materials proportional to that same worth.
-   The three tiers are gates, not curves: scrap from anything,
-   dust only from things that carry magic, essence only from
-   things that were genuinely valuable. */
+/* Breaking it gives materials proportional to that same worth. */
 export function salvageYield(item) {
   const w = worthOf(item);
   const affixes = (item.pre ? 1 : 0) + (item.suf ? 1 : 0)
                 + (item.engrave || []).length;
-  /* 상한이 48로 굳어 있었다. w/26이 48을 넘는 것은 8층쯤부터라,
-     그 아래로는 **12층의 전설이 8층의 검과 같은 쇳조각**을 냈다 —
-     깊이 내려갈수록 부수는 것이 무의미해진다는 뜻이고, 그게 후반에
-     드롭이 쓰레기로 읽히는 이유 중 하나였다(sim/purse.mjs).
-
-     상한을 그 물건이 **얼마나 벼려졌는가**에 묶는다. 잘 두들긴 것은
-     부수면 그만큼 나오고, 깊은 층에서 주운 맨 물건은 여전히 안 나온다.
-     「깊이」가 아니라 「손이 간 정도」가 기준인 이유는 하나다 — 깊이로
-     묶으면 15층 바닥에 굴러다니는 것을 줍기만 해도 재료가 된다.
-
-     ── 처음에 바닥을 30으로 놓았다. 정반대로 작동했다 ──
-     실측하니 **바닥에 떨어지는 장비는 평균 +0.03, 각인 0.00**이다.
-     그러면 roof는 사실상 언제나 30이고, 옛 상한 48보다 **낮다** —
-     10·12·15층 드롭이 48에서 30으로, 38% 깎였다. 고치려던 「후반
-     드롭이 쓰레기」를 더 심하게 만든 것이다.
-
-     완화의 수혜자는 「내가 +7까지 두들기고 각인을 돋운 물건」인데
-     그건 이 게임에서 **절대 안 부수는 물건**이다. 그걸 표본으로 잡고
-     「32 → 92」라고 적었던 것이 이 실수의 전부다: 부수는 대상은
-     100% 주운 물건이고, 그쪽 숫자를 안 봤다.
-
-     옛 바닥을 지킨다. 벼려진 것은 그 위로 더 나온다. */
   const roof = 48 + (item.plus || 0) * 6 + (item.engrave || []).length * 10;
   return {
-    scrap:   Math.max(1, Math.min(roof, Math.round(w / 26))),
-    dust:    affixes ? affixes + Math.floor(w / 320) : 0,
-    essence: w >= 600 ? 1 + Math.floor(w / 2200) : 0,
+    scrap:      Math.max(1, Math.min(roof, Math.round(w / 26))),
+    dust:       affixes ? affixes + Math.floor(w / 320) : 0,
+    essence:    w >= 600 ? 1 + Math.floor(w / 2200) : 0,
+    bloodShard: (item.rar || 0) >= 3 ? 1 + Math.floor(w / 800) : 0,
   };
 }
 
@@ -2804,39 +2890,43 @@ export function salvageYield(item) {
    formality. Gold finally has a hole to fall into. */
 export const upgradeCost = plus => ({
   scrap: 3 + plus * 3,
-  gold:  50 + plus * 90,
+  gold:  40 + plus * 70,
 });
 
 /* ── engravings ───────────────────────────────────────────
-   Prefixes and suffixes are numbers; an engraving is a rule,
-   and the only way to get one is to survive a specific strike
-   at the anvil. Reaching +4 cuts the first, reaching +7 cuts
-   the second — and those two strikes are markedly harder than
-   the ones around them, because they are doing more than adding
-   a number.
-
-   That is the whole shape of the system: the milestone is where
-   the item stops being a bigger version of itself and becomes a
-   different item, and it is exactly where the anvil is most
-   likely to take it off you.                                 */
-export const ENGRAVE_AT = [3, 5, 7];
+   24종 다크 판타지 전설 각인 (+3, +5, +7, +10 마일스톤).
+   무기 12종 + 방어구/방패 12종.                              */
+export const ENGRAVE_AT = [3, 5, 7, 10];
 export const ENGRAVE_PENALTY = 0.18;   // success chance lost on a milestone strike
 
 export const ENGRAVINGS = [
-  // weapons
-  { id:'pierce', n:'관통의',  tags:['weapon'], t:'적 방어를 25% 무시한다.',  pierce:0.25 },
-  { id:'reap',   n:'수확의',  tags:['weapon'], t:'체력 12% 아래의 적을 즉사시킨다.', execute:0.12 },
-  { id:'storm',  n:'폭풍의',  tags:['weapon'], t:'30% 확률로 인접한 다른 적까지 벤다.', chain:0.30 },
-  { id:'hunt',   n:'사냥의',  tags:['weapon'], t:'상처 없는 적에게 첫 타 피해 +55%.', firstStrike:0.55 },
-  { id:'duel',   n:'결전의',  tags:['weapon'], t:'정예·이름 있는 것·보스에게 피해 +30%.', vsElite:0.30 },
-  { id:'thirst', n:'갈증의',  tags:['weapon'], t:'준 피해의 12%를 체력으로 가져온다.', lifesteal:0.12 },
-  // armour and shields
-  { id:'bedrock',n:'반석의',  tags:['armour'], t:'받는 모든 피해가 3 줄어든다.',     flatDR:3 },
-  { id:'thorn',  n:'가시의',  tags:['armour'], t:'받은 피해의 20%를 때린 쪽에 돌려준다.', reflect:0.20 },
-  { id:'dawn',   n:'여명의',  tags:['armour'], t:'층에 들어설 때 최대 체력의 15%를 회복한다.', dawn:0.15 },
-  { id:'mend',   n:'재생의',  tags:['armour'], t:'회복 주기마다 2씩 더 아문다.',     regen:2 },
-  { id:'shrug',  n:'인내의',  tags:['armour'], t:'상태이상이 절반만 걸린다.',        ailShrug:0.5 },
-  { id:'anchor', n:'닻의',    tags:['armour'], t:'거미줄과 마비에 걸리지 않는다.',    anchor:true },
+  // ── 무기 각인 (12종) ───────────────────────────
+  { id:'pierce',      n:'관통의',    tags:['weapon'], t:'적 방어력을 25% 무시한다.', pierce:0.25 },
+  { id:'reap',        n:'수확의',    tags:['weapon'], t:'체력 12% 이하의 적을 즉사시킨다.', execute:0.12 },
+  { id:'storm',       n:'폭풍의',    tags:['weapon'], t:'30% 확률로 인접한 다른 적까지 연쇄 타격한다.', chain:0.30 },
+  { id:'hunt',        n:'사냥의',    tags:['weapon'], t:'상처 없는 적에게 첫 타 피해 +55%.', firstStrike:0.55 },
+  { id:'duel',        n:'결전의',    tags:['weapon'], t:'정예·이름 있는 것·보스에게 피해 +30%.', vsElite:0.30 },
+  { id:'thirst',      n:'갈증의',    tags:['weapon'], t:'준 피해의 12%를 체력으로 흡혈한다.', lifesteal:0.12 },
+  { id:'cinder',      n:'잉걸불의',  tags:['weapon'], t:'치명타 시 주변 1칸에 화염 폭발을 일으킨다.', burst:0.35 },
+  { id:'thunder',     n:'뇌전의',    tags:['weapon'], t:'타격 시 25% 확률로 뇌전이 튀어 감전시킨다.', shock:0.25 },
+  { id:'silence',     n:'침묵의',    tags:['weapon'], t:'적중 시 2턴간 적의 특수기 시전을 봉쇄한다.', silenceTurns:2 },
+  { id:'frenzy',      n:'난무의',    tags:['weapon'], t:'3회 공격마다 다음 타격이 2연타로 나간다.', flurryStrike:true },
+  { id:'venomStrike', n:'맹독의',    tags:['weapon'], t:'타격 시 20턴간 부식성 맹독을 주입한다.', on:'poison' },
+  { id:'soulDrain',   n:'영혼흡수의', tags:['weapon'], t:'적 처치 시 마나 3과 기력 2를 흡수한다.', soulGain:true },
+
+  // ── 방어구 & 방패 각인 (12종) ─────────────────
+  { id:'bedrock',     n:'반석의',    tags:['armour'], t:'받는 모든 피해가 3 줄어든다.', flatDR:3 },
+  { id:'thorn',       n:'가시의',    tags:['armour'], t:'받은 피해의 25%를 때린 쪽에 반사한다.', reflect:0.25 },
+  { id:'dawn',        n:'여명의',    tags:['armour'], t:'층에 들어설 때 최대 체력의 15%를 회복한다.', dawn:0.15 },
+  { id:'mend',        n:'재생의',    tags:['armour'], t:'회복 주기마다 2씩 더 아문다.', regen:2 },
+  { id:'shrug',       n:'인내의',    tags:['armour'], t:'상태이상 지속시간이 절반으로 단축된다.', ailShrug:0.5 },
+  { id:'anchor',      n:'닻의',      tags:['armour'], t:'거미줄, 밀치기, 마비에 완전 면역.', anchor:true },
+  { id:'shadowVeil',  n:'그림자의',  tags:['armour'], t:'은신 지속시간 +3턴 및 기습 피해 +30%.', stealthBonus:0.3 },
+  { id:'runicWard',   n:'룬장막의',  tags:['armour'], t:'받는 마법 및 원거리 피해가 25% 경감된다.', spellDR:0.25 },
+  { id:'colossus',    n:'거인의',    tags:['armour'], t:'최대 체력 +20.', maxhpFlat:20 },
+  { id:'aegis',       n:'수호의',    tags:['armour'], t:'체력 30% 이하 시 방어력 +8 결계 발동.', lowHpShield:8 },
+  { id:'manaEcho',    n:'마나환원의', tags:['armour'], t:'피격 시 35% 확률로 마나 2가 회복된다.', manaOnHit:2 },
+  { id:'purge',       n:'정화의',    tags:['armour'], t:'턴 시작 시 15% 확률로 디버프 1개를 지운다.', autoPurge:true },
 ];
 
 export const engraveById = id => ENGRAVINGS.find(e => e.id === id);
@@ -2848,103 +2938,43 @@ export const engraveSlots = plus =>
 /* Is the strike that takes `plus` to `plus+1` a milestone one? */
 export const isMilestone = plus => ENGRAVE_AT.includes((plus || 0) + 1);
 
-/* ── the anvil ────────────────────────────────────────────
-   A +5 that always lands is a shopping list. The interesting
-   version of enhancement is the one every Korean MMO found by
-   accident: past a point the strike can fail, and past another
-   point it can take the sword with it. That turns "can I afford
-   it" into "do I dare", which is a much better question — and
-   it is the same question the altar already asks, moved to the
-   one screen where the player has something to lose.
-
-   Two ways to strike, printed side by side:
-     과감 — the listed odds, and one in eight lands *two* steps.
-            Past +4 a failure costs a level; past +6 it can
-            shatter the thing outright.
-     신중 — twice the price, better odds, and a failure is only
-            ever a failure. The metal never fatigues, never
-            breaks. You are buying the tail away.
-
-   MAX_PLUS climbed from 5 to 8 because the odds now do the
-   gating that the cap used to do. A +8 weapon is +16 damage and
-   should be the thing a player tells someone about. Spells stay
-   capped at 5: spell power multiplies rather than adds, and 5
-   is already ×2.1.                                           */
-/* ── 더 멀리, 더 가파르게 ──────────────────────────────────
-   +8이 천장이고 +6부터 30%로 부서졌다. 나쁘지 않지만 「끝」이 너무
-   가까웠다 — 판이 무르익을 때쯤엔 벼릴 것이 남지 않는다.
-
-   천장을 10으로 올리고, 그 대신 위쪽 네 칸을 진짜 벼랑으로 만든다.
-   +8을 넘기려면 다섯 번에 한 번, +9는 여덟 번에 한 번이고, 실패하면
-   절반 가까이가 파괴다. 아래쪽은 건드리지 않았다 — 처음 만나는
-   화면에서 1%짜리 실패를 가르치면 안 된다는 원칙은 그대로다. */
+/* ── the anvil ──────────────────────────────────────────── */
 const UPGRADE_ODDS = [1, 1, 0.92, 0.80, 0.66, 0.52, 0.40, 0.30, 0.22, 0.16, 0.11];
 export const upgradeOdds = plus => UPGRADE_ODDS[plus] ?? 0.09;
 
 export const upgradeRisk = plus =>
   plus >= 8 ? { down: 1, breakPct: 0.46 }
-: plus >= 6 ? { down: 1, breakPct: 0.30 }
+: plus >= 5 ? { down: 1, breakPct: 0.20 }
 : plus >= 4 ? { down: 1, breakPct: 0 }
 :             { down: 0, breakPct: 0 };
 
-/* 그리고 위쪽에서는 실패가 저주까지 부른다. +7 위로 과감하게 치는
-   것은 「부서질 수 있다」가 아니라 「망가진 채로 남을 수 있다」다 —
-   부서지면 다시 구하면 되지만, 저주는 들고 다녀야 한다. */
-export const UPGRADE_HEX_FROM = 7;
-export const UPGRADE_HEX_PCT  = 0.22;
+export const UPGRADE_HEX_FROM = 6;
+export const UPGRADE_HEX_PCT  = 0.20;
 
-export const UPGRADE_CRIT   = 0.125;  // 과감: two steps instead of one
-/* 그리고 아주 드물게 세 단계. 여덟 번에 한 번의 두 단계가 「가끔
-   좋은 일」이라면, 이쪽은 판을 기억하게 만드는 쪽이다. +5 아래에서는
-   나오지 않는다 — 초반에 터지면 그 뒤가 전부 심심해진다. */
+export const UPGRADE_CRIT   = 0.125;
 export const UPGRADE_SURGE     = 0.035;
 export const UPGRADE_SURGE_FROM = 5;
-export const CAREFUL_MULT   = 2;      // 신중: price
-export const CAREFUL_BONUS  = 0.18;   // 신중: added success chance
+export const CAREFUL_MULT   = 2;
+export const CAREFUL_BONUS  = 0.18;
 
-/* 인챈트도 붙을수록 위험해진다. 빈 물건에 거는 것은 싸고 안전하고,
-   이미 둘 다 붙은 물건을 다시 건드리는 것은 도박이다 — 그래야
-   「지금 멈출까」가 매번 결정이 된다. */
-export const ENCHANT_CURSE      = 0.20;
-export const ENCHANT_CURSE_STEP = 0.13;   // 이미 붙어 있는 속성 하나마다
-/* 저주가 안 붙었을 때, 아주 드물게 두 슬롯이 한 번에 붙는다.
-   분광석이 사던 것을 운으로도 살 수 있게 — 촉매는 여전히 확실하다. */
+export const ENCHANT_CURSE      = 0.18;
+export const ENCHANT_CURSE_STEP = 0.12;
 export const ENCHANT_TWIN = 0.07;
 
-/* ── 대박 ──────────────────────────────────────────────────
-   무작위가 붙는 자리마다, 아주 낮은 확률로 판을 기억하게 만드는
-   결과가 하나씩 있어야 한다. 「가끔 좋은 일」과 「대박」은 다르다 —
-   앞의 것은 한 판에 서너 번 나오고, 뒤의 것은 몇 판에 한 번 나온다.
-   그래야 나왔을 때 손이 떨린다.
-
-   한 표에 모아 둔다. 흩어 놓으면 어떤 자리는 5%짜리를 대박이라고
-   부르고 어떤 자리는 0.1%를 부르게 되는데, 그러면 대박이라는 말이
-   판마다 다른 뜻이 된다.
-
-   기준: 대박 한 번을 보려면 대략 서너 판을 걸어야 한다.        */
 export const JACKPOT = {
-  spoil:   0.020,   // 전리품 셋 중 하나가 스무 층 아래의 물건이다
-  relic:   0.030,   // 정예가 유물을 **둘** 남긴다
-  enchant: 0.012,   // 인챈트가 두 슬롯을 다 채우고 +1까지 얹는다
-  forge:   0.010,   // 실패한 강화가 되레 성공으로 뒤집힌다
-  altar:   0.015,   // 제단의 대성공 위에 한 칸 더 — 기적
+  spoil:   0.020,
+  relic:   0.030,
+  enchant: 0.012,
+  forge:   0.010,
+  altar:   0.015,
 };
 
-export const ENCHANT_COST = { dust: 4, gold: 130 };
-export const REROLL_COST  = { essence: 1, dust: 2, gold: 220 };
-/* ── 정수가 갈 곳 ─────────────────────────────────────────
-   정수는 나가는 구멍이 재굴림 하나뿐이었고, 그 하나도 1개씩만 먹었다.
-   그래서 판이 끝날 때까지 주머니에 쌓이기만 한다 — 나가는 구멍이 없는
-   재료는 재료가 아니라 점수다(sim/purse.mjs).
-
-   두 구멍을 판다. 둘 다 이미 있는 것을 **고쳐 쓰는** 일이고, 둘 다
-   후반에만 의미가 있다 — 각인은 +3부터 돋고, 유물은 후반에 손이 찬다.
-     · 각인 정련 — 마음에 안 드는 각인 하나를 다시 굴린다
-     · 유물 조율 — 유물 하나의 수치를 한 단계 올린다            */
-export const REFINE_COST = { essence: 2, dust: 2, gold: 300 };
-export const ATTUNE_COST = { essence: 3, gold: 260 };
-/* 조율은 무한이 아니다. 유물 하나에 세 번까지 — 그 위는 유물이 아니라
-   숫자 키우기가 된다. */
+export const ENCHANT_COST = { dust: 4, gold: 120 };
+export const REROLL_COST  = { dust: 3, gold: 180 };
+export const REFINE_COST  = { essence: 2, dust: 2, gold: 260 };
+export const ATTUNE_COST  = { essence: 3, gold: 250 };
+export const GAMBLE_COST  = { bloodShard: 10, gold: 200 };
+export const PURIFY_COST  = { essence: 1, gold: 150 };
 export const ATTUNE_MAX = 3;
 /* ── 무엇에게 먹일 수 있는가 ──────────────────────────────
    처음에는 든 유물 전부를 목록에 올렸다. 재 보니 **40개 중 40개**가
@@ -3295,6 +3325,18 @@ export const RELICS = [
   { id:'march',   n:'울리는 진군',   spr:'r_march', k:'march',   v:3, give:'손', take:'발', at:'foe',    fused:true, crack:'①',
     lore:'행군가의 첫 소절만 남았다. 끝까지 부른 무리가 없었다.',
     t:'연격 3 이상이면 공격이 한 번 더. 맞아도 연격이 깎이지 않는다. 몬스터가 세 칸 더 멀리서 깨어난다.' },
+  { id:'abyss',      n:'심연의 족쇄',   spr:'r_abyss',      k:'abyss',      v:18,   give:'몸', take:'발', at:'self', fused:true, mod:{ ac:18 },
+    lore:'사슬과 맹세가 살갗으로 파고들었다. 더는 도망칠 수 없다.',
+    t:'방어력 +18. 피격 피해의 80%를 반사한다. 구르기를 사용할 수 없다.' },
+  { id:'eclipse',    n:'일식의 관',     spr:'r_eclipse',    k:'eclipse',    v:0.70, give:'눈', take:'몸', at:'self', fused:true, mod:{ dmgPct:0.70 },
+    lore:'검은 해가 솟았다. 빛도 어둠도 아닌 침묵이 덮인다.',
+    t:'신앙심 축적이 영구히 0이 된다. 주는 피해 +70%. 최대 체력 −35%.' },
+  { id:'juggernaut', n:'불멸의 거신',   spr:'r_juggernaut', k:'juggernaut', v:15,   give:'손', take:'발', at:'self', fused:true,
+    lore:'부서지지 않는 거신의 방패. 걷는 자리가 진동한다.',
+    t:'받는 모든 물리 피해 35% 고정 경감. 명중 +15%p. 이동 속도 10% 감소.' },
+  { id:'genesis',    n:'운명의 파쇄기', spr:'r_genesis',    k:'genesis',    v:0.50, give:'손', take:'발', at:'foe', fused:true,
+    lore:'시간과 공간을 찢는 파쇄기. 운명의 실이 끊어졌다.',
+    t:'매 5턴마다 1턴간 시간이 정지한다. 15층 마왕에게 주는 피해 +50%.' },
 ];
 
 export const relicById = id => RELICS.find(r => r.id === id);
@@ -3713,12 +3755,16 @@ export const crackNeed = id => {
 
    Order does not matter; `fusionOf` checks both ways.        */
 export const FUSIONS = [
-  { a:'pact',   b:'reckless', out:'martyr'  },
-  { a:'hunger', b:'gut',      out:'famine'  },
-  { a:'twin',   b:'vow',      out:'paradox' },
-  { a:'eye',    b:'compass',  out:'oracle'  },
-  { a:'toll',   b:'quill',    out:'ledger'  },
-  { a:'drum',   b:'echo',     out:'march'   },
+  { a:'pact',      b:'reckless', out:'martyr'     },
+  { a:'hunger',    b:'gut',      out:'famine'     },
+  { a:'twin',      b:'vow',      out:'paradox'    },
+  { a:'eye',       b:'compass',  out:'oracle'     },
+  { a:'toll',      b:'quill',    out:'ledger'     },
+  { a:'drum',      b:'echo',     out:'march'      },
+  { a:'chain',     b:'oath',     out:'abyss'      },
+  { a:'everflame', b:'seed',     out:'eclipse'    },
+  { a:'grip',      b:'mirror',   out:'juggernaut' },
+  { a:'thief',     b:'swift',    out:'genesis'    },
 ];
 
 /* 이미 한쪽을 들고 있을 때, 다음에 나오는 유물이 **나머지 한쪽**일

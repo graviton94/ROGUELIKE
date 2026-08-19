@@ -30,7 +30,7 @@ import {
   PIETY_MAX, PIETY_FLOOR, PIETY_GIFT, PIETY_BREAK, PIETY_STIR, PIETY_ZEAL,
   VOW_BREAK, HOARD_AT,
   FLOOR_BUDGET, WAVE_EVERY, WAVE_GROWTH, REGIONS, regionOf,
-  MEMORIES, memoryEarned, SHACKLES, shacklesAt, SHACKLE_STAT, tellsNeeded,
+  MEMORIES, memoryEarned, SHACKLES, shacklesAt, SHACKLE_STAT, tellsNeeded, CLASS_VOICES,
   WEAPON_TYPES, PATTERNS, NAMED,
   FITS, fitsOf, fitRule, UNDEAD,
   UNIQUES, uniqueById, UNIQUE_ODDS, ODDITIES, oddityById, oddityOf, ODDITY_ODDS,
@@ -525,7 +525,7 @@ export function createHero(raceKey, classKey, base) {
      than hoping the weapon shop has one. Everyone else can buy a
      bow; the ranger *is* one. */
   if (classKey === 'ranger') {
-    p.equip.weapon = { kind:'weapon', ...WEAPONS.find(w => w.n === '짧은 활') };
+    p.equip.weapon = { kind:'weapon', ...WEAPONS.find(w => w.t === 'bow') };
     p.equip.quiver = makeQuiver('deer');
     /* And two ways out. The class dies with something in its face
        more than any other, and until this patch it had no verb
@@ -2192,15 +2192,114 @@ export function useItem(slotIdx) {
       fx({ t:'forge', x:p.x, y:p.y });
       break;
     }
-    case 'hex': {
-      const slots = GEAR_SLOTS.filter(k => p.equip[k]);
-      if (!slots.length) { say('아무 일도 일어나지 않았다.'); break; }
-      const it2 = p.equip[slots[rnd(slots.length)]];
-      const table = Math.random() < 0.5 ? PREFIXES : SUFFIXES;
-      const a = pickAffixFor(table, it2.kind, true);
-      if (a) { it2[table === PREFIXES ? 'pre' : 'suf'] = a.id; recalc(p); }
-      say(`${affixName(it2)} — 검은 글자가 스며든다.`, 'warn');
-      fx({ t:'enchant', x:p.x, y:p.y, cursed:true });
+    case 'cleanse': {
+      const cured = ailList(p);
+      p.ail = {};
+      p.stuck = 0;
+      say(cured.length ? `${cured.map(k => AILMENTS[k].n).join(' · ')}이(가) 말끔히 씻겨 나갔다.` : '몸에 묻은 독과 오물이 씻겨 나갔다.', 'good');
+      fx({ t:'heal', x:p.x, y:p.y });
+      break;
+    }
+    case 'bloodMana': {
+      if (!p.maxmana) { say('마나를 담을 그릇이 없다.'); break; }
+      const cost = Math.max(1, Math.round(p.hp * 0.2));
+      hurtPlayer(cost, { by:'피의 증류액' });
+      if (G.running) {
+        gainMana(p, p.maxmana);
+        say(`피를 태워 마나를 가득 채웠다. (체력 −${cost})`, 'level');
+        fx({ t:'ail', kind:'fear', x:p.x, y:p.y });
+      }
+      break;
+    }
+    case 'wardPot': {
+      p.wardHits = 3;
+      p.wardTurns = 30;
+      say('살갗 위에 차가운 결계가 둘러졌다. 다음 3회의 피격을 덜 받는다.', 'good');
+      fx({ t:'ail', kind:'slow', x:p.x, y:p.y });
+      break;
+    }
+    case 'shriekScroll': {
+      const n = wakeHalf();
+      p.xpBuff = 40;
+      say(`찢어지는 비명이 굴 전체를 깨웠다. (${n}마리 기상, 경험치 획득 2배)`, 'warn');
+      fx({ t:'ail', kind:'fear', x:p.x, y:p.y });
+      break;
+    }
+    case 'unhex': {
+      let cleansed = 0;
+      for (const slot of GEAR_SLOTS) {
+        const it2 = p.equip[slot];
+        if (!it2) continue;
+        if (it2.pre && PREFIXES.find(x => x.id === it2.pre)?.curse) { delete it2.pre; cleansed++; }
+        if (it2.suf && SUFFIXES.find(x => x.id === it2.suf)?.curse) { delete it2.suf; cleansed++; }
+      }
+      recalc(p);
+      say(cleansed ? `장비에 스며들었던 저주 ${cleansed}개가 타서 사라졌다.` : '정화할 저주가 없었다.', cleansed ? 'level' : 'good');
+      fx({ t:'forge', x:p.x, y:p.y });
+      break;
+    }
+    case 'firestorm': {
+      const targets = G.monsters.filter(m => !m.dead && Math.hypot(m.x - p.x, m.y - p.y) <= 6);
+      if (targets.length) {
+        fx({ t:'burst', x:p.x, y:p.y, r:5.5, color:'o' });
+        for (const m of targets) {
+          const dmg = roll(4, 8) + G.depth + 10;
+          hurtMonster(m, dmg, '화염 폭풍의 서판', {});
+          afflict(m, 'burn', 10);
+        }
+        say(`화염 폭풍이 휘몰아쳐 ${targets.length}마리의 적을 태웠다!`, 'level');
+      } else {
+        fx({ t:'burst', x:p.x, y:p.y, r:3, color:'o' });
+        say('화염 폭풍이 허공을 태웠다.', 'warn');
+      }
+      break;
+    }
+    case 'lightning': {
+      const targets = G.monsters.filter(m => !m.dead && Math.hypot(m.x - p.x, m.y - p.y) <= 8)
+        .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
+      if (targets.length) {
+        const prime = targets[0];
+        const dmg = roll(5, 10) + 15;
+        fx({ t:'cast', spell:'bolt', from:{x:p.x, y:p.y}, to:{x:prime.x, y:prime.y} });
+        hurtMonster(prime, dmg, '번개 벼림 두루마리', {});
+        if (targets[1] && Math.hypot(targets[1].x - prime.x, targets[1].y - prime.y) <= 4) {
+          const sec = targets[1];
+          fx({ t:'cast', spell:'bolt', from:{x:prime.x, y:prime.y}, to:{x:sec.x, y:sec.y} });
+          hurtMonster(sec, Math.floor(dmg * 0.5), '번개 벼림 두루마리', {});
+        }
+        say(`뇌전이 꽂히며 ${prime.n}을(를) 꿰뚫었다!`, 'level');
+      } else {
+        say('번개가 허공으로 흩어졌다.', 'warn');
+      }
+      break;
+    }
+    case 'acidBomb': {
+      const targets = G.monsters.filter(m => !m.dead && Math.hypot(m.x - p.x, m.y - p.y) <= 6)
+        .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
+      if (targets.length) {
+        const target = targets[0];
+        fx({ t:'cast', spell:'bolt', from:{x:p.x, y:p.y}, to:{x:target.x, y:target.y} });
+        target.ac = Math.max(0, Math.floor((target.ac || 0) * 0.5));
+        afflict(target, 'poison', 20);
+        hurtMonster(target, 12 + G.depth * 2, '부식 담즙 투척병', {});
+        say(`${target.n}에게 부식 담즙을 투척했다! 방어력이 절반으로 분쇄되고 중독되었다.`, 'level');
+      } else {
+        say('담즙 병이 빈 바닥에 깨졌다.', 'warn');
+      }
+      break;
+    }
+    case 'frostBomb': {
+      const targets = G.monsters.filter(m => !m.dead && Math.hypot(m.x - p.x, m.y - p.y) <= 6)
+        .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
+      if (targets.length) {
+        const target = targets[0];
+        fx({ t:'cast', spell:'frost', from:{x:p.x, y:p.y}, to:{x:target.x, y:target.y} });
+        afflict(target, 'slow', 15);
+        hurtMonster(target, 10 + G.depth, '서리 가루 투척병', {});
+        say(`${target.n}에게 서리 가루를 투척했다! 차가운 냉기가 행동을 결빙시켰다.`, 'level');
+      } else {
+        say('서리 가루가 허공으로 흩어졌다.', 'warn');
+      }
       break;
     }
   }
@@ -3683,6 +3782,8 @@ export function enterDepth(depth, fromBelow = false, branch = null) {
          한 줄 나빠지고, 앞서 내려간 자들의 흔적이 한 줄 줄어든다.
          이 게임에서 유일하게 「밖」을 말하는 자리다. */
       if (region.stake) say(region.stake, 'warn');
+      const voice = CLASS_VOICES[G.player?.cls];
+      if (voice?.regions?.[region.n]) say(voice.regions[region.n], 'good');
       if (Meta.see('regions', region.n))
         lore('처음 밟는 곳', region.n, `${region.t}\n\n${region.stake || ''}`, 'stairsDown');
     }
@@ -4801,10 +4902,13 @@ export function hereOffer() {
   if (pile) return { screen:'event', n:'전리품 더미', spoils: pile };
   const body = under('fallen');
   if (body) return { screen:'event', n:`${body.rec.sent}번째`, fallen: body.rec };
-  /* 유물도 밟는다고 안 먹힌다. 화면은 이미 있는 것을 쓴다(sc-relic) —
-     자리가 남았으면 「건다/두고 간다」, 찼으면 무엇을 버릴지. */
   const relic = under('relic');
   if (relic) return { screen:'relic', n: relic.n, relic };
+
+  /* 바닥의 장비 / 소모품 / 촉매 등 일반 전리품 */
+  const floorItem = G.items.find(o => o.x === p.x && o.y === p.y && o.kind !== 'gold' && o.kind !== 'key');
+  if (floorItem) return { screen:'pickup', n: nameOf(floorItem), item: floorItem };
+
   const t = L.tiles[here];
   if (t === EVENT && !L.eventAt?.has(here)) return null;         // already taken
   const screen = OFFER_SCREEN[t];
@@ -4816,6 +4920,7 @@ export function openHere() {
   const o = hereOffer();
   if (!o) return false;
   G.act = 'open';
+  if (o.item) { pickUp(true); return true; }
   if (o.shop) G.shop = o.shop;
   if (o.spoils) G.spoils = { picks: o.spoils.picks };
   if (o.fallen) G.fallen = fallenOffer(o.fallen);
@@ -5083,20 +5188,13 @@ function scanForTraps() {
   }
 }
 
-function pickUp() {
+export function pickUp(explicit = false) {
   const p = G.player;
   const i = G.items.findIndex(it => it.x === p.x && it.y === p.y);
   if (i < 0) return;
   G.act = 'pick';
   const it = G.items[i];
   if (it.kind === 'chest') { openChest(i, it); return; }
-  /* 전리품 더미는 줍는 것이 아니라 여는 것이다. 사건 화면을 빌려
-     쓴다 — 「여러 줄 중 하나를 고른다」는 화면이 이미 있는데 똑같은
-     것을 하나 더 만들면, 다음에 고칠 때 한쪽만 고쳐진다. */
-  /* 밟는 순간 화면을 띄우지 않는다. 걷는 손가락 아래로 시트가
-     올라오면 다음 반복 입력이 버튼을 눌러 버린다 — 모닥불·제단·
-     수레에서 이미 겪은 일이고, 새로 만드는 것이 같은 실수를
-     되풀이할 이유는 없다. 발밑 버튼이 기다린다. */
   if (it.kind === 'spoils') {
     say('전리품 더미 위에 섰다.', 'good');
     return;
@@ -5105,31 +5203,78 @@ function pickUp() {
     say(`${it.rec.sent}번째 위에 섰다.`, 'warn');
     return;
   }
-  /* ── 유물은 밟는다고 먹지 않는다 ────────────────────────
-     플레이어: 「유물을 아이템이랑 다르게 자동획득이 아닌 획득할것인지
-     묻는 창이 나와야하는거임. 지금은 타일 밟으면 바로 먹어버림.」
-
-     맞고, 이 파일이 이미 그 이유를 바로 위에 적어 놨다 — 전리품
-     더미와 시신은 밟으면 로그만 남기고 **발밑 버튼이 기다린다**.
-     유물만 예외였고, 하필 이 게임에서 가장 무거운 선택이다(자리가
-     4~7칸이고 규칙을 바꾸는 유일한 물건이다).
-
-     두고 간 것은 **그 자리에 남는다.** 되돌아올 수 있어야 결정이고,
-     되돌아오는 값이 기름과 턴이다. */
   if (it.kind === 'relic') {
     say(`${it.n} 위에 섰다.`, 'good');
     return;
   }
-  /* Gold and keys go nowhere near the pack, so they are always
-     takeable. Everything else has to have a slot waiting before
-     the floor gives it up. */
-  if (it.kind !== 'gold' && it.kind !== 'key' && !packRoom(p, it)) {
+
+  // 골드와 열쇠는 언제나 밟는 즉시 자동 습득
+  if (it.kind === 'gold') {
+    G.items.splice(i, 1);
+    const g = goldGain(it.amount);
+    p.gold += g;
+    say(`금화 ${g}닢.`, 'good');
+    return;
+  }
+  if (it.kind === 'key') {
+    G.items.splice(i, 1);
+    p.keys++;
+    say(`녹슨 열쇠를 주웠다. (${p.keys})`, 'good');
+    return;
+  }
+
+  // 일반 장비/소모품/촉매는 밟았을 때 정보만 표시하고, 명시적 줍기(G/Space/버튼) 시에만 습득
+  if (!explicit) {
+    say(`${nameOf(it)} 위에 섰다.`, 'good');
+    return;
+  }
+
+  if (!packRoom(p, it)) {
     say(`배낭이 가득 찼다 — ${nameOf(it)}은(는) 발밑에 그대로 있다.`, 'warn');
     return;
   }
   G.items.splice(i, 1);
-  if (it.kind === 'gold') { const g = goldGain(it.amount); p.gold += g; say(`금화 ${g}닢.`, 'good'); return; }
-  if (it.kind === 'key')  { p.keys++; say(`녹슨 열쇠를 주웠다. (${p.keys})`, 'good'); return; }
+
+  /* ── 부정한 물약과 두루마리: 줍는 즉시 강제 발동 ────────────────
+     앞으로 모든 아이템은 주웠을 때 부정한 물약이나 두루마리면
+     강제로 발동하고 불길한 예언 메시지가 뜬다. 배낭에 들어가지 않는다. */
+  if (it.cursed) {
+    identify(it.id, true);
+    fx({ t:'spot', x:p.x, y:p.y });
+    say(`— [부정한 재앙] ${it.prophecy || '손을 대는 순간 끔찍한 저주가 터져 나왔다!'}`, 'bad');
+    if (it.use === 'curseVenom' || it.use === 'venom') {
+      afflict(p, 'poison', 20);
+      const dmg = roll(2, 5) + G.depth;
+      hurtPlayer(dmg, { by:'부식성 독즙' });
+    } else if (it.use === 'curseBlind' || it.use === 'murk') {
+      afflict(p, 'blind', 22);
+    } else if (it.use === 'curseBleed') {
+      const loss = Math.max(5, Math.floor(p.hp * 0.20));
+      hurtPlayer(loss, { by:'썩은 핏물' });
+      afflict(p, 'bleed', 15);
+      say(`살갗이 찢기며 체력 ${loss}을 잃었다!`, 'bad');
+    } else if (it.use === 'curseHex' || it.use === 'hex') {
+      const slots = GEAR_SLOTS.filter(k => p.equip[k]);
+      if (slots.length) {
+        const it2 = p.equip[slots[rnd(slots.length)]];
+        const badPre = PREFIXES.filter(a => a.curse);
+        if (badPre.length) {
+          it2.pre = badPre[rnd(badPre.length)].id;
+          recalc(p);
+          say(`${affixName(it2)} — 검은 저주가 스며들었다!`, 'bad');
+        }
+      } else {
+        hurtPlayer(10 + G.depth * 2, { by:'뒤틀린 저주' });
+      }
+    } else if (it.use === 'curseShriek' || it.use === 'shriekScroll') {
+      for (const m of G.monsters) {
+        if (!m.dead) { m.awake = true; m.alert = 30; }
+      }
+      say('굴 전체에 끔찍한 비명이 울려 퍼지며 모든 악귀가 눈을 떴다!', 'bad');
+    }
+    return;
+  }
+
   // 서기의 깃펜 names it in your hand, before you have to bet on it.
   if (hasRelic('quill') || hasRelic('ledger')) identify(it.id, true);
   /* 지능 reads labels. A clever hero names roughly half of what
@@ -6130,7 +6275,11 @@ function enterPhase(m) {
     say(`${m.n} — ${ph.n}`, 'hit');
     if (ph.say) say(ph.say, 'warn');
     fx({ t:'wake', x:m.x, y:m.y });
-    fx({ t:'burst', x:m.x, y:m.y, r:2.4, color:'o' });
+    fx({ t:'burst', x:m.x, y:m.y, r:3.5, color: m.boss ? 'r' : 'o' });
+    if (m.boss) {
+      fx({ t:'quake', x:m.x, y:m.y });
+      fx({ t:'shock', x:m.x, y:m.y, color:'r' });
+    }
     fx({ t:'telegraph', urgent:true });
     /* The threshold itself is an attack: the floor goes out from
        under you the moment the bar crosses, so the punish for
@@ -8634,7 +8783,7 @@ export function upgradeOddsFor(key, careful = false, cat = null) {
     odds: c === 'core' ? 1
         : Math.max(0.05, Math.min(1, upgradeOdds(plus)
             + (careful ? CAREFUL_BONUS : 0)
-            + (hasMemory('graver') ? 0.06 : 0)
+            + (hasMemory('graver') ? 0.03 : 0)
             - (hasShackle('coldanvil') ? 0.08 : 0)
             - (t.type === 'item' && isMilestone(plus) ? ENGRAVE_PENALTY : 0))),
     crit: c === 'surge' ? 1 : careful ? 0 : UPGRADE_CRIT,
@@ -10382,13 +10531,12 @@ export function startGame(raceKey, classKey, base) {
     for (const id of Object.keys(meta.items || {})) G.known[id] = true;
   }
   if (G.memories.includes('smith')) {
-    for (const slot of GEAR_SLOTS) {
-      const it = G.player.equip[slot];
-      if (it) it.plus = Math.max(it.plus || 0, 2);
+    if (G.player.equip.weapon) {
+      G.player.equip.weapon.plus = Math.max(G.player.equip.weapon.plus || 0, 1);
     }
     recalc(G.player);
   }
-  if (G.memories.includes('digger')) G.player.gold += 300;
+  if (G.memories.includes('digger')) G.player.gold += 60;
 
   enterDepth(0);
   /* ── 여기서부터 이야기가 시작된다 ────────────────────────
@@ -10417,6 +10565,8 @@ export function startGame(raceKey, classKey, base) {
      **바로 옆에 있는데 그게 뭔지 몰라서**였다. 거리가 아니라 이름의
      문제이므로, 이름을 부른다. */
   say('발밑에서 바람이 올라온다. 갱구는 바로 옆이다 — 준비가 되면 그 위에 서라.', 'good');
+  const startVoice = CLASS_VOICES[G.player?.cls];
+  if (startVoice?.enter) say(`「${startVoice.enter}」`, 'level');
   if (G.memories.length)
     say(`기억이 남아 있다 — ${G.memories.map(id => MEMORIES.find(x => x.id === id).n).join(' · ')}.`, 'good');
   if (G.abyss)

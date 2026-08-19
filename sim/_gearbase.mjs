@@ -41,4 +41,7 @@ for(const r of D.RELICS){
     });
   }
 }
-console.log(JSON.stringify({keys:KEYS,snap},null,0));
+import { writeFileSync } from 'node:fs';
+const json = JSON.stringify({keys:KEYS,snap},null,0);
+writeFileSync(new URL('./_gearbase.json', import.meta.url), json, 'utf8');
+console.log('Updated _gearbase.json successfully');

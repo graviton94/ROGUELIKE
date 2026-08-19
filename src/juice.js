@@ -7,7 +7,7 @@
    ═══════════════════════════════════════════════════════════ */
 
 import { PALETTE, spriteColors } from './pixels.js';
-import { EYE_TEX, FLESH_TEX, VEIN_TEX, HAND_TEX, FACE_TEX, LIMBS, SIGIL_TEX, HERALD_TEX } from './horror.js';
+import { EYE_TEX, FLESH_TEX, VEIN_TEX, HAND_TEX, FACE_TEX, LIMBS, SIGIL_TEX, HERALD_TEX, KNIGHT_TEX, QUILL_TEX, PLATE_TEX } from './horror.js';
 import { MW as MAP_W } from './world.js';
 import { sfx, from as earFrom } from './audio.js';
 
@@ -1857,6 +1857,10 @@ const RAMP = {
      피로 채우고, 뼈는 맨 위 두 칸에서만 밝아지게 한다. */
   meat:  ['#0b0305','#170609','#24080c','#340b0f','#450e12','#571216','#6a181a','#7d2020',
           '#8f2b26','#a03a2f','#ae4b3a','#bb6048','#c67b5c','#d09a78','#dcbb9c','#eddcc6'],
+  /* 마른 깃 — 색이 거의 없다. 뼈색에서 검정까지, 아주 살짝 누런
+     쪽으로. 살 램프에 태우면 깃이 아니라 고기가 된다. */
+  quill: ['#0a0a0c','#131316','#1c1b1e','#262428','#322f31','#3f3b3b','#4d4846','#5c5652',
+          '#6c655e','#7c746a','#8c8377','#9c9285','#aca293','#bcb2a2','#ccc3b3','#dcd5c8'],
   hand:  ['#0d0406','#170709','#220c0d','#320f10','#451614','#5b201b','#742e24',
           '#8c4030','#a4553f','#b96b50','#c88062','#d29175','#daa188','#e0ae98','#e5b9a6','#ead2c2'],
 };
@@ -1896,6 +1900,35 @@ const EYE_TRACK = (px, py, ex, ey, r) => {
    캔버스 뒷면은 격자 크기 그대로 두고 CSS 로 늘린다. 여기서 키워
    구우면 폰마다 다른 배율로 뭉개진다 — 늘리는 것은 브라우저에
    맡기고(image-rendering: pixelated) 우리는 한 칸을 한 픽셀로 굽는다. */
+/* ── 앞서 간 자 ──────────────────────────────────────────
+   §1의 결말이 여기 있다. 최심부의 보스는 **지난 판의 내 영웅**이고
+   (lastHero), 이기면 내가 그 자리에 앉는다. 그래서 이 그림은 끝 화면에
+   선다 — 이긴 판에서는 **또렷하게**(내가 그것이 되었다), 진 판에서는
+   흐리게(그것은 아직 아래에 서 있다).
+
+   사자와 같은 문을 쓴다: 격자 한 칸을 한 픽셀로 굽고 늘리는 것은
+   CSS 에 맡긴다. */
+/* ── 두고 간 것 ──────────────────────────────────────────
+   죽은 판의 끝 화면에 선다. 앞서 간 자(drawKnight)는 **이긴 판**에만
+   나온다 — 그 자리에 앉은 것이 나이기 때문이다. 진 판에는 앉은 사람이
+   없고, 아래에 남는 것은 **아무도 안 든 갑옷 한 벌**이다. 목이 뚫려
+   있고 발은 화면 밖으로 나간다. 다음에 내려오는 사람이 이것을 줍는다. */
+export function drawPlate(cv) {
+  const w = PLATE_TEX[0].length, h = PLATE_TEX.length;
+  if (cv.width !== w) { cv.width = w; cv.height = h; }
+  const x = cv.getContext('2d');
+  x.clearRect(0, 0, w, h);
+  x.drawImage(texCanvas(PLATE_TEX, RAMP.corpse, 'plate'), 0, 0);
+}
+export function drawKnight(cv, deep = 0) {
+  const w = KNIGHT_TEX[0].length, h = KNIGHT_TEX.length;
+  if (cv.width !== w) { cv.width = w; cv.height = h; }
+  const x = cv.getContext('2d');
+  x.clearRect(0, 0, w, h);
+  x.globalAlpha = 0.38 + Math.min(1, Math.max(0, deep)) * 0.62;
+  x.drawImage(texCanvas(KNIGHT_TEX, RAMP.corpse, 'knight'), 0, 0);
+  x.globalAlpha = 1;
+}
 export function drawHerald(cv, deep = 0) {
   const w = HERALD_TEX[0].length, h = HERALD_TEX.length;
   if (cv.width !== w) { cv.width = w; cv.height = h; }
@@ -2134,29 +2167,35 @@ function veilSigil(ctx, w, h, px, py, tt) {
 /* 고대의 천사 — 화면만 한 눈 하나가 뒤에서 보고 있고, 네 변에 깃이
    돋아 있다. 눈동자는 세로로 갈라져 있고 너를 쫓는다. */
 function veilAngel(ctx, w, h, px, py, tt) {
-  const cxx = w / 2, cyy = h / 2, R = Math.min(w, h) * 0.46;
-  ctx.save();
-  ctx.globalAlpha = 0.5;
-  ctx.fillStyle = PALETTE.W;
-  ctx.beginPath(); ctx.ellipse(cxx, cyy, R * 1.25, R, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = PALETTE.P; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.ellipse(cxx, cyy, R * 1.25, R, 0, 0, Math.PI * 2); ctx.stroke();
-  const [ix, iy] = EYE_TRACK(px, py, cxx, cyy, R * 0.42);
-  ctx.globalAlpha = 0.85;
-  ctx.fillStyle = PALETTE.P;
-  ctx.beginPath(); ctx.arc(ix, iy, R * 0.34, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = PALETTE.k;                     // 세로로 갈라진 눈동자
-  ctx.beginPath(); ctx.ellipse(ix, iy, R * 0.10, R * 0.30, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.globalAlpha = 0.55;
-  ctx.strokeStyle = PALETTE.P; ctx.lineWidth = 1;
-  for (let i = 0; i < 14; i++) {           // 깃 — 네 변에서 안쪽으로
-    const f = i / 14, sw = Math.sin(tt / 1300 + i) * 2;
-    ctx.beginPath();
-    ctx.moveTo(0, h * f); ctx.lineTo(w * 0.10 + sw, h * f - 10); ctx.lineTo(0, h * f - 20);
-    ctx.moveTo(w, h * f); ctx.lineTo(w * 0.90 - sw, h * f - 10); ctx.lineTo(w, h * f - 20);
-    ctx.stroke();
-  }
-  ctx.restore();
+  /* 눈 크기를 두 번 잘못 잡았다. 0.44는 공이 화면을 넘어 흰자만
+     보였고(창백한 얼룩), 0.27로 줄여 위쪽에 두니 이번엔 **발밑 구멍이
+     그것을 지웠다**. 눈을 크게 두고 구멍을 작게 판다 — 그러면 너는
+     눈을 가린 얼룩이 아니라 **눈 속에 서 있는 것**이 된다. */
+  const cxx = w / 2, cyy = h * 0.46, R = Math.min(w, h) * 0.34;
+  /* 깃을 벡터로 그리고 있었다 — 네 변에 삼각형 열넷. 그건 「깃」이
+     아니라 「톱니」로 읽혔다. 화면을 마른 깃 사진으로 덮고, 그 위에
+     안구 사진 하나를 크게 얹는다. 이 층의 전부는 **깃 사이에서
+     눈 하나가 보고 있다**는 것이고, 둘 다 사진이라야 그렇게 읽힌다. */
+  const wing = texCanvas(QUILL_TEX, RAMP.quill, 'quill');
+  const drift = Math.sin(tt / 3100) * 0.03;
+  const cover = Math.max(w / wing.width, h / wing.height) * (1.08 + drift);
+  const cw = wing.width * cover, ch = wing.height * cover;
+  ctx.globalAlpha = 0.9;
+  hardBlit(ctx, wing, (w - cw) / 2, (h - ch) / 2 + Math.sin(tt / 2600) * h * 0.02, cw, ch);
+  /* 깃 사이가 어두워야 깃이 겹쳐 보인다 — 가장자리를 눌러 가운데만
+     남긴다. 안 누르면 화면이 마른 짚 더미다. */
+  const dim = ctx.createRadialGradient(cxx, cyy, R * 0.5, cxx, cyy, Math.hypot(w, h) * 0.6);
+  dim.addColorStop(0, 'rgba(6,5,7,0)');
+  dim.addColorStop(1, 'rgba(6,5,7,0.72)');
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = dim; ctx.fillRect(0, 0, w, h);
+  /* 화면만 한 눈 하나. 깜빡이지 않는다 — 이 층에서 눈을 감는 것은
+     너뿐이다. */
+  oneEye(ctx, cxx, cyy, R, px, py, 1);
+  /* 눈두덩을 따로 깔았다가 뺐다. oneEye 가 이미 위아래로 눌러 두고
+     깃 쪽에도 어둡게 하는 겹이 있어서, 셋이 겹치니 눈이 그냥 검은
+     얼룩이 됐다. 어둡게 하는 겹은 하나면 된다. */
+  punchPlayer(ctx, w, h, px, py, Math.min(w, h) * 0.10);
 }
 /* 지지직 — 이미 그린 화면을 잘라 옆으로 밀고, 잘못된 색 블록을 얹는다.
    이 층에서만 픽셀을 만진다(슬라이스 복사라 폰에서도 싸다). */

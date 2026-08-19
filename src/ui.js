@@ -5052,10 +5052,22 @@ function renderEnd() {
   };
   const end = e.win ? (ENDS[e.kind] || ENDS.hollow) : null;
   $('end-title').textContent = end ? end[0] : '당신은 죽었다';
+  /* 끝 화면에 서는 것이 판마다 다르다. **이긴 판**은 앞서 간 자다 —
+     §1에서 이기는 것은 그 자리에 앉는 것이고, 앉은 순간 그림 속의
+     것이 나다. **진 판**은 두고 간 갑옷 한 벌이다: 앉은 사람이 없고,
+     아래에 남는 것은 아무도 안 든 쇠붙이뿐이다. 처음엔 진 판에도 같은
+     그림을 흐리게 세웠는데, 그러면 「졌다」가 「덜 이겼다」로 읽힌다. */
+  const kn = $('end-knight');
+  if (kn) { if (e.win) Juice.drawKnight(kn, 1); else Juice.drawPlate(kn); }
+  /* 지난 판의 줄부터 치운다. **두 군데가 틀려 있었다:** 지우는 쪽이
+     `#end-sub` 안을 뒤졌는데 줄은 `end-title.after(...)` 로 붙어서
+     제목의 **형제**로 들어간다 — 한 줄도 안 지워졌다. 그리고 지우는
+     일이 `if (end)` 안에 있어서, 이긴 뒤 다시 내려가 죽으면 사망
+     화면에 「그 자리에 앉았다」의 두 줄이 그대로 남았다. 붙이는 자리와
+     지우는 자리는 같아야 하고, 지우는 것은 조건 밖이어야 한다. */
+  const titleBox = $('end-title').parentElement;
+  for (const old of [...(titleBox?.querySelectorAll('.endline') || [])]) old.remove();
   if (end) {
-    const sub = $('end-sub') || $('end-title').parentElement;
-    /* 두 줄을 제목 아래에 붙인다. 진 엔딩만 위를 올려다본다. */
-    for (const old of [...(sub.querySelectorAll?.('.endline') || [])]) old.remove();
     for (const line of end.slice(1)) {
       const p2 = el('p', 'tag endline', line);
       if (e.kind === 'true') p2.style.color = 'var(--W)';

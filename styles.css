@@ -1471,6 +1471,15 @@ table.keys td:first-child { width: 40%; color: var(--G); }
 /* 신의 사자. 캔버스 뒷면은 96×160 그대로이고 여기서만 늘린다 —
    pixelated 를 빼면 격자가 뭉개져서 「사진을 줄인 것」이 아니라
    「흐린 그림」이 된다. */
+/* 앞서 간 자. 사자와 같은 규칙 — 뒷면은 격자 그대로, 늘리는 것은
+   여기서만. 세로가 길어서 폭을 좁게 잡는다. */
+/* `#sc-end .col > * { width: 100% }` 가 더 세서(0,1,1,0 대 0,1,0,0)
+   폭이 화면을 꽉 채웠다 — 앞서 간 자가 잘려서 어깨만 보였다.
+   같은 자리에서 이기려면 선택자를 한 칸 더 준다. */
+#sc-end #end-knight {
+  display: block; margin: 4px auto 8px; width: 84px; height: auto;
+  image-rendering: pixelated; image-rendering: crisp-edges;
+}
 #pledge-idol {
   display: block; margin: 2px auto 6px; width: 132px; height: 220px;
   image-rendering: pixelated; image-rendering: crisp-edges;

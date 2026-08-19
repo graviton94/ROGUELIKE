@@ -413,13 +413,32 @@ footer.bar { border-bottom: 0; border-top: 2px solid var(--g); justify-content: 
    tile is unreadable and a full-screen overlay hides the fight,
    so it sits over the map at a few pixels a tile and gets out of
    the way on a tap. */
+#btn-map-toggle {
+  position: absolute; top: 8px; right: 8px; z-index: 5;
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px 8px; font-size: 11px;
+  background: rgba(14, 11, 16, 0.85);
+  color: var(--y); border: 1px solid var(--g);
+  border-radius: 3px; cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 0.1s ease, transform 0.05s ease;
+}
+#btn-map-toggle:active {
+  background: var(--o); color: var(--k); transform: scale(0.94);
+}
+#btn-map-toggle.on {
+  background: #302010; border-color: var(--o); color: var(--o);
+}
+
 #mini {
-  position: absolute; top: 6px; right: 6px;
+  position: absolute; top: 38px; right: 8px; z-index: 4;
   image-rendering: pixelated;
-  border: 1px solid var(--g);
-  background: rgba(0, 0, 0, .78);
-  touch-action: none; cursor: pointer;
-  opacity: .74;                 /* 물러나 있어야 하는 것 */
+  border: 1px solid var(--o);
+  background: rgba(14, 11, 16, 0.94);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
+  touch-action: manipulation; cursor: pointer;
+  border-radius: 2px;
+  opacity: 0.95;
 }
 #mini:hover, #mini:active { opacity: 1; }
 #mini.off { display: none; }

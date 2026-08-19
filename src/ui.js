@@ -688,7 +688,7 @@ export function draw() {
    Three sizes on tap rather than a toggle, because on a phone
    the useful size depends on whether you are exploring or in a
    fight, and a hidden setting for it would be worse than a tap. */
-const MINI_SIZES = [2, 3, 0];      // px per tile; 0 = hidden
+const MINI_SIZES = [0, 2];      // 0 = hidden (clean screen), 2 = open popup
 let miniStep = 0;
 
 const MINI_TILE = {
@@ -738,6 +738,8 @@ function warped(ctx, img, px, py, t, x, y) {
 function drawMini() {
   const px = MINI_SIZES[miniStep];
   mini.classList.toggle('off', !px);
+  const btnToggle = $('btn-map-toggle');
+  if (btnToggle) btnToggle.classList.toggle('on', !!px);
   if (!px || !G.level || !G.player) return;
 
   const L = G.level, p = G.player;
@@ -5404,6 +5406,8 @@ export function bindInput() {
   }
 
   mini.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); cycleMini(); });
+  const btnMapToggle = $('btn-map-toggle');
+  if (btnMapToggle) btnMapToggle.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); cycleMini(); });
 
   $('lesson-ok').onclick = () => closeLesson();
   $('look-close').onclick = () => { $('look').hidden = true; };

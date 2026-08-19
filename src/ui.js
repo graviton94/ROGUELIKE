@@ -2200,7 +2200,7 @@ export function setScreen(name) {
      information the fire is asking you to decide with. */
   showOnly(name);
   if (name === 'play') {
-    /* 아르카나가 밀린 채로 판에 돌아오면 안 된다 — 4층에 들어선 순간
+    /* 서약이 밀린 채로 판에 돌아오면 안 된다 — 4층에 들어선 순간
        고르는 화면이 떠야 그 층부터 그 판이 된다. */
     if (Game.pledgeDue(G.depth)) { setScreen('pledge'); return; }
     resize(); refresh();
@@ -3614,7 +3614,7 @@ function shownName(it) {
 }
 
 /* ── 자수정 하나가 다섯 뜻이었다 ───────────────────────────
-   --P(#9a6ab0)가 등급(유물) · **미감정** · 크랙 · 아르카나 · 저주를
+   --P(#9a6ab0)가 등급(유물) · **미감정** · 크랙 · 서약 · 저주를
    동시에 뜻하고 있었다. 배낭 한 화면에 「+5 맹독의 별철퇴」(이 판
    최고의 물건)와 「푸른 물약」(마셔 보기 전에는 모른다)이 완전히
    같은 색으로 나란히 섰다.

@@ -64,7 +64,7 @@ await pg.evaluate(async () => {
      `#sc-event button:not([hidden])` 이 null 이라 UI.armed() 가
      찍히기도 전에 갈래가 끝났다 — 「손가락 밑에서 열리는 창」 방어를
      **아무도 안 재고 있었다.** 실제로 ? 칸 위에 세운다.
-     (그리고 4층이 아니라 5층이다 — 4층은 아르카나를 고르는 층이라
+     (그리고 4층이 아니라 5층이다 — 4층은 신이 말을 거는 층이라
       화면이 그쪽으로 잡힌다.) */
   const G = Game.G, L = G.level, W = await import('/src/world.js');
   const at = [...(L.eventAt?.keys() || [])][0];
